@@ -188,8 +188,8 @@ const TwinskHero = () => {
         transition={{ duration: 0.8 }}
         className="relative rounded-[2.5rem] overflow-hidden h-[80vh] min-h-[500px] md:h-[85vh] md:min-h-[600px] w-full group mt-16"
       >
-        {/* Background blanc */}
-        <div className="absolute inset-0 w-full h-full bg-white dark:bg-slate-900">
+        {/* Background blanc uniquement */}
+        <div className="absolute inset-0 w-full h-full bg-white dark:bg-white">
           <Image
             src="/bannertwinsk2.jpg"
             alt="Twinsk Company Limited - Global Logistics"
@@ -201,7 +201,7 @@ const TwinskHero = () => {
         </div>
 
         {/* Overlay transparent pour la lisibilité du texte */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent dark:from-slate-900/80 dark:via-slate-900/40 dark:to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/50 to-transparent dark:from-white/90 dark:via-white/50 dark:to-transparent"></div>
 
         {/* Hero Content - Textes */}
         <div className="relative z-10 h-full flex flex-col justify-center px-6 md:px-12 lg:px-20 max-w-2xl">
@@ -215,7 +215,7 @@ const TwinskHero = () => {
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.6 }}
-              className="block text-slate-900 dark:text-white"
+              className="block text-slate-900"
             >
               Bringing the world
             </motion.span>
@@ -223,7 +223,7 @@ const TwinskHero = () => {
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.7 }}
-              className="block text-slate-600 dark:text-slate-300"
+              className="block text-slate-500"
             >
               Closer, One Delivery
             </motion.span>
@@ -231,7 +231,7 @@ const TwinskHero = () => {
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
-              className="block text-slate-900 dark:text-white"
+              className="block text-slate-900"
             >
               At a Time
             </motion.span>
@@ -240,7 +240,7 @@ const TwinskHero = () => {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.9 }}
-            className="text-slate-600 dark:text-slate-400 text-base md:text-lg font-light max-w-md leading-relaxed mb-8"
+            className="text-slate-600 text-base md:text-lg font-light max-w-md leading-relaxed mb-8"
           >
             Fast, dependable, and safest shipping for all your cargo needs across the globe.
           </motion.p>
@@ -251,7 +251,7 @@ const TwinskHero = () => {
             transition={{ duration: 0.8, delay: 1 }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="bg-slate-900 hover:bg-slate-800 dark:bg-yellow-400 dark:hover:bg-yellow-500 text-white dark:text-slate-900 px-8 py-4 rounded-full text-sm md:text-base font-semibold transition-all inline-flex items-center gap-2 shadow-xl hover:shadow-2xl w-fit"
+            className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full text-sm md:text-base font-semibold transition-all inline-flex items-center gap-2 shadow-xl hover:shadow-2xl w-fit"
           >
             Découvrir nos services <ChevronRight className="w-5 h-5" />
           </motion.a>

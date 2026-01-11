@@ -8,7 +8,7 @@ import TwinskFooter from '@/components/sections/TwinskFooter';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#F3F6F8] dark:bg-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <TwinskHero />
       <TwinskServices />
       <TwinskStats />
