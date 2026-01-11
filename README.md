@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Twinsk Company - Logistics & Shipping
 
-## Getting Started
+A modern, high-performance landing page for Twinsk Company built with Next.js 14, Framer Motion, and Tailwind CSS.
 
-First, run the development server:
+## ✨ Features
+
+- **Modern Design**: Framer-style design with gradients and smooth animations
+- **Advanced Animations**: Powered by Framer Motion (fade, slide, scale, stagger effects)
+- **Fully Responsive**: Optimized for all devices (mobile, tablet, desktop)
+- **Dark/Light Mode**: Complete theme support with smooth transitions
+- **Performance Optimized**: Built with Next.js 14 for optimal performance
+- **TypeScript**: Full type safety throughout the project
+- **Custom Fonts**: Inter for body text, Oswald for display headings
+
+## 🚀 Getting Started
+
+First, install dependencies:
+
+```bash
+npm install
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📁 Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/
+│   ├── page.tsx          # Main page
+│   ├── layout.tsx        # Root layout with fonts
+│   └── globals.css       # Global styles
+├── components/
+│   ├── ui/
+│   │   ├── Button.tsx    # Animated button component
+│   │   └── ThemeToggle.tsx # Dark/light mode toggle
+│   └── sections/
+│       ├── TwinskHero.tsx         # Hero section
+│       ├── TwinskServices.tsx     # Services section
+│       ├── TwinskStats.tsx        # Stats & trust section
+│       ├── TwinskTech.tsx         # Technology section
+│       ├── TwinskProcess.tsx      # Process section
+│       ├── TwinskTestimonials.tsx # Testimonials section
+│       └── TwinskFooter.tsx       # Footer section
+└── lib/
+    └── animations.ts     # Framer Motion animation configs
+```
 
-## Learn More
+## 🎨 Sections
 
-To learn more about Next.js, take a look at the following resources:
+1. **Hero** - Full-screen hero with navigation and animated text
+2. **Services** - Air freight and ocean freight cards
+3. **Stats** - Customer support, user stats, and bookings
+4. **Technology** - Next-gen cargo shipping technology
+5. **Process** - Warehouse handling and delivery process
+6. **Testimonials** - Client reviews and ratings
+7. **Footer** - Newsletter signup and contact information
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🛠️ Technologies
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type safety
+- **Framer Motion** - Advanced animations
+- **Tailwind CSS** - Utility-first CSS
+- **Lucide React** - Modern icon library
+- **Google Fonts** - Inter & Oswald fonts
 
-## Deploy on Vercel
+## 🌙 Theme Toggle
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Click the floating button in the bottom-right corner to switch between light and dark modes. The theme preference is saved in localStorage.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📦 Build for Production
+
+```bash
+npm run build
+npm start
+```
+
+## 🚢 Deploy
+
+Deploy easily on Vercel:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
+
+---
+
+Built with ❤️ for Twinsk Company
+# twinsk
