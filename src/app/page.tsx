@@ -5,7 +5,6 @@ import TwinskTech from '@/components/sections/TwinskTech';
 import TwinskProcess from '@/components/sections/TwinskProcess';
 import TwinskTestimonials from '@/components/sections/TwinskTestimonials';
 import TwinskFooter from '@/components/sections/TwinskFooter';
-import ThemeToggle from '@/components/ui/ThemeToggle';
 
 export default function Home() {
   return (
@@ -17,7 +16,6 @@ export default function Home() {
       <TwinskProcess />
       <TwinskTestimonials />
       <TwinskFooter />
-      <ThemeToggle />
     </div>
   );
 }
