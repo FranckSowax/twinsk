@@ -53,17 +53,6 @@ const TwinskServices = () => {
             className="object-cover transition-transform duration-700 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900/40"></div>
-          <div className="absolute top-8 left-0 right-0 text-center">
-            <motion.h3
-              initial={{ opacity: 0, y: -20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-              className="text-white text-3xl font-display font-medium uppercase tracking-tight"
-            >
-              Fret Aérien Charter
-            </motion.h3>
-          </div>
           <div className="absolute bottom-8 left-0 right-0 flex justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -89,17 +78,6 @@ const TwinskServices = () => {
             className="object-cover transition-transform duration-700 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900/40"></div>
-          <div className="absolute top-8 left-0 right-0 text-center">
-            <motion.h3
-              initial={{ opacity: 0, y: -20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-              className="text-white text-3xl font-display font-medium uppercase tracking-tight"
-            >
-              Fret Maritime Continental
-            </motion.h3>
-          </div>
           <div className="absolute bottom-8 left-0 right-0 flex justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
