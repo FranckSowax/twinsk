@@ -188,20 +188,20 @@ const TwinskHero = () => {
         transition={{ duration: 0.8 }}
         className="relative rounded-[2.5rem] overflow-hidden h-[80vh] min-h-[500px] md:h-[85vh] md:min-h-[600px] w-full group mt-16"
       >
-        {/* Background Image - Optimisé pour afficher le conteneur centré */}
-        <div className="absolute inset-0 w-full h-full bg-slate-900">
+        {/* Background Image - Conteneur TWINSK sur fond clair */}
+        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-800 dark:to-slate-900">
           <Image
-            src="/bannertwinsk.jpg"
-            alt="Twinsk Logistics - Solutions Sourcing Digital & Local"
+            src="/bannertwinsk2.jpg"
+            alt="Twinsk Company Limited - Global Logistics"
             fill
-            className="object-cover object-center transition-transform duration-700 group-hover:scale-[1.02]"
+            className="object-contain object-center transition-transform duration-700 group-hover:scale-[1.02]"
             priority
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1600px"
           />
         </div>
 
-        {/* Overlay subtil pour améliorer la lisibilité sans cacher l'image */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-slate-900/20"></div>
+        {/* Overlay subtil pour le bouton CTA */}
+        <div className="absolute inset-0 bg-gradient-to-t from-white/60 via-transparent to-transparent dark:from-slate-900/60"></div>
 
         {/* Bouton CTA en bas */}
         <div className="absolute bottom-8 md:bottom-12 left-0 right-0 z-10 flex justify-center">
@@ -212,7 +212,7 @@ const TwinskHero = () => {
             transition={{ duration: 0.8, delay: 0.6 }}
             whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.95 }}
-            className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-4 rounded-full text-sm md:text-base font-semibold transition-all flex items-center gap-2 shadow-xl hover:shadow-2xl"
+            className="bg-slate-900 hover:bg-slate-800 dark:bg-yellow-400 dark:hover:bg-yellow-500 text-white dark:text-slate-900 px-8 py-4 rounded-full text-sm md:text-base font-semibold transition-all flex items-center gap-2 shadow-xl hover:shadow-2xl"
           >
             Découvrir nos services <ChevronRight className="w-5 h-5" />
           </motion.a>
