@@ -186,61 +186,36 @@ const TwinskHero = () => {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8 }}
-        className="relative rounded-[2.5rem] overflow-hidden h-[85vh] min-h-[600px] w-full group mt-16"
+        className="relative rounded-[2.5rem] overflow-hidden h-[80vh] min-h-[500px] md:h-[85vh] md:min-h-[600px] w-full group mt-16"
       >
-        {/* Background Image */}
-        <div className="absolute inset-0 w-full h-full">
+        {/* Background Image - Optimisé pour afficher le conteneur centré */}
+        <div className="absolute inset-0 w-full h-full bg-slate-900">
           <Image
             src="/bannertwinsk.jpg"
-            alt="Twinsk Logistics"
+            alt="Twinsk Logistics - Solutions Sourcing Digital & Local"
             fill
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            className="object-cover object-center transition-transform duration-700 group-hover:scale-[1.02]"
             priority
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1600px"
           />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-transparent dark:from-black/95 dark:via-black/70"></div>
 
-        {/* Hero Content */}
-        <div className="relative z-10 h-full flex flex-col justify-center px-6 md:px-12 lg:px-20 max-w-4xl pb-20">
-          <motion.h1
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-            className="text-white text-6xl md:text-7xl lg:text-8xl font-medium uppercase leading-[0.9] tracking-tighter mb-8"
-          >
-            <motion.span
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="block"
-            >
-              Bringing the world
-            </motion.span>
-            <motion.span
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.7 }}
-              className="block text-white/80"
-            >
-              Closer, One Delivery
-            </motion.span>
-            <motion.span
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
-              className="block"
-            >
-              At a Time
-            </motion.span>
-          </motion.h1>
-          <motion.p
+        {/* Overlay subtil pour améliorer la lisibilité sans cacher l'image */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-slate-900/20"></div>
+
+        {/* Bouton CTA en bas */}
+        <div className="absolute bottom-8 md:bottom-12 left-0 right-0 z-10 flex justify-center">
+          <motion.a
+            href="#services"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.9 }}
-            className="text-white/80 text-lg md:text-xl font-light max-w-lg leading-relaxed"
+            transition={{ duration: 0.8, delay: 0.6 }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-4 rounded-full text-sm md:text-base font-semibold transition-all flex items-center gap-2 shadow-xl hover:shadow-2xl"
           >
-            Fast, dependable, and most safest shipping for all your cargo needs across the globe.
-          </motion.p>
+            Découvrir nos services <ChevronRight className="w-5 h-5" />
+          </motion.a>
         </div>
       </motion.div>
     </div>
