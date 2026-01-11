@@ -39,7 +39,7 @@ const TwinskTech = () => {
                 className="absolute bottom-8 left-8"
               >
                 <h3 className="text-white text-4xl font-display font-medium uppercase tracking-tight leading-none">
-                  Pinpoint Delivery <br /> Accuracy and Safety
+                  Précision de livraison <br /> et sécurité optimale
                 </h3>
               </motion.div>
             </motion.div>
@@ -54,7 +54,7 @@ const TwinskTech = () => {
               className="hidden lg:block absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-cyan-100/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl w-64"
             >
               <div className="flex justify-between items-start mb-4">
-                <span className="text-xs font-semibold text-slate-700">Collaborated with</span>
+                <span className="text-xs font-semibold text-slate-700">En collaboration avec</span>
                 <ArrowUpRight className="w-4 h-4 text-slate-700" />
               </div>
               <motion.div
@@ -65,7 +65,7 @@ const TwinskTech = () => {
                 <Cpu className="text-cyan-400 w-6 h-6" />
               </motion.div>
               <h4 className="font-display font-medium text-slate-900 text-xl uppercase leading-none">
-                Tech Crafted By <br /> Clear Vision
+                Technologie conçue <br /> avec vision claire
               </h4>
             </motion.div>
           </motion.div>
@@ -82,14 +82,14 @@ const TwinskTech = () => {
               variants={fadeInUp}
               className="text-5xl md:text-6xl font-display font-medium uppercase tracking-tight leading-[0.9] mb-8 text-slate-900"
             >
-              Powered by Next <br /> Gen Cargo Shipping <br /> Technology
+              Propulsé par la <br /> technologie de fret <br /> nouvelle génération
             </motion.h2>
             <motion.p
               variants={fadeInUp}
               transition={{ delay: 0.2 }}
               className="text-slate-600 text-lg font-light mb-10 max-w-lg leading-relaxed"
             >
-              Experience faster, safer, and smarter deliveries with our cutting-edge global shipping solutions powered by AI logistics.
+              Des livraisons plus rapides, plus sûres et plus intelligentes grâce à nos solutions d&apos;expédition mondiales alimentées par l&apos;IA logistique.
             </motion.p>
             <motion.div
               variants={fadeInUp}
@@ -101,7 +101,7 @@ const TwinskTech = () => {
                 whileTap={{ scale: 0.95 }}
                 className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 shadow-lg"
               >
-                Get Free Quote <ChevronRight className="w-4 h-4" />
+                Devis gratuit <ChevronRight className="w-4 h-4" />
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -109,7 +109,7 @@ const TwinskTech = () => {
                 className="border border-slate-300 hover:bg-slate-100 text-slate-900 px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2"
               >
                 <PlayCircle className="w-5 h-5" />
-                Watch a Demo
+                Voir la démo
               </motion.button>
             </motion.div>
           </motion.div>

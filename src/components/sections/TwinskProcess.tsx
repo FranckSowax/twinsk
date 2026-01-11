@@ -9,20 +9,20 @@ const TwinskProcess = () => {
   const steps = [
     {
       number: '01',
-      title: 'Warehouse',
+      title: 'Entrepôt',
       image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800',
       featured: false
     },
     {
       number: '02',
-      title: 'Electric Lifter',
-      description: 'Our warehouse system ensures precision handling, guaranteeing accurate, safe, and timely delivery of every product.',
+      title: 'Chariot élévateur',
+      description: 'Notre système d&apos;entreposage assure une manutention précise, garantissant une livraison exacte, sûre et ponctuelle de chaque produit.',
       image: 'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=800',
       featured: true
     },
     {
       number: '03',
-      title: 'Delivery',
+      title: 'Livraison',
       image: 'https://images.unsplash.com/photo-1617347454431-f49d7ff5c301?w=800',
       featured: false
     }
@@ -40,10 +40,10 @@ const TwinskProcess = () => {
           >
             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm font-semibold uppercase tracking-wide mb-4">
               <PackageCheck className="w-4 h-4" />
-              Optimized Handling
+              Manutention optimisée
             </div>
             <h2 className="text-4xl md:text-5xl font-display font-medium text-slate-900 dark:text-white uppercase leading-[0.9] tracking-tight max-w-2xl">
-              Precision Handling <br /> For Accurate Product <br /> Delivery
+              Manutention précise <br /> pour une livraison <br /> de produit exacte
             </h2>
           </motion.div>
           <motion.div
@@ -61,7 +61,7 @@ const TwinskProcess = () => {
               <Plane className="w-24 h-24 text-slate-800 dark:text-slate-300" />
             </motion.div>
             <p className="text-slate-600 dark:text-slate-400 text-sm font-medium mt-4">
-              Our warehouse system ensures safe, accurate, and on-time delivery.
+              Notre système d&apos;entrepôt assure une livraison sûre, précise et ponctuelle.
             </p>
           </motion.div>
         </div>
@@ -83,7 +83,7 @@ const TwinskProcess = () => {
               whileTap={{ scale: 0.95 }}
               className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 w-fit mb-8 shadow-lg"
             >
-              Explore Process <ChevronRight className="w-4 h-4" />
+              Explorer le processus <ChevronRight className="w-4 h-4" />
             </motion.button>
             <motion.div
               whileHover={{ scale: 1.02 }}

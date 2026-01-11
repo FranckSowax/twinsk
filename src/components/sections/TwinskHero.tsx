@@ -11,10 +11,10 @@ const TwinskHero = () => {
   const [isDark, setIsDark] = useState(false);
 
   const navItems = [
-    { label: 'Home', icon: Home, href: '#home' },
+    { label: 'Accueil', icon: Home, href: '#home' },
     { label: 'Services', icon: Wrench, href: '#services' },
-    { label: 'Tracking', icon: Crosshair, href: '#tracking' },
-    { label: 'About Us', icon: User, href: '#about' }
+    { label: 'Suivi', icon: Crosshair, href: '#tracking' },
+    { label: 'À propos', icon: User, href: '#about' }
   ];
 
   // Gestion du scroll pour la navbar sticky
@@ -122,7 +122,7 @@ const TwinskHero = () => {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="hidden md:flex bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-6 py-3 rounded-full text-sm font-semibold transition items-center gap-2 shadow-lg"
             >
-              See Details <ChevronRight className="w-4 h-4" />
+              Voir détails <ChevronRight className="w-4 h-4" />
             </motion.a>
 
             {/* Mobile Menu Button */}
@@ -174,7 +174,7 @@ const TwinskHero = () => {
                   onClick={() => setIsMenuOpen(false)}
                   className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-6 py-3 rounded-full text-sm font-semibold transition flex items-center justify-center gap-2 shadow-lg mt-2"
                 >
-                  See Details <ChevronRight className="w-4 h-4" />
+                  Voir détails <ChevronRight className="w-4 h-4" />
                 </motion.a>
               </div>
             </motion.div>
@@ -217,7 +217,7 @@ const TwinskHero = () => {
               transition={{ duration: 0.8, delay: 0.6 }}
               className="block text-slate-900"
             >
-              Bringing the world
+              Rapprocher le monde
             </motion.span>
             <motion.span
               initial={{ opacity: 0, x: -50 }}
@@ -225,7 +225,7 @@ const TwinskHero = () => {
               transition={{ duration: 0.8, delay: 0.7 }}
               className="block text-slate-500"
             >
-              Closer, One Delivery
+              Une livraison
             </motion.span>
             <motion.span
               initial={{ opacity: 0, x: -50 }}
@@ -233,7 +233,7 @@ const TwinskHero = () => {
               transition={{ duration: 0.8, delay: 0.8 }}
               className="block text-slate-900"
             >
-              At a Time
+              À la fois
             </motion.span>
           </motion.h1>
           <motion.p
@@ -242,7 +242,7 @@ const TwinskHero = () => {
             transition={{ duration: 0.8, delay: 0.9 }}
             className="text-slate-600 text-base md:text-lg font-light max-w-md leading-relaxed mb-8"
           >
-            Fast, dependable, and safest shipping for all your cargo needs across the globe.
+            Expédition rapide, fiable et sécurisée pour tous vos besoins de fret à travers le monde.
           </motion.p>
           <motion.a
             href="#services"

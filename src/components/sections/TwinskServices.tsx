@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Settings, ChevronRight, Anchor, ArrowUpRight } from 'lucide-react';
+import { Settings, ChevronRight, ArrowUpRight } from 'lucide-react';
 import Image from 'next/image';
 import { fadeInUp, staggerContainer } from '../../lib/animations';
 
@@ -20,22 +20,22 @@ const TwinskServices = () => {
           variants={fadeInUp}
           className="flex flex-col justify-center space-y-6 lg:pr-10"
         >
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm font-semibold uppercase tracking-wide">
+          <div className="flex items-center gap-2 text-slate-500 text-sm font-semibold uppercase tracking-wide">
             <Settings className="w-4 h-4" />
-            Service & Supports
+            Services & Support
           </div>
-          <h2 className="text-4xl md:text-5xl font-display font-medium text-slate-900 dark:text-white uppercase leading-[0.95] tracking-tight">
-            Fast Precision <br /> Cargo Delivery <br /> For Everyone
+          <h2 className="text-4xl md:text-5xl font-display font-medium text-slate-900 uppercase leading-[0.95] tracking-tight">
+            Livraison de fret <br /> rapide et précise <br /> pour tous
           </h2>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 w-fit px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 mt-4 shadow-lg"
           >
-            Explore Services <ChevronRight className="w-4 h-4" />
+            Explorer nos services <ChevronRight className="w-4 h-4" />
           </motion.button>
-          <p className="text-slate-600 dark:text-slate-300 text-lg font-light leading-relaxed mt-4">
-            We provide complete logistics support from pickup to final delivery with secure warehousing and real-time tracking.
+          <p className="text-slate-600 text-lg font-light leading-relaxed mt-4">
+            Nous offrons un support logistique complet de la collecte à la livraison finale avec entreposage sécurisé et suivi en temps réel.
           </p>
         </motion.div>
 
@@ -47,8 +47,8 @@ const TwinskServices = () => {
           className="relative group rounded-[2rem] overflow-hidden h-[500px]"
         >
           <Image
-            src="https://images.unsplash.com/photo-1559297434-fae8a1916a79?q=80&w=2070&auto=format&fit=crop"
-            alt="Air Freight"
+            src="/booking.jpg"
+            alt="Fret Aérien"
             fill
             className="object-cover transition-transform duration-700 group-hover:scale-105"
           />
@@ -61,7 +61,7 @@ const TwinskServices = () => {
               transition={{ delay: 0.3 }}
               className="text-white text-3xl font-display font-medium uppercase tracking-tight"
             >
-              Charter Air Freight
+              Fret Aérien Charter
             </motion.h3>
           </div>
           <div className="absolute bottom-8 left-0 right-0 flex justify-center">
@@ -70,7 +70,7 @@ const TwinskServices = () => {
               whileTap={{ scale: 0.95 }}
               className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
             >
-              Book a Shipment <ChevronRight className="w-4 h-4" />
+              Réserver une expédition <ChevronRight className="w-4 h-4" />
             </motion.button>
           </div>
         </motion.div>
@@ -91,16 +91,16 @@ const TwinskServices = () => {
               transition={{ delay: 0.4 }}
               className="text-white text-3xl font-display font-medium uppercase tracking-tight text-center leading-none mb-2"
             >
-              Continental <br /> Ocean Freight
+              Fret Maritime <br /> Continental
             </motion.h3>
             <p className="text-white/80 text-center mt-2 text-sm">
-              One customer can fill a full container load
+              Un client peut remplir un conteneur complet
             </p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1/2">
             <Image
-              src="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800"
-              alt="Container"
+              src="/warehouse.jpg"
+              alt="Entrepôt"
               fill
               className="object-cover"
             />

@@ -8,10 +8,10 @@ import { fadeInUp } from '../../lib/animations';
 const TwinskFooter = () => {
   const footerLinks = [
     { label: 'Services', href: '#services' },
-    { label: 'Contact Us', href: '#contact' },
-    { label: 'Tracking', href: '#tracking', icon: MousePointer2 },
-    { label: 'About Us', href: '#about' },
-    { label: 'Privacy Policy', href: '#privacy', muted: true }
+    { label: 'Contactez-nous', href: '#contact' },
+    { label: 'Suivi', href: '#tracking', icon: MousePointer2 },
+    { label: 'À propos', href: '#about' },
+    { label: 'Politique de confidentialité', href: '#privacy', muted: true }
   ];
 
   return (
@@ -27,7 +27,7 @@ const TwinskFooter = () => {
               transition={{ duration: 0.8 }}
               className="text-4xl md:text-5xl font-display font-medium uppercase tracking-tight mb-8 max-w-xl"
             >
-              Signup to receive our offer, <br /> and stay upto date
+              Inscrivez-vous pour recevoir <br /> nos offres et rester informé
             </motion.h2>
             <motion.form
               initial={{ opacity: 0, y: 20 }}
@@ -38,12 +38,12 @@ const TwinskFooter = () => {
             >
               <input
                 type="text"
-                placeholder="Your Name"
+                placeholder="Votre nom"
                 className="bg-[#0F2448] dark:bg-slate-900 border border-white/10 text-white placeholder-slate-400 px-6 py-4 rounded-xl flex-1 focus:outline-none focus:border-yellow-400 transition"
               />
               <input
                 type="email"
-                placeholder="Email Address"
+                placeholder="Adresse email"
                 className="bg-[#0F2448] dark:bg-slate-900 border border-white/10 text-white placeholder-slate-400 px-6 py-4 rounded-xl flex-1 focus:outline-none focus:border-yellow-400 transition"
               />
               <motion.button
@@ -52,7 +52,7 @@ const TwinskFooter = () => {
                 whileTap={{ scale: 0.95 }}
                 className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"
               >
-                Submit <ChevronRight className="w-4 h-4" />
+                Envoyer <ChevronRight className="w-4 h-4" />
               </motion.button>
             </motion.form>
 
@@ -122,7 +122,7 @@ const TwinskFooter = () => {
               transition={{ delay: 0.8 }}
               className="mt-12"
             >
-              <h5 className="font-display font-medium uppercase text-white mb-4">Contact With Us</h5>
+              <h5 className="font-display font-medium uppercase text-white mb-4">Contactez-nous</h5>
               <ul className="space-y-3 text-slate-300 text-sm font-light">
                 <motion.li
                   whileHover={{ x: 5 }}
@@ -150,7 +150,7 @@ const TwinskFooter = () => {
           transition={{ delay: 0.9 }}
           className="mt-8 text-center text-slate-400 text-sm"
         >
-          © 2024 Twinsk Company. All rights reserved.
+          © 2024 Twinsk Company. Tous droits réservés.
         </motion.div>
       </div>
     </footer>

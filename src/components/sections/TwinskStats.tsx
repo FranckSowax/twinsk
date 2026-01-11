@@ -13,8 +13,8 @@ const TwinskStats = () => {
   ];
 
   const bookings = [
-    { name: 'Steel Core Shipment', client: 'Jonathan Trott', amount: '$248,750' },
-    { name: 'Motorcar Shipment', client: 'Cameron Green', amount: '$625,40' }
+    { name: 'Expédition acier', client: 'Jonathan Trott', amount: '248 750 €' },
+    { name: 'Expédition automobile', client: 'Cameron Green', amount: '625,40 €' }
   ];
 
   return (
@@ -39,14 +39,14 @@ const TwinskStats = () => {
             <div className="relative w-12 h-12 rounded-full overflow-hidden">
               <Image
                 src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&auto=format&fit=crop"
-                alt="User"
+                alt="Utilisateur"
                 fill
                 className="object-cover"
               />
             </div>
             <div>
               <h4 className="font-semibold text-slate-900 text-base">Edward Blake</h4>
-              <p className="text-slate-500 text-sm">Customer Support, Twinsk</p>
+              <p className="text-slate-500 text-sm">Support Client, Twinsk</p>
             </div>
           </div>
           <motion.div
@@ -56,7 +56,7 @@ const TwinskStats = () => {
             transition={{ delay: 0.2 }}
             className="bg-slate-100 p-4 rounded-xl rounded-tl-none mb-4 text-slate-700 text-sm font-medium"
           >
-            Hello sir, How can I help you?
+            Bonjour, comment puis-je vous aider ?
           </motion.div>
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -64,11 +64,11 @@ const TwinskStats = () => {
             className="w-full bg-cyan-100 hover:bg-cyan-200 text-cyan-800 py-3 rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2"
           >
             <PhoneCall className="w-4 h-4" />
-            Call and Book Cargo
+            Appeler et réserver
           </motion.button>
           <div className="mt-4 flex items-center gap-2 text-slate-500 text-xs font-medium">
             <ShieldCheck className="w-4 h-4 text-slate-900" />
-            Trusted by 60000+ people
+            Plus de 60 000 clients satisfaits
           </div>
         </motion.div>
 
@@ -83,10 +83,10 @@ const TwinskStats = () => {
         >
           <div className="flex items-center justify-center gap-2 text-slate-500 text-sm font-medium mb-4">
             <Truck className="w-4 h-4" />
-            Dropping on Home
+            Livraison à domicile
           </div>
           <h2 className="text-3xl md:text-4xl font-display font-medium text-slate-900 uppercase tracking-tight leading-none mb-6">
-            Delivering Faith, Peace of Mind, <br /> And Unparalleled Quality
+            Confiance, tranquillité d&apos;esprit <br /> et qualité incomparable
           </h2>
           <div className="flex items-center justify-center gap-4">
             <div className="flex -space-x-3">
@@ -105,7 +105,7 @@ const TwinskStats = () => {
             </div>
             <div className="text-left">
               <div className="text-slate-900 font-bold text-lg leading-none">20K+</div>
-              <div className="text-slate-500 text-xs font-medium">Monthly Users</div>
+              <div className="text-slate-500 text-xs font-medium">Utilisateurs mensuels</div>
             </div>
           </div>
         </motion.div>
@@ -121,9 +121,9 @@ const TwinskStats = () => {
           className="bg-cyan-100/50 p-6 rounded-3xl"
         >
           <div className="flex justify-between items-center mb-6">
-            <h4 className="font-display font-medium uppercase text-slate-800 text-lg">Total Booking</h4>
+            <h4 className="font-display font-medium uppercase text-slate-800 text-lg">Réservations totales</h4>
             <span className="bg-white px-3 py-1 rounded-full text-xs font-semibold text-slate-600 flex items-center gap-1">
-              Today <ChevronDown className="w-3 h-3" />
+              Aujourd&apos;hui <ChevronDown className="w-3 h-3" />
             </span>
           </div>
           <div className="space-y-4">
@@ -150,8 +150,8 @@ const TwinskStats = () => {
               transition={{ delay: 0.6 }}
               className="flex justify-between items-center pt-1"
             >
-              <div className="text-slate-900 font-semibold text-sm">Total Shipment:</div>
-              <div className="font-bold text-slate-900 text-base">$311,290</div>
+              <div className="text-slate-900 font-semibold text-sm">Total expéditions :</div>
+              <div className="font-bold text-slate-900 text-base">311 290 €</div>
             </motion.div>
           </div>
         </motion.div>

@@ -9,25 +9,25 @@ const TwinskTestimonials = () => {
   const testimonials = [
     {
       rating: 4.8,
-      text: 'Top-notch logistics with expert, and dedicated support for all your cargo transport needs.',
+      text: 'Une logistique de premier ordre avec un support expert et dédié pour tous vos besoins de transport de fret.',
       name: 'Martin Edwards',
-      role: 'General Manager',
+      role: 'Directeur Général',
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80',
-      tag: 'Reliable & expert logistics service'
+      tag: 'Service logistique fiable, et expert'
     },
     {
       rating: 4.7,
-      text: 'We trust Twinsk\'s dedicated team and we highly recommend them as a leading freight forwarder.',
+      text: 'Nous faisons confiance à l&apos;équipe dévouée de Twinsk et les recommandons vivement comme transitaire de premier plan.',
       name: 'James Atkinson',
-      role: 'Business Proprietor',
+      role: 'Chef d&apos;entreprise',
       avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=100&q=80',
-      tag: 'Accurate support, Fully dedication'
+      tag: 'Support précis, Dévouement total'
     },
     {
       rating: null,
-      text: 'Exceptional 24/7 logistics support by a professional, fully committed team just to solve your headaches.',
+      text: 'Un support logistique exceptionnel 24h/24 et 7j/7 par une équipe professionnelle et entièrement engagée pour résoudre vos problèmes.',
       name: 'Natasha Portman',
-      role: 'Business Owner',
+      role: 'Propriétaire d&apos;entreprise',
       avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=100&q=80',
       tag: null
     }
@@ -43,7 +43,7 @@ const TwinskTestimonials = () => {
         className="flex justify-between items-end mb-10"
       >
         <h2 className="text-5xl font-display font-medium text-slate-900 dark:text-white uppercase tracking-tight">
-          Our Client Testimonials
+          Témoignages de nos clients
         </h2>
         <div className="flex gap-4">
           <motion.button
