@@ -24,7 +24,7 @@ const TwinskStats = () => {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.8 }}
-        className="bg-slate-100 dark:bg-slate-800 rounded-[2.5rem] p-8 md:p-12 grid grid-cols-1 lg:grid-cols-3 gap-10 items-center"
+        className="bg-slate-50 rounded-[2.5rem] p-8 md:p-12 grid grid-cols-1 lg:grid-cols-3 gap-10 items-center"
       >
         {/* Testimonial / Chat UI */}
         <motion.div
@@ -33,7 +33,7 @@ const TwinskStats = () => {
           whileInView="animate"
           viewport={{ once: true }}
           whileHover={{ y: -5 }}
-          className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700/60 max-w-sm mx-auto lg:mx-0"
+          className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60 max-w-sm mx-auto lg:mx-0"
         >
           <div className="flex items-center gap-4 mb-6">
             <div className="relative w-12 h-12 rounded-full overflow-hidden">
@@ -45,8 +45,8 @@ const TwinskStats = () => {
               />
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 dark:text-white text-base">Edward Blake</h4>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Customer Support, Twinsk</p>
+              <h4 className="font-semibold text-slate-900 text-base">Edward Blake</h4>
+              <p className="text-slate-500 text-sm">Customer Support, Twinsk</p>
             </div>
           </div>
           <motion.div
@@ -54,20 +54,20 @@ const TwinskStats = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl rounded-tl-none mb-4 text-slate-700 dark:text-slate-300 text-sm font-medium"
+            className="bg-slate-100 p-4 rounded-xl rounded-tl-none mb-4 text-slate-700 text-sm font-medium"
           >
             Hello sir, How can I help you?
           </motion.div>
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full bg-cyan-100 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:hover:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 py-3 rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2"
+            className="w-full bg-cyan-100 hover:bg-cyan-200 text-cyan-800 py-3 rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2"
           >
             <PhoneCall className="w-4 h-4" />
             Call and Book Cargo
           </motion.button>
-          <div className="mt-4 flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium">
-            <ShieldCheck className="w-4 h-4 text-slate-900 dark:text-white" />
+          <div className="mt-4 flex items-center gap-2 text-slate-500 text-xs font-medium">
+            <ShieldCheck className="w-4 h-4 text-slate-900" />
             Trusted by 60000+ people
           </div>
         </motion.div>
@@ -81,11 +81,11 @@ const TwinskStats = () => {
           transition={{ delay: 0.2 }}
           className="text-center"
         >
-          <div className="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 text-sm font-medium mb-4">
+          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm font-medium mb-4">
             <Truck className="w-4 h-4" />
             Dropping on Home
           </div>
-          <h2 className="text-3xl md:text-4xl font-display font-medium text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-6">
+          <h2 className="text-3xl md:text-4xl font-display font-medium text-slate-900 uppercase tracking-tight leading-none mb-6">
             Delivering Faith, Peace of Mind, <br /> And Unparalleled Quality
           </h2>
           <div className="flex items-center justify-center gap-4">
@@ -97,15 +97,15 @@ const TwinskStats = () => {
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.3 + index * 0.1 }}
-                  className="relative w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 overflow-hidden"
+                  className="relative w-10 h-10 rounded-full border-2 border-white overflow-hidden"
                 >
                   <Image src={avatar} alt="" fill className="object-cover" />
                 </motion.div>
               ))}
             </div>
             <div className="text-left">
-              <div className="text-slate-900 dark:text-white font-bold text-lg leading-none">20K+</div>
-              <div className="text-slate-500 dark:text-slate-400 text-xs font-medium">Monthly Users</div>
+              <div className="text-slate-900 font-bold text-lg leading-none">20K+</div>
+              <div className="text-slate-500 text-xs font-medium">Monthly Users</div>
             </div>
           </div>
         </motion.div>
@@ -118,11 +118,11 @@ const TwinskStats = () => {
           viewport={{ once: true }}
           transition={{ delay: 0.3 }}
           whileHover={{ y: -5 }}
-          className="bg-cyan-100/50 dark:bg-cyan-900/20 p-6 rounded-3xl"
+          className="bg-cyan-100/50 p-6 rounded-3xl"
         >
           <div className="flex justify-between items-center mb-6">
-            <h4 className="font-display font-medium uppercase text-slate-800 dark:text-white text-lg">Total Booking</h4>
-            <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+            <h4 className="font-display font-medium uppercase text-slate-800 text-lg">Total Booking</h4>
+            <span className="bg-white px-3 py-1 rounded-full text-xs font-semibold text-slate-600 flex items-center gap-1">
               Today <ChevronDown className="w-3 h-3" />
             </span>
           </div>
@@ -134,13 +134,13 @@ const TwinskStats = () => {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.4 + index * 0.1 }}
-                className="flex justify-between items-center pb-3 border-b border-slate-200/50 dark:border-slate-700/50"
+                className="flex justify-between items-center pb-3 border-b border-slate-200/50"
               >
                 <div>
-                  <div className="text-slate-900 dark:text-white font-semibold text-sm">{booking.name}</div>
-                  <div className="text-slate-500 dark:text-slate-400 text-xs">{booking.client}</div>
+                  <div className="text-slate-900 font-semibold text-sm">{booking.name}</div>
+                  <div className="text-slate-500 text-xs">{booking.client}</div>
                 </div>
-                <div className="font-semibold text-slate-900 dark:text-white text-sm">{booking.amount}</div>
+                <div className="font-semibold text-slate-900 text-sm">{booking.amount}</div>
               </motion.div>
             ))}
             <motion.div
@@ -150,8 +150,8 @@ const TwinskStats = () => {
               transition={{ delay: 0.6 }}
               className="flex justify-between items-center pt-1"
             >
-              <div className="text-slate-900 dark:text-white font-semibold text-sm">Total Shipment:</div>
-              <div className="font-bold text-slate-900 dark:text-white text-base">$311,290</div>
+              <div className="text-slate-900 font-semibold text-sm">Total Shipment:</div>
+              <div className="font-bold text-slate-900 text-base">$311,290</div>
             </motion.div>
           </div>
         </motion.div>
