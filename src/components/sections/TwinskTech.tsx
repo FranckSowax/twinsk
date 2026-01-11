@@ -7,7 +7,7 @@ import { fadeInUp, slideInFromLeft, slideInFromRight } from '../../lib/animation
 
 const TwinskTech = () => {
   return (
-    <section className="bg-[#0B1E3F] dark:bg-black py-20 overflow-hidden">
+    <section className="bg-white py-20 overflow-hidden">
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           {/* Left Image Composition */}
@@ -43,7 +43,7 @@ const TwinskTech = () => {
                 </h3>
               </motion.div>
             </motion.div>
-            
+
             {/* Floating Overlay Card */}
             <motion.div
               initial={{ opacity: 0, x: 50, scale: 0.8 }}
@@ -51,20 +51,20 @@ const TwinskTech = () => {
               viewport={{ once: true }}
               transition={{ delay: 0.5, type: 'spring' }}
               whileHover={{ scale: 1.05, y: -5 }}
-              className="hidden lg:block absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-cyan-100/90 dark:bg-cyan-900/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl w-64"
+              className="hidden lg:block absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-cyan-100/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl w-64"
             >
               <div className="flex justify-between items-start mb-4">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Collaborated with</span>
-                <ArrowUpRight className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                <span className="text-xs font-semibold text-slate-700">Collaborated with</span>
+                <ArrowUpRight className="w-4 h-4 text-slate-700" />
               </div>
               <motion.div
                 whileHover={{ rotate: 360 }}
                 transition={{ duration: 0.6 }}
-                className="bg-slate-800 dark:bg-slate-900 w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+                className="bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4"
               >
                 <Cpu className="text-cyan-400 w-6 h-6" />
               </motion.div>
-              <h4 className="font-display font-medium text-slate-900 dark:text-white text-xl uppercase leading-none">
+              <h4 className="font-display font-medium text-slate-900 text-xl uppercase leading-none">
                 Tech Crafted By <br /> Clear Vision
               </h4>
             </motion.div>
@@ -76,18 +76,18 @@ const TwinskTech = () => {
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
-            className="lg:pl-12 text-white"
+            className="lg:pl-12"
           >
             <motion.h2
               variants={fadeInUp}
-              className="text-5xl md:text-6xl font-display font-medium uppercase tracking-tight leading-[0.9] mb-8"
+              className="text-5xl md:text-6xl font-display font-medium uppercase tracking-tight leading-[0.9] mb-8 text-slate-900"
             >
               Powered by Next <br /> Gen Cargo Shipping <br /> Technology
             </motion.h2>
             <motion.p
               variants={fadeInUp}
               transition={{ delay: 0.2 }}
-              className="text-slate-300 text-lg font-light mb-10 max-w-lg leading-relaxed"
+              className="text-slate-600 text-lg font-light mb-10 max-w-lg leading-relaxed"
             >
               Experience faster, safer, and smarter deliveries with our cutting-edge global shipping solutions powered by AI logistics.
             </motion.p>
@@ -99,14 +99,14 @@ const TwinskTech = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 shadow-lg"
+                className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 shadow-lg"
               >
                 Get Free Quote <ChevronRight className="w-4 h-4" />
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
+                whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="border border-white/20 hover:bg-white/10 text-white px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2"
+                className="border border-slate-300 hover:bg-slate-100 text-slate-900 px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2"
               >
                 <PlayCircle className="w-5 h-5" />
                 Watch a Demo
