@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Settings, ChevronRight, ArrowUpRight } from 'lucide-react';
+import { Settings, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { fadeInUp, staggerContainer } from '../../lib/animations';
 
@@ -80,38 +80,33 @@ const TwinskServices = () => {
           variants={fadeInUp}
           whileHover={{ y: -10 }}
           transition={{ duration: 0.3 }}
-          className="relative group rounded-[2rem] overflow-hidden h-[500px] bg-blue-500"
+          className="relative group rounded-[2rem] overflow-hidden h-[500px]"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800"></div>
-          <div className="absolute inset-0 p-8 flex flex-col items-center justify-center">
+          <Image
+            src="/warehouse.jpg"
+            alt="Fret Maritime"
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900/40"></div>
+          <div className="absolute top-8 left-0 right-0 text-center">
             <motion.h3
-              initial={{ opacity: 0, scale: 0.8 }}
-              whileInView={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, y: -20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: 0.4 }}
-              className="text-white text-3xl font-display font-medium uppercase tracking-tight text-center leading-none mb-2"
+              transition={{ delay: 0.3 }}
+              className="text-white text-3xl font-display font-medium uppercase tracking-tight"
             >
-              Fret Maritime <br /> Continental
+              Fret Maritime Continental
             </motion.h3>
-            <p className="text-white/80 text-center mt-2 text-sm">
-              Un client peut remplir un conteneur complet
-            </p>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1/2">
-            <Image
-              src="/warehouse.jpg"
-              alt="Entrepôt"
-              fill
-              className="object-cover"
-            />
-          </div>
-          <div className="absolute bottom-6 left-6">
+          <div className="absolute bottom-8 left-0 right-0 flex justify-center">
             <motion.button
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.9 }}
-              className="bg-white w-12 h-12 rounded-full flex items-center justify-center text-slate-900 transition shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
             >
-              <ArrowUpRight className="w-5 h-5" />
+              Réserver une expédition <ChevronRight className="w-4 h-4" />
             </motion.button>
           </div>
         </motion.div>
