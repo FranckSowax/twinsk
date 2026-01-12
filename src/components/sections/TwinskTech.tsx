@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowUpRight, Cpu, ChevronRight, ListChecks, Search, ShoppingBag } from 'lucide-react';
+import { ArrowUpRight, Cpu, ChevronRight, ListChecks, Search, ShoppingBag, Package, FlaskConical } from 'lucide-react';
 import Image from 'next/image';
 import { fadeInUp, slideInFromLeft, slideInFromRight } from '../../lib/animations';
 
@@ -230,7 +230,7 @@ const TwinskTech = () => {
         </div>
       </section>
 
-      {/* Section 3 - Original: Image Left, Content Right */}
+      {/* Section 3 - Service Échantillons */}
       <section className="bg-white py-20 overflow-hidden">
         <div className="max-w-[1600px] mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -250,7 +250,7 @@ const TwinskTech = () => {
                 <div className="relative h-[500px] w-full">
                   <Image
                     src="/replicate-prediction-78d0daq38srmr0cvntt8nwgxbr.jpg"
-                    alt="By Project - Sourcing Platform"
+                    alt="Service Échantillons"
                     fill
                     className="object-cover rounded-[2rem]"
                   />
@@ -264,10 +264,10 @@ const TwinskTech = () => {
                 viewport={{ once: true }}
                 transition={{ delay: 0.5, type: 'spring' }}
                 whileHover={{ scale: 1.05, y: -5 }}
-                className="hidden lg:block absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-cyan-100/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl w-64"
+                className="hidden lg:block absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-emerald-100/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl w-64"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <span className="text-xs font-semibold text-slate-700">En collaboration avec</span>
+                  <span className="text-xs font-semibold text-slate-700">Service Échantillons</span>
                   <ArrowUpRight className="w-4 h-4 text-slate-700" />
                 </div>
                 <motion.div
@@ -275,10 +275,10 @@ const TwinskTech = () => {
                   transition={{ duration: 0.6 }}
                   className="bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4"
                 >
-                  <Cpu className="text-cyan-400 w-6 h-6" />
+                  <FlaskConical className="text-emerald-400 w-6 h-6" />
                 </motion.div>
                 <h4 className="font-display font-medium text-slate-900 text-xl uppercase leading-none">
-                  Technologie conçue <br /> avec vision claire
+                  Production sur <br /> mesure garantie
                 </h4>
               </motion.div>
             </motion.div>
@@ -295,37 +295,53 @@ const TwinskTech = () => {
                 variants={fadeInUp}
                 className="text-5xl md:text-6xl font-display font-medium uppercase tracking-tight leading-[0.9] mb-8 text-slate-900"
               >
-                Organiser vos Projets, <br /> Comparer et sourcer <br /> en ligne vos besoins
+                Échantillons <br /> Recherche & <br /> Production
               </motion.h2>
               <motion.p
                 variants={fadeInUp}
                 transition={{ delay: 0.2 }}
                 className="text-slate-600 text-lg font-light mb-10 max-w-lg leading-relaxed"
               >
-                By Project vous permet de lister les matériaux nécessaires à votre projet, demander une cotation en ligne auprès de notre réseau de fournisseurs chinois, recevoir et comparer les offres, puis commander directement ou venir sur place finaliser votre projet.
+                Besoin de valider un produit avant de commander en grande quantité ? Notre service d&apos;échantillons vous permet de <strong>rechercher</strong>, <strong>produire</strong> et <strong>expédier</strong> des prototypes sur bases techniques. Envoyez-nous vos spécifications (plans, dessins, références) et recevez vos échantillons directement chez vous pour validation.
               </motion.p>
+
+              {/* Service features */}
+              <motion.div
+                variants={fadeInUp}
+                transition={{ delay: 0.25 }}
+                className="flex flex-wrap gap-3 mb-8"
+              >
+                {['Prototypage rapide', 'Sur mesure', 'Contrôle qualité', 'Expédition express'].map((feature) => (
+                  <span
+                    key={feature}
+                    className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium"
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </motion.div>
+
               <motion.div
                 variants={fadeInUp}
                 transition={{ delay: 0.3 }}
                 className="flex flex-wrap gap-4"
               >
                 <motion.a
-                  href="https://byproject-twinsk.netlify.app/quote-request"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="#contact"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 shadow-lg"
                 >
-                  Commencer un Projet <ChevronRight className="w-4 h-4" />
+                  <Package className="w-5 h-5" />
+                  Commander un échantillon
                 </motion.a>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="border border-slate-300 hover:bg-slate-100 text-slate-900 px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2"
                 >
-                  <ListChecks className="w-5 h-5" />
-                  Voir nos Forfaits
+                  <FlaskConical className="w-5 h-5" />
+                  Production sur devis
                 </motion.button>
               </motion.div>
             </motion.div>
