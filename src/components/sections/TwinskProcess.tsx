@@ -11,21 +11,21 @@ const TwinskProcess = () => {
       number: '01',
       title: 'Envoyez vos marchandises',
       description: 'Envoyez vos marchandises à nos dépôts en Chine. Nous les réceptionnons et les préparons pour l&apos;expédition.',
-      image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800',
+      image: '/replicate-prediction-w1jy4f0nr5rmr0cvpatsn89k10.png',
       featured: true
     },
     {
       number: '02',
       title: 'Notifications',
       description: 'Recevez une notification à chaque étape de votre expédition. Restez informé en temps réel via WhatsApp.',
-      image: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?w=800',
+      image: '/replicate-prediction-3rx19n2pa1rmt0cvpavaeesdpm.png',
       featured: true
     },
     {
       number: '03',
       title: 'Suivi AirTags',
       description: 'Suivez les AirTags de votre marchandise en temps réel. Localisez vos colis à tout moment pendant le transport.',
-      image: 'https://images.unsplash.com/photo-1617347454431-f49d7ff5c301?w=800',
+      image: '/replicate-prediction-txdm83tykdrmt0cvpavvwytpxr.jpg',
       featured: true
     }
   ];
@@ -92,10 +92,10 @@ const TwinskProcess = () => {
               className="mt-auto relative h-48 rounded-2xl overflow-hidden"
             >
               <Image
-                src="https://img.freepik.com/premium-photo/red-semi-truck-with-trailer-road-generative-ai_58409-28955.jpg?w=826"
-                alt="Red Truck"
+                src="/replicate-prediction-d565emm6a1rmt0cvpazbqyreer.png"
+                alt="Service digitalisé"
                 fill
-                className="object-cover mix-blend-multiply dark:mix-blend-normal dark:opacity-80"
+                className="object-cover"
               />
             </motion.div>
           </motion.div>
