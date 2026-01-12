@@ -1,6 +1,7 @@
 import TwinskHero from '@/components/sections/TwinskHero';
 import TwinskServices from '@/components/sections/TwinskServices';
 import TwinskStats from '@/components/sections/TwinskStats';
+import TwinskBooking from '@/components/sections/TwinskBooking';
 import TwinskTech from '@/components/sections/TwinskTech';
 import TwinskProcess from '@/components/sections/TwinskProcess';
 import TwinskTestimonials from '@/components/sections/TwinskTestimonials';
@@ -12,6 +13,7 @@ export default function Home() {
       <TwinskHero />
       <TwinskServices />
       <TwinskStats />
+      <TwinskBooking />
       <TwinskTech />
       <TwinskProcess />
       <TwinskTestimonials />
