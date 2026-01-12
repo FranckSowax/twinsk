@@ -76,7 +76,7 @@ const TwinskServices = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
+                className="bg-[#007cb5] hover:bg-[#006a9e] text-white px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg transition"
               >
                 Booker votre transport <ChevronRight className="w-4 h-4" />
               </motion.button>
@@ -101,7 +101,7 @@ const TwinskServices = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
+                className="bg-[#007cb5] hover:bg-[#006a9e] text-white px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg transition"
               >
                 Sourcer votre projet <ChevronRight className="w-4 h-4" />
               </motion.button>
@@ -138,7 +138,7 @@ const TwinskServices = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
+                  className="bg-[#007cb5] hover:bg-[#006a9e] text-white px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg transition"
                 >
                   {card.buttonText} <ChevronRight className="w-4 h-4" />
                 </motion.button>
