@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Truck, ShieldCheck, PhoneCall, ChevronDown } from 'lucide-react';
+import { Truck, ShieldCheck, MessageCircle, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
 import { fadeInUp } from '../../lib/animations';
 
@@ -58,14 +58,15 @@ const TwinskStats = () => {
           >
             Bonjour, comment puis-je vous aider ?
           </motion.div>
-          <motion.button
+          <motion.a
+            href="#chatbot"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full bg-cyan-100 hover:bg-cyan-200 text-cyan-800 py-3 rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2"
           >
-            <PhoneCall className="w-4 h-4" />
-            Appeler et réserver
-          </motion.button>
+            <MessageCircle className="w-4 h-4" />
+            Discuter avec nous
+          </motion.a>
           <div className="mt-4 flex items-center gap-2 text-slate-500 text-xs font-medium">
             <ShieldCheck className="w-4 h-4 text-slate-900" />
             Plus de 60 000 clients satisfaits
