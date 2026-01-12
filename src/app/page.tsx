@@ -14,8 +14,8 @@ export default function Home() {
       <TwinskServices />
       <TwinskStats />
       <TwinskBooking />
-      <TwinskTech />
       <TwinskProcess />
+      <TwinskTech />
       <TwinskTestimonials />
       <TwinskFooter />
     </div>
