@@ -71,8 +71,7 @@ const TwinskServices = () => {
               fill
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-white/50"></div>
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+                        <div className="absolute bottom-8 left-0 right-0 flex justify-center">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -96,8 +95,7 @@ const TwinskServices = () => {
               fill
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-white/50"></div>
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+                        <div className="absolute bottom-8 left-0 right-0 flex justify-center">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -133,8 +131,7 @@ const TwinskServices = () => {
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-white/50"></div>
-              <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+                            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
