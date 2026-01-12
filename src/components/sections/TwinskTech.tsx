@@ -82,7 +82,7 @@ const TwinskTech = () => {
               variants={fadeInUp}
               className="text-5xl md:text-6xl font-display font-medium uppercase tracking-tight leading-[0.9] mb-8 text-slate-900"
             >
-              Propulsé par la <br /> technologie de fret <br /> nouvelle génération
+              Organiser vos Projets, <br /> Comparer et sourcer <br /> en ligne vos besoins
             </motion.h2>
             <motion.p
               variants={fadeInUp}
