@@ -8,9 +8,9 @@ import { fadeInUp, staggerContainer } from '../../lib/animations';
 const TwinskServices = () => {
   const serviceCards = [
     {
-      image: '/Carte-1688-.jpg',
+      image: '/Carte-1688-2.jpg',
       alt: '1688 Sourcing',
-      buttonText: 'Trouvez les pépites 1688'
+      buttonText: 'Sourcer sur les ecommerce chinois'
     },
     {
       image: '/Carte-driveby-.jpg',
