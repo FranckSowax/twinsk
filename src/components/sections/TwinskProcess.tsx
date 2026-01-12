@@ -11,14 +11,14 @@ const TwinskProcess = () => {
       number: '01',
       title: 'Envoyez vos marchandises',
       description: 'Envoyez vos marchandises à nos dépôts en Chine. Nous les réceptionnons et les préparons pour l&apos;expédition.',
-      image: '/replicate-prediction-w1jy4f0nr5rmr0cvpatsn89k10.png',
+      image: '/replicate-prediction-w1jy4f0nr5rmr0cvpatsn89k10.jpg',
       featured: true
     },
     {
       number: '02',
       title: 'Notifications',
       description: 'Recevez une notification à chaque étape de votre expédition. Restez informé en temps réel via WhatsApp.',
-      image: '/replicate-prediction-3rx19n2pa1rmt0cvpavaeesdpm.png',
+      image: '/replicate-prediction-3rx19n2pa1rmt0cvpavaeesdpm.jpg',
       featured: true
     },
     {
