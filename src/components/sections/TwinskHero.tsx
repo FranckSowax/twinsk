@@ -201,10 +201,10 @@ const TwinskHero = () => {
         </div>
 
         {/* Overlay transparent pour la lisibilité du texte */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/50 to-transparent dark:from-white/90 dark:via-white/50 dark:to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-l from-white/90 via-white/50 to-transparent dark:from-white/90 dark:via-white/50 dark:to-transparent"></div>
 
         {/* Hero Content - Textes */}
-        <div className="relative z-10 h-full flex flex-col justify-center px-6 md:px-12 lg:px-20 max-w-2xl">
+        <div className="relative z-10 h-full flex flex-col justify-center items-end px-6 md:px-12 lg:px-20 ml-auto max-w-2xl text-right">
           <motion.h1
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
