@@ -46,14 +46,7 @@ const TwinskServices = () => {
             <h2 className="text-4xl md:text-5xl font-display font-medium text-slate-900 uppercase leading-[0.95] tracking-tight">
               Livraison de fret <br /> rapide et précise <br /> pour tous
             </h2>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 w-fit px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 mt-4 shadow-lg"
-            >
-              Explorer nos services <ChevronRight className="w-4 h-4" />
-            </motion.button>
-            <p className="text-slate-600 text-lg font-light leading-relaxed mt-4">
+            <p className="text-slate-600 text-lg font-light leading-relaxed">
               Nous offrons un support logistique complet de la collecte à la livraison finale avec entreposage sécurisé et suivi en temps réel.
             </p>
           </motion.div>
