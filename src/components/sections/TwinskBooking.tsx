@@ -14,21 +14,21 @@ const TwinskBooking = () => {
 
   // Routes Chine vers Europe/Amérique
   const routesInternational = [
-    { from: 'Chine', fromFlag: '🇨🇳', to: 'France', toFlag: '🇫🇷' },
-    { from: 'Chine', fromFlag: '🇨🇳', to: 'UK', toFlag: '🇬🇧' },
-    { from: 'Chine', fromFlag: '🇨🇳', to: 'États-Unis', toFlag: '🇺🇸' },
-    { from: 'Chine', fromFlag: '🇨🇳', to: 'Canada', toFlag: '🇨🇦' },
+    { type: 'FCL', size: "40'ST", from: 'Chine', fromFlag: '🇨🇳', to: 'France', toFlag: '🇫🇷', price: '1,450' },
+    { type: 'FCL', size: "40'ST", from: 'Chine', fromFlag: '🇨🇳', to: 'UK', toFlag: '🇬🇧', price: '1,580' },
+    { type: 'FCL', size: "20'ST", from: 'Chine', fromFlag: '🇨🇳', to: 'États-Unis', toFlag: '🇺🇸', price: '2,100' },
+    { type: 'FCL', size: "40'ST", from: 'Chine', fromFlag: '🇨🇳', to: 'Canada', toFlag: '🇨🇦', price: '2,250' },
   ];
 
   // Routes Guangzhou vers Afrique
   const routesAfrica = [
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Libreville', toFlag: '🇬🇦' },
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Lomé', toFlag: '🇹🇬' },
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Abidjan', toFlag: '🇨🇮' },
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Niamey', toFlag: '🇳🇪' },
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Kinshasa', toFlag: '🇨🇩' },
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Dar es Salaam', toFlag: '🇹🇿' },
-    { from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Lagos', toFlag: '🇳🇬' },
+    { type: 'FCL', size: "20'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Libreville', toFlag: '🇬🇦', price: '1,250' },
+    { type: 'FCL', size: "40'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Lomé', toFlag: '🇹🇬', price: '890' },
+    { type: 'LCL', size: "20'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Abidjan', toFlag: '🇨🇮', price: '680' },
+    { type: 'FCL', size: "40'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Niamey', toFlag: '🇳🇪', price: '1,350' },
+    { type: 'FCL', size: "40'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Kinshasa', toFlag: '🇨🇩', price: '1,480' },
+    { type: 'LCL', size: "20'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Dar es Salaam', toFlag: '🇹🇿', price: '980' },
+    { type: 'FCL', size: "40'ST", from: 'Guangzhou', fromFlag: '🇨🇳', to: 'Lagos', toFlag: '🇳🇬', price: '780' },
   ];
 
   return (
@@ -181,14 +181,23 @@ const TwinskBooking = () => {
                 key={index}
                 variants={fadeInUp}
                 whileHover={{ y: -5, boxShadow: '0 10px 40px rgba(0,124,181,0.1)' }}
-                className="bg-slate-50 hover:bg-white rounded-2xl p-5 transition duration-300 border border-slate-200 hover:border-[#007cb5]/30 cursor-pointer"
+                className="bg-slate-50 hover:bg-white rounded-2xl p-6 transition duration-300 border border-slate-200 hover:border-[#007cb5]/30 cursor-pointer"
               >
-                <div className="flex items-center justify-center gap-3 text-base font-medium text-slate-800">
-                  <span className="text-lg">{route.fromFlag}</span>
-                  <span>{route.from}</span>
-                  <ArrowRight className="w-4 h-4 text-[#007cb5]" />
-                  <span className="text-lg">{route.toFlag}</span>
-                  <span>{route.to}</span>
+                <div className="text-xs text-[#007cb5] mb-4 font-semibold tracking-wide">
+                  {route.type} • {route.size}
+                </div>
+                <div className="flex flex-col gap-2 mb-6">
+                  <div className="flex items-center gap-2 text-base font-medium text-slate-800">
+                    <span>{route.from}</span>
+                    <span className="text-sm">{route.fromFlag}</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400" />
+                    <span className="text-sm">{route.toFlag}</span>
+                    <span>{route.to}</span>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-bold text-slate-900">USD {route.price}</span>
+                  <span className="text-xs text-slate-500 font-light">à partir de</span>
                 </div>
               </motion.div>
             ))}
@@ -215,14 +224,23 @@ const TwinskBooking = () => {
                 key={index}
                 variants={fadeInUp}
                 whileHover={{ y: -5, boxShadow: '0 10px 40px rgba(0,124,181,0.1)' }}
-                className="bg-slate-50 hover:bg-white rounded-2xl p-5 transition duration-300 border border-slate-200 hover:border-[#007cb5]/30 cursor-pointer"
+                className="bg-slate-50 hover:bg-white rounded-2xl p-6 transition duration-300 border border-slate-200 hover:border-[#007cb5]/30 cursor-pointer"
               >
-                <div className="flex items-center justify-center gap-3 text-base font-medium text-slate-800">
-                  <span className="text-lg">{route.fromFlag}</span>
-                  <span>{route.from}</span>
-                  <ArrowRight className="w-4 h-4 text-[#007cb5]" />
-                  <span className="text-lg">{route.toFlag}</span>
-                  <span>{route.to}</span>
+                <div className="text-xs text-[#007cb5] mb-4 font-semibold tracking-wide">
+                  {route.type} • {route.size}
+                </div>
+                <div className="flex flex-col gap-2 mb-6">
+                  <div className="flex items-center gap-2 text-base font-medium text-slate-800">
+                    <span>{route.from}</span>
+                    <span className="text-sm">{route.fromFlag}</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400" />
+                    <span className="text-sm">{route.toFlag}</span>
+                    <span>{route.to}</span>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-bold text-slate-900">USD {route.price}</span>
+                  <span className="text-xs text-slate-500 font-light">à partir de</span>
                 </div>
               </motion.div>
             ))}
