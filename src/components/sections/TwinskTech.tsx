@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowUpRight, Cpu, ChevronRight, PlayCircle } from 'lucide-react';
+import { ArrowUpRight, Cpu, ChevronRight, ListChecks } from 'lucide-react';
 import Image from 'next/image';
 import { fadeInUp, slideInFromLeft, slideInFromRight } from '../../lib/animations';
 
@@ -31,17 +31,6 @@ const TwinskTech = () => {
                   className="object-cover rounded-[2rem]"
                 />
               </div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.3 }}
-                className="absolute bottom-8 left-8"
-              >
-                <h3 className="text-white text-4xl font-display font-medium uppercase tracking-tight leading-none">
-                  Précision de livraison <br /> et sécurité optimale
-                </h3>
-              </motion.div>
             </motion.div>
 
             {/* Floating Overlay Card */}
@@ -89,27 +78,30 @@ const TwinskTech = () => {
               transition={{ delay: 0.2 }}
               className="text-slate-600 text-lg font-light mb-10 max-w-lg leading-relaxed"
             >
-              Des livraisons plus rapides, plus sûres et plus intelligentes grâce à nos solutions d&apos;expédition mondiales alimentées par l&apos;IA logistique.
+              By Project vous permet de lister les matériaux nécessaires à votre projet, demander une cotation en ligne auprès de notre réseau de fournisseurs chinois, recevoir et comparer les offres, puis commander directement ou venir sur place finaliser votre projet.
             </motion.p>
             <motion.div
               variants={fadeInUp}
               transition={{ delay: 0.3 }}
               className="flex flex-wrap gap-4"
             >
-              <motion.button
+              <motion.a
+                href="https://byproject-twinsk.netlify.app/quote-request"
+                target="_blank"
+                rel="noopener noreferrer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2 shadow-lg"
               >
-                Devis gratuit <ChevronRight className="w-4 h-4" />
-              </motion.button>
+                Commencer un Projet <ChevronRight className="w-4 h-4" />
+              </motion.a>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="border border-slate-300 hover:bg-slate-100 text-slate-900 px-8 py-4 rounded-full text-base font-semibold transition flex items-center gap-2"
               >
-                <PlayCircle className="w-5 h-5" />
-                Voir la démo
+                <ListChecks className="w-5 h-5" />
+                Voir nos Forfaits
               </motion.button>
             </motion.div>
           </motion.div>
