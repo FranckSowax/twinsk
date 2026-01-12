@@ -167,7 +167,7 @@ const TwinskBooking = () => {
 
       {/* Main Container */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Stats Row */}
+        {/* Stats Row - Hidden
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -182,7 +182,6 @@ const TwinskBooking = () => {
               whileHover={{ y: -5, scale: 1.02 }}
               className="relative bg-white backdrop-blur-xl border border-slate-200/80 rounded-2xl p-5 flex items-center justify-between hover:shadow-xl hover:shadow-slate-900/5 transition-all duration-300 overflow-hidden group"
             >
-              {/* Gradient background on hover */}
               <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
 
               <div className="flex items-center gap-3 relative">
@@ -195,8 +194,9 @@ const TwinskBooking = () => {
             </motion.div>
           ))}
         </motion.div>
+        */}
 
-        {/* Search Module */}
+        {/* Search Module - Hidden
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -268,6 +268,7 @@ const TwinskBooking = () => {
             </div>
           </div>
         </motion.div>
+        */}
 
         {/* Routes Container */}
         <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 lg:p-12 shadow-2xl shadow-slate-900/5 border border-slate-200/50">
