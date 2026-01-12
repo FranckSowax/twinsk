@@ -25,8 +25,8 @@ const TwinskTech = () => {
             >
               <div className="relative h-[500px] w-full">
                 <Image
-                  src="https://images.unsplash.com/photo-1605218427306-0296c2c5388b?w=800"
-                  alt="Blue Truck"
+                  src="/replicate-prediction-78d0daq38srmr0cvntt8nwgxbr.jpg"
+                  alt="By Project - Sourcing Platform"
                   fill
                   className="object-cover rounded-[2rem]"
                 />
