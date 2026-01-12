@@ -8,19 +8,19 @@ import { fadeInUp, staggerContainer } from '../../lib/animations';
 const TwinskServices = () => {
   const serviceCards = [
     {
-      image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800',
-      alt: 'Entreposage',
-      buttonText: 'Découvrir l\'entreposage'
+      image: '/Carte-1688-.jpg',
+      alt: '1688 Sourcing',
+      buttonText: 'Trouvez les pépites 1688'
     },
     {
-      image: 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=800',
-      alt: 'Transport Routier',
-      buttonText: 'Transport routier'
+      image: '/Carte-driveby-.jpg',
+      alt: 'DriveBy Auto',
+      buttonText: 'Commander votre voiture chinoise'
     },
     {
-      image: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=800',
-      alt: 'Fret Aérien',
-      buttonText: 'Fret aérien express'
+      image: '/Carte-sample-.jpg',
+      alt: 'Échantillons',
+      buttonText: 'Recevez vos échantillons'
     }
   ];
 
@@ -58,7 +58,7 @@ const TwinskServices = () => {
             </p>
           </motion.div>
 
-          {/* Air Freight Card */}
+          {/* Twinsk Logistics Card */}
           <motion.div
             variants={fadeInUp}
             whileHover={{ y: -10 }}
@@ -66,8 +66,8 @@ const TwinskServices = () => {
             className="relative group rounded-[2rem] overflow-hidden h-[500px]"
           >
             <Image
-              src="/booking.jpg"
-              alt="Fret Aérien"
+              src="/Carte-Twinslk-logistic-.jpg"
+              alt="Twinsk Logistics"
               fill
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
@@ -78,12 +78,12 @@ const TwinskServices = () => {
                 whileTap={{ scale: 0.95 }}
                 className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
               >
-                Réserver une expédition <ChevronRight className="w-4 h-4" />
+                Booker votre transport <ChevronRight className="w-4 h-4" />
               </motion.button>
             </div>
           </motion.div>
 
-          {/* Ocean Freight Card */}
+          {/* By Project Card */}
           <motion.div
             variants={fadeInUp}
             whileHover={{ y: -10 }}
@@ -91,8 +91,8 @@ const TwinskServices = () => {
             className="relative group rounded-[2rem] overflow-hidden h-[500px]"
           >
             <Image
-              src="/warehouse.jpg"
-              alt="Fret Maritime"
+              src="/Carte-By-project-.jpg"
+              alt="By Project"
               fill
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
@@ -103,7 +103,7 @@ const TwinskServices = () => {
                 whileTap={{ scale: 0.95 }}
                 className="bg-white text-slate-900 px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg"
               >
-                Réserver une expédition <ChevronRight className="w-4 h-4" />
+                Sourcer votre projet <ChevronRight className="w-4 h-4" />
               </motion.button>
             </div>
           </motion.div>
