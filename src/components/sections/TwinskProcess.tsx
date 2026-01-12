@@ -10,8 +10,9 @@ const TwinskProcess = () => {
     {
       number: '01',
       title: 'Entrepôt',
+      description: 'Nos entrepôts modernes offrent un stockage sécurisé et organisé pour tous vos produits en attente d&apos;expédition.',
       image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800',
-      featured: false
+      featured: true
     },
     {
       number: '02',
@@ -23,8 +24,9 @@ const TwinskProcess = () => {
     {
       number: '03',
       title: 'Livraison',
+      description: 'Une livraison rapide et fiable jusqu&apos;à votre destination finale, avec un suivi en temps réel de vos colis.',
       image: 'https://images.unsplash.com/photo-1617347454431-f49d7ff5c301?w=800',
-      featured: false
+      featured: true
     }
   ];
 
@@ -105,48 +107,27 @@ const TwinskProcess = () => {
               variants={fadeInUp}
               whileHover={{ y: -10 }}
               transition={{ duration: 0.3 }}
-              className={`bg-white dark:bg-slate-800 p-4 rounded-3xl h-[300px] relative overflow-hidden group ${
-                step.featured ? 'md:col-span-2 lg:col-span-1' : ''
-              }`}
+              className="bg-white dark:bg-slate-800 p-4 rounded-3xl h-[300px] relative overflow-hidden group"
             >
-              {step.featured ? (
-                <div className="absolute inset-0 bg-white dark:bg-slate-800 z-20 p-6 flex flex-col justify-between">
-                  <div className="flex justify-between">
-                    <span className="font-display font-medium text-lg uppercase text-slate-900 dark:text-white">
-                      {step.number}/ {step.title}
-                    </span>
-                    <ArrowUpRight className="w-5 h-5 text-slate-900 dark:text-white" />
-                  </div>
-                  <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
-                    {step.description}
-                  </p>
-                  <div className="h-32 w-full rounded-2xl overflow-hidden relative">
-                    <Image
-                      src={step.image}
-                      alt={step.title}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
+              <div className="absolute inset-0 bg-white dark:bg-slate-800 z-20 p-6 flex flex-col justify-between">
+                <div className="flex justify-between">
+                  <span className="font-display font-medium text-lg uppercase text-slate-900 dark:text-white">
+                    {step.number}/ {step.title}
+                  </span>
+                  <ArrowUpRight className="w-5 h-5 text-slate-900 dark:text-white" />
                 </div>
-              ) : (
-                <>
-                  <div className="flex justify-between items-start mb-2 relative z-10">
-                    <span className="font-display font-medium text-lg uppercase text-slate-900 dark:text-white">
-                      {step.number}/ {step.title}
-                    </span>
-                    {index === 0 && <ArrowUpRight className="w-5 h-5 text-slate-900 dark:text-white" />}
-                  </div>
-                  <div className="absolute inset-0 mt-12 rounded-3xl overflow-hidden">
-                    <Image
-                      src={step.image}
-                      alt={step.title}
-                      fill
-                      className="object-cover group-hover:scale-105 transition duration-500"
-                    />
-                  </div>
-                </>
-              )}
+                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                  {step.description}
+                </p>
+                <div className="h-32 w-full rounded-2xl overflow-hidden relative">
+                  <Image
+                    src={step.image}
+                    alt={step.title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              </div>
             </motion.div>
           ))}
         </motion.div>
