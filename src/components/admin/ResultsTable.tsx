@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, ExternalLink, Minus } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 
 interface SearchResultRow {
   id: string;
+  source: 'taobao' | '1688';
   taobao_item_id: string;
   title: string;
+  title_original: string | null;
+  description: string | null;
   price: number;
   image_url: string;
   seller: string | null;
@@ -16,6 +19,11 @@ interface SearchResultRow {
   selected: boolean;
   quantity: number;
   margin_percent: number;
+  moq: number | null;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+  client_quantity: number | null;
 }
 
 interface RequestItemWithResults {
@@ -30,6 +38,11 @@ interface ResultsTableProps {
   onUpdate: (resultId: string, fields: Partial<SearchResultRow>) => void;
 }
 
+const SOURCE_BADGE: Record<string, string> = {
+  taobao: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  '1688': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+};
+
 export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
 
@@ -37,10 +50,9 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
     onUpdate(result.id, { selected: !result.selected });
   };
 
-  const handleFieldChange = async (resultId: string, field: string, value: number) => {
+  const handleFieldChange = (resultId: string, field: keyof SearchResultRow, value: number | null) => {
     setSavingIds((prev) => new Set(prev).add(resultId));
     onUpdate(resultId, { [field]: value });
-    // Debounce visual feedback
     setTimeout(() => {
       setSavingIds((prev) => {
         const next = new Set(prev);
@@ -51,9 +63,7 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
   };
 
   if (!items.length) {
-    return (
-      <p className="text-center text-slate-500">Aucun résultat de recherche</p>
-    );
+    return <p className="text-center text-slate-500">Aucun résultat de recherche</p>;
   }
 
   return (
@@ -63,16 +73,11 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
           {/* Client image header */}
           <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
             <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl">
-              <img
-                src={item.image_url}
-                alt="Image client"
-                className="h-full w-full object-cover"
-              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.image_url} alt="Image client" className="h-full w-full object-cover" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-900 dark:text-white">
-                Image du client
-              </p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">Image du client</p>
               {item.description && (
                 <p className="mt-1 text-sm text-slate-500">{item.description}</p>
               )}
@@ -85,17 +90,22 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
           {/* Results */}
           {item.search_results.length > 0 ? (
             <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full">
+              <table className="w-full min-w-[1400px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
-                    <th className="w-10 px-3 py-2"></th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Produit</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Prix CNY</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Vendeur</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold uppercase text-slate-500">Marge %</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Prix final</th>
-                    <th className="w-10 px-3 py-2"></th>
+                    <th className="w-10 px-2 py-2"></th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Source</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Produit</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Prix CNY</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">MOQ</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Poids (kg)</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Vol (m³)</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Vendeur</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté client</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Marge %</th>
+                    <th className="px-2 py-2 text-right text-xs font-semibold uppercase text-slate-500">Prix final</th>
+                    <th className="w-10 px-2 py-2"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -109,8 +119,8 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
                           : 'bg-white dark:bg-slate-800'
                       } ${savingIds.has(result.id) ? 'opacity-70' : ''}`}
                     >
-                      {/* Select checkbox */}
-                      <td className="px-3 py-3">
+                      {/* Select */}
+                      <td className="px-2 py-3">
                         <button
                           type="button"
                           onClick={() => handleToggleSelect(result)}
@@ -124,62 +134,162 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
                         </button>
                       </td>
 
+                      {/* Source badge */}
+                      <td className="px-2 py-3">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SOURCE_BADGE[result.source] || SOURCE_BADGE.taobao}`}>
+                          {result.source}
+                        </span>
+                      </td>
+
                       {/* Product */}
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-3">
+                      <td className="px-2 py-3">
+                        <div className="flex items-center gap-2">
                           <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
-                            <img
-                              src={result.image_url}
-                              alt={result.title}
-                              className="h-full w-full object-cover"
-                            />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={result.image_url} alt={result.title} className="h-full w-full object-cover" />
                           </div>
-                          <p className="max-w-[200px] truncate text-sm font-medium text-slate-700 dark:text-slate-200" title={result.title}>
-                            {result.title}
-                          </p>
+                          <div className="flex max-w-[220px] items-start gap-1">
+                            <p
+                              className="truncate text-sm font-medium text-slate-700 dark:text-slate-200"
+                              title={result.title_original || result.title}
+                            >
+                              {result.title}
+                            </p>
+                            {result.description && (
+                              <span title={result.description} className="flex-shrink-0">
+                                <Info className="h-3.5 w-3.5 text-slate-400 hover:text-amber-500" />
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
                       {/* Price */}
-                      <td className="px-3 py-3 text-sm font-medium text-slate-900 dark:text-white">
+                      <td className="px-2 py-3 text-sm font-medium text-slate-900 dark:text-white">
                         {formatCNY(result.price)}
                       </td>
 
+                      {/* MOQ */}
+                      <td className="px-2 py-3">
+                        <input
+                          type="number"
+                          min={0}
+                          value={result.moq ?? ''}
+                          placeholder="—"
+                          onChange={(e) =>
+                            handleFieldChange(
+                              result.id,
+                              'moq',
+                              e.target.value ? parseInt(e.target.value) : null
+                            )
+                          }
+                          className="w-16 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                        />
+                      </td>
+
+                      {/* Weight */}
+                      <td className="px-2 py-3">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.001}
+                          value={result.weight ?? ''}
+                          placeholder="—"
+                          onChange={(e) =>
+                            handleFieldChange(
+                              result.id,
+                              'weight',
+                              e.target.value ? parseFloat(e.target.value) : null
+                            )
+                          }
+                          className="w-20 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                        />
+                      </td>
+
+                      {/* Volume */}
+                      <td className="px-2 py-3">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.0001}
+                          value={result.volume ?? ''}
+                          placeholder="—"
+                          onChange={(e) =>
+                            handleFieldChange(
+                              result.id,
+                              'volume',
+                              e.target.value ? parseFloat(e.target.value) : null
+                            )
+                          }
+                          className="w-20 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                        />
+                      </td>
+
                       {/* Seller */}
-                      <td className="px-3 py-3 text-sm text-slate-500">
+                      <td className="px-2 py-3 max-w-[140px] truncate text-sm text-slate-500" title={result.seller || ''}>
                         {result.seller || '—'}
                       </td>
 
+                      {/* Client quantity */}
+                      <td className="px-2 py-3">
+                        <input
+                          type="number"
+                          min={0}
+                          value={result.client_quantity ?? ''}
+                          placeholder="—"
+                          onChange={(e) =>
+                            handleFieldChange(
+                              result.id,
+                              'client_quantity',
+                              e.target.value ? parseInt(e.target.value) : null
+                            )
+                          }
+                          className="w-16 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                        />
+                      </td>
+
                       {/* Quantity */}
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <input
                           type="number"
                           min={1}
                           value={result.quantity}
-                          onChange={(e) => handleFieldChange(result.id, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                          onChange={(e) =>
+                            handleFieldChange(
+                              result.id,
+                              'quantity',
+                              Math.max(1, parseInt(e.target.value) || 1)
+                            )
+                          }
+                          className="w-16 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
                         />
                       </td>
 
                       {/* Margin */}
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <input
                           type="number"
                           min={0}
                           step={5}
                           value={result.margin_percent}
-                          onChange={(e) => handleFieldChange(result.id, 'margin_percent', Math.max(0, parseFloat(e.target.value) || 0))}
-                          className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                          onChange={(e) =>
+                            handleFieldChange(
+                              result.id,
+                              'margin_percent',
+                              Math.max(0, parseFloat(e.target.value) || 0)
+                            )
+                          }
+                          className="w-16 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
                         />
                       </td>
 
                       {/* Final price */}
-                      <td className="px-3 py-3 text-right text-sm font-semibold text-amber-600 dark:text-amber-400">
+                      <td className="px-2 py-3 text-right text-sm font-semibold text-amber-600 dark:text-amber-400">
                         {formatCNY(applyMargin(result.price, result.margin_percent) * result.quantity)}
                       </td>
 
                       {/* Link */}
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <a
                           href={result.product_url}
                           target="_blank"

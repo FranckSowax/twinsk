@@ -8,7 +8,8 @@ import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import ResultsTable from '@/components/admin/ResultsTable';
 import MarginControls from '@/components/admin/MarginControls';
-import type { Request as RequestType } from '@/lib/types/database';
+import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
+import type { Request as RequestType, DocumentType } from '@/lib/types/database';
 
 interface RequestItemWithResults {
   id: string;
@@ -16,8 +17,11 @@ interface RequestItemWithResults {
   description: string | null;
   search_results: {
     id: string;
+    source: 'taobao' | '1688';
     taobao_item_id: string;
     title: string;
+    title_original: string | null;
+    description: string | null;
     price: number;
     image_url: string;
     seller: string | null;
@@ -25,6 +29,11 @@ interface RequestItemWithResults {
     selected: boolean;
     quantity: number;
     margin_percent: number;
+    moq: number | null;
+    weight: number | null;
+    volume: number | null;
+    dimensions: string | null;
+    client_quantity: number | null;
   }[];
 }
 
@@ -34,6 +43,7 @@ export default function AdminRequestDetailPage() {
   const [items, setItems] = useState<RequestItemWithResults[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [documentType, setDocumentType] = useState<DocumentType>('devis');
 
   const loadData = useCallback(async () => {
     const [reqRes, resultsRes] = await Promise.all([
@@ -104,7 +114,7 @@ export default function AdminRequestDetailPage() {
       const res = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: uuid }),
+        body: JSON.stringify({ request_id: uuid, document_type: documentType }),
       });
       const data = await res.json();
 
@@ -224,14 +234,16 @@ export default function AdminRequestDetailPage() {
           <MarginControls onApplyGlobal={handleApplyGlobalMargin} />
           <ResultsTable items={items} onUpdate={handleUpdateResult} />
 
-          {/* Generate quote */}
+          {/* Document type + Generate */}
+          <DocumentTypeSelector value={documentType} onChange={setDocumentType} />
+
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
             <div>
               <p className="font-medium text-slate-900 dark:text-white">
                 {selectedResults.length} produit(s) sélectionné(s)
               </p>
               <p className="text-sm text-slate-500">
-                Prêt à générer le devis
+                Prêt à générer le {documentType === 'devis' ? 'devis' : 'packing list'}
               </p>
             </div>
             <motion.button
@@ -250,7 +262,7 @@ export default function AdminRequestDetailPage() {
               ) : (
                 <>
                   <FileText className="h-5 w-5" />
-                  Générer le devis
+                  Générer le {documentType === 'devis' ? 'devis' : 'packing list'}
                 </>
               )}
             </motion.button>

@@ -3,7 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import QuotePreview from '@/components/quote/QuotePreview';
+import PackingListPreview from '@/components/quote/PackingListPreview';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
+
+interface RawSearchResult {
+  title: string;
+  image_url: string;
+  price: number;
+  quantity: number;
+  margin_percent: number;
+  moq: number | null;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+}
 
 interface QuoteItemDisplay {
   title: string;
@@ -13,11 +26,22 @@ interface QuoteItemDisplay {
   margin_percent: number;
 }
 
+interface PackingItemDisplay {
+  title: string;
+  image_url: string;
+  moq: number | null;
+  quantity: number;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+}
+
 export default function QuotePage() {
   const { quoteId } = useParams<{ quoteId: string }>();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [request, setRequest] = useState<RequestType | null>(null);
-  const [items, setItems] = useState<QuoteItemDisplay[]>([]);
+  const [quoteItems, setQuoteItems] = useState<QuoteItemDisplay[]>([]);
+  const [packingItems, setPackingItems] = useState<PackingItemDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -31,18 +55,31 @@ export default function QuotePage() {
         setQuote(data.quote);
         setRequest(data.request);
 
-        // Flatten selected results
-        const flatItems = (data.items || []).flatMap(
-          (item: { search_results: QuoteItemDisplay[] }) =>
-            item.search_results.map((r: QuoteItemDisplay) => ({
-              title: r.title,
-              image_url: r.image_url,
-              price: r.price,
-              quantity: r.quantity,
-              margin_percent: r.margin_percent,
-            }))
+        const flatRaw: RawSearchResult[] = (data.items || []).flatMap(
+          (item: { search_results: RawSearchResult[] }) => item.search_results
         );
-        setItems(flatItems);
+
+        setQuoteItems(
+          flatRaw.map((r) => ({
+            title: r.title,
+            image_url: r.image_url,
+            price: r.price,
+            quantity: r.quantity,
+            margin_percent: r.margin_percent,
+          }))
+        );
+
+        setPackingItems(
+          flatRaw.map((r) => ({
+            title: r.title,
+            image_url: r.image_url,
+            moq: r.moq,
+            quantity: r.quantity,
+            weight: r.weight,
+            volume: r.volume,
+            dimensions: r.dimensions,
+          }))
+        );
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -64,9 +101,15 @@ export default function QuotePage() {
     );
   }
 
+  const isPackingList = quote.document_type === 'packing_list';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100 to-slate-50 px-4 py-8 print:bg-white print:p-0 sm:py-12 dark:from-slate-900 dark:to-slate-800">
-      <QuotePreview quote={quote} request={request} items={items} />
+      {isPackingList ? (
+        <PackingListPreview quote={quote} request={request} items={packingItems} />
+      ) : (
+        <QuotePreview quote={quote} request={request} items={quoteItems} />
+      )}
     </div>
   );
 }

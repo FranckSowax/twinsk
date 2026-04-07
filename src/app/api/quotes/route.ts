@@ -10,11 +10,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
-    const { request_id, margin_global } = await request.json();
+    const { request_id, margin_global, document_type } = await request.json();
 
     if (!request_id) {
       return NextResponse.json({ error: 'request_id requis' }, { status: 400 });
     }
+
+    const docType: 'devis' | 'packing_list' = document_type === 'packing_list' ? 'packing_list' : 'devis';
 
     const { data: items, error: itemsError } = await supabaseAdmin
       .from('request_items')
@@ -43,9 +45,10 @@ export async function POST(request: NextRequest) {
       .from('quotes')
       .insert({
         request_id,
-        total_amount: Math.round(totalAmount * 100) / 100,
+        total_amount: docType === 'packing_list' ? 0 : Math.round(totalAmount * 100) / 100,
         margin_global: margin_global || 0,
         status: 'draft',
+        document_type: docType,
       })
       .select()
       .single();
