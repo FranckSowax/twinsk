@@ -1,48 +1,38 @@
-export interface TaobaoSearchItem {
-  itemId: string;
-  title: string;
-  price: string;
-  image: string;
-  sellerNick?: string;
-  shopName?: string;
-  salesStr?: string;
-  location?: string;
-  itemUrl?: string;
-}
-
-export interface TaobaoImageSearchResponse {
-  code: number;
-  msg: string;
-  data?: {
-    items: TaobaoSearchItem[];
-    totalResults?: number;
+export interface TaobaoSku {
+  def?: {
+    price?: string;
+    promotionPrice?: string;
   };
 }
 
-export interface TaobaoKeywordSearchResponse {
-  code: number;
-  msg: string;
-  data?: {
-    items: TaobaoSearchItem[];
-    totalResults?: number;
-    page?: number;
-    pageSize?: number;
+export interface TaobaoItem {
+  itemId?: string;
+  itemIdStr?: string;
+  title?: string;
+  sales?: number;
+  image?: string;
+  sku?: TaobaoSku;
+}
+
+export interface TaobaoSeller {
+  sellerId?: string;
+  storeTitle?: string;
+  storeType?: string;
+}
+
+export interface TaobaoDelivery {
+  shippingFrom?: string;
+}
+
+export interface TaobaoResultListEntry {
+  item: TaobaoItem;
+  delivery?: TaobaoDelivery;
+  seller?: TaobaoSeller;
+}
+
+export interface TaobaoApiResponse {
+  result?: {
+    status?: { code?: number; data?: string };
+    resultList?: TaobaoResultListEntry[];
   };
-}
-
-export interface TaobaoItemDetail {
-  itemId: string;
-  title: string;
-  price: string;
-  images: string[];
-  description?: string;
-  sellerNick?: string;
-  shopName?: string;
-  location?: string;
-}
-
-export interface TaobaoItemDetailResponse {
-  code: number;
-  msg: string;
-  data?: TaobaoItemDetail;
 }

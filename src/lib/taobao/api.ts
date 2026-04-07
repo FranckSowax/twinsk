@@ -1,4 +1,4 @@
-import type { TaobaoImageSearchResponse, TaobaoKeywordSearchResponse, TaobaoItemDetailResponse } from './types';
+import type { TaobaoApiResponse } from './types';
 
 const RAPIDAPI_HOST = 'taobao-datahub.p.rapidapi.com';
 
@@ -13,7 +13,7 @@ function getHeaders(): HeadersInit {
 export async function searchByImage(
   imgUrl: string,
   options?: { pageSize?: number; page?: number }
-): Promise<TaobaoImageSearchResponse> {
+): Promise<TaobaoApiResponse> {
   const params = new URLSearchParams({
     imgUrl,
     pageSize: String(options?.pageSize ?? 20),
@@ -36,7 +36,7 @@ export async function searchByImage(
 export async function searchByKeyword(
   query: string,
   options?: { pageSize?: number; page?: number; startPrice?: string; endPrice?: string; sort?: string }
-): Promise<TaobaoKeywordSearchResponse> {
+): Promise<TaobaoApiResponse> {
   const params = new URLSearchParams({
     q: query,
     pageSize: String(options?.pageSize ?? 20),
@@ -58,7 +58,7 @@ export async function searchByKeyword(
   return res.json();
 }
 
-export async function getItemDetail(itemId: string): Promise<TaobaoItemDetailResponse> {
+export async function getItemDetail(itemId: string): Promise<unknown> {
   const params = new URLSearchParams({ itemId });
 
   const res = await fetch(
