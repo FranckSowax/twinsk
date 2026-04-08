@@ -25,6 +25,7 @@ interface RequestItemWithResults {
     description: string | null;
     price: number;
     image_url: string;
+    main_image_url: string | null;
     seller: string | null;
     product_url: string;
     selected: boolean;

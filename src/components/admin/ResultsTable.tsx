@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, ExternalLink, Minus, Info } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
+import ResultDetailModal from './ResultDetailModal';
 
 interface SearchResultRow {
   id: string;
@@ -14,6 +15,7 @@ interface SearchResultRow {
   description: string | null;
   price: number;
   image_url: string;
+  main_image_url: string | null;
   seller: string | null;
   product_url: string;
   selected: boolean;
@@ -45,6 +47,14 @@ const SOURCE_BADGE: Record<string, string> = {
 
 export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [activeResult, setActiveResult] = useState<SearchResultRow | null>(null);
+
+  // Keep modal in sync with parent state when result is updated (e.g. selection toggle)
+  const syncedActiveResult = activeResult
+    ? items
+        .flatMap((i) => i.search_results)
+        .find((r) => r.id === activeResult.id) || null
+    : null;
 
   const handleToggleSelect = (result: SearchResultRow) => {
     onUpdate(result.id, { selected: !result.selected });
@@ -67,6 +77,12 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
   }
 
   return (
+    <>
+    <ResultDetailModal
+      result={syncedActiveResult}
+      onClose={() => setActiveResult(null)}
+      onToggleSelect={handleToggleSelect}
+    />
     <div className="space-y-8">
       {items.map((item) => (
         <div key={item.id} className="space-y-4">
@@ -113,7 +129,13 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
                     <motion.tr
                       key={result.id}
                       layout
-                      className={`transition-colors ${
+                      onClick={(e) => {
+                        // Only open modal if click is not on an interactive control
+                        const target = e.target as HTMLElement;
+                        if (target.closest('input, button, a')) return;
+                        setActiveResult(result);
+                      }}
+                      className={`cursor-pointer transition-colors hover:bg-slate-100/50 dark:hover:bg-slate-700/30 ${
                         result.selected
                           ? 'bg-amber-50/50 dark:bg-amber-900/10'
                           : 'bg-white dark:bg-slate-800'
@@ -310,5 +332,6 @@ export default function ResultsTable({ items, onUpdate }: ResultsTableProps) {
         </div>
       ))}
     </div>
+    </>
   );
 }

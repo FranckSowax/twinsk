@@ -46,6 +46,8 @@ async function callKimi(
   });
 }
 
+const CHUNK_SIZE = 10; // Translate at most 10 items per call to stay within max_tokens
+
 export async function translateBatch(items: TranslationItem[]): Promise<TranslationMap> {
   if (!items.length) return {};
 
@@ -54,11 +56,31 @@ export async function translateBatch(items: TranslationItem[]): Promise<Translat
     return {};
   }
 
+  // Split into chunks to avoid response truncation
+  if (items.length > CHUNK_SIZE) {
+    console.log(`[Kimi] Splitting ${items.length} items into chunks of ${CHUNK_SIZE}`);
+    const merged: TranslationMap = {};
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+      const chunk = items.slice(i, i + CHUNK_SIZE);
+      const chunkResult = await translateBatchInternal(chunk);
+      Object.assign(merged, chunkResult);
+    }
+    return merged;
+  }
+
+  return translateBatchInternal(items);
+}
+
+async function translateBatchInternal(items: TranslationItem[]): Promise<TranslationMap> {
+
+  // Truncate long fields to keep the response within token limits
+  const truncate = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text);
+
   const userPayload = items.reduce<Record<string, Omit<TranslationItem, 'id'>>>((acc, item) => {
     const fields: Omit<TranslationItem, 'id'> = {};
-    if (item.title) fields.title = item.title;
-    if (item.description) fields.description = item.description;
-    if (item.seller) fields.seller = item.seller;
+    if (item.title) fields.title = truncate(item.title, 200);
+    if (item.description) fields.description = truncate(item.description, 400);
+    if (item.seller) fields.seller = truncate(item.seller, 80);
     if (Object.keys(fields).length > 0) acc[item.id] = fields;
     return acc;
   }, {});
@@ -80,6 +102,7 @@ export async function translateBatch(items: TranslationItem[]): Promise<Translat
     ],
     response_format: { type: 'json_object' },
     temperature: 0.3,
+    max_tokens: 8000,
   };
 
   const controller = new AbortController();
