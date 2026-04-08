@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
@@ -50,6 +50,7 @@ export default function AdminRequestDetailPage() {
   const [generating, setGenerating] = useState(false);
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [proposalLinkCopied, setProposalLinkCopied] = useState(false);
 
   const loadData = useCallback(async () => {
     const [reqRes, resultsRes] = await Promise.all([
@@ -266,6 +267,74 @@ export default function AdminRequestDetailPage() {
             onUpdate={handleUpdateResult}
             onRefresh={loadData}
           />
+
+          {/* Proposal link — only when at least one result is selected */}
+          {selectedResults.length > 0 && (
+            <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 p-5 dark:border-purple-800 dark:from-purple-900/20 dark:to-pink-900/20">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
+                  <Share2 className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-slate-900 dark:text-white">
+                    Proposition client
+                  </h3>
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
+                    Envoyez au client un lien où il pourra consulter vos présélections, choisir parmi
+                    les options et ajuster les quantités avant de valider.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      readOnly
+                      value={
+                        typeof window !== 'undefined'
+                          ? `${window.location.origin}/proposal/${uuid}`
+                          : `/proposal/${uuid}`
+                      }
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                    />
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        const link = `${window.location.origin}/proposal/${uuid}`;
+                        navigator.clipboard.writeText(link);
+                        setProposalLinkCopied(true);
+                        setTimeout(() => setProposalLinkCopied(false), 2000);
+                      }}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/25"
+                    >
+                      {proposalLinkCopied ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Copié !
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4" />
+                          Copier le lien
+                        </>
+                      )}
+                    </motion.button>
+                    <motion.a
+                      href={`/proposal/${uuid}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-purple-300 bg-white px-4 py-2 text-sm font-semibold text-purple-700 dark:border-purple-700 dark:bg-slate-800 dark:text-purple-300"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Aperçu
+                    </motion.a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Document type + Generate — only when there's at least one result */}
           {items.some((i) => i.search_results.length > 0) && (

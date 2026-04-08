@@ -1,4 +1,4 @@
-export type RequestStatus = 'draft' | 'submitted' | 'processing' | 'quoted' | 'completed';
+export type RequestStatus = 'draft' | 'submitted' | 'processing' | 'quoted' | 'completed' | 'proposal_sent' | 'client_reviewed';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
 export type DocumentType = 'devis' | 'packing_list';
 export type SearchSource = 'taobao' | '1688' | 'manual';
@@ -46,6 +46,7 @@ export interface SearchResult {
   dimensions: string | null;
   client_quantity: number | null;
   main_image_url: string | null;
+  client_selected: boolean | null;
 }
 
 export interface Quote {
