@@ -147,7 +147,8 @@ export async function POST(
           });
         }
       } else {
-        errors.push(`Taobao failed for item ${item.id}: ${taobaoRes.reason}`);
+        console.error(`[Search] Taobao failed for item ${item.id}:`, taobaoRes.reason);
+        errors.push(`Taobao: ${String(taobaoRes.reason).slice(0, 150)}`);
       }
 
       // --- 1688 ---
@@ -222,7 +223,13 @@ export async function POST(
           });
         });
       } else {
-        errors.push(`1688 failed for item ${item.id}: ${alibaba1688Res.reason}`);
+        const reasonStr = String(alibaba1688Res.reason);
+        console.error(`[Search] 1688 failed for item ${item.id}:`, reasonStr);
+        if (reasonStr.includes('403') || reasonStr.includes('not subscribed')) {
+          errors.push('1688: API non souscrite sur RapidAPI — souscrivez à 1688 DataHub pour activer cette source');
+        } else {
+          errors.push(`1688: ${reasonStr.slice(0, 150)}`);
+        }
       }
     }
 

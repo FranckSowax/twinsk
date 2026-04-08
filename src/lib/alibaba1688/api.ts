@@ -52,7 +52,8 @@ export async function searchByImage1688(
   );
 
   if (!res.ok) {
-    throw new Error(`1688 image search failed: ${res.status} ${res.statusText}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(`1688 image search failed: ${res.status} ${res.statusText} ${body.slice(0, 200)}`);
   }
 
   return res.json();
