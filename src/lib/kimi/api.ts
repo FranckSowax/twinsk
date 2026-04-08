@@ -1,6 +1,6 @@
 // Kimi (Moonshot) API client for Chinese -> French translation
 
-const KIMI_BASE_URL = 'https://api.moonshot.cn/v1/chat/completions';
+const KIMI_BASE_URL = 'https://api.moonshot.ai/v1/chat/completions';
 // Use moonshot-v1-32k as primary (officially available, supports JSON mode + larger context)
 // Fallback to moonshot-v1-8k if 32k unavailable
 const KIMI_MODEL = 'moonshot-v1-32k';
