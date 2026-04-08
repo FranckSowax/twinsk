@@ -47,6 +47,27 @@ export async function POST(
     }
 
     const { uuid } = await params;
+    const reset = request.nextUrl.searchParams.get('reset') === 'true';
+
+    // If reset requested: delete all existing search_results and unflag items
+    if (reset) {
+      console.log(`[Search] Reset requested for request ${uuid}`);
+      const { data: itemIds } = await supabaseAdmin
+        .from('request_items')
+        .select('id')
+        .eq('request_id', uuid);
+
+      if (itemIds?.length) {
+        const ids = itemIds.map((i) => i.id);
+        // Delete existing search results for these items
+        await supabaseAdmin.from('search_results').delete().in('request_item_id', ids);
+        // Reset processed flag
+        await supabaseAdmin
+          .from('request_items')
+          .update({ processed: false })
+          .in('id', ids);
+      }
+    }
 
     // Only fetch items that haven't been processed yet
     const { data: items, error: itemsError } = await supabaseAdmin
