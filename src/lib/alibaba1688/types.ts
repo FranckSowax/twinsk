@@ -39,7 +39,7 @@ export interface Alibaba1688ApiResponse {
   };
 }
 
-// Item detail response (for MOQ, weight, dimensions)
+// Item detail response (for MOQ, weight, dimensions, main images)
 export interface Alibaba1688ItemDetailResponse {
   result?: {
     item?: {
@@ -49,6 +49,9 @@ export interface Alibaba1688ItemDetailResponse {
       minOrderQuantity?: number;
       unitWeight?: number;
       weight?: number;
+      images?: string[];
+      mainImage?: string;
+      pic?: string;
       packageInfo?: {
         weight?: number;
         volume?: number;

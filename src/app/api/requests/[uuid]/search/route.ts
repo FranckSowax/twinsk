@@ -22,6 +22,7 @@ interface PendingResult {
   description: string | null;
   price: number;
   image_url: string;
+  main_image_url: string | null;
   seller: string | null;
   product_url: string;
   selected: boolean;
@@ -82,6 +83,7 @@ export async function POST(
             '0'
           );
           const itemId = taobaoItem.itemId || taobaoItem.itemIdStr || '';
+          const taobaoMainImage = normalizeUrl(taobaoItem.image);
           allResults.push({
             request_item_id: item.id,
             source: 'taobao',
@@ -90,7 +92,8 @@ export async function POST(
             title_original: taobaoItem.title || null,
             description: null,
             price: isNaN(price) ? 0 : price,
-            image_url: normalizeUrl(taobaoItem.image),
+            image_url: taobaoMainImage,
+            main_image_url: taobaoMainImage || null,
             seller: seller.storeTitle || null,
             product_url: `https://item.taobao.com/item.htm?id=${itemId}`,
             selected: false,
@@ -146,6 +149,13 @@ export async function POST(
             ? `${pkg.length}x${pkg.width}x${pkg.height} ${pkg.unit || 'cm'}`
             : null;
 
+          const aliThumb = normalizeUrl(aliItem.image);
+          const aliMainImage = normalizeUrl(
+            detailItem?.mainImage ||
+              detailItem?.pic ||
+              detailItem?.images?.[0] ||
+              aliItem.image
+          );
           allResults.push({
             request_item_id: item.id,
             source: '1688',
@@ -154,7 +164,8 @@ export async function POST(
             title_original: aliItem.title || detailItem?.title || null,
             description: detailItem?.description || null,
             price: isNaN(price) ? 0 : price,
-            image_url: normalizeUrl(aliItem.image),
+            image_url: aliThumb,
+            main_image_url: aliMainImage || null,
             seller: seller.storeTitle || null,
             product_url: `https://detail.1688.com/offer/${itemId}.html`,
             selected: false,

@@ -43,6 +43,7 @@ export interface SearchResult {
   volume: number | null;
   dimensions: string | null;
   client_quantity: number | null;
+  main_image_url: string | null;
 }
 
 export interface Quote {
