@@ -1,7 +1,9 @@
 // Kimi (Moonshot) API client for Chinese -> French translation
 
 const KIMI_BASE_URL = 'https://api.moonshot.cn/v1/chat/completions';
-const KIMI_MODEL = 'kimi-k2-0711-preview';
+// Use moonshot-v1-32k as primary (officially available, supports JSON mode + larger context)
+// Fallback to moonshot-v1-8k if 32k unavailable
+const KIMI_MODEL = 'moonshot-v1-32k';
 const KIMI_FALLBACK_MODEL = 'moonshot-v1-8k';
 
 export interface TranslationItem {
@@ -46,8 +48,9 @@ async function callKimi(
 
 export async function translateBatch(items: TranslationItem[]): Promise<TranslationMap> {
   if (!items.length) return {};
+
   if (!process.env.KIMI_API_KEY) {
-    console.warn('KIMI_API_KEY not set, skipping translation');
+    console.error('[Kimi] KIMI_API_KEY env var is missing — translation skipped');
     return {};
   }
 
@@ -60,7 +63,12 @@ export async function translateBatch(items: TranslationItem[]): Promise<Translat
     return acc;
   }, {});
 
-  if (Object.keys(userPayload).length === 0) return {};
+  if (Object.keys(userPayload).length === 0) {
+    console.warn('[Kimi] No fields to translate');
+    return {};
+  }
+
+  console.log(`[Kimi] Translating ${Object.keys(userPayload).length} entries via ${KIMI_MODEL}`);
 
   const payload = {
     messages: [
@@ -75,29 +83,40 @@ export async function translateBatch(items: TranslationItem[]): Promise<Translat
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 45000);
 
   try {
     let res = await callKimi(KIMI_MODEL, payload, controller.signal);
+
     if (!res.ok) {
-      console.warn(`Kimi primary model failed (${res.status}), trying fallback`);
+      const errText = await res.text();
+      console.warn(`[Kimi] Primary model ${KIMI_MODEL} failed (${res.status}): ${errText.slice(0, 200)} — trying fallback`);
       res = await callKimi(KIMI_FALLBACK_MODEL, payload, controller.signal);
     }
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`Kimi translation failed: ${res.status} ${errText}`);
+      console.error(`[Kimi] Both models failed: ${res.status} ${errText.slice(0, 500)}`);
       return {};
     }
 
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content;
-    if (!content) return {};
+    if (!content) {
+      console.error('[Kimi] Empty response content', data);
+      return {};
+    }
 
-    const parsed = JSON.parse(content) as TranslationMap;
-    return parsed;
+    try {
+      const parsed = JSON.parse(content) as TranslationMap;
+      console.log(`[Kimi] Successfully translated ${Object.keys(parsed).length} entries`);
+      return parsed;
+    } catch (parseErr) {
+      console.error('[Kimi] JSON parse failed:', parseErr, 'content:', content.slice(0, 300));
+      return {};
+    }
   } catch (err) {
-    console.error('Kimi translation error:', err);
+    console.error('[Kimi] Translation error:', err);
     return {};
   } finally {
     clearTimeout(timeout);

@@ -51,12 +51,12 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
         {searching ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            Recherche en cours sur Taobao...
+            Recherche Taobao + 1688 + traduction...
           </>
         ) : (
           <>
             <Search className="h-5 w-5" />
-            Rechercher sur Taobao
+            Rechercher (Taobao + 1688)
           </>
         )}
       </motion.button>

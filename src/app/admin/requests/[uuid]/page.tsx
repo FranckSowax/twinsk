@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
+import RetranslateButton from '@/components/admin/RetranslateButton';
 import ResultsTable from '@/components/admin/ResultsTable';
 import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
@@ -223,10 +224,13 @@ export default function AdminRequestDetailPage() {
         </button>
       </div>
 
-      {/* Search trigger */}
-      {(request.status === 'submitted' || request.status === 'processing') && (
+      {/* Search + Translate triggers */}
+      <div className="flex flex-wrap gap-3">
         <SearchTrigger requestId={uuid} onSearchComplete={loadData} />
-      )}
+        {items.some((i) => i.search_results.length > 0) && (
+          <RetranslateButton requestId={uuid} onComplete={loadData} />
+        )}
+      </div>
 
       {/* Margin controls + results */}
       {items.some((i) => i.search_results.length > 0) && (

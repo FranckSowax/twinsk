@@ -82,12 +82,19 @@ export async function POST(
             taobaoItem.sku?.def?.price ||
             '0'
           );
-          const itemId = taobaoItem.itemId || taobaoItem.itemIdStr || '';
+          const numericId = taobaoItem.itemId;
+          const idStr = taobaoItem.itemIdStr || '';
+          const finalId = numericId || idStr;
           const taobaoMainImage = normalizeUrl(taobaoItem.image);
+          // Only build a working URL if we have a numeric itemId
+          // The itemIdStr from this API is encrypted and not usable as a direct URL parameter
+          const productUrl = numericId
+            ? `https://item.taobao.com/item.htm?id=${numericId}`
+            : taobaoMainImage; // Fallback: link to image so admin can identify
           allResults.push({
             request_item_id: item.id,
             source: 'taobao',
-            taobao_item_id: itemId,
+            taobao_item_id: finalId,
             title: taobaoItem.title || 'Sans titre',
             title_original: taobaoItem.title || null,
             description: null,
@@ -95,7 +102,7 @@ export async function POST(
             image_url: taobaoMainImage,
             main_image_url: taobaoMainImage || null,
             seller: seller.storeTitle || null,
-            product_url: `https://item.taobao.com/item.htm?id=${itemId}`,
+            product_url: productUrl,
             selected: false,
             quantity: 1,
             margin_percent: 0,
@@ -141,7 +148,8 @@ export async function POST(
             detail?.result?.sku?.def?.price ||
             '0'
           );
-          const itemId = aliItem.itemId || aliItem.itemIdStr || '';
+          const numericId1688 = aliItem.itemId;
+          const itemId = numericId1688 || aliItem.itemIdStr || '';
           const moq = aliItem.minOrderQuantity ?? aliItem.moq ?? detailItem?.minOrderQuantity ?? null;
           const weight = aliItem.unitWeight ?? aliItem.weight ?? detailItem?.unitWeight ?? detailItem?.weight ?? pkg?.weight ?? null;
           const volume = pkg?.volume ?? null;
@@ -167,7 +175,9 @@ export async function POST(
             image_url: aliThumb,
             main_image_url: aliMainImage || null,
             seller: seller.storeTitle || null,
-            product_url: `https://detail.1688.com/offer/${itemId}.html`,
+            product_url: numericId1688
+              ? `https://detail.1688.com/offer/${numericId1688}.html`
+              : aliMainImage,
             selected: false,
             quantity: 1,
             margin_percent: 0,
@@ -193,6 +203,11 @@ export async function POST(
       }));
 
       const translations = await translateBatch(translationItems);
+      const translationCount = Object.keys(translations).length;
+
+      if (translationCount === 0) {
+        errors.push('Translation failed (Kimi) — titles will remain in Chinese. Check KIMI_API_KEY env var.');
+      }
 
       allResults.forEach((r, idx) => {
         const t = translations[String(idx)];
