@@ -6,6 +6,9 @@ import { translateBatch, translateToChinese, findFactories, type TranslationItem
 
 export const maxDuration = 60;
 
+// Hard time budget: stop processing new items after this many ms to avoid gateway 502
+const PROCESSING_BUDGET_MS = 45_000;
+
 function normalizeUrl(url: string | undefined): string {
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
@@ -75,10 +78,16 @@ export async function POST(
 
     const allResults: PendingResult[] = [];
     const errors: string[] = [];
+    const processedItemIds: string[] = [];
+    const startTime = Date.now();
+    const remainingMs = () => PROCESSING_BUDGET_MS - (Date.now() - startTime);
+    let skippedItems = 0;
 
     // Track API availability — once a quota is exhausted, skip further calls to that API
     let taobaoQuotaExhausted = false;
     let alibaba1688QuotaExhausted = false;
+    let kimiOverloaded = false;
+    let consecutiveFactoryEmpty = 0;
 
     const isQuotaError = (reason: unknown): boolean => {
       const s = String(reason);
@@ -88,7 +97,14 @@ export async function POST(
       );
     };
 
-    for (const item of items) {
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      // Time budget guard — stop processing new items if we're close to the gateway timeout
+      if (remainingMs() <= 0) {
+        skippedItems = items.length - idx;
+        console.warn(`[Search] Time budget exhausted, skipping ${skippedItems} item(s)`);
+        break;
+      }
       // Decide search mode based on what the client provided
       const hasImage = !!item.image_url;
       const hasText = !!item.description?.trim();
@@ -302,10 +318,22 @@ export async function POST(
         factoryQuery = firstForItem?.title_original || firstForItem?.title || '';
       }
 
-      if (factoryQuery) {
+      if (factoryQuery && !kimiOverloaded) {
         try {
           const factories = await findFactories(factoryQuery);
           console.log(`[Search] Factory search for "${factoryQuery}": ${factories.length} result(s)`);
+
+          // Heuristic: if findFactories returns [] twice in a row, assume Kimi is overloaded
+          if (factories.length === 0) {
+            consecutiveFactoryEmpty++;
+            if (consecutiveFactoryEmpty >= 2) {
+              kimiOverloaded = true;
+              errors.push('Kimi (recherche usines) saturé — appels arrêtés, la traduction finale sera aussi impactée');
+              console.warn('[Search] Kimi overloaded (2 consecutive empty factory results), stopping further calls');
+            }
+          } else {
+            consecutiveFactoryEmpty = 0;
+          }
 
           for (const f of factories) {
             // Build description aggregating contact + metadata
@@ -353,10 +381,22 @@ export async function POST(
           errors.push(`Factory search: ${String(err).slice(0, 150)}`);
         }
       }
+
+      // Mark this item as processed (successfully or not — we at least attempted it)
+      processedItemIds.push(item.id);
     }
 
     // --- Translation step (Kimi) ---
-    if (allResults.length > 0) {
+    // Skip if Kimi is overloaded or if we're running out of time budget
+    const canTranslate = allResults.length > 0 && !kimiOverloaded && remainingMs() > 5000;
+    if (allResults.length > 0 && !canTranslate) {
+      errors.push(
+        kimiOverloaded
+          ? 'Traduction reportée (Kimi saturé) — utilisez "Retraduire en FR" plus tard'
+          : 'Traduction reportée (temps limité) — utilisez "Retraduire en FR" plus tard'
+      );
+    }
+    if (canTranslate) {
       const translationItems: TranslationItem[] = allResults.map((r, idx) => ({
         id: String(idx),
         title: r.title_original || undefined,
@@ -396,8 +436,7 @@ export async function POST(
       }
     }
 
-    // Mark processed items
-    const processedItemIds = items.map((it) => it.id);
+    // Mark as processed only the items we actually reached in the loop
     if (processedItemIds.length > 0) {
       await supabaseAdmin
         .from('request_items')
@@ -405,10 +444,17 @@ export async function POST(
         .in('id', processedItemIds);
     }
 
+    const processedCount = processedItemIds.length;
+    const skippedNote =
+      skippedItems > 0
+        ? ` · ${skippedItems} article(s) reporté(s) — cliquez à nouveau sur "Recherche"`
+        : '';
+
     return NextResponse.json({
-      message: `Recherche terminée: ${totalResults} résultats trouvés sur ${items.length} article(s)`,
+      message: `Recherche terminée: ${totalResults} résultats sur ${processedCount}/${items.length} article(s) traité(s)${skippedNote}`,
       results_count: totalResults,
-      processed_items: items.length,
+      processed_items: processedCount,
+      skipped_items: skippedItems,
       errors: errors.length ? errors : undefined,
     });
   } catch (err) {
