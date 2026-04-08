@@ -1,7 +1,7 @@
 export type RequestStatus = 'draft' | 'submitted' | 'processing' | 'quoted' | 'completed';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
 export type DocumentType = 'devis' | 'packing_list';
-export type SearchSource = 'taobao' | '1688';
+export type SearchSource = 'taobao' | '1688' | 'manual';
 
 export interface Request {
   id: string;
@@ -17,9 +17,11 @@ export interface Request {
 export interface RequestItem {
   id: string;
   request_id: string;
-  image_url: string;
+  image_url: string | null;
   description: string | null;
   created_at: string;
+  processed: boolean;
+  added_by: 'client' | 'admin';
 }
 
 export interface SearchResult {

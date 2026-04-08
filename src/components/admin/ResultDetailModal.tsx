@@ -6,7 +6,7 @@ import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 
 interface SearchResultRow {
   id: string;
-  source: 'taobao' | '1688';
+  source: 'taobao' | '1688' | 'manual';
   taobao_item_id: string;
   title: string;
   title_original: string | null;
@@ -35,6 +35,7 @@ interface ResultDetailModalProps {
 const SOURCE_BADGE: Record<string, string> = {
   taobao: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   '1688': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  manual: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
 };
 
 export default function ResultDetailModal({ result, onClose, onToggleSelect }: ResultDetailModalProps) {

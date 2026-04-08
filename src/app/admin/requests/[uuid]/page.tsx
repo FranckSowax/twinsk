@@ -3,22 +3,25 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
 import ResultsTable from '@/components/admin/ResultsTable';
 import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
+import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import type { Request as RequestType, DocumentType } from '@/lib/types/database';
 
 interface RequestItemWithResults {
   id: string;
-  image_url: string;
+  image_url: string | null;
   description: string | null;
+  processed: boolean;
+  added_by: 'client' | 'admin';
   search_results: {
     id: string;
-    source: 'taobao' | '1688';
+    source: 'taobao' | '1688' | 'manual';
     taobao_item_id: string;
     title: string;
     title_original: string | null;
@@ -46,6 +49,7 @@ export default function AdminRequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
+  const [addItemOpen, setAddItemOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     const [reqRes, resultsRes] = await Promise.all([
@@ -225,21 +229,47 @@ export default function AdminRequestDetailPage() {
         </button>
       </div>
 
-      {/* Search + Translate triggers */}
-      <div className="flex flex-wrap gap-3">
+      {/* Search + Translate + Add item triggers */}
+      <div className="flex flex-wrap items-start gap-3">
         <SearchTrigger requestId={uuid} onSearchComplete={loadData} />
         {items.some((i) => i.search_results.length > 0) && (
           <RetranslateButton requestId={uuid} onComplete={loadData} />
         )}
+        <motion.button
+          type="button"
+          onClick={() => setAddItemOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 px-6 py-3 font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-300"
+        >
+          <Plus className="h-5 w-5" />
+          Ajouter un article
+        </motion.button>
       </div>
 
-      {/* Margin controls + results */}
-      {items.some((i) => i.search_results.length > 0) && (
-        <>
-          <MarginControls onApplyGlobal={handleApplyGlobalMargin} />
-          <ResultsTable items={items} onUpdate={handleUpdateResult} />
+      <AddRequestItemModal
+        open={addItemOpen}
+        requestId={uuid}
+        onClose={() => setAddItemOpen(false)}
+        onCreated={loadData}
+      />
 
-          {/* Document type + Generate */}
+      {/* Margin controls + results table — visible as soon as there are items */}
+      {items.length > 0 && (
+        <>
+          {items.some((i) => i.search_results.length > 0) && (
+            <MarginControls onApplyGlobal={handleApplyGlobalMargin} />
+          )}
+          <ResultsTable
+            items={items}
+            requestId={uuid}
+            onUpdate={handleUpdateResult}
+            onRefresh={loadData}
+          />
+
+          {/* Document type + Generate — only when there's at least one result */}
+          {items.some((i) => i.search_results.length > 0) && (
+          <>
           <DocumentTypeSelector value={documentType} onChange={setDocumentType} />
 
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
@@ -272,6 +302,8 @@ export default function AdminRequestDetailPage() {
               )}
             </motion.button>
           </div>
+          </>
+          )}
         </>
       )}
     </div>

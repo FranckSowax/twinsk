@@ -48,13 +48,22 @@ export async function POST(
 
     const { uuid } = await params;
 
+    // Only fetch items that haven't been processed yet
     const { data: items, error: itemsError } = await supabaseAdmin
       .from('request_items')
       .select('*')
-      .eq('request_id', uuid);
+      .eq('request_id', uuid)
+      .eq('processed', false);
 
-    if (itemsError || !items?.length) {
-      return NextResponse.json({ error: 'Aucun article trouvé' }, { status: 404 });
+    if (itemsError) {
+      return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
+
+    if (!items?.length) {
+      return NextResponse.json({
+        message: 'Tous les articles ont déjà été traités',
+        results_count: 0,
+      });
     }
 
     await supabaseAdmin
@@ -258,9 +267,19 @@ export async function POST(
       }
     }
 
+    // Mark processed items
+    const processedItemIds = items.map((it) => it.id);
+    if (processedItemIds.length > 0) {
+      await supabaseAdmin
+        .from('request_items')
+        .update({ processed: true })
+        .in('id', processedItemIds);
+    }
+
     return NextResponse.json({
-      message: `Recherche terminée: ${totalResults} résultats trouvés`,
+      message: `Recherche terminée: ${totalResults} résultats trouvés sur ${items.length} article(s)`,
       results_count: totalResults,
+      processed_items: items.length,
       errors: errors.length ? errors : undefined,
     });
   } catch (err) {

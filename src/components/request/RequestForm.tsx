@@ -28,7 +28,7 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
   const [error, setError] = useState('');
 
   if (submitted) {
-    return <SubmitConfirmation />;
+    return <SubmitConfirmation requestId={requestId} />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
