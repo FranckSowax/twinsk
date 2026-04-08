@@ -8,7 +8,7 @@ import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 interface SearchResultRow {
   id: string;
-  source: 'taobao' | '1688' | 'manual';
+  source: 'taobao' | '1688' | 'manual' | 'factory';
   taobao_item_id: string;
   title: string;
   title_original: string | null;
@@ -38,6 +38,14 @@ const SOURCE_BADGE: Record<string, string> = {
   taobao: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   '1688': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   manual: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  factory: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  taobao: 'taobao',
+  '1688': '1688',
+  manual: 'manuel',
+  factory: '🏭 usine',
 };
 
 export default function ResultDetailModal({ result, onClose, onToggleSelect }: ResultDetailModalProps) {
@@ -62,12 +70,18 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
             {/* Header with image */}
             <div className="relative">
               <div className="aspect-square w-full bg-slate-100 dark:bg-slate-900 sm:aspect-[16/10]">
-                <SmartImage
-                  src={result.main_image_url || result.image_url}
-                  fallbackSrc={result.image_url}
-                  alt={result.title}
-                  className="h-full w-full object-contain"
-                />
+                {result.image_url || result.main_image_url ? (
+                  <SmartImage
+                    src={result.main_image_url || result.image_url}
+                    fallbackSrc={result.image_url}
+                    alt={result.title}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30">
+                    <span className="text-6xl">🏭</span>
+                  </div>
+                )}
               </div>
 
               {/* Close button */}
@@ -85,7 +99,7 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                   SOURCE_BADGE[result.source] || SOURCE_BADGE.taobao
                 }`}
               >
-                {result.source}
+                {SOURCE_LABEL[result.source] || result.source}
               </span>
             </div>
 

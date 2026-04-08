@@ -46,7 +46,139 @@ async function callKimi(
   });
 }
 
-const CHUNK_SIZE = 10; // Translate at most 10 items per call to stay within max_tokens
+const CHUNK_SIZE = 6; // Translate at most 6 items per call to stay within max_tokens safely
+
+// ============================================================
+// Factory / supplier search via Kimi (web-aware sourcing expert)
+// ============================================================
+
+export interface FactorySupplier {
+  name: string; // company/factory name (in English or translated)
+  city: string | null;
+  years_experience: number | null;
+  specialties: string | null; // short description of what they produce
+  contact: {
+    phone?: string | null;
+    email?: string | null;
+    wechat?: string | null;
+    whatsapp?: string | null;
+    website?: string | null;
+  };
+  reviews_summary: string | null; // short quality / reputation summary
+  estimated_price_cny: number | null; // estimated unit price for the queried product
+  moq: number | null;
+  why: string; // short reason why this factory is a good match
+}
+
+const FACTORY_SEARCH_SYSTEM_PROMPT = `Tu es un expert du sourcing en Chine, spécialiste des usines et entreprises manufacturières chinoises.
+Tu connais parfaitement :
+- Le paysage industriel de chaque région (Guangdong, Zhejiang, Fujian, Jiangsu, Shandong, etc.)
+- Les plateformes B2B chinoises : 1688.com, Alibaba.com, Made-in-China.com, HCTM, Chinabrands
+- Les réseaux sociaux et annuaires chinois (WeChat officiel, DingTalk, Tianyancha, Qichacha)
+- Les salons professionnels (Canton Fair, Yiwu Market)
+- La réputation, l'ancienneté et la capacité de production des fournisseurs
+
+MISSION : Pour un produit donné, recommande 3 à 5 USINES ou ENTREPRISES manufacturières chinoises réputées capables de produire ce produit.
+
+CRITÈRES STRICTS :
+1. Privilégier les entreprises avec PLUSIEURS ANNÉES D'EXPÉRIENCE (idéalement 5+ ans)
+2. Avec de BONNES ÉVALUATIONS et une réputation solide
+3. Qui acceptent les commandes export et ont de l'expérience avec des clients étrangers
+4. IMPÉRATIF : tu dois fournir AU MOINS UN MOYEN DE CONTACT réel (téléphone, email, WeChat, WhatsApp, ou site web). Si tu ne peux pas fournir de contact pour une entreprise, NE L'INCLUS PAS et passe à une autre.
+
+RÉPONSE : UNIQUEMENT un JSON valide, format exact :
+{
+  "factories": [
+    {
+      "name": "Nom de l'entreprise (en anglais si possible)",
+      "city": "Ville, Province",
+      "years_experience": 12,
+      "specialties": "Ce qu'ils produisent principalement",
+      "contact": {
+        "phone": "+86...",
+        "email": "...@...",
+        "wechat": "...",
+        "whatsapp": "+86...",
+        "website": "https://..."
+      },
+      "reviews_summary": "Résumé court sur leur réputation",
+      "estimated_price_cny": 15.50,
+      "moq": 500,
+      "why": "Pourquoi cette usine est recommandée pour ce produit précis"
+    }
+  ]
+}
+
+Règles supplémentaires :
+- Tous les champs du JSON doivent être présents (utilise null si inconnu)
+- "contact" doit contenir AU MOINS UNE valeur non-null
+- Si tu ne connais aucune usine fiable avec contact pour ce produit, retourne {"factories": []}
+- Reste factuel : ne fabrique pas de contacts fictifs`;
+
+export async function findFactories(
+  productDescription: string
+): Promise<FactorySupplier[]> {
+  if (!process.env.KIMI_API_KEY) {
+    console.warn('[Kimi] KIMI_API_KEY missing — skipping factory search');
+    return [];
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+
+  try {
+    const res = await callKimi(
+      'moonshot-v1-32k',
+      {
+        messages: [
+          { role: 'system', content: FACTORY_SEARCH_SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `Produit recherché : ${productDescription}\n\nTrouve-moi des usines/entreprises chinoises capables de fournir ce produit en gros.`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: 4000,
+      },
+      controller.signal
+    );
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Kimi] findFactories failed: ${res.status} ${errText.slice(0, 300)}`);
+      return [];
+    }
+
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return [];
+
+    try {
+      const parsed = JSON.parse(content) as { factories?: FactorySupplier[] };
+      const factories = parsed.factories || [];
+
+      // Strict filter: keep only factories with at least one contact method
+      const filtered = factories.filter((f) => {
+        if (!f || typeof f !== 'object') return false;
+        const c = f.contact || {};
+        const hasContact = !!(c.phone || c.email || c.wechat || c.whatsapp || c.website);
+        return hasContact && !!f.name?.trim();
+      });
+
+      console.log(`[Kimi] findFactories: ${factories.length} found, ${filtered.length} with contacts`);
+      return filtered;
+    } catch (parseErr) {
+      console.error('[Kimi] findFactories JSON parse failed:', parseErr);
+      return [];
+    }
+  } catch (err) {
+    console.error('[Kimi] findFactories error:', err);
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // Translate French (or any language) to Chinese for search queries
 export async function translateToChinese(text: string): Promise<string> {
@@ -146,8 +278,8 @@ async function translateBatchInternal(items: TranslationItem[]): Promise<Transla
       },
     ],
     response_format: { type: 'json_object' },
-    temperature: 0.3,
-    max_tokens: 8000,
+    temperature: 0.2,
+    max_tokens: 16000,
   };
 
   const controller = new AbortController();

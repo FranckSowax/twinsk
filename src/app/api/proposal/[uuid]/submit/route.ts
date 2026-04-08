@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 
-// POST: Public endpoint — client submits their final picks & quantities
-// Body: { picks: [{ result_id, client_selected, client_quantity }] }
+// POST: Public endpoint — client submits their final picks, quantities AND notes
+// Body: {
+//   picks: [{ result_id, client_selected, client_quantity }],
+//   notes: [{ item_id, note }]  // per-request_item notes (required if no product is selected for this item)
+// }
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> }
 ) {
   try {
     const { uuid } = await params;
-    const { picks } = await request.json();
+    const { picks, notes } = await request.json();
 
     if (!Array.isArray(picks)) {
       return NextResponse.json({ error: 'picks[] requis' }, { status: 400 });
@@ -26,26 +29,26 @@ export async function POST(
       return NextResponse.json({ error: 'Demande non trouvée' }, { status: 404 });
     }
 
-    // Verify each result actually belongs to this request
-    // (prevent clients from updating unrelated rows)
-    const { data: validResults } = await supabaseAdmin
+    // Load items + their search results to (a) scope updates (b) validate notes
+    const { data: itemsRaw } = await supabaseAdmin
       .from('request_items')
-      .select('id, search_results(id)')
+      .select('id, search_results(id, selected)')
       .eq('request_id', uuid);
 
-    interface RawRow {
+    interface ItemWithResults {
       id: string;
-      search_results: { id: string }[];
+      search_results: { id: string; selected: boolean }[];
     }
-    const validRows = (validResults || []) as unknown as RawRow[];
-    const validIds = new Set(
-      validRows.flatMap((i) => (i.search_results || []).map((r) => r.id))
+    const itemRows = (itemsRaw || []) as unknown as ItemWithResults[];
+
+    const validResultIds = new Set(
+      itemRows.flatMap((i) => (i.search_results || []).map((r) => r.id))
     );
 
-    // Apply updates one by one
-    let updated = 0;
+    // Apply result-level updates
+    let updatedResults = 0;
     for (const pick of picks) {
-      if (!pick?.result_id || !validIds.has(pick.result_id)) continue;
+      if (!pick?.result_id || !validResultIds.has(pick.result_id)) continue;
 
       const updateFields: Record<string, unknown> = {};
       if (typeof pick.client_selected === 'boolean') {
@@ -61,8 +64,58 @@ export async function POST(
           .from('search_results')
           .update(updateFields)
           .eq('id', pick.result_id);
-        updated++;
+        updatedResults++;
       }
+    }
+
+    // Apply notes + validate: if client selected zero products for an item that has results,
+    // they must leave a note explaining why.
+    const noteMap = new Map<string, string>(
+      Array.isArray(notes)
+        ? notes
+            .filter((n: { item_id?: string; note?: string }) => n?.item_id)
+            .map((n: { item_id: string; note?: string }) => [n.item_id, (n.note || '').trim()])
+        : []
+    );
+
+    // Build the final selection state per item using the new picks
+    const pickByResult = new Map<string, boolean>();
+    for (const p of picks) {
+      if (typeof p?.client_selected === 'boolean') {
+        pickByResult.set(p.result_id, p.client_selected);
+      }
+    }
+
+    for (const item of itemRows) {
+      const itemResults = item.search_results || [];
+      // Only enforce for items that actually had proposed results
+      if (itemResults.length === 0) continue;
+
+      // Compute selection count after picks applied
+      const selectedCount = itemResults.filter((r) => {
+        const override = pickByResult.get(r.id);
+        if (override !== undefined) return override;
+        return r.selected; // fall back to previous admin selection
+      }).length;
+
+      const note = noteMap.get(item.id) ?? null;
+
+      if (selectedCount === 0 && !note) {
+        return NextResponse.json(
+          {
+            error:
+              "Merci de laisser une note pour chaque article où vous n'avez sélectionné aucune proposition",
+            item_id: item.id,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Save the note (null if empty)
+      await supabaseAdmin
+        .from('request_items')
+        .update({ client_note: note || null })
+        .eq('id', item.id);
     }
 
     // Mark request as reviewed by client
@@ -72,8 +125,8 @@ export async function POST(
       .eq('id', uuid);
 
     return NextResponse.json({
-      message: `Choix enregistrés: ${updated} produit(s)`,
-      updated,
+      message: `Choix enregistrés: ${updatedResults} produit(s)`,
+      updated: updatedResults,
     });
   } catch (err) {
     console.error('Proposal submit error:', err);

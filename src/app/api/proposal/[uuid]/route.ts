@@ -24,7 +24,7 @@ export async function GET(
     // Fetch items + selected results
     const { data: items } = await supabaseAdmin
       .from('request_items')
-      .select('id, image_url, description, search_results(*)')
+      .select('id, image_url, description, client_note, search_results(*)')
       .eq('request_id', uuid);
 
     // Filter to keep only selected=true results, strip admin-only fields
@@ -36,6 +36,7 @@ export async function GET(
       price: number;
       image_url: string;
       main_image_url: string | null;
+      extra_images: string[] | null;
       seller: string | null;
       selected: boolean;
       quantity: number;
@@ -51,6 +52,7 @@ export async function GET(
       id: string;
       image_url: string | null;
       description: string | null;
+      client_note: string | null;
       search_results: RawResult[];
     }
 
@@ -61,26 +63,39 @@ export async function GET(
         id: item.id,
         image_url: item.image_url,
         description: item.description,
+        client_note: item.client_note,
         results: (item.search_results || [])
           .filter((r) => r.selected)
-          .map((r) => ({
-            id: r.id,
-            title: r.title,
-            description: r.description,
-            image_url: r.main_image_url || r.image_url,
-            thumbnail_url: r.image_url, // fallback if main image fails to load
-            // Apply margin to price for client display
-            price: r.price * (1 + (r.margin_percent || 0) / 100),
-            quantity: r.quantity,
-            moq: r.moq,
-            weight: r.weight,
-            volume: r.volume,
-            dimensions: r.dimensions,
-            client_quantity: r.client_quantity,
-            client_selected: r.client_selected,
-          })),
+          .map((r) => {
+            const gallery: string[] = [];
+            if (r.main_image_url) gallery.push(r.main_image_url);
+            else if (r.image_url) gallery.push(r.image_url);
+            if (r.extra_images?.length) {
+              for (const u of r.extra_images) {
+                if (u && !gallery.includes(u)) gallery.push(u);
+              }
+            }
+            if (r.image_url && !gallery.includes(r.image_url)) gallery.push(r.image_url);
+            return {
+              id: r.id,
+              title: r.title,
+              description: r.description,
+              image_url: r.main_image_url || r.image_url,
+              thumbnail_url: r.image_url,
+              gallery,
+              // Apply margin to price for client display
+              price: r.price * (1 + (r.margin_percent || 0) / 100),
+              quantity: r.quantity,
+              moq: r.moq,
+              weight: r.weight,
+              volume: r.volume,
+              dimensions: r.dimensions,
+              client_quantity: r.client_quantity,
+              client_selected: r.client_selected,
+            };
+          }),
       }))
-      .filter((item) => item.results.length > 0);
+      .filter((item) => item.results.length > 0 || item.client_note);
 
     return NextResponse.json({
       request: {

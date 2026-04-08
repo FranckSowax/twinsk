@@ -21,7 +21,7 @@ interface RequestItemWithResults {
   added_by: 'client' | 'admin';
   search_results: {
     id: string;
-    source: 'taobao' | '1688' | 'manual';
+    source: 'taobao' | '1688' | 'manual' | 'factory';
     taobao_item_id: string;
     title: string;
     title_original: string | null;

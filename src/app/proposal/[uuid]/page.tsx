@@ -9,6 +9,7 @@ interface ProposalItem {
   id: string;
   image_url: string | null;
   description: string | null;
+  client_note: string | null;
   results: ProposalResult[];
 }
 

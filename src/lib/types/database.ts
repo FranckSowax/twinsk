@@ -1,7 +1,7 @@
 export type RequestStatus = 'draft' | 'submitted' | 'processing' | 'quoted' | 'completed' | 'proposal_sent' | 'client_reviewed';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
 export type DocumentType = 'devis' | 'packing_list';
-export type SearchSource = 'taobao' | '1688' | 'manual';
+export type SearchSource = 'taobao' | '1688' | 'manual' | 'factory';
 
 export interface Request {
   id: string;
@@ -22,6 +22,7 @@ export interface RequestItem {
   created_at: string;
   processed: boolean;
   added_by: 'client' | 'admin';
+  client_note: string | null;
 }
 
 export interface SearchResult {
@@ -47,6 +48,8 @@ export interface SearchResult {
   client_quantity: number | null;
   main_image_url: string | null;
   client_selected: boolean | null;
+  extra_images: string[] | null;
+  description_original: string | null;
 }
 
 export interface Quote {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { searchByImage, searchByKeyword } from '@/lib/taobao/api';
 import { searchByImage1688, getItemDetail1688, searchByKeyword1688 } from '@/lib/alibaba1688/api';
-import { translateBatch, translateToChinese, type TranslationItem } from '@/lib/kimi/api';
+import { translateBatch, translateToChinese, findFactories, type TranslationItem } from '@/lib/kimi/api';
 
 export const maxDuration = 60;
 
@@ -15,14 +15,16 @@ function normalizeUrl(url: string | undefined): string {
 
 interface PendingResult {
   request_item_id: string;
-  source: 'taobao' | '1688';
+  source: 'taobao' | '1688' | 'factory';
   taobao_item_id: string;
   title: string;
   title_original: string | null;
   description: string | null;
+  description_original: string | null;
   price: number;
   image_url: string;
   main_image_url: string | null;
+  extra_images: string[] | null;
   seller: string | null;
   product_url: string;
   selected: boolean;
@@ -131,9 +133,11 @@ export async function POST(
             title: taobaoItem.title || 'Sans titre',
             title_original: taobaoItem.title || null,
             description: null,
+            description_original: null,
             price: isNaN(price) ? 0 : price,
             image_url: taobaoMainImage,
             main_image_url: taobaoMainImage || null,
+            extra_images: null,
             seller: seller.storeTitle || null,
             product_url: productUrl,
             selected: false,
@@ -202,11 +206,13 @@ export async function POST(
             ? `https://detail.1688.com/offer/${numericId1688}.html`
             : normalizeUrl(aliItem.itemUrl);
 
-          // Thumbnail + main image
+          // Thumbnail + main image + extras
           const aliThumb = normalizeUrl(aliItem.image);
-          const aliMainImage = normalizeUrl(
-            detailItem?.images?.[0] || aliItem.image
-          );
+          const allImages = (detailItem?.images || [])
+            .map((img) => normalizeUrl(img))
+            .filter((u) => !!u);
+          const aliMainImage = allImages[0] || aliThumb;
+          const extraImages = allImages.length > 1 ? allImages.slice(0, 8) : null;
 
           // Description from properties list (concatenated) if available
           let description: string | null = null;
@@ -223,9 +229,11 @@ export async function POST(
             title: aliItem.title || detailItem?.title || 'Sans titre',
             title_original: aliItem.title || detailItem?.title || null,
             description,
+            description_original: description,
             price,
             image_url: aliThumb,
             main_image_url: aliMainImage || aliThumb || null,
+            extra_images: extraImages,
             seller: null, // 1688 list endpoint doesn't return seller info
             product_url: productUrl,
             selected: false,
@@ -247,6 +255,67 @@ export async function POST(
           errors.push(`1688: ${reasonStr.slice(0, 150)}`);
         }
       }
+
+      // --- Factory search via Kimi (expert sourcing Chine) ---
+      // Build a descriptive query: use client description if present, else use title from first search result
+      let factoryQuery = item.description?.trim() || '';
+      if (!factoryQuery) {
+        // Fallback: take the first Taobao/1688 result title we just collected for this item
+        const firstForItem = allResults.find((r) => r.request_item_id === item.id);
+        factoryQuery = firstForItem?.title_original || firstForItem?.title || '';
+      }
+
+      if (factoryQuery) {
+        try {
+          const factories = await findFactories(factoryQuery);
+          console.log(`[Search] Factory search for "${factoryQuery}": ${factories.length} result(s)`);
+
+          for (const f of factories) {
+            // Build description aggregating contact + metadata
+            const contactLines: string[] = [];
+            if (f.contact.phone) contactLines.push(`Tél: ${f.contact.phone}`);
+            if (f.contact.whatsapp) contactLines.push(`WhatsApp: ${f.contact.whatsapp}`);
+            if (f.contact.wechat) contactLines.push(`WeChat: ${f.contact.wechat}`);
+            if (f.contact.email) contactLines.push(`Email: ${f.contact.email}`);
+            if (f.contact.website) contactLines.push(`Site: ${f.contact.website}`);
+
+            const descParts: string[] = [];
+            if (f.specialties) descParts.push(`Spécialités: ${f.specialties}`);
+            if (f.years_experience != null) descParts.push(`Expérience: ${f.years_experience} ans`);
+            if (f.city) descParts.push(`Localisation: ${f.city}`);
+            if (f.reviews_summary) descParts.push(`Réputation: ${f.reviews_summary}`);
+            if (f.why) descParts.push(`Recommandation: ${f.why}`);
+            descParts.push(`\nContact:\n${contactLines.join('\n')}`);
+
+            allResults.push({
+              request_item_id: item.id,
+              source: 'factory',
+              taobao_item_id: '',
+              title: f.name,
+              title_original: f.name,
+              description: descParts.join(' · '),
+              description_original: descParts.join(' · '),
+              price: f.estimated_price_cny ?? 0,
+              image_url: '',
+              main_image_url: null,
+              extra_images: null,
+              seller: f.city || null,
+              product_url: f.contact.website || '',
+              selected: false,
+              quantity: 1,
+              margin_percent: 0,
+              moq: f.moq ?? null,
+              weight: null,
+              volume: null,
+              dimensions: null,
+              client_quantity: null,
+            });
+          }
+        } catch (err) {
+          console.error(`[Search] Factory search failed for item ${item.id}:`, err);
+          errors.push(`Factory search: ${String(err).slice(0, 150)}`);
+        }
+      }
     }
 
     // --- Translation step (Kimi) ---
@@ -254,7 +323,7 @@ export async function POST(
       const translationItems: TranslationItem[] = allResults.map((r, idx) => ({
         id: String(idx),
         title: r.title_original || undefined,
-        description: r.description || undefined,
+        description: r.description_original || r.description || undefined,
         seller: r.seller || undefined,
       }));
 

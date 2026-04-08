@@ -31,7 +31,7 @@ export async function POST(
 
     const { data: results, error: resultsError } = await supabaseAdmin
       .from('search_results')
-      .select('id, title, description, seller, title_original')
+      .select('id, title, description, seller, title_original, description_original')
       .in('request_item_id', itemIds);
 
     if (resultsError) {
@@ -42,11 +42,11 @@ export async function POST(
       return NextResponse.json({ error: 'Aucun résultat à traduire' }, { status: 404 });
     }
 
-    // Build translation payload — use title_original if present, otherwise current title
+    // Build translation payload — always use original text if present
     const translationItems: TranslationItem[] = results.map((r) => ({
       id: r.id,
       title: r.title_original || r.title || undefined,
-      description: r.description || undefined,
+      description: r.description_original || r.description || undefined,
       seller: r.seller || undefined,
     }));
 
@@ -68,12 +68,12 @@ export async function POST(
       const updateFields: Record<string, string> = {};
       if (t.title) {
         updateFields.title = t.title;
-        // Preserve original if not already set
-        if (!result.title_original) {
-          updateFields.title_original = result.title;
-        }
+        if (!result.title_original) updateFields.title_original = result.title;
       }
-      if (t.description) updateFields.description = t.description;
+      if (t.description) {
+        updateFields.description = t.description;
+        if (!result.description_original) updateFields.description_original = result.description;
+      }
       if (t.seller) updateFields.seller = t.seller;
 
       if (Object.keys(updateFields).length > 0) {

@@ -2,8 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Package, Scale, Box, Ruler, Tag } from 'lucide-react';
-import { formatCNY } from '@/lib/utils/formatCurrency';
-import SmartImage from '@/components/ui/SmartImage';
+import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 export interface ProposalResult {
@@ -12,6 +11,7 @@ export interface ProposalResult {
   description: string | null;
   image_url: string;
   thumbnail_url?: string;
+  gallery?: string[];
   price: number; // already includes margin
   quantity: number;
   moq: number | null;
@@ -56,26 +56,26 @@ export default function ProposalDetailModal({
             onClick={(e) => e.stopPropagation()}
             className="my-8 w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
           >
-            {/* Image header */}
+            {/* Gallery */}
             <div className="relative">
-              <div className="aspect-square w-full bg-slate-100 dark:bg-slate-900 sm:aspect-[16/10]">
-                <SmartImage
-                  src={result.image_url}
-                  fallbackSrc={result.thumbnail_url || null}
-                  alt={result.title}
-                  className="h-full w-full object-contain"
-                />
-              </div>
+              <ImageGallery
+                images={
+                  result.gallery?.length
+                    ? result.gallery
+                    : [result.image_url, result.thumbnail_url].filter((u): u is string => !!u)
+                }
+                alt={result.title}
+              />
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur hover:bg-white dark:bg-slate-700/90 dark:text-white"
+                className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur hover:bg-white dark:bg-slate-700/90 dark:text-white"
                 aria-label="Fermer"
               >
                 <X className="h-5 w-5" />
               </button>
               {isSelected && (
-                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-green-500 px-3 py-1 text-xs font-bold uppercase text-white shadow">
+                <span className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-green-500 px-3 py-1 text-xs font-bold uppercase text-white shadow">
                   <Check className="h-3 w-3" />
                   Choisi
                 </span>
