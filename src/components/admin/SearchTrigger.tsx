@@ -22,8 +22,19 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
     setResult(null);
 
     try {
-      const url = `/api/requests/${requestId}/search${reset ? '?reset=true' : ''}`;
-      const res = await fetch(url, { method: 'POST' });
+      // Step 1: reset (fast, no external APIs) if requested
+      if (reset) {
+        const resetRes = await fetch(`/api/requests/${requestId}/reset-search`, {
+          method: 'POST',
+        });
+        if (!resetRes.ok) {
+          const resetData = await resetRes.json().catch(() => ({}));
+          throw new Error(resetData.error || 'Erreur reset');
+        }
+      }
+
+      // Step 2: run the search
+      const res = await fetch(`/api/requests/${requestId}/search`, { method: 'POST' });
       const data = await res.json();
 
       if (!res.ok) {
