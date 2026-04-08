@@ -3,12 +3,15 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Package, Scale, Box, Ruler, Tag } from 'lucide-react';
 import { formatCNY } from '@/lib/utils/formatCurrency';
+import SmartImage from '@/components/ui/SmartImage';
+import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 export interface ProposalResult {
   id: string;
   title: string;
   description: string | null;
   image_url: string;
+  thumbnail_url?: string;
   price: number; // already includes margin
   quantity: number;
   moq: number | null;
@@ -56,9 +59,9 @@ export default function ProposalDetailModal({
             {/* Image header */}
             <div className="relative">
               <div className="aspect-square w-full bg-slate-100 dark:bg-slate-900 sm:aspect-[16/10]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <SmartImage
                   src={result.image_url}
+                  fallbackSrc={result.thumbnail_url || null}
                   alt={result.title}
                   className="h-full w-full object-contain"
                 />
@@ -85,9 +88,7 @@ export default function ProposalDetailModal({
                 {result.title}
               </h2>
 
-              <div className="text-3xl font-bold text-amber-500">
-                {formatCNY(result.price)}
-              </div>
+              <MultiCurrencyPrice amountCny={result.price} variant="large" />
 
               {result.description && (
                 <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
@@ -139,9 +140,12 @@ export default function ProposalDetailModal({
                     +
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  Total : {formatCNY(result.price * effectiveQty)}
-                </p>
+                <div className="mt-3">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Total pour cette quantité
+                  </p>
+                  <MultiCurrencyPrice amountCny={result.price * effectiveQty} variant="stacked" />
+                </div>
               </div>
 
               {/* Select action */}

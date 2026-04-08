@@ -68,6 +68,7 @@ export async function GET(
             title: r.title,
             description: r.description,
             image_url: r.main_image_url || r.image_url,
+            thumbnail_url: r.image_url, // fallback if main image fails to load
             // Apply margin to price for client display
             price: r.price * (1 + (r.margin_percent || 0) / 100),
             quantity: r.quantity,

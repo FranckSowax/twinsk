@@ -3,6 +3,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink, Check, Tag, Package, Scale, Box, Ruler, Store, Globe } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
+import SmartImage from '@/components/ui/SmartImage';
+import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 interface SearchResultRow {
   id: string;
@@ -60,9 +62,9 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
             {/* Header with image */}
             <div className="relative">
               <div className="aspect-square w-full bg-slate-100 dark:bg-slate-900 sm:aspect-[16/10]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <SmartImage
                   src={result.main_image_url || result.image_url}
+                  fallbackSrc={result.image_url}
                   alt={result.title}
                   className="h-full w-full object-contain"
                 />
@@ -103,12 +105,24 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
               </div>
 
               {/* Price */}
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-amber-500">{formatCNY(result.price)}</span>
+              <div className="space-y-2">
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Prix {result.margin_percent > 0 ? 'avec marge' : 'd\'achat'}
+                  </p>
+                  <MultiCurrencyPrice
+                    amountCny={
+                      result.margin_percent > 0
+                        ? applyMargin(result.price, result.margin_percent)
+                        : result.price
+                    }
+                    variant="large"
+                  />
+                </div>
                 {result.margin_percent > 0 && (
-                  <span className="text-sm text-slate-500">
-                    → {formatCNY(applyMargin(result.price, result.margin_percent))} avec marge {result.margin_percent}%
-                  </span>
+                  <p className="text-xs text-slate-500">
+                    Prix d&apos;achat brut : {formatCNY(result.price)} · Marge : {result.margin_percent}%
+                  </p>
                 )}
               </div>
 

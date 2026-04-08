@@ -3,8 +3,10 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Send, Loader2, CheckCircle, ImageIcon, Info } from 'lucide-react';
-import { formatCNY } from '@/lib/utils/formatCurrency';
+import { formatCNY, toMultiCurrency } from '@/lib/utils/formatCurrency';
 import ProposalDetailModal, { type ProposalResult } from './ProposalDetailModal';
+import SmartImage from '@/components/ui/SmartImage';
+import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 interface ProposalItem {
   id: string;
@@ -116,8 +118,11 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
         <p className="mt-3 text-slate-600 dark:text-slate-400">
           Notre équipe finalise votre devis et vous recontacte très prochainement.
         </p>
-        <div className="mt-6 inline-flex rounded-2xl bg-white px-5 py-3 text-sm font-medium text-slate-700 shadow dark:bg-slate-800 dark:text-slate-200">
-          {totals.count} produit(s) choisi(s) — {formatCNY(totals.total)}
+        <div className="mt-6 inline-flex flex-col items-center rounded-2xl bg-white px-5 py-3 text-sm font-medium text-slate-700 shadow dark:bg-slate-800 dark:text-slate-200">
+          <span className="mb-1 text-xs text-slate-400">
+            {totals.count} produit(s) choisi(s)
+          </span>
+          <MultiCurrencyPrice amountCny={totals.total} variant="stacked" />
         </div>
       </motion.div>
     );
@@ -229,9 +234,9 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                   >
                     {/* Image */}
                     <div className="relative aspect-square w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <SmartImage
                         src={result.image_url}
+                        fallbackSrc={result.thumbnail_url || null}
                         alt={result.title}
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
                       />
@@ -250,13 +255,20 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                       >
                         {result.title}
                       </p>
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <p className="text-base font-bold text-amber-500">{formatCNY(result.price)}</p>
-                        {selected && (
-                          <p className="text-xs font-semibold text-green-600 dark:text-green-400">
-                            × {qty}
+                      <div className="mt-2">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-base font-bold text-amber-500">
+                            {formatCNY(result.price)}
                           </p>
-                        )}
+                          {selected && (
+                            <p className="text-xs font-semibold text-green-600 dark:text-green-400">
+                              × {qty}
+                            </p>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-slate-500">
+                          {toMultiCurrency(result.price).formatted.xaf}
+                        </p>
                       </div>
                       {result.moq != null && (
                         <p className="mt-1 text-[10px] text-slate-400">MOQ: {result.moq}</p>
@@ -272,11 +284,11 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
         {/* Sticky footer submit bar */}
         <div className="sticky bottom-4 z-10 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-2xl backdrop-blur sm:p-6 dark:border-slate-700 dark:bg-slate-800/90">
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mes choix</p>
-              <p className="text-xl font-bold text-slate-900 sm:text-2xl dark:text-white">
-                {totals.count} produit(s) · {formatCNY(totals.total)}
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Mes choix ({totals.count} produit{totals.count > 1 ? 's' : ''})
               </p>
+              <MultiCurrencyPrice amountCny={totals.total} variant="stacked" />
             </div>
             <motion.button
               type="button"
