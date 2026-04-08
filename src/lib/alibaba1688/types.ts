@@ -1,73 +1,74 @@
-// 1688 DataHub API response types — based on similar structure to Taobao DataHub
-// To be validated at runtime; the parser is defensive
+// 1688 DataHub API response types — based on real API responses
+// Confirmed by curl tests on 2026-04-08
 
-export interface Alibaba1688Sku {
-  def?: {
-    price?: string;
-    promotionPrice?: string;
-  };
+export interface Alibaba1688SkuDef {
+  price?: string; // can be a single value "2.45" or a range "2.45 - 3.40"
+  promotionPrice?: string;
+  minOrder?: string | number;
+  quantity?: number;
+  unit?: string;
 }
 
 export interface Alibaba1688Item {
-  itemId?: string;
-  itemIdStr?: string;
+  itemId?: number | string;
   title?: string;
+  sales?: number | string;
+  itemUrl?: string; // "//detail.1688.com/offer/{id}.html"
   image?: string;
-  sku?: Alibaba1688Sku;
-  minOrderQuantity?: number;
-  moq?: number;
-  unitWeight?: number;
-  weight?: number;
-}
-
-export interface Alibaba1688Seller {
-  sellerId?: string;
-  storeId?: string;
-  storeTitle?: string;
-  storeType?: string;
+  rootCatId?: number | string;
+  sku?: {
+    def?: Alibaba1688SkuDef;
+  };
+  averageStarRate?: string;
+  rePurchaseRate?: number;
 }
 
 export interface Alibaba1688ResultListEntry {
   item: Alibaba1688Item;
-  seller?: Alibaba1688Seller;
 }
 
 export interface Alibaba1688ApiResponse {
   result?: {
     status?: { code?: number; data?: string };
+    base?: {
+      page?: number;
+      pageSize?: number;
+      totalResults?: number;
+    };
     resultList?: Alibaba1688ResultListEntry[];
   };
 }
 
-// Item detail response (for MOQ, weight, dimensions, main images)
+// Item detail response (richer data: full images array, description, SKU details)
 export interface Alibaba1688ItemDetailResponse {
   result?: {
+    status?: { code?: number; data?: string };
     item?: {
       itemId?: string;
       title?: string;
-      description?: string;
-      minOrderQuantity?: number;
-      unitWeight?: number;
-      weight?: number;
+      catId?: string;
+      rootCatId?: string;
+      sales?: string;
+      itemUrl?: string;
       images?: string[];
-      mainImage?: string;
-      pic?: string;
-      packageInfo?: {
-        weight?: number;
-        volume?: number;
-        length?: number;
-        width?: number;
-        height?: number;
-        unit?: string;
+      video?: string | null;
+      description?: {
+        url?: string;
+        images?: string[];
+      } | string;
+      sku?: {
+        def?: Alibaba1688SkuDef;
+        saleInfo?: {
+          skuRangePrice?: { startAmount: string; price: string }[];
+          price?: string | null;
+          promotionPrice?: { startAmount: string; price: string }[];
+        };
+      };
+      properties?: {
+        cut?: string;
+        list?: { name: string; value: string }[];
       };
     };
-    sku?: {
-      def?: {
-        price?: string;
-        promotionPrice?: string;
-      };
-    };
-    seller?: Alibaba1688Seller;
   };
 }
 

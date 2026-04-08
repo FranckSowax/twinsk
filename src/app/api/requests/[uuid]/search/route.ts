@@ -155,70 +155,86 @@ export async function POST(
       if (alibaba1688Res.status === 'fulfilled') {
         const list = alibaba1688Res.value.result?.resultList || [];
         const top = list.slice(0, 8);
+        console.log(`[Search] 1688 returned ${list.length} results for item ${item.id}`);
 
-        // For top results, fetch item detail to get MOQ/weight (parallel, capped to 5)
+        // For top results, fetch item detail to get richer data (main image, description)
         const detailPromises = top.slice(0, 5).map(async (entry) => {
-          const itemId = entry.item?.itemId || entry.item?.itemIdStr;
+          const itemId = entry.item?.itemId;
           if (!itemId) return null;
           try {
-            return await getItemDetail1688(itemId);
-          } catch {
+            return await getItemDetail1688(String(itemId));
+          } catch (err) {
+            console.warn(`[Search] 1688 detail failed for ${itemId}:`, err);
             return null;
           }
         });
         const details = await Promise.all(detailPromises);
 
+        // Parser helper for price ranges like "2.45 - 3.40" → 2.45
+        const parsePrice = (raw?: string): number => {
+          if (!raw) return 0;
+          const match = raw.match(/[\d.]+/);
+          const v = match ? parseFloat(match[0]) : NaN;
+          return isNaN(v) ? 0 : v;
+        };
+
         top.forEach((entry, idx) => {
           const aliItem = entry.item || {};
-          const seller = entry.seller || {};
           const detail = details[idx];
           const detailItem = detail?.result?.item;
-          const pkg = detailItem?.packageInfo;
 
-          const price = parseFloat(
+          // Price: prefer promotionPrice, then price; strip range
+          const price = parsePrice(
             aliItem.sku?.def?.promotionPrice ||
-            aliItem.sku?.def?.price ||
-            detail?.result?.sku?.def?.promotionPrice ||
-            detail?.result?.sku?.def?.price ||
-            '0'
+              aliItem.sku?.def?.price ||
+              detailItem?.sku?.def?.promotionPrice ||
+              detailItem?.sku?.def?.price
           );
-          const numericId1688 = aliItem.itemId;
-          const itemId = numericId1688 || aliItem.itemIdStr || '';
-          const moq = aliItem.minOrderQuantity ?? aliItem.moq ?? detailItem?.minOrderQuantity ?? null;
-          const weight = aliItem.unitWeight ?? aliItem.weight ?? detailItem?.unitWeight ?? detailItem?.weight ?? pkg?.weight ?? null;
-          const volume = pkg?.volume ?? null;
-          const dimensions = pkg?.length && pkg?.width && pkg?.height
-            ? `${pkg.length}x${pkg.width}x${pkg.height} ${pkg.unit || 'cm'}`
-            : null;
 
+          const numericId1688 = aliItem.itemId ? String(aliItem.itemId) : '';
+
+          // MOQ from sku.def.minOrder (string or number)
+          const rawMoq = aliItem.sku?.def?.minOrder ?? detailItem?.sku?.def?.minOrder;
+          const moq = rawMoq != null ? Number(rawMoq) || null : null;
+
+          // Product URL: from itemUrl (normalized) or built from id
+          const productUrl = numericId1688
+            ? `https://detail.1688.com/offer/${numericId1688}.html`
+            : normalizeUrl(aliItem.itemUrl);
+
+          // Thumbnail + main image
           const aliThumb = normalizeUrl(aliItem.image);
           const aliMainImage = normalizeUrl(
-            detailItem?.mainImage ||
-              detailItem?.pic ||
-              detailItem?.images?.[0] ||
-              aliItem.image
+            detailItem?.images?.[0] || aliItem.image
           );
+
+          // Description from properties list (concatenated) if available
+          let description: string | null = null;
+          if (detailItem?.properties?.list?.length) {
+            description = detailItem.properties.list
+              .map((p) => `${p.name}: ${p.value}`)
+              .join(' · ');
+          }
+
           allResults.push({
             request_item_id: item.id,
             source: '1688',
-            taobao_item_id: itemId,
+            taobao_item_id: numericId1688,
             title: aliItem.title || detailItem?.title || 'Sans titre',
             title_original: aliItem.title || detailItem?.title || null,
-            description: detailItem?.description || null,
-            price: isNaN(price) ? 0 : price,
+            description,
+            price,
             image_url: aliThumb,
-            main_image_url: aliMainImage || null,
-            seller: seller.storeTitle || null,
-            product_url: numericId1688
-              ? `https://detail.1688.com/offer/${numericId1688}.html`
-              : aliMainImage,
+            main_image_url: aliMainImage || aliThumb || null,
+            seller: null, // 1688 list endpoint doesn't return seller info
+            product_url: productUrl,
             selected: false,
             quantity: 1,
             margin_percent: 0,
             moq,
-            weight,
-            volume,
-            dimensions,
+            weight: null, // not available from item_detail endpoint alone
+            volume: null,
+            dimensions: null,
             client_quantity: null,
           });
         });

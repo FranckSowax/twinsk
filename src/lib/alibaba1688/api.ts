@@ -46,8 +46,9 @@ export async function searchByImage1688(
     sort: 'default',
   });
 
+  // Use v1 endpoint — empirically returns results more reliably than v2
   const res = await fetch(
-    `https://${RAPIDAPI_HOST}/item_search_image_2?${params}`,
+    `https://${RAPIDAPI_HOST}/item_search_image?${params}`,
     { headers: getHeaders() }
   );
 
