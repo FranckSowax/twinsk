@@ -76,6 +76,18 @@ export async function POST(
     const allResults: PendingResult[] = [];
     const errors: string[] = [];
 
+    // Track API availability — once a quota is exhausted, skip further calls to that API
+    let taobaoQuotaExhausted = false;
+    let alibaba1688QuotaExhausted = false;
+
+    const isQuotaError = (reason: unknown): boolean => {
+      const s = String(reason);
+      return (
+        s.includes('429') &&
+        (s.includes('exceeded') || s.includes('quota') || s.includes('MONTHLY'))
+      );
+    };
+
     for (const item of items) {
       // Decide search mode based on what the client provided
       const hasImage = !!item.image_url;
@@ -93,18 +105,43 @@ export async function POST(
         }
       }
 
-      const [taobaoRes, alibaba1688Res] = await Promise.allSettled([
-        hasImage
+      // Skip API calls entirely if quota already exhausted for a given provider
+      const taobaoCall = taobaoQuotaExhausted
+        ? Promise.reject(new Error('Taobao quota exhausted — skipped'))
+        : hasImage
           ? searchByImage(item.image_url, { pageSize: 8 })
           : searchQuery
             ? searchByKeyword(searchQuery, { pageSize: 8 })
-            : Promise.reject(new Error('No image or query')),
-        hasImage
+            : Promise.reject(new Error('No image or query'));
+
+      const alibaba1688Call = alibaba1688QuotaExhausted
+        ? Promise.reject(new Error('1688 quota exhausted — skipped'))
+        : hasImage
           ? searchByImage1688(item.image_url, { page: 1 })
           : searchQuery
             ? searchByKeyword1688(searchQuery, { pageSize: 8 })
-            : Promise.reject(new Error('No image or query')),
+            : Promise.reject(new Error('No image or query'));
+
+      const [taobaoRes, alibaba1688Res] = await Promise.allSettled([
+        taobaoCall,
+        alibaba1688Call,
       ]);
+
+      // Detect quota exhaustion — stop calling for the rest of the items
+      if (taobaoRes.status === 'rejected' && isQuotaError(taobaoRes.reason)) {
+        if (!taobaoQuotaExhausted) {
+          errors.push('Taobao: quota mensuel RapidAPI épuisé — upgrade nécessaire');
+          console.warn('[Search] Taobao quota exhausted, skipping further calls');
+        }
+        taobaoQuotaExhausted = true;
+      }
+      if (alibaba1688Res.status === 'rejected' && isQuotaError(alibaba1688Res.reason)) {
+        if (!alibaba1688QuotaExhausted) {
+          errors.push('1688: quota mensuel RapidAPI épuisé — upgrade nécessaire');
+          console.warn('[Search] 1688 quota exhausted, skipping further calls');
+        }
+        alibaba1688QuotaExhausted = true;
+      }
 
       // --- Taobao ---
       if (taobaoRes.status === 'fulfilled') {
@@ -150,7 +187,7 @@ export async function POST(
             client_quantity: null,
           });
         }
-      } else {
+      } else if (!isQuotaError(taobaoRes.reason)) {
         console.error(`[Search] Taobao failed for item ${item.id}:`, taobaoRes.reason);
         errors.push(`Taobao: ${String(taobaoRes.reason).slice(0, 150)}`);
       }
@@ -246,7 +283,7 @@ export async function POST(
             client_quantity: null,
           });
         });
-      } else {
+      } else if (!isQuotaError(alibaba1688Res.reason)) {
         const reasonStr = String(alibaba1688Res.reason);
         console.error(`[Search] 1688 failed for item ${item.id}:`, reasonStr);
         if (reasonStr.includes('403') || reasonStr.includes('not subscribed')) {

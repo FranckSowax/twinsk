@@ -46,6 +46,35 @@ async function callKimi(
   });
 }
 
+/** Call Kimi with automatic retry on 429 (engine_overloaded) with exponential backoff */
+async function callKimiWithRetry(
+  model: string,
+  payload: object,
+  signal?: AbortSignal,
+  maxRetries = 3
+): Promise<Response> {
+  let lastRes: Response | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000); // 1s, 2s, 4s, 8s
+      console.log(`[Kimi] retry ${attempt}/${maxRetries} after ${delayMs}ms`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    lastRes = await callKimi(model, payload, signal);
+
+    // Success
+    if (lastRes.ok) return lastRes;
+
+    // Only retry on 429 (overloaded / rate limited)
+    if (lastRes.status !== 429) return lastRes;
+
+    // If there's still budget, continue; otherwise return the last response
+    if (attempt === maxRetries) return lastRes;
+  }
+  return lastRes!;
+}
+
 const CHUNK_SIZE = 6; // Translate at most 6 items per call to stay within max_tokens safely
 
 // ============================================================
@@ -127,7 +156,7 @@ export async function findFactories(
   const timeout = setTimeout(() => controller.abort(), 45000);
 
   try {
-    const res = await callKimi(
+    const res = await callKimiWithRetry(
       'moonshot-v1-32k',
       {
         messages: [
@@ -192,7 +221,7 @@ export async function translateToChinese(text: string): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const res = await callKimi(
+    const res = await callKimiWithRetry(
       'moonshot-v1-8k',
       {
         messages: [
@@ -286,12 +315,12 @@ async function translateBatchInternal(items: TranslationItem[]): Promise<Transla
   const timeout = setTimeout(() => controller.abort(), 45000);
 
   try {
-    let res = await callKimi(KIMI_MODEL, payload, controller.signal);
+    let res = await callKimiWithRetry(KIMI_MODEL, payload, controller.signal);
 
     if (!res.ok) {
       const errText = await res.text();
       console.warn(`[Kimi] Primary model ${KIMI_MODEL} failed (${res.status}): ${errText.slice(0, 200)} — trying fallback`);
-      res = await callKimi(KIMI_FALLBACK_MODEL, payload, controller.signal);
+      res = await callKimiWithRetry(KIMI_FALLBACK_MODEL, payload, controller.signal);
     }
 
     if (!res.ok) {

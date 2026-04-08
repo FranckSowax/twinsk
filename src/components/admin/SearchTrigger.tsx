@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
+import { Search, Loader2, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface SearchTriggerProps {
   requestId: string;
@@ -13,6 +13,7 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
   const [searching, setSearching] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const runSearch = async (reset: boolean) => {
@@ -20,6 +21,7 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
     else setSearching(true);
     setError(null);
     setResult(null);
+    setWarnings([]);
 
     try {
       // Step 1: reset (fast, no external APIs) if requested
@@ -42,6 +44,11 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
       }
 
       setResult(data.message);
+      // Dedupe warnings (server may push the same quota warning multiple times)
+      if (Array.isArray(data.errors) && data.errors.length > 0) {
+        const unique = Array.from(new Set<string>(data.errors));
+        setWarnings(unique);
+      }
       onSearchComplete();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la recherche');
@@ -117,6 +124,24 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
           <CheckCircle className="h-4 w-4" />
           {result}
         </motion.p>
+      )}
+
+      {warnings.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20"
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Avertissements
+          </div>
+          <ul className="list-inside list-disc space-y-0.5 text-sm text-amber-700 dark:text-amber-300">
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </motion.div>
       )}
 
       {error && (
