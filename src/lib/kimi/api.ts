@@ -48,6 +48,51 @@ async function callKimi(
 
 const CHUNK_SIZE = 10; // Translate at most 10 items per call to stay within max_tokens
 
+// Translate French (or any language) to Chinese for search queries
+export async function translateToChinese(text: string): Promise<string> {
+  if (!text.trim()) return '';
+  if (!process.env.KIMI_API_KEY) {
+    console.warn('[Kimi] KIMI_API_KEY missing — returning original text');
+    return text;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await callKimi(
+      'moonshot-v1-8k',
+      {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Tu es un traducteur. Traduis le texte en chinois simplifié, format optimal pour une recherche e-commerce sur Taobao/1688. Retourne UNIQUEMENT la traduction, sans explication.',
+          },
+          { role: 'user', content: text },
+        ],
+        temperature: 0.2,
+        max_tokens: 200,
+      },
+      controller.signal
+    );
+
+    if (!res.ok) {
+      console.error(`[Kimi] translateToChinese failed: ${res.status}`);
+      return text;
+    }
+
+    const data = await res.json();
+    const translated = data.choices?.[0]?.message?.content?.trim();
+    return translated || text;
+  } catch (err) {
+    console.error('[Kimi] translateToChinese error:', err);
+    return text;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function translateBatch(items: TranslationItem[]): Promise<TranslationMap> {
   if (!items.length) return {};
 

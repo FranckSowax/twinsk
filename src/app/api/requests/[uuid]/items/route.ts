@@ -14,11 +14,25 @@ export async function POST(
       return NextResponse.json({ error: 'Aucun article fourni' }, { status: 400 });
     }
 
-    const insertData = items.map((item: { image_url: string; description?: string }) => ({
-      request_id: uuid,
-      image_url: item.image_url,
-      description: item.description || null,
-    }));
+    // Validate: each item must have either an image_url OR a description
+    const invalid = items.find(
+      (item: { image_url?: string | null; description?: string | null }) =>
+        !item.image_url && !item.description
+    );
+    if (invalid) {
+      return NextResponse.json(
+        { error: 'Chaque article doit avoir soit une image, soit une description' },
+        { status: 400 }
+      );
+    }
+
+    const insertData = items.map(
+      (item: { image_url?: string | null; description?: string | null }) => ({
+        request_id: uuid,
+        image_url: item.image_url || null,
+        description: item.description || null,
+      })
+    );
 
     const { data, error } = await supabaseAdmin
       .from('request_items')

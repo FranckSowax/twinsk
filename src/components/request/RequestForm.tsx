@@ -3,14 +3,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Send, User, Mail, Phone, FileText } from 'lucide-react';
-import ImageUploader from './ImageUploader';
+import ItemBuilder, { type RequestBuildItem } from './ItemBuilder';
 import SubmitConfirmation from './SubmitConfirmation';
-
-interface UploadedImage {
-  url: string;
-  file: File;
-  description: string;
-}
 
 interface RequestFormProps {
   requestId: string;
@@ -28,7 +22,7 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
   const [clientEmail, setClientEmail] = useState(initialData?.client_email || '');
   const [clientPhone, setClientPhone] = useState(initialData?.client_phone || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
-  const [images, setImages] = useState<UploadedImage[]>([]);
+  const [items, setItems] = useState<RequestBuildItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(initialData?.status === 'submitted');
   const [error, setError] = useState('');
@@ -46,8 +40,15 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
       return;
     }
 
-    if (!images.length) {
-      setError('Veuillez ajouter au moins une image');
+    if (!items.length) {
+      setError('Veuillez ajouter au moins un article (photo ou texte)');
+      return;
+    }
+
+    // Validate text-only items have a description
+    const invalidTextItem = items.find((it) => it.type === 'text' && !it.description.trim());
+    if (invalidTextItem) {
+      setError('Chaque article texte doit avoir une description');
       return;
     }
 
@@ -73,9 +74,9 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: images.map((img) => ({
-            image_url: img.url,
-            description: img.description || null,
+          items: items.map((it) => ({
+            image_url: it.url || null,
+            description: it.description.trim() || null,
           })),
         }),
       });
@@ -157,15 +158,16 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
         </div>
       </div>
 
-      {/* Images */}
+      {/* Items */}
       <div className="space-y-4">
         <h2 className="font-display text-xl font-semibold text-slate-900 dark:text-white">
           Vos produits recherchés
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Ajoutez les photos des produits que vous souhaitez sourcer. Vous pouvez en envoyer plusieurs à la fois.
+          Ajoutez des <strong>photos</strong> ou des <strong>descriptions texte</strong> des produits que vous souhaitez sourcer.
+          Vous pouvez en ajouter plusieurs en une fois (drag & drop, copier-coller, ou sélection multiple).
         </p>
-        <ImageUploader images={images} onImagesChange={setImages} />
+        <ItemBuilder items={items} onChange={setItems} />
       </div>
 
       {/* Error */}

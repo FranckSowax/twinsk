@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { searchByImage } from '@/lib/taobao/api';
-import { searchByImage1688, getItemDetail1688 } from '@/lib/alibaba1688/api';
-import { translateBatch, type TranslationItem } from '@/lib/kimi/api';
+import { searchByImage, searchByKeyword } from '@/lib/taobao/api';
+import { searchByImage1688, getItemDetail1688, searchByKeyword1688 } from '@/lib/alibaba1688/api';
+import { translateBatch, translateToChinese, type TranslationItem } from '@/lib/kimi/api';
 
 export const maxDuration = 60;
 
@@ -66,9 +66,33 @@ export async function POST(
     const errors: string[] = [];
 
     for (const item of items) {
+      // Decide search mode based on what the client provided
+      const hasImage = !!item.image_url;
+      const hasText = !!item.description?.trim();
+
+      let searchQuery: string | null = null;
+      if (!hasImage && hasText) {
+        // Text-only item: translate FR description to Chinese for keyword search
+        try {
+          searchQuery = await translateToChinese(item.description);
+          console.log(`[Search] Item ${item.id} text→ZH: "${item.description}" → "${searchQuery}"`);
+        } catch (err) {
+          errors.push(`Translate FR→ZH failed for item ${item.id}: ${err}`);
+          searchQuery = item.description;
+        }
+      }
+
       const [taobaoRes, alibaba1688Res] = await Promise.allSettled([
-        searchByImage(item.image_url, { pageSize: 8 }),
-        searchByImage1688(item.image_url, { page: 1 }),
+        hasImage
+          ? searchByImage(item.image_url, { pageSize: 8 })
+          : searchQuery
+            ? searchByKeyword(searchQuery, { pageSize: 8 })
+            : Promise.reject(new Error('No image or query')),
+        hasImage
+          ? searchByImage1688(item.image_url, { page: 1 })
+          : searchQuery
+            ? searchByKeyword1688(searchQuery, { pageSize: 8 })
+            : Promise.reject(new Error('No image or query')),
       ]);
 
       // --- Taobao ---

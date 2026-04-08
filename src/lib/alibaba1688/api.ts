@@ -14,6 +14,28 @@ function getHeaders(): HeadersInit {
   };
 }
 
+export async function searchByKeyword1688(
+  query: string,
+  options?: { page?: number; pageSize?: number }
+): Promise<Alibaba1688ApiResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    page: String(options?.page ?? 1),
+    pageSize: String(options?.pageSize ?? 10),
+    sort: 'default',
+  });
+
+  const res = await fetch(`https://${RAPIDAPI_HOST}/item_search?${params}`, {
+    headers: getHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`1688 keyword search failed: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json();
+}
+
 export async function searchByImage1688(
   imgUrl: string,
   options?: { page?: number }
