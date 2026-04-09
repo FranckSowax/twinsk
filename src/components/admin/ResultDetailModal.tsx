@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ExternalLink, Check, Tag, Package, Scale, Box, Ruler, Store, Globe } from 'lucide-react';
+import { X, ExternalLink, Check, Tag, Package, Scale, Box, Ruler, Store, Globe, Phone, Mail, MessageCircle } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import SmartImage from '@/components/ui/SmartImage';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
@@ -118,59 +118,115 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                 )}
               </div>
 
-              {/* Price */}
-              <div className="space-y-2">
-                <div>
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Prix {result.margin_percent > 0 ? 'avec marge' : 'd\'achat'}
-                  </p>
-                  <MultiCurrencyPrice
-                    amountCny={
-                      result.margin_percent > 0
-                        ? applyMargin(result.price, result.margin_percent)
-                        : result.price
-                    }
-                    variant="large"
-                  />
-                </div>
-                {result.margin_percent > 0 && (
-                  <p className="text-xs text-slate-500">
-                    Prix d&apos;achat brut : {formatCNY(result.price)} · Marge : {result.margin_percent}%
-                  </p>
-                )}
-              </div>
+              {result.source === 'factory' ? (
+                /* ========= FACTORY VIEW ========= */
+                <>
+                  {/* Contact section — parsed from description */}
+                  <FactoryContactSection description={result.description} />
 
-              {/* Description */}
-              {result.description && (
-                <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
-                  {result.description}
-                </div>
+                  {/* Price estimate + MOQ */}
+                  {result.price > 0 && (
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Prix estimé unitaire
+                      </p>
+                      <MultiCurrencyPrice amountCny={result.price} variant="large" />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {result.moq != null && (
+                      <InfoCard icon={Package} label="MOQ" value={`${result.moq} unités`} />
+                    )}
+                    {result.seller && (
+                      <InfoCard icon={Store} label="Localisation" value={result.seller} />
+                    )}
+                  </div>
+
+                  {/* Website link */}
+                  {result.product_url && (
+                    <a
+                      href={result.product_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:underline dark:text-cyan-400"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Visiter le site web
+                    </a>
+                  )}
+                </>
+              ) : (
+                /* ========= PRODUCT VIEW (taobao / 1688 / manual) ========= */
+                <>
+                  {/* Price with product link */}
+                  <div className="space-y-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Prix {result.margin_percent > 0 ? 'avec marge' : 'd\'achat'}
+                      </p>
+                      <div className="flex items-start gap-3">
+                        <MultiCurrencyPrice
+                          amountCny={
+                            result.margin_percent > 0
+                              ? applyMargin(result.price, result.margin_percent)
+                              : result.price
+                          }
+                          variant="large"
+                        />
+                        {result.product_url && (
+                          <a
+                            href={result.product_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-cyan-400 hover:text-cyan-500 dark:border-slate-600 dark:hover:border-cyan-500"
+                            title="Voir le produit"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {result.margin_percent > 0 && (
+                      <p className="text-xs text-slate-500">
+                        Prix d&apos;achat brut : {formatCNY(result.price)} · Marge : {result.margin_percent}%
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  {result.description && (
+                    <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
+                      {result.description}
+                    </div>
+                  )}
+
+                  {/* Info grid */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {result.seller && (
+                      <InfoCard icon={Store} label="Vendeur" value={result.seller} />
+                    )}
+                    {result.moq != null && (
+                      <InfoCard icon={Package} label="MOQ" value={`${result.moq} unités`} />
+                    )}
+                    {result.weight != null && (
+                      <InfoCard icon={Scale} label="Poids" value={`${result.weight} kg`} />
+                    )}
+                    {result.volume != null && (
+                      <InfoCard icon={Box} label="Volume" value={`${result.volume} m³`} />
+                    )}
+                    {result.dimensions && (
+                      <InfoCard icon={Ruler} label="Dimensions" value={result.dimensions} />
+                    )}
+                    {result.client_quantity != null && (
+                      <InfoCard icon={Tag} label="Qté client" value={String(result.client_quantity)} />
+                    )}
+                  </div>
+                </>
               )}
 
-              {/* Info grid */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {result.seller && (
-                  <InfoCard icon={Store} label="Vendeur" value={result.seller} />
-                )}
-                {result.moq != null && (
-                  <InfoCard icon={Package} label="MOQ" value={`${result.moq} unités`} />
-                )}
-                {result.weight != null && (
-                  <InfoCard icon={Scale} label="Poids" value={`${result.weight} kg`} />
-                )}
-                {result.volume != null && (
-                  <InfoCard icon={Box} label="Volume" value={`${result.volume} m³`} />
-                )}
-                {result.dimensions && (
-                  <InfoCard icon={Ruler} label="Dimensions" value={result.dimensions} />
-                )}
-                {result.client_quantity != null && (
-                  <InfoCard icon={Tag} label="Qté client" value={String(result.client_quantity)} />
-                )}
-              </div>
-
-              {/* Actions */}
+              {/* Actions — shared for all sources */}
               <div className="flex flex-col gap-2 pt-2 sm:flex-row">
                 <motion.button
                   type="button"
@@ -188,20 +244,6 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                   <Check className="h-4 w-4" />
                   {result.selected ? 'Sélectionné' : 'Sélectionner'}
                 </motion.button>
-
-                {result.product_url && (
-                  <motion.a
-                    href={result.product_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 hover:border-cyan-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Voir le produit
-                  </motion.a>
-                )}
               </div>
             </div>
           </motion.div>
@@ -229,6 +271,111 @@ function InfoCard({
       <p className="truncate text-sm font-medium text-slate-900 dark:text-white" title={value}>
         {value}
       </p>
+    </div>
+  );
+}
+
+/** Parse factory description (which contains structured contact info) and render it nicely */
+function FactoryContactSection({ description }: { description: string | null }) {
+  if (!description) return null;
+
+  // The description is formatted as: "Spécialités: ... · Expérience: ... · ...\nContact:\nTél: ...\nWhatsApp: ..."
+  const contactStart = description.indexOf('Contact:');
+  const metaPart = contactStart >= 0 ? description.slice(0, contactStart).trim() : description;
+  const contactPart = contactStart >= 0 ? description.slice(contactStart + 'Contact:'.length).trim() : '';
+
+  // Parse meta lines (split by · )
+  const metaLines = metaPart
+    .split('·')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Parse contact lines
+  const contactLines = contactPart
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const getIcon = (line: string) => {
+    if (line.startsWith('Tél')) return Phone;
+    if (line.startsWith('WhatsApp')) return MessageCircle;
+    if (line.startsWith('WeChat')) return MessageCircle;
+    if (line.startsWith('Email')) return Mail;
+    if (line.startsWith('Site')) return ExternalLink;
+    return Tag;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Meta info */}
+      {metaLines.length > 0 && (
+        <div className="space-y-2">
+          {metaLines.map((line, i) => {
+            const [label, ...rest] = line.split(':');
+            const value = rest.join(':').trim();
+            if (!value) return null;
+            return (
+              <div key={i} className="flex gap-2 text-sm">
+                <span className="flex-shrink-0 font-semibold text-slate-500 dark:text-slate-400">
+                  {label.trim()} :
+                </span>
+                <span className="text-slate-700 dark:text-slate-200">{value}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Contact cards */}
+      {contactLines.length > 0 && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 p-4 dark:border-purple-800 dark:from-purple-900/20 dark:to-pink-900/20">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+            Coordonnées
+          </p>
+          <div className="space-y-2">
+            {contactLines.map((line, i) => {
+              const Icon = getIcon(line);
+              const [label, ...rest] = line.split(':');
+              const value = rest.join(':').trim();
+              if (!value) return null;
+
+              // Make emails and phones interactive
+              const isEmail = label.trim() === 'Email';
+              const isPhone = label.trim() === 'Tél' || label.trim() === 'WhatsApp';
+              const isUrl = label.trim() === 'Site';
+
+              const href = isEmail
+                ? `mailto:${value}`
+                : isPhone
+                  ? `tel:${value}`
+                  : isUrl
+                    ? value.startsWith('http') ? value : `https://${value}`
+                    : undefined;
+
+              return (
+                <div key={i} className="flex items-center gap-2.5">
+                  <Icon className="h-4 w-4 flex-shrink-0 text-purple-500" />
+                  <span className="text-xs font-medium text-slate-500">{label.trim()}</span>
+                  {href ? (
+                    <a
+                      href={href}
+                      target={isUrl ? '_blank' : undefined}
+                      rel={isUrl ? 'noopener noreferrer' : undefined}
+                      className="truncate text-sm font-medium text-purple-700 hover:underline dark:text-purple-300"
+                    >
+                      {value}
+                    </a>
+                  ) : (
+                    <span className="truncate text-sm font-medium text-slate-900 dark:text-white">
+                      {value}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
