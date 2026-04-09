@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import RequestsTable, { type RequestRow } from '@/components/admin/RequestsTable';
 
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadRequests = useCallback(() => {
     fetch('/api/requests')
       .then((res) => res.json())
       .then((data) => {
@@ -15,6 +15,45 @@ export default function AdminRequestsPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/requests/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Erreur suppression');
+        return;
+      }
+      // Remove from local state immediately
+      setRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      alert('Erreur réseau');
+    }
+  };
+
+  const handleRename = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`/api/requests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_name: name }),
+      });
+      if (!res.ok) {
+        alert('Erreur renommage');
+        return;
+      }
+      // Update local state
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, client_name: name } : r))
+      );
+    } catch {
+      alert('Erreur réseau');
+    }
+  };
 
   if (loading) {
     return (
@@ -34,7 +73,11 @@ export default function AdminRequestsPage() {
           {requests.length} demande(s) au total
         </p>
       </div>
-      <RequestsTable requests={requests} />
+      <RequestsTable
+        requests={requests}
+        onDelete={handleDelete}
+        onRename={handleRename}
+      />
     </div>
   );
 }

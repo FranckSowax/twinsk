@@ -38,14 +38,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         body: JSON.stringify({ client_name: '' }),
       });
       const data = await res.json();
-      if (data.id) {
-        const link = `${window.location.origin}/request/${data.id}`;
+      if (!data.id) {
+        alert(data.error || 'Erreur lors de la création');
+        return;
+      }
+      const link = `${window.location.origin}/request/${data.id}`;
+      try {
         await navigator.clipboard.writeText(link);
         alert(`Lien copié dans le presse-papier :\n${link}`);
-        window.location.reload();
+      } catch {
+        // Clipboard access denied — show link for manual copy
+        prompt('Copiez ce lien et envoyez-le au client :', link);
       }
+      window.location.reload();
     } catch {
-      alert('Erreur lors de la création');
+      alert('Erreur réseau lors de la création');
     }
   };
 
