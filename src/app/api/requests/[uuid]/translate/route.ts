@@ -33,7 +33,7 @@ export async function POST(
 
     const itemIds = items.map((i) => i.id);
 
-    const { data: results, error: resultsError } = await supabaseAdmin
+    const { data: allResults, error: resultsError } = await supabaseAdmin
       .from('search_results')
       .select('id, title, description, seller, title_original, description_original')
       .in('request_item_id', itemIds);
@@ -42,8 +42,37 @@ export async function POST(
       return NextResponse.json({ error: resultsError.message }, { status: 500 });
     }
 
-    if (!results?.length) {
+    if (!allResults?.length) {
       return NextResponse.json({ error: 'Aucun résultat à traduire' }, { status: 404 });
+    }
+
+    // Only translate results that still need it:
+    // - has title_original set (meaning title was never translated, original saved)
+    // - OR title looks like it contains Chinese characters (wasn't translated yet)
+    const hasChinese = (text: string | null) => {
+      if (!text) return false;
+      return /[\u4e00-\u9fff]/.test(text);
+    };
+
+    const results = allResults.filter((r) => {
+      // If title_original exists and current title still matches it → needs translation
+      if (r.title_original && r.title === r.title_original) return true;
+      // If title contains Chinese → needs translation
+      if (hasChinese(r.title)) return true;
+      // If description contains Chinese → needs translation
+      if (hasChinese(r.description)) return true;
+      return false;
+    });
+
+    const alreadyDone = allResults.length - results.length;
+
+    if (!results.length) {
+      return NextResponse.json({
+        message: `Tous les résultats sont déjà traduits (${allResults.length}/${allResults.length})`,
+        total: allResults.length,
+        updated: 0,
+        skipped: 0,
+      });
     }
 
     // Process in small batches (6 at a time) with budget guard
@@ -98,15 +127,18 @@ export async function POST(
       }
     }
 
-    const skippedNote = skipped > 0
-      ? ` · ${skipped} restant(s) — recliquez pour continuer`
+    const totalDone = alreadyDone + updated;
+    const remaining = allResults.length - totalDone;
+    const remainNote = remaining > 0
+      ? ` · ${remaining} restant(s) — recliquez pour continuer`
       : '';
 
     return NextResponse.json({
-      message: `Traduction: ${updated}/${results.length} mis à jour${skippedNote}`,
-      total: results.length,
+      message: `Traduction: ${totalDone}/${allResults.length} traduit(s)${remainNote}`,
+      total: allResults.length,
       updated,
-      skipped,
+      already_done: alreadyDone,
+      remaining,
     });
   } catch (err) {
     console.error('Translate route error:', err);
