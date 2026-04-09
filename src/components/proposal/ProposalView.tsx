@@ -46,7 +46,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
     items.forEach((item) => {
       item.results.forEach((r) => {
         init[r.id] = {
-          selected: r.client_selected !== null ? r.client_selected === true : true,
+          selected: r.client_selected === true,
           quantity: r.client_quantity ?? r.quantity ?? 1,
         };
       });
