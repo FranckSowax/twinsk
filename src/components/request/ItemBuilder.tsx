@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, Loader2, ImagePlus, Type, Camera, FileText } from 'lucide-react';
+import {
+  Upload,
+  X,
+  Loader2,
+  Plus,
+  Camera,
+  FileText,
+  ClipboardList,
+  ImagePlus,
+} from 'lucide-react';
 
 export interface RequestBuildItem {
   id: string;
@@ -20,9 +29,24 @@ interface ItemBuilderProps {
 let idCounter = 0;
 const newId = () => `item-${Date.now()}-${++idCounter}`;
 
+/** Detect if pasted text looks like a product list (multiple lines with product-like content) */
+function parseProductList(text: string): string[] | null {
+  if (!text || text.length < 5) return null;
+  // Split by newlines, bullet points, numbered list items, semicolons
+  const lines = text
+    .split(/[\n;]|(?:\d+[.)]\s)/)
+    .map((l) => l.replace(/^[-•*–—]\s*/, '').trim())
+    .filter((l) => l.length >= 3);
+  // Consider it a list if we have 2+ items
+  return lines.length >= 2 ? lines : null;
+}
+
 export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
   const [uploading, setUploading] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
+  const [showListInput, setShowListInput] = useState(false);
+  const [listText, setListText] = useState('');
+  const [listPreview, setListPreview] = useState<string[] | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const uploadFiles = useCallback(
@@ -59,32 +83,50 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
     [items, onChange]
   );
 
-  // React-dropzone for the main drop area
+  // Dropzone (drag & drop + paste images)
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: uploadFiles,
     accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.gif'] },
     maxSize: 10 * 1024 * 1024,
     disabled: uploading,
-    noClick: true, // we'll trigger via dedicated button
+    noClick: true,
     noKeyboard: true,
   });
 
-  // Paste image from clipboard support
+  // Paste handler: images → upload, text list → detect & propose
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (uploading) return;
+      const clipItems = e.clipboardData?.items;
+      if (!clipItems) return;
+
+      // Check for images first
       const files: File[] = [];
-      const clipboardItems = e.clipboardData?.items;
-      if (!clipboardItems) return;
-      for (const item of Array.from(clipboardItems)) {
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
+      let pastedText = '';
+      for (const ci of Array.from(clipItems)) {
+        if (ci.type.startsWith('image/')) {
+          const file = ci.getAsFile();
           if (file) files.push(file);
+        } else if (ci.type === 'text/plain') {
+          pastedText = e.clipboardData?.getData('text/plain') || '';
         }
       }
+
       if (files.length) {
         e.preventDefault();
         uploadFiles(files);
+        return;
+      }
+
+      // Check for product list in text
+      if (pastedText) {
+        const parsed = parseProductList(pastedText);
+        if (parsed && parsed.length >= 2) {
+          e.preventDefault();
+          setListText(pastedText);
+          setListPreview(parsed);
+          setShowListInput(true);
+        }
       }
     };
     document.addEventListener('paste', handlePaste);
@@ -103,19 +145,12 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
     input.click();
   };
 
-  const handleCameraClick = () => {
-    cameraInputRef.current?.click();
-  };
-
   const handleCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) uploadFiles(Array.from(e.target.files));
   };
 
   const addTextItem = () => {
-    onChange([
-      ...items,
-      { id: newId(), type: 'text', description: '' },
-    ]);
+    onChange([...items, { id: newId(), type: 'text', description: '' }]);
   };
 
   const updateDescription = (id: string, description: string) => {
@@ -126,9 +161,28 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
     onChange(items.filter((it) => it.id !== id));
   };
 
+  // List import: parse text and create one item per line
+  const handleListTextChange = (text: string) => {
+    setListText(text);
+    setListPreview(parseProductList(text));
+  };
+
+  const handleImportList = () => {
+    if (!listPreview?.length) return;
+    const newItems: RequestBuildItem[] = listPreview.map((line) => ({
+      id: newId(),
+      type: 'text' as const,
+      description: line,
+    }));
+    onChange([...items, ...newItems]);
+    setShowListInput(false);
+    setListText('');
+    setListPreview(null);
+  };
+
   return (
     <div className="space-y-5">
-      {/* Hidden camera input for mobile */}
+      {/* Hidden camera input */}
       <input
         ref={cameraInputRef}
         type="file"
@@ -138,54 +192,143 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
         onChange={handleCameraChange}
       />
 
-      {/* Action buttons */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <ActionButton
-          icon={ImagePlus}
-          label="Ajouter photos"
-          onClick={handleFilePickerClick}
-          disabled={uploading}
-          primary
-        />
-        <ActionButton
-          icon={Camera}
-          label="Caméra"
-          onClick={handleCameraClick}
-          disabled={uploading}
-          mobileOnly
-        />
-        <ActionButton
-          icon={Type}
-          label="Texte seul"
+      {/* Main add button + secondary actions */}
+      <div className="space-y-3">
+        {/* Big primary button */}
+        <motion.button
+          type="button"
           onClick={addTextItem}
-          disabled={uploading}
-        />
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-amber-500/25"
+        >
+          <Plus className="h-5 w-5" />
+          Ajouter un produit
+        </motion.button>
+
+        {/* Secondary row: photos, camera, paste list */}
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={handleFilePickerClick}
+            disabled={uploading}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 transition-all hover:border-amber-400 hover:bg-amber-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+          >
+            <ImagePlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Ajouter</span> photos
+          </button>
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 transition-all hover:border-amber-400 hover:bg-amber-50 disabled:opacity-50 sm:hidden dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+          >
+            <Camera className="h-4 w-4" />
+            Caméra
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowListInput(!showListInput)}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 transition-all hover:border-purple-400 hover:bg-purple-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+          >
+            <ClipboardList className="h-4 w-4" />
+            Coller une liste
+          </button>
+        </div>
       </div>
 
-      {/* Drop zone (always visible, accepts drag & drop + paste) */}
+      {/* List import panel */}
+      <AnimatePresence>
+        {showListInput && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden rounded-2xl border border-purple-200 bg-purple-50/50 dark:border-purple-800 dark:bg-purple-900/10"
+          >
+            <div className="space-y-3 p-4">
+              <div className="flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  Importer une liste de produits
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowListInput(false);
+                    setListText('');
+                    setListPreview(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <textarea
+                value={listText}
+                onChange={(e) => handleListTextChange(e.target.value)}
+                placeholder={`Collez ou tapez votre liste ici (un produit par ligne) :\n\n- 100 sacs en cuir noir\n- 50 portefeuilles marron\n- 200 ceintures taille M`}
+                rows={5}
+                className="w-full resize-none rounded-xl border border-purple-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+              />
+
+              {/* Preview */}
+              {listPreview && listPreview.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-purple-600 dark:text-purple-400">
+                    {listPreview.length} produit(s) détecté(s) :
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {listPreview.map((line, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                      >
+                        {line.length > 40 ? line.slice(0, 40) + '…' : line}
+                      </span>
+                    ))}
+                  </div>
+                  <motion.button
+                    type="button"
+                    onClick={handleImportList}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Importer {listPreview.length} produit(s)
+                  </motion.button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Drop zone (drag & drop + paste images) */}
       <div
         {...getRootProps()}
-        className={`relative rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+        className={`relative rounded-2xl border-2 border-dashed p-5 text-center transition-all ${
           isDragActive
             ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10'
             : 'border-slate-300 dark:border-slate-600'
         } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
       >
         <input {...getInputProps()} />
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1.5">
           {uploading ? (
-            <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+            <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
           ) : (
-            <Upload className="h-8 w-8 text-slate-400" />
+            <Upload className="h-6 w-6 text-slate-400" />
           )}
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             {uploading
               ? progressMsg
               : isDragActive
                 ? 'Déposez vos images ici'
-              : 'Glissez-déposez ou collez (Cmd+V) vos images'}
+                : 'Glissez-déposez ou collez (Cmd+V) vos images ici'}
           </p>
-          <p className="text-xs text-slate-400">JPG, PNG, WebP — max 10MB par image</p>
         </div>
       </div>
 
@@ -213,12 +356,10 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
                 </div>
               )}
 
-              {/* Index badge */}
               <span className="absolute -left-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white shadow">
                 {index + 1}
               </span>
 
-              {/* Remove button */}
               <button
                 type="button"
                 onClick={() => removeItem(item.id)}
@@ -232,7 +373,7 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
             {/* Description */}
             <div className="flex-1 min-w-0">
               <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
-                {item.type === 'image' ? 'Description (optionnelle)' : 'Description du produit recherché *'}
+                {item.type === 'image' ? 'Description (optionnelle)' : 'Description du produit *'}
               </label>
               <textarea
                 value={item.description}
@@ -256,39 +397,5 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
         </p>
       )}
     </div>
-  );
-}
-
-function ActionButton({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-  primary,
-  mobileOnly,
-}: {
-  icon: typeof Upload;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  primary?: boolean;
-  mobileOnly?: boolean;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-semibold transition-all disabled:opacity-50 ${
-        primary
-          ? 'border-amber-500 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-amber-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200'
-      } ${mobileOnly ? 'sm:hidden' : ''}`}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-    </motion.button>
   );
 }
