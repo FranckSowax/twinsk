@@ -257,9 +257,9 @@ export default function QuotePDF({
                 style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}
               >
                 <View style={styles.colImage}>
-                  {item.image_url && (
+                  {item.image_url ? (
                     <Image src={item.image_url} style={styles.productImage} />
-                  )}
+                  ) : null}
                 </View>
                 <Text style={[styles.productTitle, styles.colProduct]}>
                   {item.title.length > 60 ? item.title.slice(0, 60) + '...' : item.title}

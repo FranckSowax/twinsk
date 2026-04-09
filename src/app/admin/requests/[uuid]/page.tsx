@@ -108,15 +108,14 @@ export default function AdminRequestDetailPage() {
   };
 
   const handleGenerateQuote = async () => {
+    const selectedCount = items.flatMap((i) => i.search_results).filter((r) => r.selected).length;
+    if (!selectedCount) {
+      alert('Veuillez sélectionner au moins un produit');
+      return;
+    }
+
     setGenerating(true);
     try {
-      // Collect selected results with global margin
-      const selectedCount = items.flatMap((i) => i.search_results).filter((r) => r.selected).length;
-
-      if (!selectedCount) {
-        alert('Veuillez sélectionner au moins un produit');
-        return;
-      }
 
       const res = await fetch('/api/quotes', {
         method: 'POST',
