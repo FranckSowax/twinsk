@@ -335,7 +335,8 @@ export async function POST(
             consecutiveFactoryEmpty = 0;
           }
 
-          for (const f of factories) {
+          // Limit to 3 factories per item to avoid flooding the results table
+          for (const f of factories.slice(0, 3)) {
             // Build description aggregating contact + metadata
             const contactLines: string[] = [];
             if (f.contact.phone) contactLines.push(`Tél: ${f.contact.phone}`);

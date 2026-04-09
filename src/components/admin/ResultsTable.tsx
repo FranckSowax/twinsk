@@ -163,9 +163,15 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
             </button>
           </div>
 
-          {/* Results */}
-          {item.search_results.length > 0 ? (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+          {/* Results — split into products vs factories */}
+          {(() => {
+            const products = item.search_results.filter((r) => r.source !== 'factory');
+            const factories = item.search_results.filter((r) => r.source === 'factory');
+            return item.search_results.length > 0 ? (
+              <div className="space-y-4">
+              {/* Products table */}
+              {products.length > 0 && (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
               <table className="w-full min-w-[1400px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
@@ -184,7 +190,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {item.search_results.map((result) => (
+                  {products.map((result) => (
                     <motion.tr
                       key={result.id}
                       layout
@@ -377,9 +383,68 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                 </tbody>
               </table>
             </div>
-          ) : (
+              )}
+
+              {/* Factories section */}
+              {factories.length > 0 && (
+                <div className="rounded-2xl border border-purple-200 bg-purple-50/30 p-4 dark:border-purple-800 dark:bg-purple-900/10">
+                  <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                    <span>🏭</span> Usines recommandées ({factories.length})
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {factories.map((result) => {
+                      const isSelected = result.selected;
+                      return (
+                        <div
+                          key={result.id}
+                          onClick={(e) => {
+                            if ((e.target as HTMLElement).closest('button')) return;
+                            setActiveResult(result);
+                          }}
+                          className={`cursor-pointer rounded-xl border-2 p-3 transition-all hover:shadow-md ${
+                            isSelected
+                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                              : 'border-slate-200 bg-white hover:border-purple-300 dark:border-slate-600 dark:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-white" title={result.title}>
+                                {result.title}
+                              </p>
+                              {result.seller && (
+                                <p className="mt-0.5 text-xs text-slate-500">{result.seller}</p>
+                              )}
+                              {result.moq != null && (
+                                <p className="mt-1 text-[10px] text-slate-400">MOQ: {result.moq}</p>
+                              )}
+                              {result.price > 0 && (
+                                <p className="mt-1 text-xs font-medium text-amber-600">{formatCNY(result.price)}/u</p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSelect(result)}
+                              className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border-2 transition-colors ${
+                                isSelected
+                                  ? 'border-purple-500 bg-purple-500 text-white'
+                                  : 'border-slate-300 hover:border-purple-400 dark:border-slate-600'
+                              }`}
+                            >
+                              {isSelected ? <Check className="h-4 w-4" /> : <Minus className="h-3 w-3 text-transparent" />}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              </div>
+            ) : (
             <p className="pl-4 text-sm text-slate-400">Aucun résultat pour cette image</p>
-          )}
+          );
+          })()}
         </div>
       ))}
     </div>
