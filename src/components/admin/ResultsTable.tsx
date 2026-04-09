@@ -177,7 +177,6 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Poids (kg)</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Vol (m³)</th>
                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Vendeur</th>
-                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté client</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Marge %</th>
                     <th className="px-2 py-2 text-right text-xs font-semibold uppercase text-slate-500">Prix final</th>
@@ -320,24 +319,6 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                       {/* Seller */}
                       <td className="px-2 py-3 max-w-[140px] truncate text-sm text-slate-500" title={result.seller || ''}>
                         {result.seller || '—'}
-                      </td>
-
-                      {/* Client quantity */}
-                      <td className="px-2 py-3">
-                        <input
-                          type="number"
-                          min={0}
-                          value={result.client_quantity ?? ''}
-                          placeholder="—"
-                          onChange={(e) =>
-                            handleFieldChange(
-                              result.id,
-                              'client_quantity',
-                              e.target.value ? parseInt(e.target.value) : null
-                            )
-                          }
-                          className="w-16 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                        />
                       </td>
 
                       {/* Quantity */}
