@@ -174,12 +174,20 @@ export async function findFactories(
     );
 
     if (!res.ok) {
-      const errText = await res.text();
+      const errText = await res.text().catch(() => '');
       console.error(`[Kimi] findFactories failed: ${res.status} ${errText.slice(0, 300)}`);
       return [];
     }
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      const raw = await res.text().catch(() => '');
+      console.error(`[Kimi] findFactories response not JSON: ${raw.slice(0, 300)}`);
+      return [];
+    }
+
     const content = data.choices?.[0]?.message?.content;
     if (!content) return [];
 
@@ -243,7 +251,13 @@ export async function translateToChinese(text: string): Promise<string> {
       return text;
     }
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      console.error('[Kimi] translateToChinese response not JSON');
+      return text;
+    }
     const translated = data.choices?.[0]?.message?.content?.trim();
     return translated || text;
   } catch (err) {
@@ -329,10 +343,18 @@ async function translateBatchInternal(items: TranslationItem[]): Promise<Transla
       return {};
     }
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (jsonErr) {
+      const raw = await res.text().catch(() => '');
+      console.error(`[Kimi] Response is not valid JSON: ${raw.slice(0, 300)}`);
+      return {};
+    }
+
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
-      console.error('[Kimi] Empty response content', data);
+      console.error('[Kimi] Empty response content', JSON.stringify(data).slice(0, 300));
       return {};
     }
 
