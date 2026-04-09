@@ -40,6 +40,11 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
       return;
     }
 
+    if (!clientEmail.trim()) {
+      setError('Veuillez entrer votre adresse email');
+      return;
+    }
+
     if (!items.length) {
       setError('Veuillez ajouter au moins un article (photo ou texte)');
       return;
@@ -119,13 +124,14 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
 
           <div>
             <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-              <Mail className="h-4 w-4" /> Email
+              <Mail className="h-4 w-4" /> Email *
             </label>
             <input
               type="email"
               value={clientEmail}
               onChange={(e) => setClientEmail(e.target.value)}
               placeholder="jean@exemple.com"
+              required
               className={inputClass}
             />
           </div>
