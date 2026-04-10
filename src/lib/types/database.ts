@@ -63,6 +63,16 @@ export interface Quote {
   document_type: DocumentType;
 }
 
+export interface ItemNote {
+  id: string;
+  request_item_id: string;
+  author: 'admin' | 'client';
+  message: string | null;
+  media_urls: string[] | null;
+  created_at: string;
+}
+
 export interface RequestItemWithResults extends RequestItem {
   search_results: SearchResult[];
+  item_notes?: ItemNote[];
 }

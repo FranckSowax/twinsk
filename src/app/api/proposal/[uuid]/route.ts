@@ -24,7 +24,7 @@ export async function GET(
     // Fetch items + selected results
     const { data: items } = await supabaseAdmin
       .from('request_items')
-      .select('id, image_url, description, client_note, search_results(*)')
+      .select('id, image_url, description, client_note, search_results(*), item_notes(*)')
       .eq('request_id', uuid);
 
     // Filter to keep only selected=true results, strip admin-only fields
@@ -48,12 +48,20 @@ export async function GET(
       client_quantity: number | null;
       client_selected: boolean | null;
     }
+    interface NoteRow {
+      id: string;
+      author: string;
+      message: string | null;
+      media_urls: string[] | null;
+      created_at: string;
+    }
     interface ItemRow {
       id: string;
       image_url: string | null;
       description: string | null;
       client_note: string | null;
       search_results: RawResult[];
+      item_notes: NoteRow[];
     }
 
     const typedItems = (items || []) as unknown as ItemRow[];
@@ -64,6 +72,13 @@ export async function GET(
         image_url: item.image_url,
         description: item.description,
         client_note: item.client_note,
+        notes: (item.item_notes || []).map((n) => ({
+          id: n.id,
+          author: n.author,
+          message: n.message,
+          media_urls: n.media_urls,
+          created_at: n.created_at,
+        })),
         results: (item.search_results || [])
           .filter((r) => r.selected)
           .map((r) => {

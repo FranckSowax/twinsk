@@ -5,11 +5,20 @@ import { useParams } from 'next/navigation';
 import ProposalView from '@/components/proposal/ProposalView';
 import type { ProposalResult } from '@/components/proposal/ProposalDetailModal';
 
+interface NoteItem {
+  id: string;
+  author: 'admin' | 'client';
+  message: string | null;
+  media_urls: string[] | null;
+  created_at: string;
+}
+
 interface ProposalItem {
   id: string;
   image_url: string | null;
   description: string | null;
   client_note: string | null;
+  notes?: NoteItem[];
   results: ProposalResult[];
 }
 

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import ResultDetailModal from './ResultDetailModal';
 import ManualResultModal from './ManualResultModal';
+import NotesThread, { type NoteItem } from '@/components/ui/NotesThread';
 
 interface SearchResultRow {
   id: string;
@@ -36,6 +37,7 @@ interface RequestItemWithResults {
   processed: boolean;
   added_by: 'client' | 'admin';
   search_results: SearchResultRow[];
+  item_notes?: NoteItem[];
 }
 
 interface ResultsTableProps {
@@ -63,6 +65,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [activeResult, setActiveResult] = useState<SearchResultRow | null>(null);
   const [manualModalItemId, setManualModalItemId] = useState<string | null>(null);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
 
   // Keep modal in sync with parent state when result is updated (e.g. selection toggle)
   const syncedActiveResult = activeResult
@@ -105,12 +108,44 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
       onClose={() => setManualModalItemId(null)}
       onCreated={onRefresh}
     />
+    {/* Zoom lightbox for client photos */}
+    <AnimatePresence>
+      {zoomImageUrl && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setZoomImageUrl(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0.9 }}
+            className="relative max-h-[90vh] max-w-[90vw]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={zoomImageUrl} alt="Zoom" className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl" />
+            <button
+              type="button"
+              onClick={() => setZoomImageUrl(null)}
+              className="absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     <div className="space-y-8">
       {items.map((item) => (
         <div key={item.id} className="space-y-4">
           {/* Client item header */}
           <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl">
+            <div
+              className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl ${item.image_url ? 'cursor-zoom-in' : ''}`}
+              onClick={() => item.image_url && setZoomImageUrl(item.image_url)}
+            >
               {item.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={item.image_url} alt="Image client" className="h-full w-full object-cover" />
@@ -153,14 +188,22 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                 {item.search_results.length} résultat(s) trouvé(s)
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setManualModalItemId(item.id)}
-              className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Produit manuel
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setManualModalItemId(item.id)}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Produit manuel
+              </button>
+              <NotesThread
+                notes={item.item_notes || []}
+                requestItemId={item.id}
+                currentUser="admin"
+                onNoteAdded={onRefresh}
+              />
+            </div>
           </div>
 
           {/* Results — split into products vs factories */}

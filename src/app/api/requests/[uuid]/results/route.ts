@@ -12,7 +12,7 @@ export async function GET(
     // Get all request items with their search results
     const { data, error } = await supabaseAdmin
       .from('request_items')
-      .select('*, search_results(*)')
+      .select('*, search_results(*), item_notes(*)')
       .eq('request_id', uuid)
       .order('created_at');
 

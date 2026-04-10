@@ -21,12 +21,14 @@ import { formatCNY, toMultiCurrency } from '@/lib/utils/formatCurrency';
 import ProposalDetailModal, { type ProposalResult } from './ProposalDetailModal';
 import SmartImage from '@/components/ui/SmartImage';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
+import NotesThread, { type NoteItem } from '@/components/ui/NotesThread';
 
 interface ProposalItem {
   id: string;
   image_url: string | null;
   description: string | null;
   client_note: string | null;
+  notes?: NoteItem[];
   results: ProposalResult[];
 }
 
@@ -470,6 +472,14 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
               ) : (
                 <p className="text-sm text-slate-400">Aucune proposition pour cet article.</p>
               )}
+
+              {/* Conversation notes (admin ↔ client) */}
+              <NotesThread
+                notes={item.notes || []}
+                requestItemId={item.id}
+                currentUser="client"
+                onNoteAdded={() => window.location.reload()}
+              />
 
               {/* Client note section — required if no selection */}
               {(needsNote || notes[item.id]) && (
