@@ -14,6 +14,7 @@ import {
   CheckCircle,
   SlidersHorizontal,
   ArrowUpDown,
+  Square,
 } from 'lucide-react';
 import { formatCNY } from '@/lib/utils/formatCurrency';
 import SmartImage from '@/components/ui/SmartImage';
@@ -70,6 +71,9 @@ export default function CatalogPage() {
   // Translate
   const [translating, setTranslating] = useState(false);
   const [translateMsg, setTranslateMsg] = useState('');
+  const [translateDone, setTranslateDone] = useState(0);
+  const [translateTotal, setTranslateTotal] = useState(0);
+  const translateCancelRef = useRef(false);
 
   // Debounce ref for dynamic search
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -118,16 +122,35 @@ export default function CatalogPage() {
   const handleTranslate = async () => {
     setTranslating(true);
     setTranslateMsg('');
-    try {
-      const res = await fetch('/api/catalog/translate', { method: 'POST' });
-      const data = await res.json();
-      setTranslateMsg(data.message || data.error || 'Terminé');
-      loadData();
-    } catch {
-      setTranslateMsg('Erreur réseau');
-    } finally {
-      setTranslating(false);
+    setTranslateDone(0);
+    setTranslateTotal(0);
+    translateCancelRef.current = false;
+
+    while (!translateCancelRef.current) {
+      try {
+        const res = await fetch('/api/catalog/translate', { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setTranslateMsg(data.error || 'Erreur');
+          break;
+        }
+
+        const t = data.total || 0;
+        const r = data.remaining ?? 0;
+        setTranslateTotal(t);
+        setTranslateDone(t - r);
+        setTranslateMsg(data.message || '');
+        loadData();
+
+        if (r <= 0 || data.updated === 0) break;
+      } catch {
+        setTranslateMsg('Erreur réseau');
+        break;
+      }
     }
+
+    setTranslating(false);
   };
 
   const totalPages = Math.ceil(total / pageSize);
@@ -145,21 +168,40 @@ export default function CatalogPage() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <motion.button
-            type="button"
-            disabled={translating}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleTranslate}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 disabled:opacity-60"
-          >
-            {translating ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Traduction...</>
-            ) : (
-              <><Languages className="h-4 w-4" /> Traduire le catalogue</>
-            )}
-          </motion.button>
-          {translateMsg && (
+          {!translating ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleTranslate}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25"
+            >
+              <Languages className="h-4 w-4" /> Traduire le catalogue
+            </motion.button>
+          ) : (
+            <div className="w-64 space-y-1.5 rounded-2xl border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-800 dark:bg-purple-900/10">
+              <div className="flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-purple-700 dark:text-purple-300">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {translateDone}/{translateTotal}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { translateCancelRef.current = true; }}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+                >
+                  <Square className="h-2.5 w-2.5" /> Stop
+                </button>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-purple-200 dark:bg-purple-900/30">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-700"
+                  style={{ width: `${translateTotal > 0 ? Math.round((translateDone / translateTotal) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {!translating && translateMsg && (
             <p className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
               <CheckCircle className="h-3 w-3" /> {translateMsg}
             </p>
