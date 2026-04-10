@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { notifyNewSubmission, notifyItemsAdded } from '@/lib/telegram';
 
 // POST: Add items to a request (client or admin)
 // Body: { items: [{ image_url, description }], added_by?: 'client' | 'admin' }
@@ -52,18 +53,45 @@ export async function POST(
     }
 
     // Set request status to 'submitted' only if currently 'draft'
-    // Don't downgrade an already-processed/quoted request
     const { data: currentRequest } = await supabaseAdmin
       .from('requests')
-      .select('status')
+      .select('status, client_name, client_email')
       .eq('id', uuid)
       .single();
 
-    if (currentRequest?.status === 'draft') {
+    const wasDraft = currentRequest?.status === 'draft';
+
+    if (wasDraft) {
       await supabaseAdmin
         .from('requests')
         .update({ status: 'submitted' })
         .eq('id', uuid);
+    }
+
+    // Send Telegram notification (non-blocking — don't await, don't fail the request)
+    if (source === 'client') {
+      const baseUrl = `https://${request.headers.get('host') || 'twinsk-production.up.railway.app'}`;
+      const clientName = currentRequest?.client_name || '';
+      const clientEmail = currentRequest?.client_email || '';
+
+      if (wasDraft) {
+        // First submission
+        notifyNewSubmission({
+          clientName,
+          clientEmail,
+          itemCount: items.length,
+          requestId: uuid,
+          baseUrl,
+        }).catch(() => {});
+      } else {
+        // Additional items added to existing request
+        notifyItemsAdded({
+          clientName,
+          itemCount: items.length,
+          requestId: uuid,
+          baseUrl,
+        }).catch(() => {});
+      }
     }
 
     return NextResponse.json(data);
