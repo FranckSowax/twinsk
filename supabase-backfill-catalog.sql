@@ -3,78 +3,79 @@
 -- À exécuter UNE SEULE FOIS après migration #8
 -- ================================================
 
--- Insert unique products into catalog, keeping the best version (most recent, with most data)
+-- Step 1: Insert Taobao + 1688 products (deduplicated by source + taobao_item_id)
 INSERT INTO catalog (
   source, external_id, title, title_original, description, description_original,
   price, image_url, main_image_url, extra_images, seller, product_url,
   moq, weight, volume, dimensions, search_count, last_seen_at, created_at
 )
-SELECT DISTINCT ON (source, COALESCE(taobao_item_id, ''))
-  source,
-  CASE
-    WHEN source = 'factory' THEN 'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text
-    WHEN source = 'manual' THEN 'manual_' || id::text
-    ELSE COALESCE(taobao_item_id, '')
-  END AS external_id,
-  title,
-  title_original,
-  description,
-  description_original,
-  price,
-  image_url,
-  main_image_url,
-  extra_images,
-  seller,
-  product_url,
-  moq,
-  weight,
-  volume,
-  dimensions,
-  -- Count how many times this product appears across all search_results
-  COUNT(*) OVER (PARTITION BY source, COALESCE(taobao_item_id, '')) AS search_count,
-  MAX(created_at) OVER (PARTITION BY source, COALESCE(taobao_item_id, '')) AS last_seen_at,
-  MIN(created_at) OVER (PARTITION BY source, COALESCE(taobao_item_id, '')) AS created_at
-FROM search_results
-WHERE source IN ('taobao', '1688')
-  AND taobao_item_id IS NOT NULL
-  AND taobao_item_id != ''
-ORDER BY source, COALESCE(taobao_item_id, ''), created_at DESC
+SELECT
+  sub.source, sub.external_id, sub.title, sub.title_original,
+  sub.description, sub.description_original, sub.price,
+  sub.image_url, sub.main_image_url, sub.extra_images,
+  sub.seller, sub.product_url, sub.moq, sub.weight, sub.volume, sub.dimensions,
+  sub.cnt, sub.max_created, sub.min_created
+FROM (
+  SELECT DISTINCT ON (source, taobao_item_id)
+    source,
+    taobao_item_id AS external_id,
+    title, title_original, description, description_original,
+    price, image_url, main_image_url, extra_images,
+    seller, product_url, moq, weight, volume, dimensions,
+    COUNT(*) OVER (PARTITION BY source, taobao_item_id) AS cnt,
+    MAX(created_at) OVER (PARTITION BY source, taobao_item_id) AS max_created,
+    MIN(created_at) OVER (PARTITION BY source, taobao_item_id) AS min_created
+  FROM search_results
+  WHERE source IN ('taobao', '1688')
+    AND taobao_item_id IS NOT NULL
+    AND taobao_item_id != ''
+  ORDER BY source, taobao_item_id, created_at DESC
+) sub
 ON CONFLICT (source, external_id) DO UPDATE SET
   search_count = catalog.search_count + EXCLUDED.search_count,
   last_seen_at = GREATEST(catalog.last_seen_at, EXCLUDED.last_seen_at),
-  price = CASE WHEN EXCLUDED.price > 0 THEN EXCLUDED.price ELSE catalog.price END,
-  title = COALESCE(NULLIF(EXCLUDED.title, ''), catalog.title);
+  price = CASE WHEN EXCLUDED.price > 0 THEN EXCLUDED.price ELSE catalog.price END;
 
--- Factories (use hash of name+city as external_id)
+-- Step 2: Insert factories (deduplicated by hash of name+city)
 INSERT INTO catalog (
   source, external_id, title, title_original, description, description_original,
   price, image_url, main_image_url, seller, product_url,
   moq, search_count, last_seen_at, created_at
 )
-SELECT DISTINCT ON ('factory', 'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text)
-  'factory'::text,
-  'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text,
-  title,
-  title_original,
-  description,
-  description_original,
-  price,
-  image_url,
-  main_image_url,
-  seller,
-  product_url,
-  moq,
-  COUNT(*) OVER (PARTITION BY title, seller),
-  MAX(created_at) OVER (PARTITION BY title, seller),
-  MIN(created_at) OVER (PARTITION BY title, seller)
-FROM search_results
-WHERE source = 'factory'
-ORDER BY 'factory', 'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text, created_at DESC
+SELECT
+  sub.source, sub.external_id, sub.title, sub.title_original,
+  sub.description, sub.description_original, sub.price,
+  sub.image_url, sub.main_image_url, sub.seller, sub.product_url,
+  sub.moq, sub.cnt, sub.max_created, sub.min_created
+FROM (
+  SELECT DISTINCT ON (
+    'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text
+  )
+    'factory'::text AS source,
+    'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text AS external_id,
+    title, title_original, description, description_original,
+    price, image_url, main_image_url, seller, product_url, moq,
+    COUNT(*) OVER (
+      PARTITION BY 'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text
+    ) AS cnt,
+    MAX(created_at) OVER (
+      PARTITION BY 'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text
+    ) AS max_created,
+    MIN(created_at) OVER (
+      PARTITION BY 'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text
+    ) AS min_created,
+    created_at
+  FROM search_results
+  WHERE source = 'factory'
+  ORDER BY
+    'f_' || abs(hashtext(lower(title) || ':' || lower(COALESCE(seller, ''))))::text,
+    created_at DESC
+) sub
 ON CONFLICT (source, external_id) DO UPDATE SET
   search_count = catalog.search_count + EXCLUDED.search_count,
   last_seen_at = GREATEST(catalog.last_seen_at, EXCLUDED.last_seen_at);
 
--- Manual entries (each is unique)
+-- Step 3: Insert manual entries (each is unique)
 INSERT INTO catalog (
   source, external_id, title, title_original, description, description_original,
   price, image_url, main_image_url, extra_images, seller, product_url,
@@ -86,14 +87,12 @@ SELECT
   title, title_original, description, description_original,
   price, image_url, main_image_url, extra_images, seller, product_url,
   moq, weight, volume, dimensions,
-  1,
-  created_at,
-  created_at
+  1, created_at, created_at
 FROM search_results
 WHERE source = 'manual'
 ON CONFLICT (source, external_id) DO NOTHING;
 
--- Now link search_results back to catalog via catalog_id
+-- Step 4: Link search_results → catalog via catalog_id
 UPDATE search_results sr
 SET catalog_id = c.id
 FROM catalog c
@@ -106,10 +105,5 @@ WHERE sr.catalog_id IS NULL
   );
 
 -- Stats
-SELECT
-  source,
-  COUNT(*) as count,
-  SUM(search_count) as total_appearances
-FROM catalog
-GROUP BY source
-ORDER BY count DESC;
+SELECT source, COUNT(*) as count, SUM(search_count) as total_appearances
+FROM catalog GROUP BY source ORDER BY count DESC;
