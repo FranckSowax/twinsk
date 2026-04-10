@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Loader2, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Search, Loader2, CheckCircle, RefreshCw, AlertTriangle, Square } from 'lucide-react';
 
 interface SearchTriggerProps {
   requestId: string;
@@ -10,21 +10,30 @@ interface SearchTriggerProps {
 }
 
 export default function SearchTrigger({ requestId, onSearchComplete }: SearchTriggerProps) {
-  const [searching, setSearching] = useState(false);
+  const [running, setRunning] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
+  const [processedSoFar, setProcessedSoFar] = useState(0);
+  const [totalResults, setTotalResults] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const cancelRef = useRef(false);
 
-  const runSearch = async (reset: boolean) => {
+  const runSearchLoop = useCallback(async (reset: boolean) => {
     if (reset) setRetrying(true);
-    else setSearching(true);
+    else setRunning(true);
     setError(null);
     setResult(null);
     setWarnings([]);
+    setProcessedSoFar(0);
+    setTotalResults(0);
+    cancelRef.current = false;
+
+    const allWarnings = new Set<string>();
 
     try {
-      // Step 1: reset (fast, no external APIs) if requested
+      // Step 1: reset if requested
       if (reset) {
         const resetRes = await fetch(`/api/requests/${requestId}/reset-search`, {
           method: 'POST',
@@ -33,89 +42,121 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
           const resetData = await resetRes.json().catch(() => ({}));
           throw new Error(resetData.error || 'Erreur reset');
         }
+        setRetrying(false);
+        setRunning(true);
       }
 
-      // Step 2: run the search
-      const res = await fetch(`/api/requests/${requestId}/search`, { method: 'POST' });
-      const data = await res.json();
+      // Step 2: loop search calls until everything is processed
+      let cumProcessed = 0;
+      let cumResults = 0;
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Erreur recherche');
+      while (!cancelRef.current) {
+        const res = await fetch(`/api/requests/${requestId}/search`, { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Erreur recherche');
+        }
+
+        // Accumulate
+        cumProcessed += data.processed_items || 0;
+        cumResults += data.results_count || 0;
+        const skipped = data.skipped_items || 0;
+
+        setProcessedSoFar(cumProcessed);
+        setTotalItems(cumProcessed + skipped);
+        setTotalResults(cumResults);
+
+        // Collect warnings
+        if (Array.isArray(data.errors)) {
+          data.errors.forEach((e: string) => allWarnings.add(e));
+        }
+
+        onSearchComplete();
+
+        // Stop conditions
+        if (skipped <= 0) break; // all done
+        if ((data.processed_items || 0) === 0) break; // stuck, no progress
       }
 
-      setResult(data.message);
-      // Dedupe warnings (server may push the same quota warning multiple times)
-      if (Array.isArray(data.errors) && data.errors.length > 0) {
-        const unique = Array.from(new Set<string>(data.errors));
-        setWarnings(unique);
+      if (cancelRef.current) {
+        setResult(`Recherche arrêtée: ${cumResults} résultats sur ${cumProcessed} article(s) traité(s)`);
+      } else {
+        setResult(`Recherche terminée: ${cumResults} résultats sur ${cumProcessed} article(s) traité(s)`);
       }
-      onSearchComplete();
+
+      if (allWarnings.size > 0) {
+        setWarnings(Array.from(allWarnings));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la recherche');
     } finally {
-      setSearching(false);
+      setRunning(false);
       setRetrying(false);
     }
-  };
+  }, [requestId, onSearchComplete]);
 
   const handleRetry = () => {
-    if (
-      !window.confirm(
-        'Cela va supprimer tous les résultats actuels et relancer la recherche complète. Continuer ?'
-      )
-    )
-      return;
-    runSearch(true);
+    if (!window.confirm('Cela va supprimer tous les résultats actuels et relancer la recherche complète. Continuer ?')) return;
+    runSearchLoop(true);
   };
+
+  const isActive = running || retrying;
+  const pct = totalItems > 0 ? Math.round((processedSoFar / totalItems) * 100) : 0;
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <motion.button
-          type="button"
-          onClick={() => runSearch(false)}
-          disabled={searching || retrying}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-500/25 disabled:opacity-60"
-        >
-          {searching ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Recherche en cours...
-            </>
-          ) : (
-            <>
-              <Search className="h-5 w-5" />
-              Recherche
-            </>
-          )}
-        </motion.button>
+      {!isActive ? (
+        <div className="flex flex-wrap gap-2">
+          <motion.button
+            type="button"
+            onClick={() => runSearchLoop(false)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-500/25"
+          >
+            <Search className="h-5 w-5" />
+            Recherche
+          </motion.button>
 
-        <motion.button
-          type="button"
-          onClick={handleRetry}
-          disabled={searching || retrying}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2 rounded-xl border-2 border-cyan-300 bg-white px-5 py-3 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-60 dark:border-cyan-700 dark:bg-slate-800 dark:text-cyan-300 dark:hover:bg-slate-700"
-          title="Supprime les résultats actuels et relance la recherche"
-        >
-          {retrying ? (
-            <>
+          <motion.button
+            type="button"
+            onClick={handleRetry}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 rounded-xl border-2 border-cyan-300 bg-white px-5 py-3 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 dark:border-cyan-700 dark:bg-slate-800 dark:text-cyan-300 dark:hover:bg-slate-700"
+            title="Supprime les résultats actuels et relance la recherche"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Relancer
+          </motion.button>
+        </div>
+      ) : (
+        <div className="space-y-2 rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4 dark:border-cyan-800 dark:bg-cyan-900/10">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-2 text-sm font-medium text-cyan-700 dark:text-cyan-300">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Relance...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4" />
-              Relancer
-            </>
-          )}
-        </motion.button>
-      </div>
+              {retrying ? 'Réinitialisation...' : `Recherche ${processedSoFar}/${totalItems} articles · ${totalResults} résultats`}
+            </p>
+            <button
+              type="button"
+              onClick={() => { cancelRef.current = true; }}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+            >
+              <Square className="h-3 w-3" /> Arrêter
+            </button>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-cyan-200 dark:bg-cyan-900/30">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-xs text-cyan-600 dark:text-cyan-400">{pct}%</p>
+        </div>
+      )}
 
-      {result && (
+      {!isActive && result && (
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
