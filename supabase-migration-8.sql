@@ -29,13 +29,13 @@ CREATE TABLE IF NOT EXISTS catalog (
   UNIQUE(source, external_id)
 );
 
+-- Enable pg_trgm extension BEFORE creating the index that uses it
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE INDEX IF NOT EXISTS idx_catalog_source ON catalog(source);
 CREATE INDEX IF NOT EXISTS idx_catalog_external_id ON catalog(external_id);
 CREATE INDEX IF NOT EXISTS idx_catalog_search_count ON catalog(search_count DESC);
 CREATE INDEX IF NOT EXISTS idx_catalog_title_trgm ON catalog USING gin(title gin_trgm_ops);
-
--- Enable pg_trgm extension for fuzzy text search (if not already enabled)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Trigger updated_at (reuses existing function from migration #1)
 CREATE TRIGGER trigger_catalog_updated_at
