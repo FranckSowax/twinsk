@@ -10,6 +10,10 @@ export const maxDuration = 60;
 // Hard time budget: stop processing new items after this many ms to avoid gateway 502
 const PROCESSING_BUDGET_MS = 45_000;
 
+// Rate limiting: pause between items to stay within API quotas
+const DELAY_BETWEEN_ITEMS_MS = 1500; // 1.5s between each item's API calls
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 function normalizeUrl(url: string | undefined): string {
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
@@ -387,6 +391,11 @@ export async function POST(
 
       // Mark this item as processed (successfully or not — we at least attempted it)
       processedItemIds.push(item.id);
+
+      // Rate limit: pause between items to avoid API quota exhaustion
+      if (idx < items.length - 1 && remainingMs() > DELAY_BETWEEN_ITEMS_MS) {
+        await sleep(DELAY_BETWEEN_ITEMS_MS);
+      }
     }
 
     // --- Translation step (Kimi) ---

@@ -5,6 +5,8 @@ const KIMI_BASE_URL = 'https://api.moonshot.ai/v1/chat/completions';
 // Fallback to moonshot-v1-8k if 32k unavailable
 const KIMI_MODEL = 'moonshot-v1-32k';
 const KIMI_FALLBACK_MODEL = 'moonshot-v1-8k';
+const DELAY_BETWEEN_CHUNKS_MS = 1200; // pause between translate batch chunks
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface TranslationItem {
   id: string;
@@ -281,6 +283,7 @@ export async function translateBatch(items: TranslationItem[]): Promise<Translat
     console.log(`[Kimi] Splitting ${items.length} items into chunks of ${CHUNK_SIZE}`);
     const merged: TranslationMap = {};
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+      if (i > 0) await sleep(DELAY_BETWEEN_CHUNKS_MS);
       const chunk = items.slice(i, i + CHUNK_SIZE);
       const chunkResult = await translateBatchInternal(chunk);
       Object.assign(merged, chunkResult);

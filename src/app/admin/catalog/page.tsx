@@ -144,6 +144,9 @@ export default function CatalogPage() {
         loadData();
 
         if (r <= 0 || data.updated === 0) break;
+
+        // Pause between cycles to respect Kimi rate limits
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       } catch {
         setTranslateMsg('Erreur réseau');
         break;

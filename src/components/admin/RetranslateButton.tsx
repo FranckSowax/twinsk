@@ -4,6 +4,9 @@ import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Languages, Loader2, CheckCircle, Square } from 'lucide-react';
 
+const DELAY_BETWEEN_CYCLES_MS = 2000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 interface RetranslateButtonProps {
   requestId: string;
   onComplete: () => void;
@@ -47,6 +50,8 @@ export default function RetranslateButton({ requestId, onComplete }: Retranslate
 
         // Stop if nothing left or if updated=0 (Kimi is stuck)
         if (remaining <= 0 || data.updated === 0) break;
+
+        await sleep(DELAY_BETWEEN_CYCLES_MS);
       } catch {
         setError('Erreur réseau');
         break;

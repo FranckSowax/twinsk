@@ -4,6 +4,9 @@ import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Loader2, CheckCircle, RefreshCw, AlertTriangle, Square } from 'lucide-react';
 
+const DELAY_BETWEEN_CYCLES_MS = 2000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 interface SearchTriggerProps {
   requestId: string;
   onSearchComplete: () => void;
@@ -77,6 +80,9 @@ export default function SearchTrigger({ requestId, onSearchComplete }: SearchTri
         // Stop conditions
         if (skipped <= 0) break; // all done
         if ((data.processed_items || 0) === 0) break; // stuck, no progress
+
+        // Pause between cycles to respect API rate limits
+        await sleep(DELAY_BETWEEN_CYCLES_MS);
       }
 
       if (cancelRef.current) {
