@@ -247,6 +247,36 @@ export default function AdminRequestDetailPage() {
         </motion.button>
       </div>
 
+      {/* Progress bar */}
+      {items.length > 0 && (() => {
+        const total = items.length;
+        const processed = items.filter((i) => i.processed).length;
+        const withResults = items.filter((i) => i.search_results.length > 0).length;
+        const totalResults = items.reduce((sum, i) => sum + i.search_results.length, 0);
+        const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+        return (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                {processed}/{total} article(s) traité(s) · {totalResults} résultat(s)
+              </span>
+              <span className="text-xs text-slate-500">{pct}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            {processed < total && (
+              <p className="mt-1.5 text-xs text-slate-400">
+                {total - processed} article(s) en attente — cliquez sur &quot;Recherche&quot; pour continuer
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
       <AddRequestItemModal
         open={addItemOpen}
         requestId={uuid}
