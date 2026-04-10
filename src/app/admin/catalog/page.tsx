@@ -10,6 +10,9 @@ import {
   Store,
   TrendingUp,
   Filter,
+  Languages,
+  Loader2,
+  CheckCircle,
 } from 'lucide-react';
 import { formatCNY } from '@/lib/utils/formatCurrency';
 import SmartImage from '@/components/ui/SmartImage';
@@ -53,6 +56,8 @@ export default function CatalogPage() {
   const [source, setSource] = useState('');
   const [page, setPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translateMsg, setTranslateMsg] = useState('');
   const pageSize = 30;
 
   const loadData = useCallback(async () => {
@@ -92,13 +97,49 @@ export default function CatalogPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">
-          Catalogue produits
-        </h1>
-        <p className="mt-1 text-slate-500">
-          {total} produit(s) et usine(s) dans la base
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">
+            Catalogue produits
+          </h1>
+          <p className="mt-1 text-slate-500">
+            {total} produit(s) et usine(s) dans la base
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <motion.button
+            type="button"
+            disabled={translating}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={async () => {
+              setTranslating(true);
+              setTranslateMsg('');
+              try {
+                const res = await fetch('/api/catalog/translate', { method: 'POST' });
+                const data = await res.json();
+                setTranslateMsg(data.message || data.error || 'Terminé');
+                loadData();
+              } catch {
+                setTranslateMsg('Erreur réseau');
+              } finally {
+                setTranslating(false);
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 disabled:opacity-60"
+          >
+            {translating ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Traduction...</>
+            ) : (
+              <><Languages className="h-4 w-4" /> Traduire le catalogue</>
+            )}
+          </motion.button>
+          {translateMsg && (
+            <p className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+              <CheckCircle className="h-3 w-3" /> {translateMsg}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Search + Filters */}
