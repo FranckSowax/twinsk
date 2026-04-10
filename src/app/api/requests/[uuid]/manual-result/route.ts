@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { upsertCatalog } from '@/lib/catalog';
 
 // POST: Add a manual product result to a request item
 export async function POST(
@@ -58,9 +59,30 @@ export async function POST(
       client_quantity: null,
     };
 
+    // Upsert into catalog
+    const extId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const catalogEntry = await upsertCatalog({
+      source: 'manual',
+      external_id: extId,
+      title: insertData.title,
+      description: insertData.description ?? undefined,
+      price: insertData.price,
+      image_url: insertData.image_url || undefined,
+      main_image_url: insertData.main_image_url ?? undefined,
+      seller: insertData.seller ?? undefined,
+      product_url: insertData.product_url || undefined,
+      moq: insertData.moq ?? undefined,
+      weight: insertData.weight ?? undefined,
+      volume: insertData.volume ?? undefined,
+      dimensions: insertData.dimensions ?? undefined,
+    });
+
     const { data, error } = await supabaseAdmin
       .from('search_results')
-      .insert(insertData)
+      .insert({
+        ...insertData,
+        catalog_id: catalogEntry?.id || null,
+      })
       .select()
       .single();
 

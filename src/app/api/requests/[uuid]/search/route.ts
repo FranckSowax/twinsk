@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { searchByImage, searchByKeyword } from '@/lib/taobao/api';
 import { searchByImage1688, getItemDetail1688, searchByKeyword1688 } from '@/lib/alibaba1688/api';
 import { translateBatch, translateToChinese, findFactories, type TranslationItem } from '@/lib/kimi/api';
+import { upsertCatalog, factoryExternalId } from '@/lib/catalog';
 
 export const maxDuration = 60;
 
@@ -38,6 +39,7 @@ interface PendingResult {
   volume: number | null;
   dimensions: string | null;
   client_quantity: number | null;
+  catalog_id?: string | null;
 }
 
 // POST: Trigger Taobao + 1688 image search, translate via Kimi, store in DB
@@ -420,6 +422,37 @@ export async function POST(
           if (t.seller) r.seller = t.seller;
         }
       });
+    }
+
+    // --- Upsert into catalog + attach catalog_id ---
+    for (const r of allResults) {
+      const extId = r.source === 'factory'
+        ? factoryExternalId(r.title, r.seller)
+        : r.taobao_item_id || '';
+      if (!extId) continue;
+
+      const catalogEntry = await upsertCatalog({
+        source: r.source,
+        external_id: extId,
+        title: r.title,
+        title_original: r.title_original ?? undefined,
+        description: r.description ?? undefined,
+        description_original: r.description_original ?? undefined,
+        price: r.price,
+        image_url: r.image_url || undefined,
+        main_image_url: r.main_image_url ?? undefined,
+        extra_images: r.extra_images ?? undefined,
+        seller: r.seller ?? undefined,
+        product_url: r.product_url || undefined,
+        moq: r.moq ?? undefined,
+        weight: r.weight ?? undefined,
+        volume: r.volume ?? undefined,
+        dimensions: r.dimensions ?? undefined,
+      });
+
+      if (catalogEntry) {
+        r.catalog_id = catalogEntry.id;
+      }
     }
 
     // --- Insert into DB ---

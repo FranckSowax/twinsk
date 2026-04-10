@@ -63,6 +63,30 @@ export interface Quote {
   document_type: DocumentType;
 }
 
+export interface CatalogEntry {
+  id: string;
+  source: SearchSource;
+  external_id: string | null;
+  title: string;
+  title_original: string | null;
+  description: string | null;
+  description_original: string | null;
+  price: number;
+  image_url: string | null;
+  main_image_url: string | null;
+  extra_images: string[] | null;
+  seller: string | null;
+  product_url: string | null;
+  moq: number | null;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+  search_count: number;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ItemNote {
   id: string;
   request_item_id: string;

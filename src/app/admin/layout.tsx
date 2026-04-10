@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Package, Plus, LogOut } from 'lucide-react';
+import { Package, Plus, LogOut, BookOpen } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -85,6 +85,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <Package className="h-4 w-4" />
               Demandes
+            </Link>
+            <Link
+              href="/admin/catalog"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              <BookOpen className="h-4 w-4" />
+              Catalogue
             </Link>
             <button
               type="button"
