@@ -72,7 +72,7 @@ export default function CatalogPage() {
   const [translateMsg, setTranslateMsg] = useState('');
 
   // Debounce ref for dynamic search
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
 

@@ -81,15 +81,16 @@ export async function POST(request: NextRequest) {
         if (!t) continue;
 
         const updateFields: Record<string, string> = {};
-        if (t.title) {
+        // Only accept translation if the result actually changed to non-Chinese
+        if (t.title && !hasChinese(t.title)) {
           updateFields.title = t.title;
           if (!entry.title_original) updateFields.title_original = entry.title;
         }
-        if (t.description) {
+        if (t.description && !hasChinese(t.description)) {
           updateFields.description = t.description;
           if (!entry.description_original) updateFields.description_original = entry.description;
         }
-        if (t.seller) updateFields.seller = t.seller;
+        if (t.seller && !hasChinese(t.seller)) updateFields.seller = t.seller;
 
         if (Object.keys(updateFields).length > 0) {
           await supabaseAdmin.from('catalog').update(updateFields).eq('id', entry.id);
