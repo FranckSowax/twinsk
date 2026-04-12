@@ -64,6 +64,32 @@ export async function notifyNewSubmission({
   return sendTelegramMessage(message);
 }
 
+/** Notify admin channel when a client validates their proposal choices */
+export async function notifyProposalValidated({
+  clientName,
+  selectedCount,
+  requestId,
+  baseUrl,
+}: {
+  clientName: string;
+  selectedCount: number;
+  requestId: string;
+  baseUrl: string;
+}) {
+  const adminLink = `${baseUrl}/admin/requests/${requestId}`;
+
+  const message = [
+    `✅ <b>Proposition validée par le client</b>`,
+    ``,
+    `👤 Client : <b>${clientName || 'Sans nom'}</b>`,
+    `📦 ${selectedCount} produit(s) choisi(s)`,
+    ``,
+    `👉 <a href="${adminLink}">Voir les choix et générer le devis</a>`,
+  ].join('\n');
+
+  return sendTelegramMessage(message);
+}
+
 /** Notify admin channel when a client adds more products to an existing request */
 export async function notifyItemsAdded({
   clientName,

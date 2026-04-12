@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { notifyProposalValidated } from '@/lib/telegram';
 
 // POST: Public endpoint — client submits their final picks, quantities AND notes
 // Body: {
@@ -88,19 +89,19 @@ export async function POST(
 
     for (const item of itemRows) {
       const itemResults = item.search_results || [];
-      // Only enforce for items that actually had proposed results
-      if (itemResults.length === 0) continue;
+      // Only consider results that the admin had pre-selected (shown to client)
+      const proposedResults = itemResults.filter((r) => r.selected);
+      if (proposedResults.length === 0) continue;
 
-      // Compute selection count after picks applied
-      const selectedCount = itemResults.filter((r) => {
+      // Compute how many the CLIENT selected from the proposed results
+      const clientSelectedCount = proposedResults.filter((r) => {
         const override = pickByResult.get(r.id);
-        if (override !== undefined) return override;
-        return r.selected; // fall back to previous admin selection
+        return override === true;
       }).length;
 
       const note = noteMap.get(item.id) ?? null;
 
-      if (selectedCount === 0 && !note) {
+      if (clientSelectedCount === 0 && !note) {
         return NextResponse.json(
           {
             error:
@@ -123,6 +124,25 @@ export async function POST(
       .from('requests')
       .update({ status: 'client_reviewed' })
       .eq('id', uuid);
+
+    // Count client selections for notification
+    const clientSelectedTotal = Array.from(pickByResult.values()).filter(Boolean).length;
+
+    // Fetch client name for notification
+    const { data: reqInfo } = await supabaseAdmin
+      .from('requests')
+      .select('client_name')
+      .eq('id', uuid)
+      .single();
+
+    // Telegram notification (non-blocking)
+    const baseUrl = `https://${request.headers.get('host') || 'twinsk-production.up.railway.app'}`;
+    notifyProposalValidated({
+      clientName: reqInfo?.client_name || '',
+      selectedCount: clientSelectedTotal,
+      requestId: uuid,
+      baseUrl,
+    }).catch(() => {});
 
     return NextResponse.json({
       message: `Choix enregistrés: ${updatedResults} produit(s)`,
