@@ -87,36 +87,15 @@ export async function POST(
       }
     }
 
+    // Save notes for all items (no mandatory note — absence of selection is signal enough)
     for (const item of itemRows) {
-      const itemResults = item.search_results || [];
-      // Only consider results that the admin had pre-selected (shown to client)
-      const proposedResults = itemResults.filter((r) => r.selected);
-      if (proposedResults.length === 0) continue;
-
-      // Compute how many the CLIENT selected from the proposed results
-      const clientSelectedCount = proposedResults.filter((r) => {
-        const override = pickByResult.get(r.id);
-        return override === true;
-      }).length;
-
       const note = noteMap.get(item.id) ?? null;
-
-      if (clientSelectedCount === 0 && !note) {
-        return NextResponse.json(
-          {
-            error:
-              "Merci de laisser une note pour chaque article où vous n'avez sélectionné aucune proposition",
-            item_id: item.id,
-          },
-          { status: 400 }
-        );
+      if (note !== null) {
+        await supabaseAdmin
+          .from('request_items')
+          .update({ client_note: note || null })
+          .eq('id', item.id);
       }
-
-      // Save the note (null if empty)
-      await supabaseAdmin
-        .from('request_items')
-        .update({ client_note: note || null })
-        .eq('id', item.id);
     }
 
     // Mark request as reviewed by client

@@ -117,17 +117,8 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
     setSubmitting(true);
     setError('');
 
-    // Client-side validation: items with zero selection need a note
-    const missing = itemsNeedingNote.find((id) => !(notes[id] || '').trim());
-    if (missing) {
-      setSubmitting(false);
-      setError(
-        "Merci de laisser une note pour chaque article sans produit sélectionné, en expliquant ce que vous recherchez."
-      );
-      // Scroll to the faulty item
-      sectionRefs.current[missing]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
+    // Note: validation removed — client can submit without notes on unselected items
+    // The absence of selection is already a clear signal for the admin
 
     try {
       const payload = {
