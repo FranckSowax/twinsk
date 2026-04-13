@@ -345,6 +345,12 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                               alt={result.title}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105"
                             />
+                            {/* NEW badge for products not yet reviewed by client */}
+                            {result.client_selected === null && (
+                              <span className="absolute left-2 top-2 animate-pulse rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-lg">
+                                Nouveau
+                              </span>
+                            )}
                             {selected && (
                               <div className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white shadow-lg">
                                 <Check className="h-4 w-4" />
@@ -429,9 +435,16 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                                       className="h-full w-full object-cover"
                                     />
                                   </div>
-                                  <p className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-white">
-                                    {result.title}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-white">
+                                      {result.title}
+                                    </p>
+                                    {result.client_selected === null && (
+                                      <span className="flex-shrink-0 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                                        Nouveau
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-2 py-3 text-right">
