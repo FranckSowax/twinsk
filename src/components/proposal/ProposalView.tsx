@@ -147,34 +147,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
     }
   };
 
-  if (submitted) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="mx-auto max-w-2xl rounded-3xl bg-gradient-to-br from-green-50 to-emerald-50 p-8 text-center shadow-xl sm:p-12 dark:from-green-900/20 dark:to-emerald-900/20"
-      >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
-          className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
-        >
-          <CheckCircle className="h-12 w-12 text-white" />
-        </motion.div>
-        <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">
-          Vos choix ont été enregistrés !
-        </h2>
-        <p className="mt-3 text-slate-600 dark:text-slate-400">
-          Notre équipe finalise votre devis et vous recontacte très prochainement.
-        </p>
-        <div className="mt-6 inline-flex flex-col items-center rounded-2xl bg-white px-5 py-3 text-sm font-medium text-slate-700 shadow dark:bg-slate-800 dark:text-slate-200">
-          <span className="mb-1 text-xs text-slate-400">{totals.count} produit(s) choisi(s)</span>
-          <MultiCurrencyPrice amountCny={totals.total} variant="stacked" />
-        </div>
-      </motion.div>
-    );
-  }
+  // No blocking "submitted" screen — the client can always modify and re-submit
 
   return (
     <>
@@ -213,6 +186,25 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
       />
 
       <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
+        {/* Success banner (non-blocking) */}
+        {submitted && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 rounded-2xl border border-green-300 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
+          >
+            <CheckCircle className="h-6 w-6 flex-shrink-0 text-green-500" />
+            <div className="flex-1">
+              <p className="font-semibold text-green-800 dark:text-green-200">
+                Vos choix ont été enregistrés !
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-300">
+                Vous pouvez modifier vos sélections et re-valider à tout moment.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Header */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-700 dark:bg-slate-800">
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">
@@ -464,40 +456,48 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                 <p className="text-sm text-slate-400">Aucune proposition pour cet article.</p>
               )}
 
-              {/* Conversation notes (admin ↔ client) */}
+              {/* Conversation notes (admin ↔ client) — always visible as accordion */}
               <NotesThread
                 notes={item.notes || []}
                 requestItemId={item.id}
                 currentUser="client"
-                onNoteAdded={() => window.location.reload()}
+                onNoteAdded={() => {
+                  // Soft refresh: don't lose client picks
+                  fetch(`/api/proposal/${requestId}`)
+                    .then((r) => r.ok ? r.json() : null)
+                    .then((d) => {
+                      if (!d) return;
+                      const updated = d.items?.find((i: { id: string }) => i.id === item.id);
+                      if (updated) item.notes = updated.notes;
+                    })
+                    .catch(() => {});
+                }}
               />
 
-              {/* Client note section — required if no selection */}
-              {(needsNote || notes[item.id]) && (
-                <div
-                  className={`rounded-2xl border p-4 ${
+              {/* Client note per item — always visible */}
+              <div
+                className={`rounded-2xl border p-4 ${
+                  needsNote
+                    ? 'border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-900/20'
+                    : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700/30'
+                }`}
+              >
+                <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                  <MessageSquare className="h-3 w-3" />
+                  {needsNote ? 'Dites-nous ce que vous recherchez' : 'Commentaire (optionnel)'}
+                </label>
+                <textarea
+                  value={notes[item.id] || ''}
+                  onChange={(e) => handleNoteChange(item.id, e.target.value)}
+                  placeholder={
                     needsNote
-                      ? 'border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-900/20'
-                      : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700/30'
-                  }`}
-                >
-                  <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                    <MessageSquare className="h-3 w-3" />
-                    {needsNote ? 'Note requise — dites-nous ce que vous recherchez' : 'Note (optionnelle)'}
-                  </label>
-                  <textarea
-                    value={notes[item.id] || ''}
-                    onChange={(e) => handleNoteChange(item.id, e.target.value)}
-                    placeholder={
-                      needsNote
-                        ? "Ex: Aucun de ces produits ne correspond, je cherche plutôt..."
-                        : 'Précisions supplémentaires...'
-                    }
-                    rows={3}
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                  />
-                </div>
-              )}
+                      ? "Aucun ne correspond ? Décrivez ce que vous recherchez..."
+                      : 'Précisions, quantités, couleurs préférées...'
+                  }
+                  rows={2}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                />
+              </div>
             </motion.div>
           );
         })}
@@ -523,6 +523,11 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Envoi...
+                </>
+              ) : submitted ? (
+                <>
+                  <Send className="h-5 w-5" />
+                  Mettre à jour mes choix
                 </>
               ) : (
                 <>
