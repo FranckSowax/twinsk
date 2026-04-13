@@ -26,6 +26,7 @@ interface SearchResultRow {
   volume: number | null;
   dimensions: string | null;
   client_quantity: number | null;
+  client_selected: boolean | null;
 }
 
 interface ResultDetailModalProps {

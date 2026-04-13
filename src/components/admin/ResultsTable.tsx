@@ -28,6 +28,7 @@ interface SearchResultRow {
   volume: number | null;
   dimensions: string | null;
   client_quantity: number | null;
+  client_selected: boolean | null;
 }
 
 interface RequestItemWithResults {
@@ -244,9 +245,11 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                         setActiveResult(result);
                       }}
                       className={`cursor-pointer transition-colors hover:bg-slate-100/50 dark:hover:bg-slate-700/30 ${
-                        result.selected
-                          ? 'bg-amber-50/50 dark:bg-amber-900/10'
-                          : 'bg-white dark:bg-slate-800'
+                        result.client_selected === true
+                          ? 'bg-green-50/70 dark:bg-green-900/15'
+                          : result.selected
+                            ? 'bg-amber-50/50 dark:bg-amber-900/10'
+                            : 'bg-white dark:bg-slate-800'
                       } ${savingIds.has(result.id) ? 'opacity-70' : ''}`}
                     >
                       {/* Select */}
@@ -264,11 +267,23 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                         </button>
                       </td>
 
-                      {/* Source badge */}
+                      {/* Source badge + client status */}
                       <td className="px-2 py-3">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SOURCE_BADGE[result.source] || SOURCE_BADGE.taobao}`}>
-                          {SOURCE_LABEL[result.source] || result.source}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SOURCE_BADGE[result.source] || SOURCE_BADGE.taobao}`}>
+                            {SOURCE_LABEL[result.source] || result.source}
+                          </span>
+                          {result.client_selected === true && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                              <Check className="h-2.5 w-2.5" /> Client
+                            </span>
+                          )}
+                          {result.client_selected === false && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                              <X className="h-2.5 w-2.5" /> Refusé
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Product */}
