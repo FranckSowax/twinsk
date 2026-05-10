@@ -12,14 +12,14 @@
   --font-display: var(--font-oswald);
   --font-mono: var(--font-mono);
 
-  /* Brand palette — inspired by Carvex framing */
-  --color-forest: #0e3f3d;
-  --color-forest-soft: #134b49;
-  --color-forest-deep: #0a2d2c;
-  --color-lime: #c5f300;
-  --color-lime-soft: #dbff6b;
-  --color-cream: #faf7f0;
-  --color-ink: #0f1e1f;
+  /* Brand palette — Twinsk legacy (slate + orange) */
+  --color-forest: #0f172a;
+  --color-forest-soft: #1e293b;
+  --color-forest-deep: #020617;
+  --color-lime: #f97316;
+  --color-lime-soft: #fb923c;
+  --color-cream: #ffffff;
+  --color-ink: #0f172a;
 }
 
 @media (prefers-color-scheme: dark) {
