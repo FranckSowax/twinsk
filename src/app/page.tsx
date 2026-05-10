@@ -16,10 +16,10 @@ export default function Home() {
     <div className="min-h-screen bg-white dark:bg-slate-900">
       <TwinskHero />
       <TwinskFreightCalculator />
-      <TwinskSampling />
       <TwinskYouTubeShop />
       <TwinskQuickQuote />
       <TwinskCarsImport />
+      <TwinskSampling />
       <TwinskDelegations />
       <TwinskBooking />
       <TwinskProcess />

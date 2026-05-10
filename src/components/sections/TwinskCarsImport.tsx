@@ -45,7 +45,7 @@ const TwinskCarsImport = () => {
 
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <SectionHeader
-          index="05"
+          index="04"
           kicker="Mobilité"
           accent="red"
           align="center"

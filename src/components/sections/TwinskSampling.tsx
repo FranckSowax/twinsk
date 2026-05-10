@@ -70,7 +70,7 @@ const TwinskSampling = () => {
 
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <SectionHeader
-          index="02"
+          index="05"
           kicker="Échantillonnage"
           accent="amber"
           title={

@@ -86,7 +86,7 @@ const TwinskYouTubeShop = () => {
       <div className="absolute inset-x-0 top-0 section-divider" />
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <SectionHeader
-          index="03"
+          index="02"
           kicker="Twinsk Studio"
           accent="red"
           title={
