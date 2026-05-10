@@ -1,22 +1,29 @@
 import type { Metadata } from "next";
-import { Inter, Oswald } from "next/font/google";
+import { Geist, Geist_Mono, Oswald } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const geist = Geist({
+  variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 const oswald = Oswald({
   variable: "--font-oswald",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Twinsk Company - Logistics & Shipping",
-  description: "Fast, dependable, and safest shipping for all your cargo needs across the globe.",
+  title: "Twinsk Company — Logistique & Sourcing depuis la Chine",
+  description:
+    "Fret aérien et maritime, sourcing 1688/Alibaba, échantillonnage, import véhicules et réception délégations. Hong Kong → Monde.",
 };
 
 export default function RootLayout({
@@ -25,10 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${oswald.variable} antialiased`}
-        style={{ fontFamily: 'var(--font-inter)' }}
+        className={`${geist.variable} ${geistMono.variable} ${oswald.variable} antialiased`}
+        style={{ fontFamily: 'var(--font-sans)' }}
       >
         {children}
       </body>

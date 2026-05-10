@@ -8,8 +8,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-sans);
   --font-display: var(--font-oswald);
+  --font-mono: var(--font-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -64,4 +65,34 @@ body {
 /* Font display utility */
 .font-display {
   font-family: var(--font-oswald), sans-serif;
+}
+
+/* Editorial micro-typography */
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  font-feature-settings: "ss01", "cv06";
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.kicker {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Hairline section divider */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(15, 23, 42, 0.12) 20%, rgba(15, 23, 42, 0.12) 80%, transparent);
+}
+
+/* Subtle dotted grid background */
+.grid-bg {
+  background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.06) 1px, transparent 0);
+  background-size: 28px 28px;
 }
