@@ -19,8 +19,12 @@ export default function Home() {
       <TwinskQuickQuote />
       <TwinskYouTubeShop />
       <TwinskCarsImport />
-      <TwinskSampling />
-      <TwinskDelegations />
+      <section className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 border-t border-forest/5">
+        <div className="max-w-[1600px] mx-auto px-2 sm:px-4 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          <TwinskSampling />
+          <TwinskDelegations />
+        </div>
+      </section>
       <TwinskBooking />
       <TwinskProcess />
       <TwinskStats />
