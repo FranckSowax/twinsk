@@ -18,6 +18,8 @@ import {
   CheckCircle,
   MapPin,
   FileText,
+  Building2,
+  MessageCircle,
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -34,6 +36,9 @@ export interface FreightInitialData {
   goods_nature: string;
   goods_description: string;
   photos: string[];
+  supplier_name: string;
+  supplier_address: string;
+  supplier_wechat: string;
   estimated_price: number;
   estimated_days: number;
   status: string;
@@ -58,6 +63,9 @@ export default function FreightForm({ freightId, initialData }: Props) {
   const [goodsNature, setGoodsNature] = useState(initialData.goods_nature);
   const [goodsDescription, setGoodsDescription] = useState(initialData.goods_description);
   const [photos, setPhotos] = useState<string[]>(initialData.photos);
+  const [supplierName, setSupplierName] = useState(initialData.supplier_name);
+  const [supplierAddress, setSupplierAddress] = useState(initialData.supplier_address);
+  const [supplierWechat, setSupplierWechat] = useState(initialData.supplier_wechat);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(initialData.status === 'submitted');
@@ -114,6 +122,9 @@ export default function FreightForm({ freightId, initialData }: Props) {
           goods_nature: goodsNature.trim(),
           goods_description: goodsDescription.trim(),
           photos,
+          supplier_name: supplierName.trim(),
+          supplier_address: supplierAddress.trim(),
+          supplier_wechat: supplierWechat.trim(),
           status: 'submitted',
         }),
       });
@@ -255,7 +266,42 @@ export default function FreightForm({ freightId, initialData }: Props) {
         </div>
       </Card>
 
-      <Card title="Photos (optionnel)" kicker="04">
+      <Card title="Fournisseur (si connu)" kicker="04">
+        <div className="space-y-3">
+          <Field icon={Building2} label="Nom du fournisseur">
+            <input
+              type="text"
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+              placeholder="Ex : Yiwu Star Trading Co. Ltd"
+              className="bg-transparent text-sm text-slate-900 font-medium w-full focus:outline-none placeholder:text-slate-400"
+            />
+          </Field>
+          <Field icon={MapPin} label="Adresse">
+            <input
+              type="text"
+              value={supplierAddress}
+              onChange={(e) => setSupplierAddress(e.target.value)}
+              placeholder="Rue, ville, province (Yiwu, Guangzhou, Shenzhen…)"
+              className="bg-transparent text-sm text-slate-900 font-medium w-full focus:outline-none placeholder:text-slate-400"
+            />
+          </Field>
+          <Field icon={MessageCircle} label="Contact WeChat">
+            <input
+              type="text"
+              value={supplierWechat}
+              onChange={(e) => setSupplierWechat(e.target.value)}
+              placeholder="ID WeChat ou numéro 微信"
+              className="bg-transparent text-sm text-slate-900 font-medium w-full focus:outline-none placeholder:text-slate-400"
+            />
+          </Field>
+        </div>
+        <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
+          Optionnel — si vous avez déjà un fournisseur, ces infos accélèrent la prise en charge.
+        </p>
+      </Card>
+
+      <Card title="Photos (optionnel)" kicker="05">
         <div
           {...getRootProps()}
           className={`rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${
@@ -306,7 +352,7 @@ export default function FreightForm({ freightId, initialData }: Props) {
         )}
       </Card>
 
-      <Card title="Vos coordonnées" kicker="05">
+      <Card title="Vos coordonnées" kicker="06">
         <div className="space-y-3">
           <Field icon={User} label="Nom *">
             <input

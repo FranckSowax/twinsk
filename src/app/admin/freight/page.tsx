@@ -38,6 +38,9 @@ interface FreightRequest {
   goods_nature: string;
   goods_description: string;
   photos: string[];
+  supplier_name: string;
+  supplier_address: string;
+  supplier_wechat: string;
   estimated_price: number;
   estimated_days: number;
   status: Status;
@@ -439,6 +442,46 @@ const DetailModal = ({
               </p>
             )}
           </div>
+
+          {(row.supplier_name || row.supplier_address || row.supplier_wechat) && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
+                Fournisseur
+              </p>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                {row.supplier_name && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                      Nom
+                    </dt>
+                    <dd className="font-medium text-slate-900 dark:text-white">
+                      {row.supplier_name}
+                    </dd>
+                  </div>
+                )}
+                {row.supplier_address && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                      Adresse
+                    </dt>
+                    <dd className="text-slate-700 dark:text-slate-200">
+                      {row.supplier_address}
+                    </dd>
+                  </div>
+                )}
+                {row.supplier_wechat && (
+                  <div>
+                    <dt className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                      WeChat
+                    </dt>
+                    <dd className="font-mono text-slate-700 dark:text-slate-200">
+                      {row.supplier_wechat}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
 
           {row.photos.length > 0 && (
             <div>

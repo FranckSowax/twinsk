@@ -17,6 +17,9 @@ interface PatchPayload {
   goods_nature?: string;
   goods_description?: string;
   photos?: string[];
+  supplier_name?: string;
+  supplier_address?: string;
+  supplier_wechat?: string;
   estimated_price?: number;
   estimated_days?: number;
   status?: Status;
