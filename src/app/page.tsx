@@ -1,21 +1,31 @@
 import TwinskHero from '@/components/sections/TwinskHero';
 import TwinskServices from '@/components/sections/TwinskServices';
-import TwinskStats from '@/components/sections/TwinskStats';
+import TwinskFreightCalculator from '@/components/sections/TwinskFreightCalculator';
+import TwinskSampling from '@/components/sections/TwinskSampling';
+import TwinskYouTubeShop from '@/components/sections/TwinskYouTubeShop';
+import TwinskQuickQuote from '@/components/sections/TwinskQuickQuote';
+import TwinskCarsImport from '@/components/sections/TwinskCarsImport';
+import TwinskDelegations from '@/components/sections/TwinskDelegations';
 import TwinskBooking from '@/components/sections/TwinskBooking';
-import TwinskTech from '@/components/sections/TwinskTech';
 import TwinskProcess from '@/components/sections/TwinskProcess';
+import TwinskStats from '@/components/sections/TwinskStats';
 import TwinskTestimonials from '@/components/sections/TwinskTestimonials';
 import TwinskFooter from '@/components/sections/TwinskFooter';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       <TwinskHero />
       <TwinskServices />
-      <TwinskStats />
+      <TwinskFreightCalculator />
+      <TwinskSampling />
+      <TwinskYouTubeShop />
+      <TwinskQuickQuote />
+      <TwinskCarsImport />
+      <TwinskDelegations />
       <TwinskBooking />
       <TwinskProcess />
-      <TwinskTech />
+      <TwinskStats />
       <TwinskTestimonials />
       <TwinskFooter />
     </div>
