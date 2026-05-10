@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, ShoppingBag, X, Loader2, CheckCircle, ArrowRight } from 'lucide-react';
+import { Play, ShoppingBag, X, Loader2, CheckCircle, ArrowRight, Youtube } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
 import SectionHeader from './SectionHeader';
@@ -81,17 +81,28 @@ const TwinskYouTubeShop = () => {
   return (
     <section
       id="youtube-shop"
-      className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 bg-white border-t border-forest/5"
+      className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 bg-white border-t border-forest/5 overflow-hidden"
     >
-      <div className="max-w-[1600px] mx-auto px-2 sm:px-4">
+      {/* YouTube red ambient background */}
+      <div
+        aria-hidden
+        className="absolute -top-40 -left-40 w-[640px] h-[640px] bg-red-600/10 rounded-full blur-3xl pointer-events-none"
+      />
+      <div
+        aria-hidden
+        className="absolute -bottom-40 -right-32 w-[520px] h-[520px] bg-red-600/[0.06] rounded-full blur-3xl pointer-events-none"
+      />
+
+      <div className="relative max-w-[1600px] mx-auto px-2 sm:px-4">
         <SectionHeader
           index="02"
-          kicker="Twinsk Studio"
-          accent="forest"
+          kicker="Twinsk Studio · YouTube"
+          accent="red"
           title={
             <>
-              <span className="block">Shop</span>
-              <span className="block">par vidéo</span>
+              <span className="block">Retrouvez</span>
+              <span className="block">les <span className="text-red-600">produits</span></span>
+              <span className="block">de nos vidéos</span>
             </>
           }
           lead="Chaque vidéo de notre chaîne YouTube référence des produits réellement disponibles. Sélectionnez, commandez, recevez."
@@ -100,8 +111,9 @@ const TwinskYouTubeShop = () => {
               href="https://youtube.com/@twinsk"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-cream px-4 py-2.5 rounded-full text-sm font-medium text-forest hover:bg-forest hover:text-cream transition-colors border border-forest/10"
+              className="inline-flex items-center gap-2 bg-red-600 px-4 py-2.5 rounded-full text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20"
             >
+              <Youtube className="w-4 h-4" fill="currentColor" />
               <span>youtube.com/@twinsk</span>
               <ArrowRight className="w-4 h-4" />
             </a>
@@ -128,7 +140,7 @@ const TwinskYouTubeShop = () => {
               whileHover={{ y: -6 }}
               transition={{ ease: [0.215, 0.61, 0.355, 1] }}
               onClick={() => setActive(video)}
-              className="group relative bg-cream rounded-2xl overflow-hidden text-left border border-forest/10 hover:border-forest/30 hover:shadow-2xl transition-all"
+              className="group relative bg-cream rounded-2xl overflow-hidden text-left border border-forest/10 hover:border-red-600/40 hover:shadow-2xl hover:shadow-red-600/10 transition-all"
             >
               <div className="relative aspect-video overflow-hidden bg-forest/5">
                 <Image
@@ -139,14 +151,15 @@ const TwinskYouTubeShop = () => {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-forest/70 via-forest/10 to-transparent" />
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-14 h-14 rounded-full bg-lime flex items-center justify-center shadow-2xl">
-                    <Play className="w-6 h-6 text-forest fill-forest ml-1" />
+                  <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shadow-2xl">
+                    <Play className="w-6 h-6 text-white fill-white ml-1" />
                   </div>
                 </div>
                 <span className="absolute bottom-2.5 right-2.5 bg-forest/90 text-cream kicker px-2 py-1 rounded tabular-nums">
                   {video.duration}
                 </span>
-                <span className="absolute top-2.5 left-2.5 kicker text-cream">
+                <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 kicker text-white bg-red-600 px-2 py-1 rounded">
+                  <Youtube className="w-3 h-3" fill="currentColor" />
                   EP {String(i + 1).padStart(2, '0')}
                 </span>
               </div>
@@ -238,14 +251,14 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
             rel="noopener noreferrer"
             className="absolute inset-0 flex items-center justify-center group"
           >
-            <div className="w-16 h-16 rounded-full bg-lime flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-              <Play className="w-7 h-7 text-forest fill-forest ml-1" />
+            <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+              <Play className="w-7 h-7 text-white fill-white ml-1" />
             </div>
           </a>
         </div>
 
         <div className="p-6 max-h-[60vh] overflow-y-auto">
-          <p className="kicker text-forest/50 mb-1">Produits présentés</p>
+          <p className="kicker text-red-600 mb-1">Produits présentés</p>
           <h3 className="font-display text-2xl uppercase tracking-tight text-forest mb-4">
             {video.title}
           </h3>
