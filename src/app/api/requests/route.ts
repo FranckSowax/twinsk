@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 
-// POST: Create a new request (admin creates, sends link to client)
+// POST: Create a new request — open to clients (LP) and admins.
+// Accepts: { client_name?, client_email?, client_phone?, notes? }
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { client_name } = body;
+    const body = await request.json().catch(() => ({}));
+    const { client_name, client_email, client_phone, notes } = body as {
+      client_name?: string;
+      client_email?: string;
+      client_phone?: string;
+      notes?: string;
+    };
 
     const { data, error } = await supabaseAdmin
       .from('requests')
       .insert({
-        client_name: client_name || '',
-        client_email: '',
-        client_phone: '',
+        client_name: (client_name ?? '').trim(),
+        client_email: (client_email ?? '').trim(),
+        client_phone: (client_phone ?? '').trim(),
+        notes: notes?.trim() || null,
         status: 'draft',
       })
       .select()

@@ -21,25 +21,58 @@ const TwinskQuickQuote = () => {
   const [contact, setContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
   const canSubmit = project.trim().length > 0 && contact.trim().length > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
+    setError('');
+
+    const trimmedContact = contact.trim();
+    const isEmail = trimmedContact.includes('@');
+
     try {
-      await fetch('/api/leads', {
+      // Track in admin leads dashboard (best-effort, non-blocking)
+      fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'quick_quote',
           fields: { Projet: project, Budget: budget, Délai: timeline, Nom: name, Contact: contact },
         }),
+      }).catch(() => {});
+
+      // Create the actual sourcing request
+      const notes = [
+        `Projet : ${project.trim()}`,
+        `Budget : ${budget}`,
+        `Délai : ${timeline}`,
+      ].join('\n');
+
+      const res = await fetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name: name.trim(),
+          client_email: isEmail ? trimmedContact : '',
+          client_phone: isEmail ? '' : trimmedContact,
+          notes,
+        }),
       });
+
+      if (!res.ok) {
+        throw new Error('create_failed');
+      }
+
+      const data = (await res.json()) as { id: string };
       setSubmitted(true);
+
+      // Hand off to the client request page where they upload products
+      window.location.href = `/request/${data.id}`;
     } catch {
-      // ignore
-    } finally {
+      setError('Une erreur est survenue. Réessayez ou contactez-nous directement.');
       setSubmitting(false);
     }
   };
@@ -174,7 +207,7 @@ const TwinskQuickQuote = () => {
                       >
                         <CheckCircle className="w-5 h-5 text-forest flex-shrink-0" />
                         <p className="text-sm text-forest">
-                          Devis en cours — vous recevrez une réponse sous 24 h.
+                          Demande créée — redirection vers votre espace de sourcing…
                         </p>
                       </motion.div>
                     ) : (
@@ -189,16 +222,24 @@ const TwinskQuickQuote = () => {
                         <span>
                           {submitting ? (
                             <>
-                              <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Envoi…
+                              <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Création…
                             </>
                           ) : (
-                            'Recevoir mon devis'
+                            'Démarrer ma demande'
                           )}
                         </span>
                         <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                       </motion.button>
                     )}
                   </AnimatePresence>
+
+                  {error && (
+                    <p className="text-xs text-red-600 mt-1">{error}</p>
+                  )}
+
+                  <p className="text-[11px] text-forest/50 leading-relaxed pt-1">
+                    À l’étape suivante, ajoutez les photos ou descriptions des produits à coter.
+                  </p>
                 </div>
               </div>
             </div>
