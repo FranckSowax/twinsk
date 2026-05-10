@@ -189,7 +189,7 @@ const TwinskHero = () => {
           <div className="bg-lime rounded-2xl p-4 shadow-xl">
             <p className="kicker text-forest/60">Cotation rapide</p>
             <div className="mt-1 flex items-baseline gap-2">
-              <span className="font-display text-3xl text-forest tabular-nums">24h</span>
+              <span className="font-display text-3xl text-forest tabular-nums">48h</span>
               <span className="text-xs text-forest/70">de réponse</span>
             </div>
           </div>

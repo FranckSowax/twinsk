@@ -14,15 +14,15 @@ import {
 import { useState } from 'react';
 
 const TRUST_MARKS = [
-  { icon: Timer, label: 'Réponse', value: 'Sous 24 h' },
+  { icon: Timer, label: 'Réponse', value: 'Sous 48 h' },
   { icon: ShieldCheck, label: 'Sourcing', value: 'Vérifié usine' },
   { icon: Languages, label: 'Agents', value: 'FR · EN · 中文' },
 ];
 
 const STEPS = [
-  { icon: Camera, label: 'Photos / liens 1688' },
+  { icon: Camera, label: 'Photos' },
   { icon: FileText, label: 'Description libre' },
-  { icon: Send, label: 'Devis sous 24 h' },
+  { icon: Send, label: 'Devis sous 48 h' },
 ];
 
 const TwinskQuickQuote = () => {
@@ -93,7 +93,7 @@ const TwinskQuickQuote = () => {
 
                 <h2 className="mt-6 font-display text-[44px] sm:text-6xl lg:text-[80px] leading-[0.95] tracking-tight uppercase">
                   <span className="block">Un projet ?</span>
-                  <span className="block text-lime">Devis sous 24 h.</span>
+                  <span className="block text-lime">Devis sous 48 h.</span>
                 </h2>
                 <p className="mt-6 max-w-md text-[17px] text-cream/80 leading-relaxed font-light">
                   Sourcing, fret, dédouanement, livraison. Démarrez votre demande en un clic —
