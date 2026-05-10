@@ -96,17 +96,21 @@ const TwinskHero = () => {
         transition={{ duration: 0.7, ease: [0.215, 0.61, 0.355, 1] }}
         className="relative mt-5 sm:mt-7 rounded-[24px] sm:rounded-[28px] overflow-hidden bg-forest"
       >
-        <div className="relative h-[420px] sm:h-[460px] lg:h-[520px]">
+        <div className="relative h-[460px] sm:h-[520px] lg:h-[600px]">
           <Image
-            src="/Carte-Twinslk-logistic-.jpg"
-            alt="Twinsk Logistics — Hong Kong → Monde"
+            src="/bannertwinsk2.jpg"
+            alt="Twinsk Company Limited — conteneur global ouvert sur le monde"
             fill
             priority
-            className="object-cover"
+            className="object-cover object-[68%_center] sm:object-[60%_center]"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1600px"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-forest/85 via-forest/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-forest/40 via-transparent to-transparent" />
+          {/* Left gradient: covers the "TWINSK COMPANY LIMITED" branding on container so our headline takes over */}
+          <div className="absolute inset-0 bg-gradient-to-r from-forest via-forest/85 via-50% to-transparent" />
+          {/* Top + bottom subtle vignette */}
+          <div className="absolute inset-0 bg-gradient-to-t from-forest/40 via-transparent to-forest/30" />
+          {/* Right edge: blend image's white border into forest */}
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-forest to-transparent" />
         </div>
 
         <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-9 lg:p-12">
