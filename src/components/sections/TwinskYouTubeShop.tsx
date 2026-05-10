@@ -81,18 +81,17 @@ const TwinskYouTubeShop = () => {
   return (
     <section
       id="youtube-shop"
-      className="relative bg-white dark:bg-slate-900 py-24 lg:py-32"
+      className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 bg-white border-t border-forest/5"
     >
-      <div className="absolute inset-x-0 top-0 section-divider" />
-      <div className="max-w-[1600px] mx-auto px-4 md:px-8">
+      <div className="max-w-[1600px] mx-auto px-2 sm:px-4">
         <SectionHeader
           index="02"
           kicker="Twinsk Studio"
-          accent="red"
+          accent="forest"
           title={
             <>
               <span className="block">Shop</span>
-              <span className="block">par <span className="text-red-600">vidéo</span></span>
+              <span className="block">par vidéo</span>
             </>
           }
           lead="Chaque vidéo de notre chaîne YouTube référence des produits réellement disponibles. Sélectionnez, commandez, recevez."
@@ -101,7 +100,7 @@ const TwinskYouTubeShop = () => {
               href="https://youtube.com/@twinsk"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-red-600 transition-colors"
+              className="inline-flex items-center gap-2 bg-cream px-4 py-2.5 rounded-full text-sm font-medium text-forest hover:bg-forest hover:text-cream transition-colors border border-forest/10"
             >
               <span>youtube.com/@twinsk</span>
               <ArrowRight className="w-4 h-4" />
@@ -117,7 +116,7 @@ const TwinskYouTubeShop = () => {
             hidden: { opacity: 0 },
             visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
           }}
-          className="mt-16 lg:mt-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+          className="mt-12 lg:mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
         >
           {VIDEOS.map((video, i) => (
             <motion.button
@@ -129,35 +128,35 @@ const TwinskYouTubeShop = () => {
               whileHover={{ y: -6 }}
               transition={{ ease: [0.215, 0.61, 0.355, 1] }}
               onClick={() => setActive(video)}
-              className="group relative bg-white dark:bg-slate-800 rounded-2xl overflow-hidden text-left border border-slate-200/70 dark:border-slate-700 hover:border-red-300 dark:hover:border-red-700/50 hover:shadow-2xl hover:shadow-red-500/10 transition-all"
+              className="group relative bg-cream rounded-2xl overflow-hidden text-left border border-forest/10 hover:border-forest/30 hover:shadow-2xl transition-all"
             >
-              <div className="relative aspect-video overflow-hidden bg-slate-200 dark:bg-slate-700">
+              <div className="relative aspect-video overflow-hidden bg-forest/5">
                 <Image
                   src={video.thumbnail}
                   alt={video.title}
                   fill
                   className="object-cover transition-transform duration-700 group-hover:scale-110"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-forest/70 via-forest/10 to-transparent" />
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shadow-2xl">
-                    <Play className="w-6 h-6 text-white fill-white ml-1" />
+                  <div className="w-14 h-14 rounded-full bg-lime flex items-center justify-center shadow-2xl">
+                    <Play className="w-6 h-6 text-forest fill-forest ml-1" />
                   </div>
                 </div>
-                <span className="absolute bottom-2.5 right-2.5 bg-black/80 text-white kicker px-2 py-1 rounded tabular-nums">
+                <span className="absolute bottom-2.5 right-2.5 bg-forest/90 text-cream kicker px-2 py-1 rounded tabular-nums">
                   {video.duration}
                 </span>
-                <span className="absolute top-2.5 left-2.5 kicker text-white">
+                <span className="absolute top-2.5 left-2.5 kicker text-cream">
                   EP {String(i + 1).padStart(2, '0')}
                 </span>
               </div>
               <div className="p-4">
-                <h4 className="font-medium text-[15px] text-slate-900 dark:text-white line-clamp-2 mb-3 leading-snug">
+                <h4 className="font-medium text-[15px] text-forest line-clamp-2 mb-3 leading-snug">
                   {video.title}
                 </h4>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500 tabular-nums">{video.views} vues</span>
-                  <span className="inline-flex items-center gap-1 font-medium text-slate-900 dark:text-white">
+                  <span className="text-forest/50 tabular-nums">{video.views} vues</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-forest">
                     <ShoppingBag className="w-3.5 h-3.5" />
                     <span className="tabular-nums">{video.products.length}</span> produits
                   </span>
@@ -214,24 +213,24 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-forest-deep/80 backdrop-blur-sm p-4"
     >
       <motion.div
         initial={{ scale: 0.96, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.96, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-3xl bg-white dark:bg-slate-800 rounded-3xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-3xl bg-cream rounded-3xl overflow-hidden shadow-2xl"
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-white/95 dark:bg-slate-900/90 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-white"
+          className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-white flex items-center justify-center text-forest hover:bg-forest hover:text-cream transition-colors"
           aria-label="Fermer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="relative aspect-video bg-slate-900">
+        <div className="relative aspect-video bg-forest">
           <Image src={video.thumbnail} alt={video.title} fill className="object-cover opacity-90" />
           <a
             href={video.url}
@@ -239,15 +238,15 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
             rel="noopener noreferrer"
             className="absolute inset-0 flex items-center justify-center group"
           >
-            <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-              <Play className="w-7 h-7 text-white fill-white ml-1" />
+            <div className="w-16 h-16 rounded-full bg-lime flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+              <Play className="w-7 h-7 text-forest fill-forest ml-1" />
             </div>
           </a>
         </div>
 
         <div className="p-6 max-h-[60vh] overflow-y-auto">
-          <p className="kicker text-red-600 mb-1">Produits présentés</p>
-          <h3 className="font-display text-2xl uppercase tracking-tight text-slate-900 dark:text-white mb-4">
+          <p className="kicker text-forest/50 mb-1">Produits présentés</p>
+          <h3 className="font-display text-2xl uppercase tracking-tight text-forest mb-4">
             {video.title}
           </h3>
 
@@ -258,18 +257,18 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
                 onClick={() => setSelected(p)}
                 className={`group rounded-2xl border-2 overflow-hidden text-left transition-all ${
                   selected?.name === p.name
-                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-amber-300'
+                    ? 'border-forest bg-lime/30'
+                    : 'border-forest/10 bg-white hover:border-forest/30'
                 }`}
               >
-                <div className="relative aspect-square bg-slate-100">
+                <div className="relative aspect-square bg-cream">
                   <Image src={p.image} alt={p.name} fill className="object-cover" />
                 </div>
                 <div className="p-3">
-                  <p className="text-xs font-medium text-slate-900 dark:text-white line-clamp-2 mb-1">
+                  <p className="text-xs font-medium text-forest line-clamp-2 mb-1">
                     {p.name}
                   </p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white tabular-nums">
+                  <p className="text-sm font-semibold text-forest tabular-nums">
                     ¥{p.priceCny.toLocaleString('en-US')}
                   </p>
                 </div>
@@ -281,10 +280,10 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 p-4 space-y-3"
+              className="rounded-2xl border border-forest/15 bg-white p-4 space-y-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                <div className="text-sm font-semibold text-forest truncate">
                   {selected.name}
                 </div>
                 <input
@@ -292,7 +291,7 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
                   min={1}
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  className="w-20 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm tabular-nums focus:border-amber-400 focus:outline-none"
+                  className="w-20 rounded-lg border border-forest/15 bg-cream px-3 py-1.5 text-sm tabular-nums focus:border-forest focus:outline-none"
                 />
               </div>
               <input
@@ -300,12 +299,12 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
                 placeholder="Email ou WhatsApp"
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                className="w-full rounded-xl border border-forest/15 bg-cream px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
               />
               {submitted ? (
-                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
-                  <CheckCircle className="w-5 h-5 text-emerald-500" />
-                  <span className="text-sm text-emerald-700 dark:text-emerald-300">
+                <div className="flex items-center gap-2 rounded-xl bg-lime/30 px-4 py-3">
+                  <CheckCircle className="w-5 h-5 text-forest" />
+                  <span className="text-sm text-forest">
                     Commande envoyée — un agent revient vers vous.
                   </span>
                 </div>
@@ -315,7 +314,7 @@ const ProductsModal = ({ video, onClose }: { video: YTVideo; onClose: () => void
                   whileTap={{ scale: 0.99 }}
                   onClick={handleOrder}
                   disabled={!contact.trim() || submitting}
-                  className="w-full flex items-center justify-between gap-2 rounded-xl bg-slate-900 dark:bg-amber-500 px-5 py-3.5 text-sm font-semibold text-white dark:text-slate-950 disabled:opacity-60"
+                  className="w-full flex items-center justify-between gap-2 rounded-full bg-forest hover:bg-forest-soft px-5 py-3.5 text-sm font-semibold text-cream disabled:opacity-60"
                 >
                   <span>
                     {submitting ? (

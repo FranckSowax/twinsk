@@ -13,7 +13,7 @@ interface SectionHeaderProps {
   /** Lead body paragraph */
   lead?: ReactNode;
   /** Visual accent color theme */
-  accent?: 'amber' | 'cyan' | 'red' | 'slate' | 'emerald';
+  accent?: 'forest' | 'lime' | 'cream' | 'red';
   /** Right-side metadata (e.g., trust marks, KPIs) */
   meta?: ReactNode;
   /** Center-align text instead of left */
@@ -22,19 +22,24 @@ interface SectionHeaderProps {
 }
 
 const ACCENT_RULE: Record<NonNullable<SectionHeaderProps['accent']>, string> = {
-  amber: 'bg-amber-500',
-  cyan: 'bg-cyan-500',
+  forest: 'bg-forest',
+  lime: 'bg-lime',
+  cream: 'bg-forest/30',
   red: 'bg-red-600',
-  slate: 'bg-slate-900 dark:bg-white',
-  emerald: 'bg-emerald-500',
 };
 
 const ACCENT_TEXT: Record<NonNullable<SectionHeaderProps['accent']>, string> = {
-  amber: 'text-amber-600 dark:text-amber-400',
-  cyan: 'text-cyan-600 dark:text-cyan-400',
-  red: 'text-red-600 dark:text-red-400',
-  slate: 'text-slate-900 dark:text-white',
-  emerald: 'text-emerald-600 dark:text-emerald-400',
+  forest: 'text-forest',
+  lime: 'text-forest',
+  cream: 'text-forest/70',
+  red: 'text-red-600',
+};
+
+const TITLE_ACCENT: Record<NonNullable<SectionHeaderProps['accent']>, string> = {
+  forest: 'text-forest',
+  lime: 'text-forest',
+  cream: 'text-forest',
+  red: 'text-red-600',
 };
 
 export default function SectionHeader({
@@ -42,14 +47,14 @@ export default function SectionHeader({
   kicker,
   title,
   lead,
-  accent = 'amber',
+  accent = 'forest',
   meta,
   align = 'left',
   className = '',
 }: SectionHeaderProps) {
   const isCentered = align === 'center';
   return (
-    <div className={className}>
+    <div className={className} data-accent={accent}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -76,7 +81,7 @@ export default function SectionHeader({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.7, delay: 0.05, ease: [0.215, 0.61, 0.355, 1] }}
-            className="font-display text-[40px] sm:text-5xl lg:text-[64px] font-medium text-slate-900 dark:text-white leading-[0.95] tracking-tight uppercase"
+            className={`font-display text-[40px] sm:text-5xl lg:text-[64px] font-medium leading-[0.95] tracking-tight uppercase ${TITLE_ACCENT[accent]}`}
           >
             {title}
           </motion.h2>
@@ -87,7 +92,7 @@ export default function SectionHeader({
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-80px' }}
               transition={{ duration: 0.6, delay: 0.15, ease: [0.215, 0.61, 0.355, 1] }}
-              className="mt-5 max-w-xl text-base sm:text-[17px] leading-relaxed text-slate-600 dark:text-slate-400 font-light"
+              className="mt-5 max-w-xl text-base sm:text-[17px] leading-relaxed text-forest/70 font-light"
             >
               {lead}
             </motion.p>

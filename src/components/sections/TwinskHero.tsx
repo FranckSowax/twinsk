@@ -1,263 +1,228 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Wrench, Crosshair, User, ChevronRight, Menu, X, Moon, Sun } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { ArrowUpRight, Menu, X, Truck, Plane, Ship } from 'lucide-react';
+import { useState } from 'react';
 import Image from 'next/image';
+
+const NAV_ITEMS = [
+  { label: 'Accueil', href: '#home' },
+  { label: 'Services', href: '#freight' },
+  { label: 'Cotation', href: '#quick-quote' },
+  { label: 'Contact', href: '#delegations' },
+];
 
 const TwinskHero = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isDark, setIsDark] = useState(false);
-
-  const navItems = [
-    { label: 'Accueil', icon: Home, href: '#home' },
-    { label: 'Services', icon: Wrench, href: '#services' },
-    { label: 'Suivi', icon: Crosshair, href: '#tracking' },
-    { label: 'À propos', icon: User, href: '#about' }
-  ];
-
-  // Gestion du scroll pour la navbar sticky
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Gestion du theme
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-      document.documentElement.classList.add('dark');
-      setIsDark(true);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const newIsDark = !isDark;
-    setIsDark(newIsDark);
-
-    if (newIsDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  };
 
   return (
-    <div className="relative w-full mx-auto p-4 md:p-6 lg:p-8 max-w-[1600px]">
-      {/* Navbar Sticky */}
-      <motion.nav
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
-            ? 'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-lg py-3'
-            : 'bg-transparent py-6'
-        }`}
-      >
-        <div className="max-w-[1600px] mx-auto px-6 md:px-10 flex items-center justify-between">
-          <motion.a
-            href="#home"
-            whileHover={{ scale: 1.05 }}
-            className={`text-2xl font-display font-semibold tracking-tighter uppercase cursor-pointer transition-colors ${
-              isScrolled ? 'text-slate-900 dark:text-white' : 'text-white'
-            }`}
-          >
-            TWINSK
-          </motion.a>
+    <section id="home" className="relative px-3 sm:px-5 lg:px-6 pt-3 sm:pt-5 lg:pt-6">
+      {/* Top nav inside the cream frame */}
+      <nav className="flex items-center justify-between gap-4 px-2 sm:px-4">
+        <a
+          href="#home"
+          className="font-display text-2xl sm:text-3xl uppercase tracking-tight text-forest"
+        >
+          Twinsk<span className="text-lime-soft">.</span>
+        </a>
 
-          {/* Desktop Navigation */}
-          <div className={`hidden md:flex items-center space-x-8 text-sm font-medium ${
-            isScrolled ? 'text-slate-700 dark:text-slate-300' : 'text-white/90'
-          }`}>
-            {navItems.map((item, index) => (
-              <motion.a
-                key={item.label}
-                href={item.href}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
-                whileHover={{ scale: 1.1 }}
-                className={`flex items-center gap-2 transition ${
-                  isScrolled ? 'hover:text-yellow-500' : 'hover:text-white'
-                }`}
-              >
-                <item.icon className="w-4 h-4" />
-                {item.label}
-              </motion.a>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Theme Toggle */}
-            <motion.button
-              onClick={toggleTheme}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className={`p-2 rounded-full transition-colors ${
-                isScrolled
-                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-yellow-400'
-                  : 'bg-white/20 text-white'
-              }`}
-              aria-label="Toggle theme"
+        <div className="hidden md:flex items-center gap-1 bg-white/70 backdrop-blur rounded-full p-1 border border-forest/10">
+          {NAV_ITEMS.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              className="px-4 py-2 text-sm font-medium text-forest/80 hover:text-forest hover:bg-cream rounded-full transition-colors"
             >
-              {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            </motion.button>
-
-            {/* CTA Button - Desktop */}
-            <motion.a
-              href="#details"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="hidden md:flex bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-6 py-3 rounded-full text-sm font-semibold transition items-center gap-2 shadow-lg"
-            >
-              Voir détails <ChevronRight className="w-4 h-4" />
-            </motion.a>
-
-            {/* Mobile Menu Button */}
-            <motion.button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              whileTap={{ scale: 0.9 }}
-              className={`md:hidden p-2 rounded-lg transition-colors ${
-                isScrolled
-                  ? 'text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                  : 'text-white hover:bg-white/20'
-              }`}
-              aria-label="Toggle menu"
-            >
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </motion.button>
-          </div>
+              {item.label}
+            </a>
+          ))}
         </div>
 
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className="md:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700"
-            >
-              <div className="px-6 py-4 flex flex-col space-y-4">
-                {navItems.map((item, index) => (
-                  <motion.a
-                    key={item.label}
-                    href={item.href}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: 0.05 * index }}
-                    onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-3 text-slate-700 dark:text-slate-300 hover:text-yellow-500 dark:hover:text-yellow-400 py-2 font-medium transition"
-                  >
-                    <item.icon className="w-5 h-5" />
-                    {item.label}
-                  </motion.a>
-                ))}
-                <motion.a
-                  href="#details"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.2 }}
-                  onClick={() => setIsMenuOpen(false)}
-                  className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-6 py-3 rounded-full text-sm font-semibold transition flex items-center justify-center gap-2 shadow-lg mt-2"
-                >
-                  Voir détails <ChevronRight className="w-4 h-4" />
-                </motion.a>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.nav>
+        <div className="flex items-center gap-2">
+          <a
+            href="#quick-quote"
+            className="hidden md:inline-flex items-center gap-2 bg-lime hover:bg-lime-soft text-forest px-5 py-2.5 rounded-full text-sm font-semibold transition-colors"
+          >
+            Démarrer
+            <ArrowUpRight className="w-4 h-4" />
+          </a>
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full bg-white/70 border border-forest/10 text-forest"
+            aria-label="Menu"
+          >
+            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+      </nav>
 
+      {/* Mobile menu */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden mt-3 mx-2 bg-white rounded-2xl border border-forest/10 overflow-hidden"
+          >
+            <div className="p-2 space-y-1">
+              {NAV_ITEMS.map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block px-4 py-3 text-sm font-medium text-forest/80 hover:bg-cream rounded-xl"
+                >
+                  {item.label}
+                </a>
+              ))}
+              <a
+                href="#quick-quote"
+                onClick={() => setIsMenuOpen(false)}
+                className="flex items-center justify-between px-4 py-3 text-sm font-semibold bg-lime text-forest rounded-xl mt-2"
+              >
+                Démarrer la cotation
+                <ArrowUpRight className="w-4 h-4" />
+              </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hero card */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8 }}
-        className="relative rounded-[2.5rem] overflow-hidden h-[80vh] min-h-[500px] md:h-[85vh] md:min-h-[600px] w-full group mt-16"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, ease: [0.215, 0.61, 0.355, 1] }}
+        className="relative mt-5 sm:mt-7 rounded-[24px] sm:rounded-[28px] overflow-hidden bg-forest"
       >
-        {/* Background blanc uniquement */}
-        <div className="absolute inset-0 w-full h-full bg-white dark:bg-white">
+        <div className="relative h-[420px] sm:h-[460px] lg:h-[520px]">
           <Image
-            src="/bannertwinsk2.jpg"
-            alt="Twinsk Company Limited - Global Logistics"
+            src="/Carte-Twinslk-logistic-.jpg"
+            alt="Twinsk Logistics — Hong Kong → Monde"
             fill
-            className="object-contain object-center transition-transform duration-700 group-hover:scale-[1.02]"
             priority
+            className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1600px"
           />
+          <div className="absolute inset-0 bg-gradient-to-r from-forest/85 via-forest/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-forest/40 via-transparent to-transparent" />
         </div>
 
-        {/* Overlay transparent pour la lisibilité du texte */}
-        <div className="absolute inset-0 bg-gradient-to-l from-white/90 via-white/50 to-transparent dark:from-white/90 dark:via-white/50 dark:to-transparent"></div>
+        <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-9 lg:p-12">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-10 bg-lime" />
+            <span className="kicker text-lime">
+              <span className="tabular-nums opacity-70">HK</span>
+              <span className="mx-2 opacity-30">/</span>
+              Logistique &amp; Sourcing
+            </span>
+          </div>
 
-        {/* Hero Content - Textes */}
-        <div className="relative z-10 h-full flex flex-col justify-center items-end px-6 md:px-12 lg:px-20 ml-auto max-w-2xl text-right">
-          <motion.h1
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold uppercase leading-tight tracking-tight mb-6"
-          >
-            <motion.span
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="block text-slate-900"
+          <div className="max-w-2xl">
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="font-display text-[44px] sm:text-6xl lg:text-[88px] leading-[0.92] tracking-tight uppercase text-cream"
             >
-              Rapprocher le monde
-            </motion.span>
-            <motion.span
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.7 }}
-              className="block text-slate-500"
+              <span className="block">La voie</span>
+              <span className="block">la plus directe</span>
+              <span className="block text-lime">depuis la Chine</span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.4 }}
+              className="mt-5 max-w-md text-[15px] sm:text-base text-cream/80 font-light leading-relaxed"
             >
-              Une livraison
-            </motion.span>
-            <motion.span
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
-              className="block text-slate-900"
+              Que vous expédiiez par mer, par air, ou que vous ayez besoin d&apos;un agent en Chine —
+              notre équipe basée à Hong Kong gère votre projet de bout en bout.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.5 }}
+              className="mt-7 flex flex-wrap items-center gap-3"
             >
-              À la fois
-            </motion.span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.9 }}
-            className="text-slate-600 text-base md:text-lg font-light max-w-md leading-relaxed mb-8"
-          >
-            Expédition rapide, fiable et sécurisée pour tous vos besoins de fret à travers le monde.
-          </motion.p>
-          <motion.a
-            href="#services"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 1 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full text-sm md:text-base font-semibold transition-all inline-flex items-center gap-2 shadow-xl hover:shadow-2xl w-fit"
-          >
-            Découvrir nos services <ChevronRight className="w-5 h-5" />
-          </motion.a>
+              <a
+                href="#quick-quote"
+                className="inline-flex items-center justify-between gap-2 bg-lime hover:bg-lime-soft text-forest px-6 py-3.5 rounded-full text-sm font-semibold transition-colors group min-w-[200px]"
+              >
+                Démarrer maintenant
+                <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </a>
+              <a
+                href="#freight"
+                className="inline-flex items-center gap-2 bg-white/10 backdrop-blur hover:bg-white/20 text-cream px-6 py-3.5 rounded-full text-sm font-medium border border-white/20 transition-colors"
+              >
+                Voir nos services
+              </a>
+            </motion.div>
+          </div>
         </div>
+
+        {/* Floating overlay cards — bottom right */}
+        <motion.div
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.7, delay: 0.6 }}
+          className="hidden sm:flex absolute bottom-6 right-6 lg:bottom-9 lg:right-9 flex-col gap-3 max-w-[280px]"
+        >
+          <div className="bg-cream/95 backdrop-blur rounded-2xl p-4 shadow-xl border border-white/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-forest text-cream flex items-center justify-center">
+                <Ship className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="kicker text-forest/50">Mode</p>
+                <p className="font-display text-sm uppercase text-forest leading-tight">
+                  Maritime · LCL
+                </p>
+              </div>
+              <span className="kicker text-forest/40 tabular-nums">28j</span>
+            </div>
+          </div>
+
+          <div className="bg-lime rounded-2xl p-4 shadow-xl">
+            <p className="kicker text-forest/60">Cotation rapide</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-3xl text-forest tabular-nums">24h</span>
+              <span className="text-xs text-forest/70">de réponse</span>
+            </div>
+          </div>
+        </motion.div>
       </motion.div>
-    </div>
+
+      {/* Service quick-jump strip */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.7 }}
+        className="mt-5 sm:mt-7 grid grid-cols-3 gap-px bg-forest/10 rounded-2xl overflow-hidden"
+      >
+        {[
+          { icon: Ship, label: 'Maritime', detail: 'LCL · FCL' },
+          { icon: Plane, label: 'Aérien', detail: 'Express' },
+          { icon: Truck, label: 'Door-to-door', detail: 'Multi-modal' },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className="bg-cream px-4 py-5 sm:px-6 sm:py-6 flex items-center gap-3 sm:gap-4"
+          >
+            <s.icon className="w-5 h-5 text-forest flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="font-display text-base sm:text-lg uppercase text-forest leading-none">
+                {s.label}
+              </p>
+              <p className="text-[11px] sm:text-xs text-forest/60 mt-1">{s.detail}</p>
+            </div>
+          </div>
+        ))}
+      </motion.div>
+    </section>
   );
 };
 

@@ -13,19 +13,21 @@ import TwinskFooter from '@/components/sections/TwinskFooter';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900">
-      <TwinskHero />
-      <TwinskFreightCalculator />
-      <TwinskYouTubeShop />
-      <TwinskQuickQuote />
-      <TwinskCarsImport />
-      <TwinskSampling />
-      <TwinskDelegations />
-      <TwinskBooking />
-      <TwinskProcess />
-      <TwinskStats />
-      <TwinskTestimonials />
-      <TwinskFooter />
+    <div className="min-h-screen bg-forest p-2 sm:p-3 lg:p-4">
+      <div className="bg-cream rounded-[28px] sm:rounded-[32px] overflow-hidden shadow-[0_10px_40px_-15px_rgba(0,0,0,0.25)]">
+        <TwinskHero />
+        <TwinskFreightCalculator />
+        <TwinskYouTubeShop />
+        <TwinskQuickQuote />
+        <TwinskCarsImport />
+        <TwinskSampling />
+        <TwinskDelegations />
+        <TwinskBooking />
+        <TwinskProcess />
+        <TwinskStats />
+        <TwinskTestimonials />
+        <TwinskFooter />
+      </div>
     </div>
   );
 }

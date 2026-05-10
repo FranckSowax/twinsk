@@ -11,6 +11,15 @@
   --font-sans: var(--font-sans);
   --font-display: var(--font-oswald);
   --font-mono: var(--font-mono);
+
+  /* Brand palette — inspired by Carvex framing */
+  --color-forest: #0e3f3d;
+  --color-forest-soft: #134b49;
+  --color-forest-deep: #0a2d2c;
+  --color-lime: #c5f300;
+  --color-lime-soft: #dbff6b;
+  --color-cream: #faf7f0;
+  --color-ink: #0f1e1f;
 }
 
 @media (prefers-color-scheme: dark) {

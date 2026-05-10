@@ -47,167 +47,164 @@ const TwinskQuickQuote = () => {
   return (
     <section
       id="quick-quote"
-      className="relative max-w-[1600px] mx-auto px-4 md:px-8 py-24 lg:py-32"
+      className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 border-t border-forest/5"
     >
-      <div className="absolute inset-x-0 top-0 section-divider" />
+      <div className="max-w-[1600px] mx-auto px-2 sm:px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.7, ease: [0.215, 0.61, 0.355, 1] }}
+          className="relative overflow-hidden rounded-3xl bg-forest text-cream"
+        >
+          <div className="absolute inset-0 grid-bg opacity-[0.06] pointer-events-none" />
+          <div className="absolute -top-40 -right-32 w-[520px] h-[520px] bg-lime/15 rounded-full blur-3xl pointer-events-none" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-80px' }}
-        transition={{ duration: 0.7, ease: [0.215, 0.61, 0.355, 1] }}
-        className="relative overflow-hidden rounded-3xl bg-slate-950 text-white"
-      >
-        <div className="absolute inset-0 grid-bg opacity-[0.06] pointer-events-none" />
-        <div className="absolute -top-40 -right-32 w-[520px] h-[520px] bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
-        <span className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
+          <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-10 p-8 sm:p-12 lg:p-16">
+            <div className="lg:col-span-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="h-px w-10 bg-lime" />
+                  <span className="kicker text-lime">
+                    <span className="tabular-nums opacity-70">03</span>
+                    <span className="mx-2 opacity-30">/</span>
+                    Cotation rapide
+                  </span>
+                </div>
 
-        <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-10 p-8 sm:p-12 lg:p-16">
-          {/* Editorial intro — left */}
-          <div className="lg:col-span-6 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="h-px w-10 bg-amber-400" />
-                <span className="kicker text-amber-300/90">
-                  <span className="tabular-nums opacity-70">03</span>
-                  <span className="mx-2 opacity-30">/</span>
-                  Cotation rapide
-                </span>
+                <h2 className="mt-6 font-display text-[44px] sm:text-6xl lg:text-[80px] leading-[0.95] tracking-tight uppercase">
+                  <span className="block">Un projet ?</span>
+                  <span className="block text-lime">Devis sous 24 h.</span>
+                </h2>
+                <p className="mt-6 max-w-md text-[17px] text-cream/80 leading-relaxed font-light">
+                  Sourcing, fret, dédouanement, livraison. Décrivez votre projet en quelques mots —
+                  notre équipe HK + Canton revient vers vous avec un devis détaillé.
+                </p>
               </div>
 
-              <h2 className="mt-6 font-display text-[44px] sm:text-6xl lg:text-[80px] leading-[0.95] tracking-tight uppercase">
-                <span className="block">Un projet ?</span>
-                <span className="block text-amber-400">Devis sous 24 h.</span>
-              </h2>
-              <p className="mt-6 max-w-md text-[17px] text-slate-300 leading-relaxed font-light">
-                Sourcing, fret, dédouanement, livraison. Décrivez votre projet en quelques mots —
-                notre équipe HK + Canton revient vers vous avec un devis détaillé.
-              </p>
+              <div className="mt-10 grid grid-cols-3 gap-px bg-cream/10 rounded-2xl overflow-hidden">
+                {TRUST_MARKS.map((t) => (
+                  <div key={t.label} className="bg-forest px-4 py-5">
+                    <t.icon className="w-4 h-4 text-lime mb-3" />
+                    <p className="kicker text-cream/40">{t.label}</p>
+                    <p className="font-display text-lg mt-1 leading-none text-cream">{t.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="mt-10 grid grid-cols-3 gap-px bg-white/10 rounded-2xl overflow-hidden">
-              {TRUST_MARKS.map((t) => (
-                <div key={t.label} className="bg-slate-950 px-4 py-5">
-                  <t.icon className="w-4 h-4 text-amber-400 mb-3" />
-                  <p className="kicker text-slate-500">{t.label}</p>
-                  <p className="font-display text-lg mt-1 leading-none">{t.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+            <div className="lg:col-span-6">
+              <div className="bg-cream text-forest rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <p className="kicker text-forest/50">Formulaire</p>
+                <h3 className="font-display text-2xl uppercase tracking-tight mb-5 mt-1">
+                  Décrivez votre projet
+                </h3>
 
-          {/* Form card — right */}
-          <div className="lg:col-span-6">
-            <div className="bg-white dark:bg-slate-100 text-slate-900 rounded-2xl p-6 sm:p-8 shadow-2xl">
-              <p className="kicker text-slate-500">Formulaire</p>
-              <h3 className="font-display text-2xl uppercase tracking-tight mb-5 mt-1">
-                Décrivez votre projet
-              </h3>
-
-              <div className="space-y-3">
-                <textarea
-                  value={project}
-                  onChange={(e) => setProject(e.target.value)}
-                  rows={3}
-                  placeholder="Ex : 500 robes en wax + transport maritime vers Libreville…"
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                />
-
-                <div>
-                  <p className="kicker text-slate-400 mb-2">Budget estimé</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {BUDGETS.map((b) => (
-                      <button
-                        key={b}
-                        onClick={() => setBudget(b)}
-                        className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all tabular-nums ${
-                          budget === b
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {b}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="kicker text-slate-400 mb-2">Délai</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {TIMELINES.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTimeline(t)}
-                        className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
-                          timeline === t
-                            ? 'bg-amber-500 text-slate-950'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Nom"
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                <div className="space-y-3">
+                  <textarea
+                    value={project}
+                    onChange={(e) => setProject(e.target.value)}
+                    rows={3}
+                    placeholder="Ex : 500 robes en wax + transport maritime vers Libreville…"
+                    className="w-full resize-none rounded-xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest placeholder:text-forest/40 focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
                   />
-                  <input
-                    type="text"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="Email / WhatsApp *"
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                  />
-                </div>
 
-                <AnimatePresence mode="wait">
-                  {submitted ? (
-                    <motion.div
-                      key="ok"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-4"
-                    >
-                      <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                      <p className="text-sm text-emerald-700">
-                        Devis en cours — vous recevrez une réponse sous 24 h.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.button
-                      key="cta"
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                      onClick={handleSubmit}
-                      disabled={!canSubmit || submitting}
-                      className="w-full flex items-center justify-between gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 px-6 py-4 text-base font-semibold text-white disabled:opacity-60 group"
-                    >
-                      <span>
-                        {submitting ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Envoi…
-                          </>
-                        ) : (
-                          'Recevoir mon devis'
-                        )}
-                      </span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                    </motion.button>
-                  )}
-                </AnimatePresence>
+                  <div>
+                    <p className="kicker text-forest/50 mb-2">Budget estimé</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {BUDGETS.map((b) => (
+                        <button
+                          key={b}
+                          onClick={() => setBudget(b)}
+                          className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all tabular-nums ${
+                            budget === b
+                              ? 'bg-forest text-cream'
+                              : 'bg-white text-forest/60 hover:bg-forest/5 border border-forest/10'
+                          }`}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="kicker text-forest/50 mb-2">Délai</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {TIMELINES.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTimeline(t)}
+                          className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
+                            timeline === t
+                              ? 'bg-lime text-forest'
+                              : 'bg-white text-forest/60 hover:bg-forest/5 border border-forest/10'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Nom"
+                      className="rounded-xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
+                    />
+                    <input
+                      type="text"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value)}
+                      placeholder="Email / WhatsApp *"
+                      className="rounded-xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
+                    />
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {submitted ? (
+                      <motion.div
+                        key="ok"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-3 rounded-2xl border border-lime bg-lime/30 p-4"
+                      >
+                        <CheckCircle className="w-5 h-5 text-forest flex-shrink-0" />
+                        <p className="text-sm text-forest">
+                          Devis en cours — vous recevrez une réponse sous 24 h.
+                        </p>
+                      </motion.div>
+                    ) : (
+                      <motion.button
+                        key="cta"
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={handleSubmit}
+                        disabled={!canSubmit || submitting}
+                        className="w-full flex items-center justify-between gap-2 rounded-full bg-forest hover:bg-forest-soft px-6 py-4 text-base font-semibold text-cream disabled:opacity-60 group"
+                      >
+                        <span>
+                          {submitting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Envoi…
+                            </>
+                          ) : (
+                            'Recevoir mon devis'
+                          )}
+                        </span>
+                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </section>
   );
 };
