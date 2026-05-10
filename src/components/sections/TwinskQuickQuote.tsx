@@ -1,11 +1,17 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Loader2, CheckCircle, ShieldCheck, Languages, Timer } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  ArrowRight,
+  Loader2,
+  ShieldCheck,
+  Languages,
+  Timer,
+  Camera,
+  FileText,
+  Send,
+} from 'lucide-react';
 import { useState } from 'react';
-
-const BUDGETS = ['< 1 000 €', '1 000 – 5 000 €', '5 000 – 20 000 €', '> 20 000 €'];
-const TIMELINES = ['Urgent (< 7j)', 'Sous 1 mois', 'Sous 3 mois', 'Flexible'];
 
 const TRUST_MARKS = [
   { icon: Timer, label: 'Réponse', value: 'Sous 24 h' },
@@ -13,63 +19,42 @@ const TRUST_MARKS = [
   { icon: Languages, label: 'Agents', value: 'FR · EN · 中文' },
 ];
 
+const STEPS = [
+  { icon: Camera, label: 'Photos / liens 1688' },
+  { icon: FileText, label: 'Description libre' },
+  { icon: Send, label: 'Devis sous 24 h' },
+];
+
 const TwinskQuickQuote = () => {
-  const [project, setProject] = useState('');
-  const [budget, setBudget] = useState(BUDGETS[1]);
-  const [timeline, setTimeline] = useState(TIMELINES[1]);
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  const canSubmit = project.trim().length > 0 && contact.trim().length > 0;
-
-  const handleSubmit = async () => {
-    if (!canSubmit || submitting) return;
+  const handleStart = async () => {
+    if (submitting) return;
     setSubmitting(true);
     setError('');
 
-    const trimmedContact = contact.trim();
-    const isEmail = trimmedContact.includes('@');
-
     try {
-      // Track in admin leads dashboard (best-effort, non-blocking)
+      // Track in admin leads dashboard (best-effort)
       fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'quick_quote',
-          fields: { Projet: project, Budget: budget, Délai: timeline, Nom: name, Contact: contact },
+          fields: { Source: 'Hero CTA · LP' },
         }),
       }).catch(() => {});
 
-      // Create the actual sourcing request
-      const notes = [
-        `Projet : ${project.trim()}`,
-        `Budget : ${budget}`,
-        `Délai : ${timeline}`,
-      ].join('\n');
-
+      // Create an empty draft request — client will fill the rest
       const res = await fetch('/api/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_name: name.trim(),
-          client_email: isEmail ? trimmedContact : '',
-          client_phone: isEmail ? '' : trimmedContact,
-          notes,
-        }),
+        body: JSON.stringify({}),
       });
 
-      if (!res.ok) {
-        throw new Error('create_failed');
-      }
+      if (!res.ok) throw new Error('create_failed');
 
       const data = (await res.json()) as { id: string };
-      setSubmitted(true);
-
-      // Hand off to the client request page where they upload products
       window.location.href = `/request/${data.id}`;
     } catch {
       setError('Une erreur est survenue. Réessayez ou contactez-nous directement.');
@@ -94,7 +79,8 @@ const TwinskQuickQuote = () => {
           <div className="absolute -top-40 -right-32 w-[520px] h-[520px] bg-lime/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-10 p-8 sm:p-12 lg:p-16">
-            <div className="lg:col-span-6 flex flex-col justify-between">
+            {/* Editorial intro — left */}
+            <div className="lg:col-span-7 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-3">
                   <span className="h-px w-10 bg-lime" />
@@ -110,8 +96,8 @@ const TwinskQuickQuote = () => {
                   <span className="block text-lime">Devis sous 24 h.</span>
                 </h2>
                 <p className="mt-6 max-w-md text-[17px] text-cream/80 leading-relaxed font-light">
-                  Sourcing, fret, dédouanement, livraison. Décrivez votre projet en quelques mots —
-                  notre équipe HK + Canton revient vers vous avec un devis détaillé.
+                  Sourcing, fret, dédouanement, livraison. Démarrez votre demande en un clic —
+                  vous ajouterez ensuite photos ou descriptions des produits à coter.
                 </p>
               </div>
 
@@ -126,119 +112,59 @@ const TwinskQuickQuote = () => {
               </div>
             </div>
 
-            <div className="lg:col-span-6">
-              <div className="bg-cream text-forest rounded-2xl p-6 sm:p-8 shadow-2xl">
-                <p className="kicker text-forest/50">Formulaire</p>
-                <h3 className="font-display text-2xl uppercase tracking-tight mb-5 mt-1">
-                  Décrivez votre projet
+            {/* CTA card — right */}
+            <div className="lg:col-span-5">
+              <div className="bg-cream text-forest rounded-2xl p-7 sm:p-8 shadow-2xl flex flex-col h-full">
+                <p className="kicker text-forest/50">Démarrer en 1 clic</p>
+                <h3 className="font-display text-3xl uppercase tracking-tight mt-1">
+                  Espace de sourcing personnel
                 </h3>
+                <p className="mt-3 text-sm text-forest/70 leading-relaxed">
+                  Nous créons votre demande maintenant. À l’étape suivante, vous ajoutez vos
+                  produits (photos, liens, descriptions) puis vos coordonnées.
+                </p>
 
-                <div className="space-y-3">
-                  <textarea
-                    value={project}
-                    onChange={(e) => setProject(e.target.value)}
-                    rows={3}
-                    placeholder="Ex : 500 robes en wax + transport maritime vers Libreville…"
-                    className="w-full resize-none rounded-xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest placeholder:text-forest/40 focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
-                  />
+                <ol className="mt-6 space-y-3">
+                  {STEPS.map((s, i) => (
+                    <li
+                      key={s.label}
+                      className="flex items-center gap-3 text-sm text-forest"
+                    >
+                      <span className="kicker tabular-nums text-forest/40 w-7">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <s.icon className="w-4 h-4 text-forest/60" />
+                      <span>{s.label}</span>
+                    </li>
+                  ))}
+                </ol>
 
-                  <div>
-                    <p className="kicker text-forest/50 mb-2">Budget estimé</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {BUDGETS.map((b) => (
-                        <button
-                          key={b}
-                          onClick={() => setBudget(b)}
-                          className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all tabular-nums ${
-                            budget === b
-                              ? 'bg-forest text-cream'
-                              : 'bg-white text-forest/60 hover:bg-forest/5 border border-forest/10'
-                          }`}
-                        >
-                          {b}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="kicker text-forest/50 mb-2">Délai</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TIMELINES.map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setTimeline(t)}
-                          className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
-                            timeline === t
-                              ? 'bg-lime text-forest'
-                              : 'bg-white text-forest/60 hover:bg-forest/5 border border-forest/10'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Nom"
-                      className="rounded-xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
-                    />
-                    <input
-                      type="text"
-                      value={contact}
-                      onChange={(e) => setContact(e.target.value)}
-                      placeholder="Email / WhatsApp *"
-                      className="rounded-xl border border-forest/15 bg-white px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
-                    />
-                  </div>
-
-                  <AnimatePresence mode="wait">
-                    {submitted ? (
-                      <motion.div
-                        key="ok"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-3 rounded-2xl border border-lime bg-lime/30 p-4"
-                      >
-                        <CheckCircle className="w-5 h-5 text-forest flex-shrink-0" />
-                        <p className="text-sm text-forest">
-                          Demande créée — redirection vers votre espace de sourcing…
-                        </p>
-                      </motion.div>
-                    ) : (
-                      <motion.button
-                        key="cta"
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.99 }}
-                        onClick={handleSubmit}
-                        disabled={!canSubmit || submitting}
-                        className="w-full flex items-center justify-between gap-2 rounded-full bg-forest hover:bg-forest-soft px-6 py-4 text-base font-semibold text-cream disabled:opacity-60 group"
-                      >
-                        <span>
-                          {submitting ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Création…
-                            </>
-                          ) : (
-                            'Démarrer ma demande'
-                          )}
-                        </span>
-                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
+                <div className="mt-auto pt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={handleStart}
+                    disabled={submitting}
+                    className="w-full flex items-center justify-between gap-2 rounded-full bg-forest hover:bg-forest-soft px-6 py-4 text-base font-semibold text-cream disabled:opacity-60 group transition-colors"
+                  >
+                    <span>
+                      {submitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Création…
+                        </>
+                      ) : (
+                        'Démarrer ma demande'
+                      )}
+                    </span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  </motion.button>
 
                   {error && (
-                    <p className="text-xs text-red-600 mt-1">{error}</p>
+                    <p className="text-xs text-red-600 mt-3">{error}</p>
                   )}
 
-                  <p className="text-[11px] text-forest/50 leading-relaxed pt-1">
-                    À l’étape suivante, ajoutez les photos ou descriptions des produits à coter.
+                  <p className="text-[11px] text-forest/50 leading-relaxed mt-3">
+                    Aucune inscription. Lien personnel généré automatiquement.
                   </p>
                 </div>
               </div>
