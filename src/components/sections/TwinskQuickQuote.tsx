@@ -85,7 +85,7 @@ const TwinskQuickQuote = () => {
                 <div className="flex items-center gap-3">
                   <span className="h-px w-10 bg-lime" />
                   <span className="kicker text-lime">
-                    <span className="tabular-nums opacity-70">03</span>
+                    <span className="tabular-nums opacity-70">02</span>
                     <span className="mx-2 opacity-30">/</span>
                     Cotation rapide
                   </span>

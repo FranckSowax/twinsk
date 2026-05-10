@@ -95,7 +95,7 @@ const TwinskYouTubeShop = () => {
 
       <div className="relative max-w-[1600px] mx-auto px-2 sm:px-4">
         <SectionHeader
-          index="02"
+          index="03"
           kicker="Twinsk Studio · YouTube"
           accent="red"
           title={

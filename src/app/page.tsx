@@ -16,8 +16,8 @@ export default function Home() {
     <div className="min-h-screen bg-white">
       <TwinskHero />
       <TwinskFreightCalculator />
-      <TwinskYouTubeShop />
       <TwinskQuickQuote />
+      <TwinskYouTubeShop />
       <TwinskCarsImport />
       <TwinskSampling />
       <TwinskDelegations />

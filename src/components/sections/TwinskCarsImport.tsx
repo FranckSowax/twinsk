@@ -42,7 +42,7 @@ const TwinskCarsImport = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2">
             <div className="relative aspect-video lg:aspect-auto lg:min-h-[460px]">
               <Image
-                src="/banner driveby.jpg"
+                src="/banner-driveby.jpg"
                 alt="DriveBy Africa — import véhicules"
                 fill
                 className="object-cover"

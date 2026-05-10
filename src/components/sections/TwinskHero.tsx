@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpRight, Menu, X, Truck, Plane, Ship } from 'lucide-react';
+import { ArrowUpRight, Menu, X, Ship } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
 
@@ -200,32 +200,6 @@ const TwinskHero = () => {
         </motion.div>
       </motion.div>
 
-      {/* Service quick-jump strip */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.7 }}
-        className="mt-5 sm:mt-7 grid grid-cols-3 gap-px bg-forest/10 rounded-2xl overflow-hidden"
-      >
-        {[
-          { icon: Ship, label: 'Maritime', detail: 'LCL · FCL' },
-          { icon: Plane, label: 'Aérien', detail: 'Express' },
-          { icon: Truck, label: 'Door-to-door', detail: 'Multi-modal' },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="bg-cream px-4 py-5 sm:px-6 sm:py-6 flex items-center gap-3 sm:gap-4"
-          >
-            <s.icon className="w-5 h-5 text-forest flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="font-display text-base sm:text-lg uppercase text-forest leading-none">
-                {s.label}
-              </p>
-              <p className="text-[11px] sm:text-xs text-forest/60 mt-1">{s.detail}</p>
-            </div>
-          </div>
-        ))}
-      </motion.div>
     </section>
   );
 };
