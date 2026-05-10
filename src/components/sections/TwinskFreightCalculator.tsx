@@ -8,7 +8,6 @@ import {
   Package,
   Ruler,
   Loader2,
-  CheckCircle,
   ArrowRight,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -37,22 +36,14 @@ const DESTINATIONS: Destination[] = [
   { label: 'New York', flag: '🇺🇸', airDays: 6, seaDays: 32 },
 ];
 
-const HEADER_KPIS = [
-  { value: '32', label: 'Destinations' },
-  { value: '24h', label: 'Cotation' },
-  { value: 'HK', label: 'Hub' },
-];
-
 const TwinskFreightCalculator = () => {
   const [mode, setMode] = useState<Mode>('sea');
   const [destination, setDestination] = useState(DESTINATIONS[0].label);
   const [weight, setWeight] = useState('100');
   const [volume, setVolume] = useState('0.5');
   const [seaService, setSeaService] = useState<SeaService>('lcl');
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
   const dest = useMemo(
     () => DESTINATIONS.find((d) => d.label === destination) ?? DESTINATIONS[0],
@@ -65,24 +56,27 @@ const TwinskFreightCalculator = () => {
     if (mode === 'air') {
       const chargeable = Math.max(w, v * 167);
       const price = Math.round(chargeable * 7.5);
-      return { price, unit: 'USD', detail: `${chargeable.toFixed(1)} kg taxable`, days: dest.airDays };
+      return { price, days: dest.airDays };
     }
     if (seaService === 'lcl') {
       const cbm = Math.max(v, 0.5);
       const price = Math.round(cbm * 180);
-      return { price, unit: 'USD', detail: `${cbm.toFixed(2)} m³ (LCL)`, days: dest.seaDays };
+      return { price, days: dest.seaDays };
     }
     if (seaService === 'fcl20') {
-      return { price: 1450, unit: 'USD', detail: "Conteneur 20' (≤ 25 m³)", days: dest.seaDays };
+      return { price: 1450, days: dest.seaDays };
     }
-    return { price: 2500, unit: 'USD', detail: "Conteneur 40' (≤ 55 m³)", days: dest.seaDays + 2 };
+    return { price: 2500, days: dest.seaDays + 2 };
   }, [mode, weight, volume, seaService, dest]);
 
-  const handleSubmit = async () => {
+  const handleStart = async () => {
     if (submitting) return;
     setSubmitting(true);
+    setError('');
+
     try {
-      await fetch('/api/leads', {
+      // Track lead in admin dashboard (best-effort)
+      fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,16 +87,33 @@ const TwinskFreightCalculator = () => {
             'Poids (kg)': weight,
             'Volume (m³)': volume,
             'Estimation (USD)': estimate.price,
-            'Délai estimé (jours)': estimate.days,
-            Nom: name,
-            Contact: contact,
+            'Délai (jours)': estimate.days,
           },
         }),
+      }).catch(() => {});
+
+      // Create the freight request with the calculator pre-fill
+      const res = await fetch('/api/freight-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode,
+          sea_service: mode === 'sea' ? seaService : null,
+          origin: 'Chine',
+          destination: dest.label,
+          weight: parseFloat(weight) || 0,
+          volume: parseFloat(volume) || 0,
+          estimated_price: estimate.price,
+          estimated_days: estimate.days,
+        }),
       });
-      setSubmitted(true);
+
+      if (!res.ok) throw new Error('create_failed');
+
+      const data = (await res.json()) as { id: string };
+      window.location.href = `/freight/${data.id}`;
     } catch {
-      // ignore
-    } finally {
+      setError('Une erreur est survenue. Réessayez ou contactez-nous directement.');
       setSubmitting(false);
     }
   };
@@ -116,39 +127,24 @@ const TwinskFreightCalculator = () => {
           accent="forest"
           title={
             <>
-              <span className="block">Calculez</span>
-              <span className="block">votre fret</span>
+              <span className="block">Estimez puis</span>
+              <span className="block">démarrez votre fret</span>
             </>
           }
-          lead="Aérien ou maritime — estimation instantanée et envoi à un agent francophone basé à Hong Kong."
-          meta={
-            <dl className="grid grid-cols-3 gap-6 lg:gap-10">
-              {HEADER_KPIS.map((k) => (
-                <div key={k.label} className="text-left">
-                  <dt className="kicker text-forest/50">{k.label}</dt>
-                  <dd className="font-display text-3xl lg:text-4xl text-forest leading-none mt-1 tabular-nums">
-                    {k.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          }
+          lead="Aérien ou maritime — calcul instantané. Au clic, votre demande est créée et vous accédez à votre espace pour ajouter photos et détails."
         />
 
         <motion.div
-          initial={{ opacity: 0, y: 32 }}
+          initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.7, delay: 0.2, ease: [0.215, 0.61, 0.355, 1] }}
-          className="relative mt-12 lg:mt-16 bg-white rounded-3xl border border-forest/10 overflow-hidden shadow-[0_20px_50px_-25px_rgba(14,63,61,0.18)]"
+          transition={{ duration: 0.6, ease: [0.215, 0.61, 0.355, 1] }}
+          className="relative mt-10 lg:mt-12 bg-white rounded-3xl border border-forest/10 overflow-hidden shadow-[0_20px_50px_-25px_rgba(15,23,42,0.18)]"
         >
           <div className="grid grid-cols-1 lg:grid-cols-5">
-            <div className="lg:col-span-3 p-6 sm:p-10 border-b lg:border-b-0 lg:border-r border-forest/10">
-              <div className="flex items-center justify-between mb-6">
-                <p className="kicker text-forest/50">Mode de transport</p>
-                <span className="kicker text-forest/30">A · B</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 mb-7">
+            {/* Left: compact form */}
+            <div className="lg:col-span-3 p-5 sm:p-7 border-b lg:border-b-0 lg:border-r border-forest/10">
+              <div className="grid grid-cols-2 gap-2.5 mb-4">
                 <ModeButton
                   active={mode === 'sea'}
                   onClick={() => setMode('sea')}
@@ -164,18 +160,18 @@ const TwinskFreightCalculator = () => {
               </div>
 
               {mode === 'sea' && (
-                <div className="grid grid-cols-3 gap-2 mb-7">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   {(
                     [
-                      { id: 'lcl' as const, label: 'LCL · groupage' },
-                      { id: 'fcl20' as const, label: "FCL · 20'" },
-                      { id: 'fcl40' as const, label: "FCL · 40'" },
+                      { id: 'lcl' as const, label: 'LCL' },
+                      { id: 'fcl20' as const, label: "FCL 20'" },
+                      { id: 'fcl40' as const, label: "FCL 40'" },
                     ]
                   ).map((s) => (
                     <button
                       key={s.id}
                       onClick={() => setSeaService(s.id)}
-                      className={`rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
+                      className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
                         seaService === s.id
                           ? 'bg-forest text-cream'
                           : 'bg-cream text-forest/60 hover:bg-forest/5'
@@ -187,145 +183,98 @@ const TwinskFreightCalculator = () => {
                 </div>
               )}
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field icon={MapPin} label="Origine">
-                    <input
-                      type="text"
-                      value="Chine"
-                      disabled
-                      className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none"
-                    />
-                  </Field>
-                  <Field icon={MapPin} label="Destination">
-                    <select
-                      value={destination}
-                      onChange={(e) => setDestination(e.target.value)}
-                      className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none"
-                    >
-                      {DESTINATIONS.map((d) => (
-                        <option key={d.label} value={d.label}>
-                          {d.flag} {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field icon={Package} label="Poids · kg">
-                    <input
-                      type="number"
-                      min={0}
-                      value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
-                      className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none tabular-nums"
-                    />
-                  </Field>
-                  <Field icon={Ruler} label="Volume · m³">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min={0}
-                      value={volume}
-                      onChange={(e) => setVolume(e.target.value)}
-                      className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none tabular-nums"
-                    />
-                  </Field>
-                </div>
-
-                <div className="pt-4 mt-2 border-t border-forest/10">
-                  <p className="kicker text-forest/50 mb-3">Vos coordonnées</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Nom complet"
-                      className="rounded-xl border border-forest/15 bg-cream px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
-                    />
-                    <input
-                      type="text"
-                      value={contact}
-                      onChange={(e) => setContact(e.target.value)}
-                      placeholder="Email ou WhatsApp"
-                      className="rounded-xl border border-forest/15 bg-cream px-4 py-3 text-sm text-forest focus:border-forest focus:outline-none focus:ring-2 focus:ring-lime/40"
-                    />
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <Field icon={MapPin} label="Origine">
+                  <input
+                    type="text"
+                    value="Chine"
+                    disabled
+                    className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none"
+                  />
+                </Field>
+                <Field icon={MapPin} label="Destination">
+                  <select
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none"
+                  >
+                    {DESTINATIONS.map((d) => (
+                      <option key={d.label} value={d.label}>
+                        {d.flag} {d.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field icon={Package} label="Poids · kg">
+                  <input
+                    type="number"
+                    min={0}
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none tabular-nums"
+                  />
+                </Field>
+                <Field icon={Ruler} label="Volume · m³">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    value={volume}
+                    onChange={(e) => setVolume(e.target.value)}
+                    className="bg-transparent border-none text-sm text-forest font-medium w-full focus:outline-none tabular-nums"
+                  />
+                </Field>
               </div>
             </div>
 
-            <div className="lg:col-span-2 relative bg-forest p-6 sm:p-10 text-cream flex flex-col">
+            {/* Right: estimate + CTA */}
+            <div className="lg:col-span-2 relative bg-forest p-6 sm:p-8 text-cream flex flex-col">
               <div className="absolute inset-0 grid-bg opacity-[0.07] pointer-events-none" />
 
-              <div className="relative">
-                <p className="kicker text-lime">Estimation indicative</p>
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span className="font-display text-[64px] lg:text-[80px] leading-none text-cream tabular-nums">
+              <div className="relative flex-1">
+                <p className="kicker text-lime">Estimation</p>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-display text-5xl lg:text-6xl leading-none text-cream tabular-nums">
                     ${estimate.price.toLocaleString('en-US')}
                   </span>
-                  <span className="text-sm text-cream/60 font-mono">{estimate.unit}</span>
+                  <span className="text-xs text-cream/60 font-mono">USD</span>
                 </div>
-                <p className="text-sm text-cream/80 mt-3 font-light">{estimate.detail}</p>
-
-                <div className="mt-6 grid grid-cols-2 gap-px bg-cream/10 rounded-xl overflow-hidden">
-                  <div className="bg-forest px-4 py-3">
-                    <p className="kicker text-cream/50">Délai</p>
-                    <p className="font-display text-2xl mt-1 tabular-nums text-cream">~{estimate.days}j</p>
-                  </div>
-                  <div className="bg-forest px-4 py-3">
-                    <p className="kicker text-cream/50">Mode</p>
-                    <p className="font-display text-2xl mt-1 uppercase text-cream">
-                      {mode === 'air' ? 'Air' : seaService.toUpperCase()}
-                    </p>
-                  </div>
-                </div>
+                <p className="text-xs text-cream/70 mt-2 tabular-nums">
+                  ~ {estimate.days} jours · {mode === 'air' ? 'Aérien' : seaService.toUpperCase()}
+                </p>
               </div>
 
-              <div className="my-8 border-t border-cream/10" />
-
-              <AnimatePresence mode="wait">
-                {submitted ? (
-                  <motion.div
-                    key="ok"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="relative flex items-center gap-3 rounded-2xl border border-lime/30 bg-lime/10 p-4"
-                  >
-                    <CheckCircle className="w-6 h-6 text-lime flex-shrink-0" />
-                    <div className="text-sm">
-                      <p className="font-semibold text-lime">Demande envoyée</p>
-                      <p className="text-cream/80">Un agent vous contactera sous peu.</p>
-                    </div>
-                  </motion.div>
-                ) : (
+              <div className="relative mt-6">
+                <AnimatePresence mode="wait">
                   <motion.button
                     key="cta"
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    onClick={handleSubmit}
+                    onClick={handleStart}
                     disabled={submitting}
-                    className="relative group flex items-center justify-between gap-2 rounded-full bg-lime hover:bg-lime-soft px-6 py-4 text-sm font-semibold text-forest disabled:opacity-60 transition-colors"
+                    className="group w-full flex items-center justify-between gap-2 rounded-full bg-lime hover:bg-lime-soft px-5 py-3.5 text-sm font-semibold text-forest disabled:opacity-60 transition-colors"
                   >
-                    <span className="flex items-center gap-2">
+                    <span>
                       {submitting ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Envoi…
+                          <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Création…
                         </>
                       ) : (
-                        'Envoyer ma demande'
+                        'Démarrer ma demande'
                       )}
                     </span>
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </motion.button>
-                )}
-              </AnimatePresence>
+                </AnimatePresence>
 
-              <p className="relative mt-5 text-[11px] text-cream/50 leading-relaxed font-light">
-                Tarif indicatif. Le prix final dépend des dimensions exactes, de la nature des
-                marchandises et des taxes locales.
-              </p>
+                {error && (
+                  <p className="text-xs text-red-300 mt-2">{error}</p>
+                )}
+
+                <p className="text-[11px] text-cream/50 mt-3 leading-relaxed">
+                  À l&apos;étape suivante : nature de la marchandise, photos, coordonnées.
+                </p>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -334,15 +283,17 @@ const TwinskFreightCalculator = () => {
   );
 };
 
-interface FieldProps {
+const Field = ({
+  icon: Icon,
+  label,
+  children,
+}: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   children: React.ReactNode;
-}
-
-const Field = ({ icon: Icon, label, children }: FieldProps) => (
-  <div className="bg-cream rounded-xl flex items-center gap-3 px-4 py-3 border border-forest/10 focus-within:border-forest transition-colors">
-    <div className="w-9 h-9 rounded-lg bg-white text-forest border border-forest/10 flex items-center justify-center flex-shrink-0">
+}) => (
+  <div className="bg-cream rounded-xl flex items-center gap-2.5 px-3 py-2.5 border border-forest/10 focus-within:border-forest transition-colors">
+    <div className="w-8 h-8 rounded-lg bg-white text-forest border border-forest/10 flex items-center justify-center flex-shrink-0">
       <Icon className="w-4 h-4" />
     </div>
     <div className="flex-1 min-w-0">
@@ -352,17 +303,20 @@ const Field = ({ icon: Icon, label, children }: FieldProps) => (
   </div>
 );
 
-interface ModeButtonProps {
+const ModeButton = ({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
   active: boolean;
   onClick: () => void;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-}
-
-const ModeButton = ({ active, onClick, icon: Icon, label }: ModeButtonProps) => (
+}) => (
   <button
     onClick={onClick}
-    className={`flex items-center justify-center gap-2 rounded-xl px-4 py-4 text-sm font-medium border transition-all ${
+    className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-medium border transition-all ${
       active
         ? 'bg-forest text-cream border-forest'
         : 'bg-white text-forest/60 border-forest/15 hover:border-forest/40'

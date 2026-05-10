@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Package, Plus, LogOut, BookOpen, Inbox } from 'lucide-react';
+import { Package, Plus, LogOut, BookOpen, Inbox, Ship } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -92,6 +92,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <Inbox className="h-4 w-4" />
               Services
+            </Link>
+            <Link
+              href="/admin/freight"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              <Ship className="h-4 w-4" />
+              Fret
             </Link>
             <Link
               href="/admin/catalog"
