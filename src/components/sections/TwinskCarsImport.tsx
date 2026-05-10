@@ -5,30 +5,6 @@ import { ArrowUpRight, ShieldCheck, Wrench, Anchor } from 'lucide-react';
 import Image from 'next/image';
 import SectionHeader from './SectionHeader';
 
-const ORIGINS = [
-  {
-    code: 'CN',
-    flag: '🇨🇳',
-    country: 'Chine',
-    highlight: 'BYD · Geely · Chery · Hongqi',
-    desc: 'Véhicules neufs — électriques, SUV, pick-up.',
-  },
-  {
-    code: 'AE',
-    flag: '🇦🇪',
-    country: 'Dubaï',
-    highlight: 'Toyota · Lexus · Land Cruiser',
-    desc: 'Modèles Gulf Spec, livraison rapide.',
-  },
-  {
-    code: 'KR',
-    flag: '🇰🇷',
-    country: 'Corée',
-    highlight: 'Hyundai · Kia · Genesis',
-    desc: 'Importation directe concessions.',
-  },
-];
-
 const PERKS = [
   { icon: ShieldCheck, label: 'Inspection mécanique avant achat' },
   { icon: Anchor, label: 'Logistique maritime sécurisée' },
@@ -57,56 +33,16 @@ const TwinskCarsImport = () => {
         />
 
         <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-80px' }}
-          variants={{
-            hidden: { opacity: 0 },
-            visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } },
-          }}
-          className="mt-12 lg:mt-16 grid grid-cols-1 md:grid-cols-3 gap-px bg-forest/10 rounded-2xl overflow-hidden border border-forest/10"
-        >
-          {ORIGINS.map((o, i) => (
-            <motion.div
-              key={o.country}
-              variants={{
-                hidden: { opacity: 0, y: 20 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              className="relative bg-cream p-7 lg:p-9 group hover:bg-lime-soft/40 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-7">
-                <span className="kicker text-forest/40">
-                  <span className="tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="mx-2 opacity-30">/</span>
-                  {o.code}
-                </span>
-                <span className="text-3xl">{o.flag}</span>
-              </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-forest uppercase tracking-tight mb-3">
-                {o.country}
-              </h3>
-              <p className="text-sm font-mono text-forest/70 mb-3">
-                {o.highlight}
-              </p>
-              <p className="text-[15px] text-forest/60 leading-relaxed">
-                {o.desc}
-              </p>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.7, delay: 0.2, ease: [0.215, 0.61, 0.355, 1] }}
-          className="relative mt-8 overflow-hidden rounded-3xl bg-cream border border-forest/10"
+          className="relative mt-12 lg:mt-16 overflow-hidden rounded-3xl bg-cream border border-forest/10"
         >
           <div className="grid grid-cols-1 lg:grid-cols-2">
             <div className="relative aspect-video lg:aspect-auto lg:min-h-[460px]">
               <Image
-                src="/Carte-driveby-.jpg"
+                src="/banner driveby.jpg"
                 alt="DriveBy Africa — import véhicules"
                 fill
                 className="object-cover"
