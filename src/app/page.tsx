@@ -5,8 +5,6 @@ import TwinskYouTubeShop from '@/components/sections/TwinskYouTubeShop';
 import TwinskQuickQuote from '@/components/sections/TwinskQuickQuote';
 import TwinskCarsImport from '@/components/sections/TwinskCarsImport';
 import TwinskDelegations from '@/components/sections/TwinskDelegations';
-import TwinskBooking from '@/components/sections/TwinskBooking';
-import TwinskProcess from '@/components/sections/TwinskProcess';
 import TwinskStats from '@/components/sections/TwinskStats';
 import TwinskTestimonials from '@/components/sections/TwinskTestimonials';
 import TwinskFooter from '@/components/sections/TwinskFooter';
@@ -25,8 +23,6 @@ export default function Home() {
           <TwinskDelegations />
         </div>
       </section>
-      <TwinskBooking />
-      <TwinskProcess />
       <TwinskStats />
       <TwinskTestimonials />
       <TwinskFooter />
