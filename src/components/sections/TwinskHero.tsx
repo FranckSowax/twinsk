@@ -105,14 +105,12 @@ const TwinskHero = () => {
             className="object-cover object-[68%_center] sm:object-[60%_center]"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1600px"
           />
-          {/* Global darkening overlay for stronger contrast */}
-          <div className="absolute inset-0 bg-forest/50" />
           {/* Left gradient: covers the "TWINSK COMPANY LIMITED" branding on container so our headline takes over */}
-          <div className="absolute inset-0 bg-gradient-to-r from-forest via-forest/95 via-50% to-forest/30" />
-          {/* Top + bottom vignette renforce */}
-          <div className="absolute inset-0 bg-gradient-to-t from-forest/70 via-transparent to-forest/50" />
+          <div className="absolute inset-0 bg-gradient-to-r from-forest/85 via-forest/40 via-40% to-transparent" />
+          {/* Top + bottom subtle vignette */}
+          <div className="absolute inset-0 bg-gradient-to-t from-forest/25 via-transparent to-forest/15" />
           {/* Right edge: blend image's white border into forest */}
-          <div className="absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-forest to-transparent" />
+          <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-forest/70 to-transparent" />
         </div>
 
         <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-9 lg:p-12">
