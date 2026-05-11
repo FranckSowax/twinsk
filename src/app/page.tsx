@@ -1,5 +1,5 @@
 import HeroPro from '@/components/sections/HeroPro';
-import ServicesBento from '@/components/sections/ServicesBento';
+import ServicesPillars from '@/components/sections/ServicesPillars';
 import TrustStats from '@/components/sections/TrustStats';
 import HowItWorks from '@/components/sections/HowItWorks';
 import FreightTeaser from '@/components/sections/FreightTeaser';
@@ -16,13 +16,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       <HeroPro />
-      <ServicesBento />
       <TrustStats />
+      <ServicesPillars />
       <HowItWorks />
       <FreightTeaser />
-      <TwinskYouTubeShop />
-      <TwinskCarsImport />
-      <section className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 border-t border-slate-200">
+      <div id="sourcing">
+        <TwinskYouTubeShop />
+      </div>
+      <div id="mobilite">
+        <TwinskCarsImport />
+      </div>
+      <section
+        id="delegations"
+        className="relative px-3 sm:px-5 lg:px-6 py-16 lg:py-24 border-t border-slate-200"
+      >
         <div className="max-w-[1600px] mx-auto px-2 sm:px-4 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
           <TwinskSampling />
           <TwinskDelegations />
