@@ -26,7 +26,7 @@ interface YTProduct {
   id: string;
   video_id: string;
   name: string;
-  price_cny: number;
+  price_usd: number;
   image_url: string;
   product_url: string;
   description: string;
@@ -606,7 +606,7 @@ const DetailModal = ({
                         {p.name || 'Sans nom'}
                       </p>
                       <p className="text-xs text-amber-600 font-semibold tabular-nums">
-                        ¥{(p.price_cny || 0).toLocaleString('en-US')}
+                        ${(p.price_usd || 0).toLocaleString('en-US')}
                       </p>
                       {!p.in_stock && (
                         <span className="text-[10px] text-slate-400">Indisponible</span>
@@ -668,7 +668,7 @@ const ProductForm = ({
   onCancel: () => void;
 }) => {
   const [name, setName] = useState(initial?.name ?? '');
-  const [priceCny, setPriceCny] = useState(String(initial?.price_cny ?? ''));
+  const [priceUsd, setPriceUsd] = useState(String(initial?.price_usd ?? ''));
   const [imageUrl, setImageUrl] = useState(initial?.image_url ?? '');
   const [productUrl, setProductUrl] = useState(initial?.product_url ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
@@ -703,9 +703,9 @@ const ProductForm = ({
         />
         <input
           type="number"
-          value={priceCny}
-          onChange={(e) => setPriceCny(e.target.value)}
-          placeholder="¥"
+          value={priceUsd}
+          onChange={(e) => setPriceUsd(e.target.value)}
+          placeholder="$"
           className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums dark:border-slate-600 dark:bg-slate-800 dark:text-white"
         />
       </div>
@@ -784,7 +784,7 @@ const ProductForm = ({
             onClick={() =>
               onSave({
                 name: name.trim(),
-                price_cny: parseFloat(priceCny) || 0,
+                price_usd: parseFloat(priceUsd) || 0,
                 image_url: imageUrl,
                 product_url: productUrl.trim(),
                 description: description.trim(),

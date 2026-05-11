@@ -26,7 +26,7 @@ import SectionHeader from './SectionHeader';
 interface VideoProduct {
   id: string;
   name: string;
-  priceCny: number;
+  priceUsd: number;
   image: string;
   productUrl: string;
   inStock: boolean;
@@ -58,7 +58,7 @@ interface ApiVideo {
   youtube_video_products?: Array<{
     id: string;
     name: string;
-    price_cny: number;
+    price_usd: number;
     image_url: string;
     product_url: string;
     description: string;
@@ -83,7 +83,7 @@ const mapApiVideo = (v: ApiVideo): YTVideo => ({
     .map((p) => ({
       id: p.id,
       name: p.name,
-      priceCny: Number(p.price_cny) || 0,
+      priceUsd: Number(p.price_usd) || 0,
       image: p.image_url || '',
       productUrl: p.product_url || '',
       inStock: p.in_stock,
@@ -277,7 +277,7 @@ const ShopModal = ({ video, onClose }: { video: YTVideo; onClose: () => void }) 
   );
 
   const total = useMemo(
-    () => cartItems.reduce((acc, { product, qty }) => acc + product.priceCny * qty, 0),
+    () => cartItems.reduce((acc, { product, qty }) => acc + product.priceUsd * qty, 0),
     [cartItems],
   );
 
@@ -299,7 +299,7 @@ const ShopModal = ({ video, onClose }: { video: YTVideo; onClose: () => void }) 
     setError('');
     try {
       const itemsLine = cartItems
-        .map(({ product, qty }) => `${product.name} × ${qty} (¥${product.priceCny * qty})`)
+        .map(({ product, qty }) => `${product.name} × ${qty} ($${product.priceUsd * qty})`)
         .join(' · ');
 
       await fetch('/api/leads', {
@@ -311,7 +311,7 @@ const ShopModal = ({ video, onClose }: { video: YTVideo; onClose: () => void }) 
             Vidéo: video.title,
             Items: itemsLine,
             'Nb articles': itemsCount,
-            'Total (CNY)': total,
+            'Total (USD)': total,
             Nom: name.trim(),
             Email: email.trim(),
             WhatsApp: whatsapp.trim(),
@@ -340,7 +340,7 @@ const ShopModal = ({ video, onClose }: { video: YTVideo; onClose: () => void }) 
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.96, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-5xl bg-white sm:rounded-3xl overflow-hidden shadow-2xl my-0 sm:my-8 flex flex-col max-h-screen sm:max-h-[90vh]"
+        className="relative w-full max-w-6xl bg-white sm:rounded-3xl overflow-hidden shadow-2xl my-0 sm:my-6 flex flex-col h-screen sm:h-auto sm:min-h-[640px] sm:max-h-[95vh]"
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 bg-white">
@@ -440,8 +440,8 @@ const ShopStep = ({
   onCheckout,
 }: ShopStepProps) => (
   <div className="grid grid-cols-1 lg:grid-cols-5 flex-1 min-h-0 overflow-hidden">
-    {/* Left: video */}
-    <div className="lg:col-span-3 bg-black relative flex items-center justify-center min-h-[240px] lg:min-h-0">
+    {/* Left: video (aspect-video forces full thumbnail visibility) */}
+    <div className="lg:col-span-3 bg-black relative aspect-video lg:aspect-auto lg:min-h-[560px] flex items-center justify-center">
       {video.youtubeId ? (
         <iframe
           src={`https://www.youtube.com/embed/${video.youtubeId}?rel=0&modestbranding=1`}
@@ -454,7 +454,7 @@ const ShopStep = ({
         <video
           src={video.url}
           controls
-          className="w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain"
           poster={video.thumbnail}
         />
       ) : (
@@ -496,7 +496,7 @@ const ShopStep = ({
                       {p.name}
                     </p>
                     <p className="text-xs font-semibold text-slate-900 tabular-nums mt-0.5">
-                      ¥{p.priceCny.toLocaleString('en-US')}
+                      ${p.priceUsd.toLocaleString('en-US')}
                     </p>
                   </div>
                   {qty === 0 ? (
@@ -550,7 +550,7 @@ const ShopStep = ({
                 </span>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="font-semibold text-slate-900 tabular-nums">
-                    ¥{(product.priceCny * qty).toLocaleString('en-US')}
+                    ${(product.priceUsd * qty).toLocaleString('en-US')}
                   </span>
                   <button
                     onClick={() => onRemove(product.id)}
@@ -568,7 +568,7 @@ const ShopStep = ({
               {itemsCount} article{itemsCount > 1 ? 's' : ''}
             </span>
             <span className="font-display text-2xl tabular-nums text-slate-900">
-              ¥{total.toLocaleString('en-US')}
+              ${total.toLocaleString('en-US')}
             </span>
           </div>
           <button
@@ -729,12 +729,12 @@ const CheckoutStep = ({
                   {product.name}
                 </p>
                 <p className="text-[11px] text-slate-500 tabular-nums">
-                  ¥{product.priceCny.toLocaleString('en-US')} × {qty}
+                  ${product.priceUsd.toLocaleString('en-US')} × {qty}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <span className="font-semibold text-xs text-slate-900 tabular-nums">
-                  ¥{(product.priceCny * qty).toLocaleString('en-US')}
+                  ${(product.priceUsd * qty).toLocaleString('en-US')}
                 </span>
                 <div className="inline-flex items-center gap-0.5 rounded-full bg-slate-100">
                   <button
@@ -766,7 +766,7 @@ const CheckoutStep = ({
         <div className="space-y-1 text-xs">
           <div className="flex justify-between text-slate-600">
             <span>Sous-total</span>
-            <span className="tabular-nums">¥{total.toLocaleString('en-US')}</span>
+            <span className="tabular-nums">${total.toLocaleString('en-US')}</span>
           </div>
           <div className="flex justify-between text-slate-500">
             <span>Port + douanes</span>
@@ -778,7 +778,7 @@ const CheckoutStep = ({
             {itemsCount} article{itemsCount > 1 ? 's' : ''}
           </span>
           <span className="font-display text-2xl tabular-nums text-slate-900">
-            ¥{total.toLocaleString('en-US')}
+            ${total.toLocaleString('en-US')}
           </span>
         </div>
         <button
@@ -830,7 +830,7 @@ const DoneStep = ({
         Devis envoyé !
       </h3>
       <p className="text-sm text-slate-600 mb-5 leading-relaxed">
-        Votre demande de {itemsCount} article{itemsCount > 1 ? 's' : ''} (¥
+        Votre demande de {itemsCount} article{itemsCount > 1 ? 's' : ''} ($
         {total.toLocaleString('en-US')}) est arrivée chez un agent Twinsk. Vous recevrez le devis
         complet (port + douanes + délai) sous 48 h.
       </p>

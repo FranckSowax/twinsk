@@ -8,7 +8,7 @@ function isAdmin(req: NextRequest): boolean {
 
 interface PatchBody {
   name?: string;
-  price_cny?: number;
+  price_usd?: number;
   image_url?: string;
   product_url?: string;
   description?: string;

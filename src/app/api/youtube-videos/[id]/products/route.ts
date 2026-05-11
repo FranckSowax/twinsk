@@ -30,7 +30,7 @@ export async function GET(
 
 interface CreateBody {
   name?: string;
-  price_cny?: number;
+  price_usd?: number;
   image_url?: string;
   product_url?: string;
   description?: string;
@@ -52,7 +52,7 @@ export async function POST(
     const insert = {
       video_id: id,
       name: (body.name ?? '').trim(),
-      price_cny: body.price_cny ?? 0,
+      price_usd: body.price_usd ?? 0,
       image_url: (body.image_url ?? '').trim(),
       product_url: (body.product_url ?? '').trim(),
       description: (body.description ?? '').trim(),
