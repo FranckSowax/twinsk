@@ -54,12 +54,17 @@ const TwinskCarsImport = () => {
             </div>
 
             <div className="p-8 sm:p-10 lg:p-14 flex flex-col justify-center">
-              <p className="kicker text-forest/50 mb-3">DriveBy × Twinsk</p>
-              <h3 className="font-display text-4xl md:text-5xl text-forest leading-[0.95] tracking-tight uppercase mb-5">
-                DriveBy
-                <br />
-                <span className="text-forest/50">Africa</span>
-              </h3>
+              <p className="kicker text-forest/50 mb-4">DriveBy × Twinsk</p>
+              <div className="mb-5">
+                <Image
+                  src="/logo-driveby-africa-dark.png"
+                  alt="DriveBy Africa"
+                  width={320}
+                  height={150}
+                  priority
+                  className="h-16 sm:h-20 w-auto"
+                />
+              </div>
               <p className="text-forest/70 text-[16px] leading-relaxed mb-8 max-w-md">
                 Notre marketplace dédiée à l’import de véhicules. Catalogue complet,
                 prix transparents, agents francophones, livraison vers toute l’Afrique.
