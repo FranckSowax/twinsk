@@ -139,12 +139,12 @@ export default function HeroPro() {
               transition={{ duration: 0.8, delay: 0.1 }}
               className="font-display text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] leading-[0.92] tracking-tight uppercase text-slate-900"
             >
-              <span className="block">Votre fret</span>
-              <span className="block">de la Chine</span>
+              <span className="block">Twinsk</span>
+              <span className="block">votre solution</span>
               <span className="block">
-                à votre{' '}
+                logistique &amp;{' '}
                 <span className="relative inline-block">
-                  porte
+                  sourcing
                   <svg
                     aria-hidden
                     viewBox="0 0 200 12"

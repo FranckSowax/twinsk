@@ -16,8 +16,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       <HeroPro />
-      <TrustStats />
       <ServicesPillars />
+      <TrustStats />
       <HowItWorks />
       <FreightTeaser />
       <div id="sourcing">
