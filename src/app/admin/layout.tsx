@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ArrowUpRight,
   Loader2,
+  Youtube,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/admin/requests', label: 'Sourcing', icon: Package },
   { href: '/admin/freight', label: 'Fret', icon: Ship },
   { href: '/admin/leads', label: 'Services', icon: Inbox },
+  { href: '/admin/youtube', label: 'YouTube', icon: Youtube },
   { href: '/admin/catalog', label: 'Catalogue', icon: BookOpen },
 ];
 
