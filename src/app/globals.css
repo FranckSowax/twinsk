@@ -12,14 +12,17 @@
   --font-display: var(--font-oswald);
   --font-mono: var(--font-mono);
 
-  /* Brand palette — Twinsk legacy (slate + orange) */
-  --color-forest: #0f172a;
-  --color-forest-soft: #1e293b;
-  --color-forest-deep: #020617;
-  --color-lime: #f97316;
-  --color-lime-soft: #fb923c;
-  --color-cream: #ffffff;
+  /* Brand palette — Twinsk Pro (slate + lime vif) */
+  --color-forest: #0f172a;        /* slate-900 — ink/deep */
+  --color-forest-soft: #1e293b;   /* slate-800 */
+  --color-forest-deep: #020617;   /* slate-950 */
+  --color-lime: #a3e635;          /* lime-400 — primary accent */
+  --color-lime-soft: #d9f99d;     /* lime-200 — soft accent */
+  --color-cream: #ffffff;         /* white surface */
   --color-ink: #0f172a;
+  --color-ink-soft: #475569;      /* slate-600 — secondary text */
+  --color-line: #e2e8f0;          /* slate-200 — hairlines */
+  --color-mist: #f8fafc;          /* slate-50 — alt surface */
 }
 
 @media (prefers-color-scheme: dark) {

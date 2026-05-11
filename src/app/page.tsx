@@ -1,4 +1,5 @@
-import TwinskHero from '@/components/sections/TwinskHero';
+import HeroPro from '@/components/sections/HeroPro';
+import ServicesBento from '@/components/sections/ServicesBento';
 import TwinskFreightCalculator from '@/components/sections/TwinskFreightCalculator';
 import TwinskSampling from '@/components/sections/TwinskSampling';
 import TwinskYouTubeShop from '@/components/sections/TwinskYouTubeShop';
@@ -12,7 +13,8 @@ import TwinskFooter from '@/components/sections/TwinskFooter';
 export default function Home() {
   return (
     <div className="min-h-screen bg-white">
-      <TwinskHero />
+      <HeroPro />
+      <ServicesBento />
       <TwinskFreightCalculator />
       <TwinskQuickQuote />
       <TwinskYouTubeShop />
