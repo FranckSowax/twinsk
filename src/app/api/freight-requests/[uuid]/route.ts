@@ -4,6 +4,11 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 const STATUSES = ['draft', 'submitted', 'processing', 'quoted', 'completed', 'cancelled'] as const;
 type Status = (typeof STATUSES)[number];
 
+interface QuoteLineItem {
+  label: string;
+  amount: number;
+}
+
 interface PatchPayload {
   client_name?: string;
   client_email?: string;
@@ -24,6 +29,19 @@ interface PatchPayload {
   estimated_days?: number;
   status?: Status;
   admin_notes?: string | null;
+  // Quote fields — admin only
+  quote_pricing_mode?: 'auto' | 'manual';
+  quote_base_price?: number;
+  quote_service_fee?: number;
+  quote_customs_fee?: number;
+  quote_other_fees?: QuoteLineItem[];
+  quote_total?: number;
+  quote_currency?: string;
+  quote_transit_days?: number;
+  quote_terms?: string;
+  quote_payment_link?: string;
+  quote_sent_at?: string | null;
+  quote_paid_at?: string | null;
 }
 
 function isAdmin(req: NextRequest): boolean {
@@ -63,7 +81,21 @@ export async function PATCH(
     const body = (await req.json()) as PatchPayload;
 
     const update: Record<string, unknown> = {};
-    const adminOnlyKeys: (keyof PatchPayload)[] = ['admin_notes'];
+    const adminOnlyKeys: (keyof PatchPayload)[] = [
+      'admin_notes',
+      'quote_pricing_mode',
+      'quote_base_price',
+      'quote_service_fee',
+      'quote_customs_fee',
+      'quote_other_fees',
+      'quote_total',
+      'quote_currency',
+      'quote_transit_days',
+      'quote_terms',
+      'quote_payment_link',
+      'quote_sent_at',
+      'quote_paid_at',
+    ];
     const isAdminCaller = isAdmin(req);
 
     for (const k of Object.keys(body) as (keyof PatchPayload)[]) {

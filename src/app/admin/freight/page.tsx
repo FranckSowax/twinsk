@@ -18,7 +18,13 @@ import {
   Link as LinkIcon,
   ExternalLink,
   Copy,
+  Calculator,
+  CreditCard,
+  Send,
+  Wand2,
+  Plus,
 } from 'lucide-react';
+import { computeAutoQuote, defaultServiceFee, computeTotal } from '@/lib/freight-pricing';
 
 type Mode = 'sea' | 'air';
 type SeaService = 'lcl' | 'fcl20' | 'fcl40' | null;
@@ -45,6 +51,19 @@ interface FreightRequest {
   estimated_days: number;
   status: Status;
   admin_notes: string | null;
+  // Quote fields
+  quote_pricing_mode: 'auto' | 'manual';
+  quote_base_price: number;
+  quote_service_fee: number;
+  quote_customs_fee: number;
+  quote_other_fees: { label: string; amount: number }[];
+  quote_total: number;
+  quote_currency: string;
+  quote_transit_days: number;
+  quote_terms: string;
+  quote_payment_link: string;
+  quote_sent_at: string | null;
+  quote_paid_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -140,22 +159,34 @@ export default function AdminFreightPage() {
     });
   }, [items, filterStatus, search]);
 
-  const updateRow = async (
-    id: string,
-    patch: Partial<Pick<FreightRequest, 'status' | 'admin_notes'>>,
-  ) => {
+  const updateRow = async (id: string, patch: Partial<FreightRequest>) => {
     const res = await fetch(`/api/freight-requests/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     });
     if (!res.ok) {
-      alert('Erreur mise à jour');
-      return;
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Erreur mise à jour');
+      return null;
     }
     const updated = await res.json();
     setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
     if (active?.id === id) setActive(updated);
+    return updated as FreightRequest;
+  };
+
+  const sendQuote = async (id: string) => {
+    const res = await fetch(`/api/freight-requests/${id}/send-quote`, { method: 'POST' });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Erreur envoi devis');
+      return null;
+    }
+    const updated = await res.json();
+    setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
+    if (active?.id === id) setActive(updated);
+    return updated as FreightRequest;
   };
 
   const deleteRow = async (id: string) => {
@@ -332,6 +363,7 @@ export default function AdminFreightPage() {
           row={active}
           onClose={() => setActive(null)}
           onUpdate={updateRow}
+          onSendQuote={sendQuote}
           onDelete={deleteRow}
         />
       )}
@@ -365,14 +397,13 @@ const DetailModal = ({
   row,
   onClose,
   onUpdate,
+  onSendQuote,
   onDelete,
 }: {
   row: FreightRequest;
   onClose: () => void;
-  onUpdate: (
-    id: string,
-    patch: Partial<Pick<FreightRequest, 'status' | 'admin_notes'>>,
-  ) => Promise<void>;
+  onUpdate: (id: string, patch: Partial<FreightRequest>) => Promise<FreightRequest | null>;
+  onSendQuote: (id: string) => Promise<FreightRequest | null>;
   onDelete: (id: string) => Promise<void>;
 }) => {
   const [note, setNote] = useState(row.admin_notes ?? '');
@@ -382,12 +413,119 @@ const DetailModal = ({
   const clientLink =
     typeof window !== 'undefined' ? `${window.location.origin}/freight/${row.id}` : '';
 
+  // Quote state — mirrors row but allows live edits before saving
+  const [pricingMode, setPricingMode] = useState<'auto' | 'manual'>(
+    row.quote_pricing_mode || 'auto',
+  );
+  const [basePrice, setBasePrice] = useState(String(row.quote_base_price || ''));
+  const [serviceFee, setServiceFee] = useState(String(row.quote_service_fee || ''));
+  const [customsFee, setCustomsFee] = useState(String(row.quote_customs_fee || ''));
+  const [otherFees, setOtherFees] = useState<{ label: string; amount: number }[]>(
+    Array.isArray(row.quote_other_fees) ? row.quote_other_fees : [],
+  );
+  const [currency, setCurrency] = useState(row.quote_currency || 'USD');
+  const [transitDays, setTransitDays] = useState(String(row.quote_transit_days || ''));
+  const [terms, setTerms] = useState(
+    row.quote_terms ||
+      '1. Validation du devis\n2. Réception du paiement (50% à la commande)\n3. Mise en route du fret\n4. Solde à la livraison',
+  );
+  const [paymentLink, setPaymentLink] = useState(row.quote_payment_link || '');
+  const [savingQuote, setSavingQuote] = useState(false);
+  const [sendingQuote, setSendingQuote] = useState(false);
+
+  const total = useMemo(() => {
+    return computeTotal(
+      parseFloat(basePrice) || 0,
+      parseFloat(serviceFee) || 0,
+      parseFloat(customsFee) || 0,
+      otherFees,
+    );
+  }, [basePrice, serviceFee, customsFee, otherFees]);
+
+  const handleAutoCompute = () => {
+    const q = computeAutoQuote({
+      mode: row.mode,
+      sea_service: row.sea_service,
+      weight: Number(row.weight) || 0,
+      volume: Number(row.volume) || 0,
+      destination: row.destination,
+    });
+    setBasePrice(String(q.base_price));
+    setServiceFee(String(defaultServiceFee(q.base_price)));
+    setTransitDays(String(q.transit_days));
+    setPricingMode('auto');
+  };
+
+  const handleSaveQuote = async () => {
+    setSavingQuote(true);
+    await onUpdate(row.id, {
+      quote_pricing_mode: pricingMode,
+      quote_base_price: parseFloat(basePrice) || 0,
+      quote_service_fee: parseFloat(serviceFee) || 0,
+      quote_customs_fee: parseFloat(customsFee) || 0,
+      quote_other_fees: otherFees,
+      quote_total: total,
+      quote_currency: currency,
+      quote_transit_days: parseInt(transitDays, 10) || 0,
+      quote_terms: terms,
+      quote_payment_link: paymentLink.trim(),
+    });
+    setSavingQuote(false);
+  };
+
+  const handleSendQuote = async () => {
+    if (total <= 0) {
+      alert('Renseignez au moins un prix de base avant d\'envoyer.');
+      return;
+    }
+    if (!confirm('Envoyer le devis au client ? Le statut passera à "Devisée".')) return;
+    setSendingQuote(true);
+    // Save first, then mark as sent
+    await onUpdate(row.id, {
+      quote_pricing_mode: pricingMode,
+      quote_base_price: parseFloat(basePrice) || 0,
+      quote_service_fee: parseFloat(serviceFee) || 0,
+      quote_customs_fee: parseFloat(customsFee) || 0,
+      quote_other_fees: otherFees,
+      quote_total: total,
+      quote_currency: currency,
+      quote_transit_days: parseInt(transitDays, 10) || 0,
+      quote_terms: terms,
+      quote_payment_link: paymentLink.trim(),
+    });
+    await onSendQuote(row.id);
+    setSendingQuote(false);
+  };
+
+  const whatsappLink = useMemo(() => {
+    const phone = (row.client_phone || '').replace(/[^\d]/g, '');
+    if (!phone) return null;
+    const message = [
+      `Bonjour ${row.client_name || ''},`,
+      '',
+      'Votre devis Twinsk est prêt :',
+      clientLink,
+      '',
+      `Total : ${total || row.quote_total || 0} ${currency || row.quote_currency || 'USD'}`,
+      'Vous pouvez valider, demander une modification ou procéder au paiement directement depuis le lien.',
+      '',
+      'L\'équipe Twinsk · Hong Kong',
+    ].join('\n');
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  }, [row, total, currency, clientLink]);
+
   const copyLink = () => {
     if (!clientLink) return;
     navigator.clipboard.writeText(clientLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const addOtherFee = () => setOtherFees((p) => [...p, { label: '', amount: 0 }]);
+  const updateOtherFee = (i: number, patch: Partial<{ label: string; amount: number }>) =>
+    setOtherFees((p) => p.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
+  const removeOtherFee = (i: number) =>
+    setOtherFees((p) => p.filter((_, idx) => idx !== i));
 
   return (
     <div
@@ -505,6 +643,206 @@ const DetailModal = ({
             </div>
           )}
 
+          {/* Quote / Tarification */}
+          <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/30 p-5 dark:border-amber-700/40 dark:bg-amber-900/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-4 w-4 text-amber-600" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                  Tarification
+                </p>
+                {row.quote_sent_at && (
+                  <span className="kicker text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Envoyé · {new Date(row.quote_sent_at).toLocaleDateString('fr-FR')}
+                  </span>
+                )}
+              </div>
+              <div className="inline-flex rounded-full bg-white border border-slate-200 p-0.5 text-xs dark:bg-slate-800 dark:border-slate-700">
+                <button
+                  onClick={() => setPricingMode('auto')}
+                  className={`px-3 py-1 rounded-full transition-colors ${
+                    pricingMode === 'auto'
+                      ? 'bg-amber-500 text-white font-semibold'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Auto
+                </button>
+                <button
+                  onClick={() => setPricingMode('manual')}
+                  className={`px-3 py-1 rounded-full transition-colors ${
+                    pricingMode === 'manual'
+                      ? 'bg-amber-500 text-white font-semibold'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Manuel
+                </button>
+              </div>
+            </div>
+
+            {pricingMode === 'auto' && (
+              <button
+                type="button"
+                onClick={handleAutoCompute}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 mb-4"
+              >
+                <Wand2 className="h-3 w-3" />
+                Calculer auto depuis la demande
+              </button>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+              <PriceField label="Fret (base)" value={basePrice} onChange={setBasePrice} />
+              <PriceField label="Frais service" value={serviceFee} onChange={setServiceFee} />
+              <PriceField label="Douanes / taxes" value={customsFee} onChange={setCustomsFee} />
+            </div>
+
+            {/* Other fees */}
+            {otherFees.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {otherFees.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={f.label}
+                      onChange={(e) => updateOtherFee(i, { label: e.target.value })}
+                      placeholder="Libellé (ex: Assurance)"
+                      className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                    />
+                    <input
+                      type="number"
+                      value={f.amount || ''}
+                      onChange={(e) =>
+                        updateOtherFee(i, { amount: parseFloat(e.target.value) || 0 })
+                      }
+                      placeholder="0"
+                      className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                    />
+                    <button
+                      onClick={() => removeOtherFee(i)}
+                      className="p-1.5 text-slate-400 hover:text-red-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={addOtherFee}
+              className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 mb-3"
+            >
+              <Plus className="h-3 w-3" /> Ajouter une ligne
+            </button>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+                  Devise
+                </label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="XAF">XAF</option>
+                  <option value="XOF">XOF</option>
+                  <option value="CNY">CNY</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+                  Délai (jours)
+                </label>
+                <input
+                  type="number"
+                  value={transitDays}
+                  onChange={(e) => setTransitDays(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-slate-900 text-white px-4 py-3">
+              <span className="text-xs uppercase tracking-wider opacity-70">Total devis</span>
+              <span className="font-display text-2xl tabular-nums">
+                {total.toLocaleString('en-US')} {currency}
+              </span>
+            </div>
+          </div>
+
+          {/* Paiement */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-center gap-2 mb-2">
+              <CreditCard className="h-4 w-4 text-slate-500" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Lien de paiement
+              </p>
+            </div>
+            <input
+              type="url"
+              value={paymentLink}
+              onChange={(e) => setPaymentLink(e.target.value)}
+              placeholder="https://buy.stripe.com/..., https://wise.com/..., Mobile Money…"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+
+          {/* Steps & terms */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-4 w-4 text-slate-500" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Étapes &amp; conditions
+              </p>
+            </div>
+            <textarea
+              value={terms}
+              onChange={(e) => setTerms(e.target.value)}
+              rows={5}
+              placeholder="1. Validation&#10;2. Acompte&#10;3. Expédition…"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+
+          {/* Quote actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleSaveQuote}
+              disabled={savingQuote}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-700 px-4 py-2 text-sm font-semibold hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200"
+            >
+              {savingQuote ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Enregistrer brouillon
+            </button>
+            <button
+              onClick={handleSendQuote}
+              disabled={sendingQuote || total <= 0}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 text-sm font-semibold shadow-sm hover:shadow-md disabled:opacity-50"
+            >
+              {sendingQuote ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Send className="h-3 w-3" />
+              )}
+              Envoyer le devis
+            </button>
+            {whatsappLink && (
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-600"
+              >
+                <ExternalLink className="h-3 w-3" />
+                WhatsApp client
+              </a>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/40">
             <div className="flex items-center justify-between gap-3 mb-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -601,6 +939,31 @@ const DetailModal = ({
     </div>
   );
 };
+
+const PriceField = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) => (
+  <div>
+    <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+      {label}
+    </label>
+    <input
+      type="number"
+      step="0.01"
+      min={0}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="0"
+      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+    />
+  </div>
+);
 
 const Info = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
