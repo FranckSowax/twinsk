@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const admin = isAdmin(request);
     let query = supabaseAdmin
       .from('youtube_videos')
-      .select('*, youtube_video_products(count)')
+      .select('*, youtube_video_products(*)')
       .order('order_index', { ascending: true })
       .order('created_at', { ascending: false });
     if (!admin) query = query.eq('published', true);

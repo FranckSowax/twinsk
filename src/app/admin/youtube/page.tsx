@@ -49,7 +49,7 @@ interface YTVideo {
   published: boolean;
   created_at: string;
   updated_at: string;
-  youtube_video_products?: { count: number }[];
+  youtube_video_products?: YTProduct[];
 }
 
 export default function AdminYoutubePage() {
@@ -101,7 +101,7 @@ export default function AdminYoutubePage() {
           video_type: 'youtube',
           video_url: url,
           thumbnail_url: youtubeDefaultThumbnail(yid),
-          published: false,
+          published: true,
           order_index: videos.length,
         }),
       });
@@ -192,7 +192,7 @@ export default function AdminYoutubePage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((video) => {
-            const productCount = video.youtube_video_products?.[0]?.count ?? 0;
+            const productCount = video.youtube_video_products?.length ?? 0;
             const thumb =
               video.thumbnail_url ||
               (video.youtube_id ? youtubeDefaultThumbnail(video.youtube_id) : '');
