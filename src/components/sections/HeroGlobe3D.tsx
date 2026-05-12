@@ -36,13 +36,34 @@ const DESTINATIONS: {
   { name: 'Hong Kong', position: HONG_KONG_POSITION, color: '#ffffff' },
 ];
 
+interface Route {
+  name: string;
+  curve: THREE.QuadraticBezierCurve3;
+}
+
+const ROUTES: Route[] = DESTINATIONS.filter((d) => d.name !== 'Hong Kong').map(
+  (d) => {
+    const start = new THREE.Vector3(...HONG_KONG_POSITION);
+    const end = new THREE.Vector3(...d.position);
+    const mid = new THREE.Vector3()
+      .addVectors(start, end)
+      .multiplyScalar(0.5)
+      .normalize()
+      .multiplyScalar(2.5);
+    return { name: d.name, curve: new THREE.QuadraticBezierCurve3(start, mid, end) };
+  },
+);
+
+// Routes that get an animated cargo plane (subset to keep the scene readable).
+const PLANE_ROUTE_INDICES = [0, 2, 3];
+
 function Globe() {
   const groupRef = useRef<THREE.Group>(null);
   const innerRef = useRef<THREE.Mesh>(null);
 
   useFrame(() => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += 0.0035;
+      groupRef.current.rotation.y += 0.0025;
       groupRef.current.rotation.x = Math.sin(Date.now() * 0.0002) * 0.15;
     }
     if (innerRef.current) {
@@ -64,20 +85,30 @@ function Globe() {
         <meshBasicMaterial color="#a3e635" wireframe transparent opacity={0.35} />
       </mesh>
 
-      {/* Solid inner sphere for depth */}
+      {/* Soft inner solid for depth */}
       <mesh>
         <sphereGeometry args={[1.72, 32, 32]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.02} />
       </mesh>
 
-      {/* Destination dots */}
-      {DESTINATIONS.map((d, i) => (
-        <Dot key={d.name + i} position={d.position} color={d.color} />
+      {/* Destination markers */}
+      {DESTINATIONS.map((d) => (
+        <Dot key={d.name} position={d.position} color={d.color} />
       ))}
 
-      {/* Arcs connecting Hong Kong → destinations */}
-      {DESTINATIONS.filter((d) => d.name !== 'Hong Kong').map((d, i) => (
-        <Arc key={`arc-${i}`} from={HONG_KONG_POSITION} to={d.position} />
+      {/* Dashed flight paths */}
+      {ROUTES.map((r, i) => (
+        <DashedArc key={`arc-${i}`} curve={r.curve} />
+      ))}
+
+      {/* Cargo planes flying along selected routes (ping-pong) */}
+      {PLANE_ROUTE_INDICES.map((idx, i) => (
+        <AnimatedPlane
+          key={`plane-${idx}`}
+          curve={ROUTES[idx].curve}
+          duration={9 + i * 2.5}
+          phase={i * 3.7}
+        />
       ))}
     </group>
   );
@@ -104,33 +135,103 @@ function Dot({
   );
 }
 
-function Arc({
-  from,
-  to,
-}: {
-  from: [number, number, number];
-  to: [number, number, number];
-}) {
+function DashedArc({ curve }: { curve: THREE.QuadraticBezierCurve3 }) {
   const line = useMemo(() => {
-    const start = new THREE.Vector3(...from);
-    const end = new THREE.Vector3(...to);
-    const mid = new THREE.Vector3()
-      .addVectors(start, end)
-      .multiplyScalar(0.5)
-      .normalize()
-      .multiplyScalar(2.5);
-    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
-    const points = curve.getPoints(40);
+    const points = curve.getPoints(60);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({
+    const material = new THREE.LineDashedMaterial({
       color: '#a3e635',
+      dashSize: 0.06,
+      gapSize: 0.05,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.75,
     });
-    return new THREE.Line(geometry, material);
-  }, [from, to]);
-
+    const ln = new THREE.Line(geometry, material);
+    // Required for LineDashedMaterial to render gaps correctly.
+    ln.computeLineDistances();
+    return ln;
+  }, [curve]);
   return <primitive object={line} />;
+}
+
+function CargoPlane() {
+  // Forward direction in local space: -Z
+  return (
+    <group>
+      {/* Fuselage (white body) */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.022, 0.022, 0.16, 10]} />
+        <meshBasicMaterial color="#ffffff" />
+      </mesh>
+      {/* Nose cone — lime */}
+      <mesh position={[0, 0, -0.1]} rotation={[-Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[0.022, 0.05, 10]} />
+        <meshBasicMaterial color="#a3e635" />
+      </mesh>
+      {/* Main wings */}
+      <mesh>
+        <boxGeometry args={[0.22, 0.005, 0.05]} />
+        <meshBasicMaterial color="#a3e635" />
+      </mesh>
+      {/* Vertical tail fin */}
+      <mesh position={[0, 0.035, 0.07]}>
+        <boxGeometry args={[0.005, 0.05, 0.04]} />
+        <meshBasicMaterial color="#a3e635" />
+      </mesh>
+      {/* Horizontal stabilizer */}
+      <mesh position={[0, 0, 0.07]}>
+        <boxGeometry args={[0.07, 0.005, 0.03]} />
+        <meshBasicMaterial color="#a3e635" />
+      </mesh>
+      {/* Engine pods under wings */}
+      <mesh position={[0.08, -0.012, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.05, 8]} />
+        <meshBasicMaterial color="#0f172a" />
+      </mesh>
+      <mesh position={[-0.08, -0.012, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.05, 8]} />
+        <meshBasicMaterial color="#0f172a" />
+      </mesh>
+    </group>
+  );
+}
+
+function AnimatedPlane({
+  curve,
+  duration,
+  phase,
+}: {
+  curve: THREE.QuadraticBezierCurve3;
+  duration: number;
+  phase: number;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  const forward = useMemo(() => new THREE.Vector3(0, 0, -1), []);
+  const quat = useMemo(() => new THREE.Quaternion(), []);
+  const tangent = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame((state) => {
+    if (!ref.current) return;
+    // Ping-pong t in [0, 1] over a 2x duration cycle so the plane flies
+    // HK -> destination -> HK seamlessly without teleport.
+    const u = ((state.clock.elapsedTime + phase) / duration) % 2;
+    const t = u < 1 ? u : 2 - u;
+
+    const pos = curve.getPointAt(t);
+    tangent.copy(curve.getTangentAt(t)).normalize();
+    // Invert tangent on the return leg so the nose follows travel direction.
+    if (u >= 1) tangent.multiplyScalar(-1);
+
+    ref.current.position.copy(pos);
+    quat.setFromUnitVectors(forward, tangent);
+    ref.current.quaternion.copy(quat);
+  });
+
+  return (
+    <group ref={ref}>
+      <CargoPlane />
+    </group>
+  );
 }
 
 export default function HeroGlobe3D() {
@@ -146,7 +247,7 @@ export default function HeroGlobe3D() {
         <Globe />
       </Canvas>
 
-      {/* Soft glow behind globe */}
+      {/* Soft lime glow behind the globe */}
       <div
         aria-hidden
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_center,rgba(163,230,53,0.15),transparent_60%)]"
