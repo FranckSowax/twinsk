@@ -5,7 +5,7 @@ import { ArrowUpRight, Menu, X, Sparkles } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import dynamic from 'next/dynamic';
 
-const CargoDrop = dynamic(() => import('./HeroCargoDrop'), { ssr: false });
+const Globe3D = dynamic(() => import('./HeroGlobe3D'), { ssr: false });
 
 const NAV_ITEMS = [
   { label: 'Services', href: '#services' },
@@ -213,20 +213,56 @@ export default function HeroPro() {
             </motion.dl>
           </div>
 
-          {/* Right: Cargo Drop animation (square, white bg) */}
+          {/* Right: 3D Globe */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="relative w-full max-w-[600px] mx-auto"
+            transition={{ duration: 1, delay: 0.2 }}
+            className="relative h-[420px] sm:h-[520px] lg:h-[640px]"
           >
-            <Suspense
-              fallback={
-                <div className="w-full aspect-square rounded-3xl bg-slate-50 border border-slate-200" />
-              }
-            >
-              <CargoDrop />
+            <Suspense fallback={<div className="w-full h-full" />}>
+              <Globe3D />
             </Suspense>
+
+            {/* Floating cards over the globe */}
+            <motion.div
+              initial={{ opacity: 0, x: 20, y: -20 }}
+              animate={{ opacity: 1, x: 0, y: 0 }}
+              transition={{ duration: 0.7, delay: 1 }}
+              className="absolute top-6 left-4 sm:left-0 bg-white rounded-2xl shadow-xl shadow-slate-900/10 p-4 max-w-[200px] border border-slate-100"
+            >
+              <p className="kicker text-slate-400">Aérien · Express</p>
+              <p className="font-display text-2xl text-slate-900 mt-1 leading-none tabular-nums">
+                5j
+              </p>
+              <p className="text-xs text-slate-500 mt-2">Chine → Libreville</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: -20, y: 20 }}
+              animate={{ opacity: 1, x: 0, y: 0 }}
+              transition={{ duration: 0.7, delay: 1.2 }}
+              className="absolute bottom-12 right-4 sm:right-0 bg-slate-900 rounded-2xl shadow-2xl p-4 max-w-[220px]"
+            >
+              <p className="kicker text-lime">Cotation rapide</p>
+              <p className="font-display text-2xl text-white mt-1 leading-none">
+                $1,450
+              </p>
+              <p className="text-xs text-slate-400 mt-2">
+                FCL 20&apos; · LCL dès $180/m³
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 1.4 }}
+              className="absolute top-1/2 right-8 sm:right-12 bg-lime rounded-full px-4 py-2 shadow-lg"
+            >
+              <p className="text-xs font-bold text-slate-900 tabular-nums">
+                🇨🇳 → 🇬🇦 🇨🇲 🇨🇮
+              </p>
+            </motion.div>
           </motion.div>
         </div>
       </div>

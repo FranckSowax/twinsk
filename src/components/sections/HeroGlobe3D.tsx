@@ -33,7 +33,7 @@ const DESTINATIONS: {
   { name: 'Abidjan', position: sphericalToCartesian(5.3, -4.0, 1.85), color: '#a3e635' },
   { name: 'Paris', position: sphericalToCartesian(48.8, 2.3, 1.85), color: '#a3e635' },
   { name: 'Dakar', position: sphericalToCartesian(14.7, -17.4, 1.85), color: '#a3e635' },
-  { name: 'Hong Kong', position: HONG_KONG_POSITION, color: '#ffffff' },
+  { name: 'Chine', position: HONG_KONG_POSITION, color: '#ffffff' },
 ];
 
 interface Route {
@@ -41,7 +41,7 @@ interface Route {
   curve: THREE.QuadraticBezierCurve3;
 }
 
-const ROUTES: Route[] = DESTINATIONS.filter((d) => d.name !== 'Hong Kong').map(
+const ROUTES: Route[] = DESTINATIONS.filter((d) => d.name !== 'Chine').map(
   (d) => {
     const start = new THREE.Vector3(...HONG_KONG_POSITION);
     const end = new THREE.Vector3(...d.position);
