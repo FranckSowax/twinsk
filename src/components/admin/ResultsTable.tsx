@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2 } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import ResultDetailModal from './ResultDetailModal';
 import ManualResultModal from './ManualResultModal';
+import EditRequestItemModal from './EditRequestItemModal';
 import NotesThread, { type NoteItem } from '@/components/ui/NotesThread';
 
 interface SearchResultRow {
@@ -67,6 +68,38 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
   const [activeResult, setActiveResult] = useState<SearchResultRow | null>(null);
   const [manualModalItemId, setManualModalItemId] = useState<string | null>(null);
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [editItem, setEditItem] = useState<RequestItemWithResults | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  const handleDeleteItem = async (item: RequestItemWithResults) => {
+    const label = item.description || (item.image_url ? 'Article photo' : 'Article');
+    const resultCount = item.search_results.length;
+    const warn = resultCount
+      ? `Supprimer "${label}" et ses ${resultCount} résultat(s) ? Cette action est irréversible.`
+      : `Supprimer "${label}" ? Cette action est irréversible.`;
+    if (!window.confirm(warn)) return;
+
+    setDeletingIds((prev) => new Set(prev).add(item.id));
+    try {
+      const res = await fetch(`/api/requests/${requestId}/items/${item.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Erreur suppression');
+        return;
+      }
+      onRefresh();
+    } catch {
+      alert('Erreur réseau');
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
 
   // Keep modal in sync with parent state when result is updated (e.g. selection toggle)
   const syncedActiveResult = activeResult
@@ -108,6 +141,21 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
       requestItemId={manualModalItemId || ''}
       onClose={() => setManualModalItemId(null)}
       onCreated={onRefresh}
+    />
+    <EditRequestItemModal
+      open={!!editItem}
+      requestId={requestId}
+      item={
+        editItem
+          ? {
+              id: editItem.id,
+              image_url: editItem.image_url,
+              description: editItem.description,
+            }
+          : null
+      }
+      onClose={() => setEditItem(null)}
+      onSaved={onRefresh}
     />
     {/* Zoom lightbox for client photos */}
     <AnimatePresence>
@@ -198,6 +246,27 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                 <Plus className="h-3.5 w-3.5" />
                 Produit manuel
               </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setEditItem(item)}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                  title="Modifier l'article"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingIds.has(item.id)}
+                  onClick={() => handleDeleteItem(item)}
+                  className="flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-slate-700 dark:text-red-400"
+                  title="Supprimer l'article"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deletingIds.has(item.id) ? 'Suppression…' : 'Supprimer'}
+                </button>
+              </div>
               <NotesThread
                 notes={item.item_notes || []}
                 requestItemId={item.id}
