@@ -58,6 +58,10 @@ interface RequestItemWithResults {
 interface ResultsTableProps {
   items: RequestItemWithResults[];
   requestId: string;
+  basePath?: string;
+  manualCreateSuffix?: string;
+  manualUpdateSuffix?: string;
+  hideClientFeedback?: boolean;
   onUpdate: (resultId: string, fields: Partial<SearchResultRow>) => void;
   onRefresh: () => void;
 }
@@ -76,7 +80,16 @@ const SOURCE_LABEL: Record<string, string> = {
   factory: 'usine',
 };
 
-export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: ResultsTableProps) {
+export default function ResultsTable({
+  items,
+  requestId,
+  basePath = '/api/requests',
+  manualCreateSuffix = 'manual-result',
+  manualUpdateSuffix = 'results',
+  hideClientFeedback = false,
+  onUpdate,
+  onRefresh,
+}: ResultsTableProps) {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [activeResult, setActiveResult] = useState<SearchResultRow | null>(null);
   const [manualModalItemId, setManualModalItemId] = useState<string | null>(null);
@@ -97,7 +110,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
 
     setDeletingIds((prev) => new Set(prev).add(item.id));
     try {
-      const res = await fetch(`/api/requests/${requestId}/items/${item.id}`, {
+      const res = await fetch(`${basePath}/${requestId}/items/${item.id}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -154,6 +167,9 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
     <ManualResultModal
       open={!!manualModalItemId || !!editingResult}
       requestId={requestId}
+      basePath={basePath}
+      createPathSuffix={manualCreateSuffix}
+      updatePathSuffix={manualUpdateSuffix}
       requestItemId={editingResult?.requestItemId || manualModalItemId || ''}
       existingResult={
         editingResult
@@ -185,6 +201,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
     <EditRequestItemModal
       open={!!editItem}
       requestId={requestId}
+      basePath={basePath}
       item={
         editItem
           ? {

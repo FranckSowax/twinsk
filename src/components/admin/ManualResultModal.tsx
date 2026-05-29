@@ -48,6 +48,15 @@ interface ManualResultModalProps {
   requestItemId: string;
   // When provided, the modal switches to edit mode and pre-fills its fields.
   existingResult?: ExistingResult | null;
+  // Override the API base path. Defaults to /api/requests so existing callers
+  // work unchanged. Pass /api/offers from the offers admin.
+  basePath?: string;
+  // Endpoint suffix for creating manual products. Defaults to 'manual-result'.
+  // /api/offers uses 'manual-product' for the same purpose.
+  createPathSuffix?: string;
+  // Endpoint suffix for batch updating products. Defaults to 'results'.
+  // /api/offers uses 'products'.
+  updatePathSuffix?: string;
   onClose: () => void;
   onCreated: () => void;
 }
@@ -77,6 +86,9 @@ export default function ManualResultModal({
   requestId,
   requestItemId,
   existingResult,
+  basePath = '/api/requests',
+  createPathSuffix = 'manual-result',
+  updatePathSuffix = 'results',
   onClose,
   onCreated,
 }: ManualResultModalProps) {
@@ -264,7 +276,7 @@ export default function ManualResultModal({
     try {
       if (isEdit && existingResult) {
         // EDIT mode: PATCH /results with a single update entry.
-        const res = await fetch(`/api/requests/${requestId}/results`, {
+        const res = await fetch(`${basePath}/${requestId}/${updatePathSuffix}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -298,7 +310,7 @@ export default function ManualResultModal({
         }
       } else {
         // CREATE mode
-        const res = await fetch(`/api/requests/${requestId}/manual-result`, {
+        const res = await fetch(`${basePath}/${requestId}/${createPathSuffix}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

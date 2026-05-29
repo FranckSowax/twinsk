@@ -8,6 +8,7 @@ import ItemBuilder, { type RequestBuildItem } from '@/components/request/ItemBui
 interface AddRequestItemModalProps {
   open: boolean;
   requestId: string;
+  basePath?: string;
   onClose: () => void;
   onCreated: () => void;
 }
@@ -15,6 +16,7 @@ interface AddRequestItemModalProps {
 export default function AddRequestItemModal({
   open,
   requestId,
+  basePath = '/api/requests',
   onClose,
   onCreated,
 }: AddRequestItemModalProps) {
@@ -43,7 +45,7 @@ export default function AddRequestItemModal({
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/items`, {
+      const res = await fetch(`${basePath}/${requestId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

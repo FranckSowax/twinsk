@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/server';
+
+function isAdmin(request: NextRequest): boolean {
+  const cookie = request.cookies.get('admin_token');
+  return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
+}
+
+// GET: Offer details (admin)
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ uuid: string }> }
+) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  const { uuid } = await params;
+  const { data, error } = await supabaseAdmin
+    .from('offers')
+    .select('*')
+    .eq('id', uuid)
+    .single();
+  if (error || !data) {
+    return NextResponse.json({ error: 'Offre introuvable' }, { status: 404 });
+  }
+  return NextResponse.json(data);
+}
+
+// PATCH: Update offer fields
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ uuid: string }> }
+) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  const { uuid } = await params;
+  const body = await request.json().catch(() => ({}));
+
+  const patch: Record<string, unknown> = {};
+  const allowed = ['title', 'theme', 'description', 'status', 'slug', 'cover_image_url'] as const;
+  for (const key of allowed) {
+    if (key in body) patch[key] = body[key as keyof typeof body];
+  }
+  if (!Object.keys(patch).length) {
+    return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('offers')
+    .update(patch)
+    .eq('id', uuid)
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
+// DELETE: Remove offer + cascaded items/products/orders
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ uuid: string }> }
+) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  const { uuid } = await params;
+  const { error } = await supabaseAdmin.from('offers').delete().eq('id', uuid);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

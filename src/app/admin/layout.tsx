@@ -17,12 +17,14 @@ import {
   ArrowUpRight,
   Loader2,
   Youtube,
+  Sparkles,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/requests', label: 'Sourcing', icon: Package },
+  { href: '/admin/offer', label: 'Offres B2C', icon: Sparkles },
   { href: '/admin/freight', label: 'Fret', icon: Ship },
   { href: '/admin/leads', label: 'Services', icon: Inbox },
   { href: '/admin/youtube', label: 'YouTube', icon: Youtube },

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 interface BulkImportModalProps {
   open: boolean;
   requestId: string;
+  basePath?: string;
   onClose: () => void;
   onImported: () => void;
 }
@@ -60,6 +61,7 @@ function computePreview(json: string): { stats: PreviewStats | null; error: stri
 export default function BulkImportModal({
   open,
   requestId,
+  basePath = '/api/requests',
   onClose,
   onImported,
 }: BulkImportModalProps) {
@@ -92,7 +94,7 @@ export default function BulkImportModal({
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/bulk-load`, {
+      const res = await fetch(`${basePath}/${requestId}/bulk-load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: json,

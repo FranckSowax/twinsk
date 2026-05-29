@@ -12,6 +12,7 @@ interface EditRequestItemModalProps {
     image_url: string | null;
     description: string | null;
   } | null;
+  basePath?: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -20,6 +21,7 @@ export default function EditRequestItemModal({
   open,
   requestId,
   item,
+  basePath = '/api/requests',
   onClose,
   onSaved,
 }: EditRequestItemModalProps) {
@@ -75,7 +77,7 @@ export default function EditRequestItemModal({
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/items/${item.id}`, {
+      const res = await fetch(`${basePath}/${requestId}/items/${item.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
