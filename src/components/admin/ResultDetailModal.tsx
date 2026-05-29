@@ -316,7 +316,20 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                                     </span>
                                   </td>
                                   <td className="px-2 py-1.5">
-                                    {v.price != null ? formatCNY(v.price) : '—'}
+                                    {v.price != null ? (
+                                      <div>
+                                        <div className="font-semibold">
+                                          {formatCNY(applyMargin(v.price, result.margin_percent))}
+                                        </div>
+                                        {result.margin_percent > 0 && (
+                                          <div className="text-[10px] text-slate-400">
+                                            brut : {formatCNY(v.price)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      '—'
+                                    )}
                                   </td>
                                   <td className="px-2 py-1.5">{v.moq ?? '—'}</td>
                                   <td className="px-2 py-1.5">{v.capacity || '—'}</td>
