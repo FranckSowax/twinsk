@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson, CheckSquare, Square } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
@@ -100,6 +100,25 @@ export default function AdminRequestDetailPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ updates: [{ id: resultId, ...fields }] }),
+    });
+  };
+
+  const handleToggleAll = async (selected: boolean) => {
+    const updates: { id: string; selected: boolean }[] = [];
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        search_results: item.search_results.map((r) => {
+          updates.push({ id: r.id, selected });
+          return { ...r, selected };
+        }),
+      }))
+    );
+    if (!updates.length) return;
+    await fetch(`/api/requests/${uuid}/results`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates }),
     });
   };
 
@@ -320,9 +339,42 @@ export default function AdminRequestDetailPage() {
       {/* Margin controls + results table — visible as soon as there are items */}
       {items.length > 0 && (
         <>
-          {items.some((i) => i.search_results.length > 0) && (
-            <MarginControls onApplyGlobal={handleApplyGlobalMargin} />
-          )}
+          {items.some((i) => i.search_results.length > 0) && (() => {
+            const allResults = items.flatMap((i) => i.search_results);
+            const total = allResults.length;
+            const selectedCount = allResults.filter((r) => r.selected).length;
+            const allSelected = total > 0 && selectedCount === total;
+            return (
+              <div className="flex flex-wrap items-center gap-3">
+                <MarginControls onApplyGlobal={handleApplyGlobalMargin} />
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAll(true)}
+                    disabled={allSelected}
+                    className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
+                    title="Sélectionner tous les produits"
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    Tout sélectionner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAll(false)}
+                    disabled={selectedCount === 0}
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                    title="Désélectionner tous les produits"
+                  >
+                    <Square className="h-4 w-4" />
+                    Tout désélectionner
+                  </button>
+                  <span className="ml-1 text-xs font-medium text-slate-500">
+                    {selectedCount} / {total} sélectionné(s)
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           <ResultsTable
             items={items}
             requestId={uuid}
