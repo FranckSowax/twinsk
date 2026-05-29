@@ -226,29 +226,52 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
         </motion.button>
       </div>
 
-      {/* Cover */}
-      <div className="mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-white">
+      {/* Cover hero */}
+      <div className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
         {offer.cover_image_url ? (
-          <SmartImage
-            src={offer.cover_image_url}
-            alt={offer.title}
-            className="h-48 w-full object-cover sm:h-64"
-          />
+          <>
+            <SmartImage
+              src={offer.cover_image_url}
+              alt={offer.theme || offer.title}
+              className="h-64 w-full object-cover sm:h-80"
+            />
+            {/* Dark gradient overlay for legibility */}
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-900/20 to-slate-900/85" />
+          </>
         ) : (
-          <div className="flex h-32 items-center justify-center bg-gradient-to-br from-emerald-500/20 to-green-500/20">
-            <Sparkles className="h-12 w-12 text-emerald-500" />
+          <div className="relative h-56 w-full bg-gradient-to-br from-emerald-600 via-emerald-500 to-green-500 sm:h-72">
+            <div
+              aria-hidden
+              className="absolute inset-0 opacity-30"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 30% 30%, white 1px, transparent 0), radial-gradient(circle at 70% 60%, white 1px, transparent 0)',
+                backgroundSize: '40px 40px, 60px 60px',
+              }}
+            />
           </div>
         )}
-        <div className="p-6">
-          <h1 className="font-display text-3xl font-bold text-slate-900">{offer.title}</h1>
+
+        {/* Overlay content */}
+        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
           {offer.theme && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-lg">
               <Tag className="h-3 w-3" />
               {offer.theme}
             </span>
           )}
+          <h1 className="mt-3 font-display text-3xl font-bold uppercase tracking-tight text-white drop-shadow-lg sm:text-4xl lg:text-5xl">
+            {offer.theme || offer.title}
+          </h1>
+          {offer.theme && (
+            <p className="mt-1 text-base font-medium text-white/85 sm:text-lg">
+              {offer.title}
+            </p>
+          )}
           {offer.description && (
-            <p className="mt-3 text-slate-600">{offer.description}</p>
+            <p className="mt-3 max-w-2xl text-sm text-white/90 sm:text-base">
+              {offer.description}
+            </p>
           )}
         </div>
       </div>

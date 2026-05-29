@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
@@ -10,10 +10,13 @@ import {
   Copy,
   ExternalLink,
   FileJson,
+  ImageIcon,
   Loader2,
   Plus,
   Sparkles,
   Tag,
+  Trash2,
+  Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
@@ -91,6 +94,8 @@ export default function AdminOfferDetailPage() {
   const [themeDraft, setThemeDraft] = useState('');
   const [publicLinkCopied, setPublicLinkCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverFileRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     const [oRes, rRes] = await Promise.all([
@@ -193,6 +198,29 @@ export default function AdminOfferDetailPage() {
     await patchOffer({ status: next });
   };
 
+  const handleCoverFile = async (file: File) => {
+    setCoverUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.urls?.[0]) {
+        alert(data.error || 'Erreur upload');
+        return;
+      }
+      await patchOffer({ cover_image_url: data.urls[0] });
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const removeCover = async () => {
+    if (!offer?.cover_image_url) return;
+    if (!window.confirm('Retirer la cover de cette offre ?')) return;
+    await patchOffer({ cover_image_url: null });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -217,6 +245,93 @@ export default function AdminOfferDetailPage() {
         <ArrowLeft className="h-4 w-4" />
         Retour aux offres
       </Link>
+
+      {/* Cover image uploader */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+        {offer.cover_image_url ? (
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={offer.cover_image_url}
+              alt="Cover"
+              className="h-48 w-full object-cover sm:h-64"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+              <div>
+                {offer.theme && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/90 px-2.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
+                    <Tag className="h-3 w-3" />
+                    {offer.theme}
+                  </span>
+                )}
+                <p className="mt-1 font-display text-lg font-bold text-white drop-shadow sm:text-xl">
+                  {offer.title}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => coverFileRef.current?.click()}
+                  disabled={coverUploading}
+                  className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white disabled:opacity-60"
+                >
+                  {coverUploading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5" />
+                  )}
+                  Remplacer
+                </button>
+                <button
+                  type="button"
+                  onClick={removeCover}
+                  disabled={coverUploading}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600 disabled:opacity-60"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Retirer
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => coverFileRef.current?.click()}
+            disabled={coverUploading}
+            className="flex h-40 w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-700 transition-colors hover:from-emerald-100 hover:to-green-100 disabled:opacity-60 dark:from-emerald-900/20 dark:to-green-900/20"
+          >
+            {coverUploading ? (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="text-sm font-semibold">Envoi en cours…</span>
+              </>
+            ) : (
+              <>
+                <ImageIcon className="h-8 w-8" />
+                <span className="text-sm font-semibold">
+                  Ajouter une image de couverture
+                </span>
+                <span className="text-xs text-emerald-600/80">
+                  Sera affichée en haut de la page publique avec le thème
+                </span>
+              </>
+            )}
+          </button>
+        )}
+        <input
+          ref={coverFileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleCoverFile(f);
+            e.target.value = '';
+          }}
+        />
+      </div>
 
       {/* Header card */}
       <motion.div
