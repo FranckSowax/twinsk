@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2 } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
+import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
 import ManualResultModal from './ManualResultModal';
 import EditRequestItemModal from './EditRequestItemModal';
@@ -212,7 +213,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
             className="relative max-h-[90vh] max-w-[90vw]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={zoomImageUrl} alt="Zoom" className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl" />
+            <img src={proxyImageUrl(zoomImageUrl)} alt="Zoom" className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl" />
             <button
               type="button"
               onClick={() => setZoomImageUrl(null)}
@@ -235,7 +236,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
             >
               {item.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.image_url} alt="Image client" className="h-full w-full object-cover" />
+                <img src={proxyImageUrl(item.image_url)} alt="Image client" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30">
                   <FileText className="h-8 w-8 text-purple-500" />
@@ -400,7 +401,7 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                             <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={result.image_url}
+                                src={proxyImageUrl(result.image_url)}
                                 alt={result.title}
                                 className="h-full w-full object-cover"
                               />

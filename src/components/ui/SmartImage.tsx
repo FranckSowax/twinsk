@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { proxyImageUrl } from '@/lib/utils/imageProxy';
 
 interface SmartImageProps {
   src: string;
@@ -11,23 +12,28 @@ interface SmartImageProps {
 
 /**
  * Image component with automatic fallback to a secondary URL on error.
- * Used when main_image_url sometimes comes from a different CDN that fails,
- * while the thumbnail image_url still works.
+ * Routes hotlinking-protected CDNs (Alibaba/1688/Taobao) through the
+ * /api/img-proxy server route so the browser-side Referer doesn't get
+ * the request rejected.
  */
 export default function SmartImage({ src, fallbackSrc, alt, className }: SmartImageProps) {
-  const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc || '');
+  const initial = proxyImageUrl(src) || proxyImageUrl(fallbackSrc || '');
+  const [currentSrc, setCurrentSrc] = useState(initial);
   const [erroredOnce, setErroredOnce] = useState(false);
 
   // Reset when src changes
   useEffect(() => {
-    setCurrentSrc(src || fallbackSrc || '');
+    setCurrentSrc(proxyImageUrl(src) || proxyImageUrl(fallbackSrc || ''));
     setErroredOnce(false);
   }, [src, fallbackSrc]);
 
   const handleError = () => {
-    if (!erroredOnce && fallbackSrc && fallbackSrc !== currentSrc) {
-      setErroredOnce(true);
-      setCurrentSrc(fallbackSrc);
+    if (!erroredOnce && fallbackSrc) {
+      const fb = proxyImageUrl(fallbackSrc);
+      if (fb && fb !== currentSrc) {
+        setErroredOnce(true);
+        setCurrentSrc(fb);
+      }
     }
   };
 
