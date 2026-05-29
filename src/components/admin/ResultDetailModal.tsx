@@ -79,10 +79,10 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="my-8 w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
+            className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
           >
-            {/* Header with image(s) */}
-            <div className="relative">
+            {/* Header with image(s) — fixed at top */}
+            <div className="relative flex-shrink-0">
               {(() => {
                 const gallery = Array.from(
                   new Set(
@@ -133,8 +133,8 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
               </span>
             </div>
 
-            {/* Body */}
-            <div className="space-y-5 p-6">
+            {/* Body — scrolls when content exceeds viewport */}
+            <div className="space-y-5 overflow-y-auto p-6">
               {/* Title */}
               <div>
                 <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white">
