@@ -45,6 +45,9 @@ export async function GET(
       weight: number | null;
       volume: number | null;
       dimensions: string | null;
+      dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
+      has_battery: boolean | null;
+      info_manquante: string | null;
       client_quantity: number | null;
       client_selected: boolean | null;
       client_variant_id: string | null;
@@ -118,6 +121,9 @@ export async function GET(
               weight: r.weight,
               volume: r.volume,
               dimensions: r.dimensions,
+              dimensions_cm: r.dimensions_cm,
+              has_battery: !!r.has_battery,
+              info_manquante: r.info_manquante,
               client_quantity: r.client_quantity,
               client_selected: r.client_selected,
               client_variant_id: r.client_variant_id,

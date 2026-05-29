@@ -16,7 +16,10 @@ import { useRouter } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { formatCNY } from '@/lib/utils/formatCurrency';
+import { toMultiCurrency } from '@/lib/utils/formatCurrency';
+import { BatteryWarning, Info, Package, Ruler, Scale } from 'lucide-react';
+
+const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
 
 interface OfferVariant {
   id: string;
@@ -42,7 +45,9 @@ interface OfferProduct {
   weight: number | null;
   volume: number | null;
   dimensions: string | null;
+  dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
   has_battery: boolean;
+  info_manquante: string | null;
   seller: string | null;
   variants: OfferVariant[] | null;
 }
@@ -217,7 +222,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
           className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
         >
           <ShoppingBag className="h-4 w-4" />
-          {total.count > 0 ? `${total.count} · ${formatCNY(total.cny)}` : 'Panier'}
+          {total.count > 0 ? `${total.count} · ${formatFCFA(total.cny)}` : 'Panier'}
         </motion.button>
       </div>
 
@@ -283,6 +288,12 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                         alt={p.title}
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
                       />
+                      {p.has_battery && (
+                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg">
+                          <BatteryWarning className="h-2.5 w-2.5" />
+                          Batterie
+                        </span>
+                      )}
                       {lineCount > 0 && (
                         <span className="absolute right-2 top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-emerald-500 px-2 text-xs font-bold text-white shadow-lg">
                           {lineCount}
@@ -300,7 +311,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                       )}
                       <div className="mt-2 flex items-baseline justify-between">
                         <p className="text-base font-bold text-emerald-600">
-                          {formatCNY(p.price)}
+                          {formatFCFA(p.price)}
                         </p>
                         {p.moq != null && (
                           <p className="text-[10px] text-slate-500">MOQ {p.moq}</p>
@@ -362,12 +373,90 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                     activeProduct.price
                   }
                   variant="large"
+                  primary="XAF"
                 />
+
+                {activeProduct.has_battery && (
+                  <div className="flex items-start gap-2 rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 text-sm text-orange-800">
+                    <BatteryWarning className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <p className="font-bold">Produit avec batterie</p>
+                      <p className="text-xs text-orange-700">
+                        Contraintes de transport aérien (tarif majoré) et documents
+                        douaniers spécifiques.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {activeProduct.description && (
                   <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
                     {activeProduct.description}
                   </div>
+                )}
+
+                {/* Logistique */}
+                {(activeProduct.weight != null ||
+                  activeProduct.volume != null ||
+                  activeProduct.dimensions ||
+                  activeProduct.dimensions_cm) && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <Package className="h-3.5 w-3.5" />
+                      Logistique
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {activeProduct.weight != null && (
+                        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <Scale className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              Poids
+                            </p>
+                            <p className="font-medium text-slate-900">
+                              {activeProduct.weight} kg
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {activeProduct.volume != null && (
+                        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <Package className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              CBM
+                            </p>
+                            <p className="font-medium text-slate-900">
+                              {activeProduct.volume.toFixed(4)} m³
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {(activeProduct.dimensions || activeProduct.dimensions_cm) && (
+                        <div className="col-span-2 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <Ruler className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              Dimensions
+                            </p>
+                            <p className="font-medium text-slate-900">
+                              {activeProduct.dimensions ||
+                                (activeProduct.dimensions_cm
+                                  ? `${activeProduct.dimensions_cm.length ?? '?'}×${activeProduct.dimensions_cm.width ?? '?'}×${activeProduct.dimensions_cm.height ?? '?'} cm`
+                                  : '—')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeProduct.info_manquante && (
+                  <p className="flex items-start gap-1.5 text-xs italic text-slate-500">
+                    <Info className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                    À confirmer : {activeProduct.info_manquante}
+                  </p>
                 )}
 
                 {/* Variants */}
@@ -398,7 +487,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                                 {v.name}
                               </p>
                               {v.price != null && (
-                                <MultiCurrencyPrice amountCny={v.price} variant="stacked" />
+                                <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary="XAF" />
                               )}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -524,11 +613,11 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
-                            <p className="text-xs text-slate-500">{formatCNY(unit)} × {line.quantity}</p>
+                            <p className="text-xs text-slate-500">{formatFCFA(unit)} × {line.quantity}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <p className="text-sm font-bold text-emerald-600">
-                              {formatCNY(unit * line.quantity)}
+                              {formatFCFA(unit * line.quantity)}
                             </p>
                             <div className="flex items-center gap-1">
                               <button
@@ -562,7 +651,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {cartLines.length > 0 && (
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
                     <p className="text-sm font-semibold text-emerald-700">Total panier</p>
-                    <MultiCurrencyPrice amountCny={total.cny} variant="stacked" />
+                    <MultiCurrencyPrice amountCny={total.cny} variant="stacked" primary="XAF" />
                   </div>
                 )}
 

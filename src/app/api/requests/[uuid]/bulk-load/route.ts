@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { normalizeLogistics } from '@/lib/logistics';
 
 interface InVariant {
   id?: string;
@@ -23,8 +24,13 @@ interface InProduct {
   seller?: string;
   moq?: unknown;
   weight?: unknown;
+  weight_kg?: unknown;
   volume?: unknown;
+  cbm?: unknown;
   dimensions?: string;
+  dimensions_cm?: unknown;
+  has_battery?: unknown;
+  info_manquante?: unknown;
   quantity?: unknown;
   variants?: InVariant[];
 }
@@ -187,6 +193,7 @@ export async function POST(
         const variants = normalizeVariants(p.variants);
         const variantCount = variants ? variants.length : 0;
 
+        const logi = normalizeLogistics(p);
         rows.push({
           request_item_id: itemRow.id,
           source: 'manual',
@@ -205,9 +212,12 @@ export async function POST(
           quantity: intOrNull(p.quantity) ?? 1,
           margin_percent: 0,
           moq: intOrNull(p.moq),
-          weight: numOrNull(p.weight),
-          volume: numOrNull(p.volume),
-          dimensions: strOrNull(p.dimensions),
+          weight: logi.weight,
+          volume: logi.volume,
+          dimensions: logi.dimensions,
+          dimensions_cm: logi.dimensions_cm,
+          has_battery: logi.has_battery,
+          info_manquante: logi.info_manquante,
           client_quantity: null,
         });
         rowVariantCounts.push(variantCount);

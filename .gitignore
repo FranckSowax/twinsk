@@ -45,3 +45,4 @@ next-env.d.ts
 
 # OpenMemory - IDE/Assistant specific rules
 .windsurf/rules/openmemory.md
+.mcp.json

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Package, Scale, Box, Ruler, Tag } from 'lucide-react';
+import { X, Check, Package, Scale, Box, Ruler, Tag, BatteryWarning, Info } from 'lucide-react';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
@@ -32,6 +32,9 @@ export interface ProposalResult {
   client_quantity: number | null;
   client_selected: boolean | null;
   client_variant_id?: string | null;
+  has_battery?: boolean | null;
+  info_manquante?: string | null;
+  dimensions_cm?: { length?: number | null; width?: number | null; height?: number | null } | null;
   variants?: ProposalVariant[] | null;
 }
 
@@ -124,10 +127,29 @@ export default function ProposalDetailModal({
 
               <MultiCurrencyPrice amountCny={effectivePrice} variant="large" />
 
+              {result.has_battery && (
+                <div className="flex items-start gap-2 rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 text-sm text-orange-800 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300">
+                  <BatteryWarning className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <div>
+                    <p className="font-bold">Produit avec batterie</p>
+                    <p className="text-xs opacity-80">
+                      Contraintes transport aérien et douane spécifiques.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {result.description && (
                 <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
                   {result.description}
                 </div>
+              )}
+
+              {result.info_manquante && (
+                <p className="flex items-start gap-1.5 text-xs italic text-slate-500 dark:text-slate-400">
+                  <Info className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                  À confirmer : {result.info_manquante}
+                </p>
               )}
 
               <div className="grid grid-cols-2 gap-2">

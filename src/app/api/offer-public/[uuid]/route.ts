@@ -51,7 +51,9 @@ export async function GET(
     weight: number | null;
     volume: number | null;
     dimensions: string | null;
+    dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
     has_battery: boolean;
+    info_manquante: string | null;
     margin_percent: number;
     selected: boolean;
   };
@@ -95,7 +97,9 @@ export async function GET(
             weight: p.weight,
             volume: p.volume,
             dimensions: p.dimensions,
+            dimensions_cm: p.dimensions_cm,
             has_battery: p.has_battery,
+            info_manquante: p.info_manquante,
             seller: p.seller,
             product_url: p.product_url,
             variants: Array.isArray(p.variants)

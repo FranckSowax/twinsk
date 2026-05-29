@@ -31,6 +31,9 @@ interface RequestItemWithResults {
     image_url: string;
     main_image_url: string | null;
     extra_images: string[] | null;
+    has_battery: boolean | null;
+    info_manquante: string | null;
+    dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
     variants: {
       id: string;
       name: string;
