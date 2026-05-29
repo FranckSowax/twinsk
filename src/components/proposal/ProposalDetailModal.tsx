@@ -5,6 +5,17 @@ import { X, Check, Package, Scale, Box, Ruler, Tag } from 'lucide-react';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
+export interface ProposalVariant {
+  id: string;
+  name: string;
+  price: number | null; // already includes margin
+  moq: number | null;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+  capacity: string | null;
+}
+
 export interface ProposalResult {
   id: string;
   title: string;
@@ -20,6 +31,7 @@ export interface ProposalResult {
   dimensions: string | null;
   client_quantity: number | null;
   client_selected: boolean | null;
+  variants?: ProposalVariant[] | null;
 }
 
 interface ProposalDetailModalProps {
@@ -110,6 +122,42 @@ export default function ProposalDetailModal({
                   <InfoCard icon={Ruler} label="Dimensions" value={result.dimensions} />
                 )}
               </div>
+
+              {/* Variants */}
+              {result.variants && result.variants.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-800 dark:bg-amber-900/10">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                    Variantes disponibles ({result.variants.length})
+                  </p>
+                  <div className="space-y-2">
+                    {result.variants.map((v) => (
+                      <div
+                        key={v.id || v.name}
+                        className="rounded-xl border border-amber-200/60 bg-white p-3 text-sm dark:border-amber-800/40 dark:bg-slate-800"
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900 dark:text-white">
+                            {v.name}
+                          </p>
+                          {v.price != null && (
+                            <MultiCurrencyPrice amountCny={v.price} variant="stacked" />
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                          {v.moq != null && <span>MOQ : {v.moq}</span>}
+                          {v.capacity && <span>Capacité : {v.capacity}</span>}
+                          {v.weight != null && <span>Poids : {v.weight} kg</span>}
+                          {v.volume != null && <span>Volume : {v.volume} m³</span>}
+                          {v.dimensions && <span>Dim. : {v.dimensions}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                    Sélectionnez le produit puis précisez la variante souhaitée dans les notes.
+                  </p>
+                </div>
+              )}
 
               {/* Quantity input */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/30">

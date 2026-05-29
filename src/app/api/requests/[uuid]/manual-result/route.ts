@@ -29,6 +29,7 @@ export async function POST(
       volume,
       dimensions,
       quantity,
+      variants,
     } = body;
 
     // Normalize extra_images: only keep non-empty strings, drop duplicates with main image
@@ -38,6 +39,42 @@ export async function POST(
     const dedupedExtras = Array.from(
       new Set(extraImagesArr.filter((u) => u !== image_url))
     );
+
+    // Normalize variants: only keep entries with a non-empty name; coerce numerics.
+    type IncomingVariant = {
+      id?: string;
+      name?: string;
+      price?: unknown;
+      moq?: unknown;
+      weight?: unknown;
+      volume?: unknown;
+      dimensions?: unknown;
+      capacity?: unknown;
+    };
+    const numOrNull = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      return Number.isFinite(n) ? n : null;
+    };
+    const strOrNull = (v: unknown): string | null => {
+      if (typeof v !== 'string') return null;
+      const t = v.trim();
+      return t.length ? t : null;
+    };
+    const cleanedVariants = Array.isArray(variants)
+      ? (variants as IncomingVariant[])
+          .map((v) => ({
+            id: typeof v.id === 'string' && v.id ? v.id : `v_${Math.random().toString(36).slice(2, 10)}`,
+            name: typeof v.name === 'string' ? v.name.trim() : '',
+            price: numOrNull(v.price),
+            moq: numOrNull(v.moq),
+            weight: numOrNull(v.weight),
+            volume: numOrNull(v.volume),
+            dimensions: strOrNull(v.dimensions),
+            capacity: strOrNull(v.capacity),
+          }))
+          .filter((v) => v.name.length > 0)
+      : [];
 
     if (!request_item_id) {
       return NextResponse.json({ error: 'request_item_id requis' }, { status: 400 });
@@ -57,6 +94,7 @@ export async function POST(
       image_url: image_url || '',
       main_image_url: image_url || null,
       extra_images: dedupedExtras.length ? dedupedExtras : null,
+      variants: cleanedVariants.length ? cleanedVariants : null,
       seller: seller?.trim() || null,
       product_url: product_url?.trim() || '',
       selected: false,
@@ -80,6 +118,7 @@ export async function POST(
       image_url: insertData.image_url || undefined,
       main_image_url: insertData.main_image_url ?? undefined,
       extra_images: insertData.extra_images ?? undefined,
+      variants: insertData.variants ?? undefined,
       seller: insertData.seller ?? undefined,
       product_url: insertData.product_url || undefined,
       moq: insertData.moq ?? undefined,

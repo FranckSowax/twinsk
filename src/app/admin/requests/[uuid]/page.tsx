@@ -30,6 +30,16 @@ interface RequestItemWithResults {
     image_url: string;
     main_image_url: string | null;
     extra_images: string[] | null;
+    variants: {
+      id: string;
+      name: string;
+      price?: number | null;
+      moq?: number | null;
+      weight?: number | null;
+      volume?: number | null;
+      dimensions?: string | null;
+      capacity?: string | null;
+    }[] | null;
     seller: string | null;
     product_url: string;
     selected: boolean;

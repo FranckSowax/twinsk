@@ -1,24 +1,87 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Loader2, Plus, Image as ImageIcon, Trash2 } from 'lucide-react';
+import {
+  X,
+  Upload,
+  Loader2,
+  Plus,
+  Image as ImageIcon,
+  Trash2,
+  Save,
+  Layers,
+} from 'lucide-react';
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  price?: number | null;
+  moq?: number | null;
+  weight?: number | null;
+  volume?: number | null;
+  dimensions?: string | null;
+  capacity?: string | null;
+}
+
+export interface ExistingResult {
+  id: string;
+  title: string;
+  description: string | null;
+  price: number;
+  image_url: string;
+  main_image_url: string | null;
+  extra_images: string[] | null;
+  seller: string | null;
+  product_url: string;
+  moq: number | null;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+  quantity: number;
+  variants?: ProductVariant[] | null;
+}
 
 interface ManualResultModalProps {
   open: boolean;
   requestId: string;
   requestItemId: string;
+  // When provided, the modal switches to edit mode and pre-fills its fields.
+  existingResult?: ExistingResult | null;
   onClose: () => void;
   onCreated: () => void;
+}
+
+function makeVariantId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function emptyVariant(): ProductVariant {
+  return {
+    id: makeVariantId(),
+    name: '',
+    price: null,
+    moq: null,
+    weight: null,
+    volume: null,
+    dimensions: null,
+    capacity: null,
+  };
 }
 
 export default function ManualResultModal({
   open,
   requestId,
   requestItemId,
+  existingResult,
   onClose,
   onCreated,
 }: ManualResultModalProps) {
+  const isEdit = !!existingResult;
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -32,6 +95,7 @@ export default function ManualResultModal({
   const [volume, setVolume] = useState('');
   const [dimensions, setDimensions] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
 
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -39,25 +103,54 @@ export default function ManualResultModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extrasInputRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => {
-    setTitle('');
-    setDescription('');
-    setPrice('');
-    setImageUrl('');
-    setExtraImages([]);
-    setProductUrl('');
-    setSeller('');
-    setMoq('');
-    setWeight('');
-    setVolume('');
-    setDimensions('');
-    setQuantity('1');
-    setError('');
-  };
+  // Pre-fill or reset whenever existingResult changes / modal opens.
+  useEffect(() => {
+    if (!open) return;
+    if (existingResult) {
+      setTitle(existingResult.title || '');
+      setDescription(existingResult.description || '');
+      setPrice(
+        existingResult.price != null && existingResult.price !== 0
+          ? String(existingResult.price)
+          : ''
+      );
+      setImageUrl(existingResult.main_image_url || existingResult.image_url || '');
+      setExtraImages(existingResult.extra_images || []);
+      setProductUrl(existingResult.product_url || '');
+      setSeller(existingResult.seller || '');
+      setMoq(existingResult.moq != null ? String(existingResult.moq) : '');
+      setWeight(existingResult.weight != null ? String(existingResult.weight) : '');
+      setVolume(existingResult.volume != null ? String(existingResult.volume) : '');
+      setDimensions(existingResult.dimensions || '');
+      setQuantity(String(existingResult.quantity || 1));
+      setVariants(
+        (existingResult.variants || []).map((v) => ({
+          ...v,
+          id: v.id || makeVariantId(),
+        }))
+      );
+      setError('');
+    } else {
+      setTitle('');
+      setDescription('');
+      setPrice('');
+      setImageUrl('');
+      setExtraImages([]);
+      setProductUrl('');
+      setSeller('');
+      setMoq('');
+      setWeight('');
+      setVolume('');
+      setDimensions('');
+      setQuantity('1');
+      setVariants([]);
+      setError('');
+    }
+  }, [open, existingResult]);
 
   const handleClose = () => {
-    if (submitting || uploading) return;
-    reset();
+    if (submitting || uploading || extrasUploading) return;
+    setError('');
     onClose();
   };
 
@@ -101,6 +194,50 @@ export default function ManualResultModal({
     setExtraImages((prev) => prev.filter((u) => u !== url));
   };
 
+  const updateVariant = (id: string, patch: Partial<ProductVariant>) => {
+    setVariants((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, ...patch } : v))
+    );
+  };
+  const removeVariant = (id: string) => {
+    setVariants((prev) => prev.filter((v) => v.id !== id));
+  };
+  const addVariant = () => {
+    setVariants((prev) => [...prev, emptyVariant()]);
+  };
+
+  // Build a clean variants array for the API (drop empties, coerce numbers, strip local fields).
+  const cleanVariantsForApi = (): ProductVariant[] => {
+    return variants
+      .map((v) => {
+        const name = (v.name || '').trim();
+        const cleaned: ProductVariant = {
+          id: v.id,
+          name,
+          price:
+            v.price != null && v.price !== ('' as unknown as number)
+              ? Number(v.price)
+              : null,
+          moq:
+            v.moq != null && v.moq !== ('' as unknown as number)
+              ? Number(v.moq)
+              : null,
+          weight:
+            v.weight != null && v.weight !== ('' as unknown as number)
+              ? Number(v.weight)
+              : null,
+          volume:
+            v.volume != null && v.volume !== ('' as unknown as number)
+              ? Number(v.volume)
+              : null,
+          dimensions: (v.dimensions || '').trim() || null,
+          capacity: (v.capacity || '').trim() || null,
+        };
+        return cleaned;
+      })
+      .filter((v) => v.name.length > 0);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -110,32 +247,81 @@ export default function ManualResultModal({
       return;
     }
 
+    const cleanedVariants = cleanVariantsForApi();
+    // Reject named-but-incomplete only if user typed names with no values? — keep permissive.
+    // Reject duplicate variant names to avoid client-side confusion.
+    const seenNames = new Set<string>();
+    for (const v of cleanedVariants) {
+      const key = v.name.toLowerCase();
+      if (seenNames.has(key)) {
+        setError(`Variante en double: "${v.name}"`);
+        return;
+      }
+      seenNames.add(key);
+    }
+
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/manual-result`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request_item_id: requestItemId,
-          title,
-          description,
-          price,
-          image_url: imageUrl,
-          extra_images: extraImages,
-          product_url: productUrl,
-          seller,
-          moq,
-          weight,
-          volume,
-          dimensions,
-          quantity,
-        }),
-      });
+      if (isEdit && existingResult) {
+        // EDIT mode: PATCH /results with a single update entry.
+        const res = await fetch(`/api/requests/${requestId}/results`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            updates: [
+              {
+                id: existingResult.id,
+                title: title.trim(),
+                description: description.trim() || null,
+                price:
+                  price !== ''
+                    ? Number(price)
+                    : existingResult.price ?? 0,
+                image_url: imageUrl || '',
+                main_image_url: imageUrl || null,
+                extra_images: extraImages.length ? extraImages : null,
+                product_url: productUrl.trim() || '',
+                seller: seller.trim() || null,
+                moq: moq !== '' ? Number(moq) : null,
+                weight: weight !== '' ? Number(weight) : null,
+                volume: volume !== '' ? Number(volume) : null,
+                dimensions: dimensions.trim() || null,
+                quantity: quantity !== '' ? Math.max(1, Number(quantity)) : 1,
+                variants: cleanedVariants.length ? cleanedVariants : null,
+              },
+            ],
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Erreur mise à jour');
+        }
+      } else {
+        // CREATE mode
+        const res = await fetch(`/api/requests/${requestId}/manual-result`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_item_id: requestItemId,
+            title,
+            description,
+            price,
+            image_url: imageUrl,
+            extra_images: extraImages,
+            product_url: productUrl,
+            seller,
+            moq,
+            weight,
+            volume,
+            dimensions,
+            quantity,
+            variants: cleanedVariants,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur création');
+      }
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur création');
-
-      reset();
       onCreated();
       onClose();
     } catch (err) {
@@ -147,6 +333,8 @@ export default function ManualResultModal({
 
   const inputClass =
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500';
+  const tinyInputClass =
+    'w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200';
 
   return (
     <AnimatePresence>
@@ -170,7 +358,7 @@ export default function ManualResultModal({
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
                 <h2 className="font-display text-lg font-bold text-slate-900 dark:text-white">
-                  Ajouter un produit manuellement
+                  {isEdit ? 'Modifier le produit' : 'Ajouter un produit manuellement'}
                 </h2>
                 <button
                   type="button"
@@ -325,7 +513,7 @@ export default function ManualResultModal({
                   />
                 </div>
 
-                {/* Price + Quantity + Seller */}
+                {/* Price + Quantity + MOQ */}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -440,6 +628,177 @@ export default function ManualResultModal({
                   />
                 </div>
 
+                {/* Variants */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/30">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <Layers className="h-3.5 w-3.5" />
+                      Variantes
+                      {variants.length > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                          {variants.length}
+                        </span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addVariant}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                    >
+                      <Plus className="h-3 w-3" /> Ajouter une variante
+                    </button>
+                  </div>
+
+                  {variants.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-center text-xs text-slate-400 dark:border-slate-600 dark:bg-slate-800">
+                      Aucune variante — utilisez « Ajouter une variante » pour
+                      proposer plusieurs options (prix, dimensions, capacité…).
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {variants.map((v) => (
+                        <div
+                          key={v.id}
+                          className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-600 dark:bg-slate-800"
+                        >
+                          <div className="mb-2 flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={v.name}
+                              onChange={(e) =>
+                                updateVariant(v.id, { name: e.target.value })
+                              }
+                              placeholder="Nom (ex: Petit, 1L, Rouge)"
+                              className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeVariant(v.id)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-500 hover:bg-red-50 dark:border-red-800 dark:bg-slate-700 dark:text-red-400"
+                              title="Supprimer la variante"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Prix (CNY)
+                              </span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={v.price ?? ''}
+                                onChange={(e) =>
+                                  updateVariant(v.id, {
+                                    price:
+                                      e.target.value === ''
+                                        ? null
+                                        : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="—"
+                                className={tinyInputClass}
+                              />
+                            </div>
+                            <div>
+                              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                MOQ
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={v.moq ?? ''}
+                                onChange={(e) =>
+                                  updateVariant(v.id, {
+                                    moq:
+                                      e.target.value === ''
+                                        ? null
+                                        : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="—"
+                                className={tinyInputClass}
+                              />
+                            </div>
+                            <div>
+                              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Capacité
+                              </span>
+                              <input
+                                type="text"
+                                value={v.capacity ?? ''}
+                                onChange={(e) =>
+                                  updateVariant(v.id, { capacity: e.target.value })
+                                }
+                                placeholder="500ml"
+                                className={tinyInputClass}
+                              />
+                            </div>
+                            <div>
+                              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Poids (kg)
+                              </span>
+                              <input
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                value={v.weight ?? ''}
+                                onChange={(e) =>
+                                  updateVariant(v.id, {
+                                    weight:
+                                      e.target.value === ''
+                                        ? null
+                                        : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="—"
+                                className={tinyInputClass}
+                              />
+                            </div>
+                            <div>
+                              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Volume (m³)
+                              </span>
+                              <input
+                                type="number"
+                                step="0.0001"
+                                min="0"
+                                value={v.volume ?? ''}
+                                onChange={(e) =>
+                                  updateVariant(v.id, {
+                                    volume:
+                                      e.target.value === ''
+                                        ? null
+                                        : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="—"
+                                className={tinyInputClass}
+                              />
+                            </div>
+                            <div>
+                              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Dimensions
+                              </span>
+                              <input
+                                type="text"
+                                value={v.dimensions ?? ''}
+                                onChange={(e) =>
+                                  updateVariant(v.id, { dimensions: e.target.value })
+                                }
+                                placeholder="30x20x15 cm"
+                                className={tinyInputClass}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {error && (
                   <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
                     {error}
@@ -459,7 +818,7 @@ export default function ManualResultModal({
                 </button>
                 <motion.button
                   type="submit"
-                  disabled={submitting || uploading}
+                  disabled={submitting || uploading || extrasUploading}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
@@ -467,7 +826,12 @@ export default function ManualResultModal({
                   {submitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Création...
+                      {isEdit ? 'Enregistrement…' : 'Création…'}
+                    </>
+                  ) : isEdit ? (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Enregistrer
                     </>
                   ) : (
                     <>

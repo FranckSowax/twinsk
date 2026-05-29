@@ -20,6 +20,16 @@ interface SearchResultRow {
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;
+  variants: {
+    id: string;
+    name: string;
+    price?: number | null;
+    moq?: number | null;
+    weight?: number | null;
+    volume?: number | null;
+    dimensions?: string | null;
+    capacity?: string | null;
+  }[] | null;
   seller: string | null;
   product_url: string;
   selected: boolean;
@@ -68,6 +78,9 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [activeResult, setActiveResult] = useState<SearchResultRow | null>(null);
   const [manualModalItemId, setManualModalItemId] = useState<string | null>(null);
+  const [editingResult, setEditingResult] = useState<
+    { requestItemId: string; result: SearchResultRow } | null
+  >(null);
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<RequestItemWithResults | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -137,10 +150,34 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
       onToggleSelect={handleToggleSelect}
     />
     <ManualResultModal
-      open={!!manualModalItemId}
+      open={!!manualModalItemId || !!editingResult}
       requestId={requestId}
-      requestItemId={manualModalItemId || ''}
-      onClose={() => setManualModalItemId(null)}
+      requestItemId={editingResult?.requestItemId || manualModalItemId || ''}
+      existingResult={
+        editingResult
+          ? {
+              id: editingResult.result.id,
+              title: editingResult.result.title,
+              description: editingResult.result.description,
+              price: editingResult.result.price,
+              image_url: editingResult.result.image_url,
+              main_image_url: editingResult.result.main_image_url,
+              extra_images: editingResult.result.extra_images,
+              seller: editingResult.result.seller,
+              product_url: editingResult.result.product_url,
+              moq: editingResult.result.moq,
+              weight: editingResult.result.weight,
+              volume: editingResult.result.volume,
+              dimensions: editingResult.result.dimensions,
+              quantity: editingResult.result.quantity,
+              variants: editingResult.result.variants,
+            }
+          : null
+      }
+      onClose={() => {
+        setManualModalItemId(null);
+        setEditingResult(null);
+      }}
       onCreated={onRefresh}
     />
     <EditRequestItemModal
@@ -495,16 +532,33 @@ export default function ResultsTable({ items, requestId, onUpdate, onRefresh }: 
                         {formatCNY(applyMargin(result.price, result.margin_percent) * result.quantity)}
                       </td>
 
-                      {/* Link */}
+                      {/* Actions */}
                       <td className="px-2 py-3">
-                        <a
-                          href={result.product_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-slate-400 hover:text-amber-500"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
+                        <div className="flex items-center justify-end gap-1">
+                          {result.source === 'manual' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEditingResult({ requestItemId: item.id, result })
+                              }
+                              className="text-slate-400 hover:text-amber-500"
+                              title="Modifier ce produit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {result.product_url && (
+                            <a
+                              href={result.product_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-400 hover:text-amber-500"
+                              title="Ouvrir l'URL du produit"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                   ))}

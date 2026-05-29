@@ -47,6 +47,18 @@ export async function GET(
       dimensions: string | null;
       client_quantity: number | null;
       client_selected: boolean | null;
+      variants:
+        | {
+            id?: string;
+            name?: string;
+            price?: number | null;
+            moq?: number | null;
+            weight?: number | null;
+            volume?: number | null;
+            dimensions?: string | null;
+            capacity?: string | null;
+          }[]
+        | null;
     }
     interface NoteRow {
       id: string;
@@ -107,6 +119,26 @@ export async function GET(
               dimensions: r.dimensions,
               client_quantity: r.client_quantity,
               client_selected: r.client_selected,
+              // Variants: apply the same margin to each variant price so the
+              // client sees consistent pricing.
+              variants:
+                Array.isArray(r.variants) && r.variants.length
+                  ? r.variants
+                      .filter((v) => v && typeof v.name === 'string' && v.name.trim().length)
+                      .map((v) => ({
+                        id: v.id || '',
+                        name: (v.name || '').trim(),
+                        price:
+                          v.price != null
+                            ? v.price * (1 + (r.margin_percent || 0) / 100)
+                            : null,
+                        moq: v.moq ?? null,
+                        weight: v.weight ?? null,
+                        volume: v.volume ?? null,
+                        dimensions: v.dimensions ?? null,
+                        capacity: v.capacity ?? null,
+                      }))
+                  : null,
             };
           }),
       }))

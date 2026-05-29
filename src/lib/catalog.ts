@@ -24,6 +24,7 @@ export async function upsertCatalog(entry: {
   image_url?: string | null;
   main_image_url?: string | null;
   extra_images?: string[] | null;
+  variants?: unknown | null;
   seller?: string | null;
   product_url?: string | null;
   moq?: number | null;
@@ -55,6 +56,9 @@ export async function upsertCatalog(entry: {
           ...(entry.image_url ? { image_url: entry.image_url } : {}),
           ...(entry.main_image_url ? { main_image_url: entry.main_image_url } : {}),
           ...(entry.extra_images?.length ? { extra_images: entry.extra_images } : {}),
+          ...(Array.isArray(entry.variants) && entry.variants.length
+            ? { variants: entry.variants }
+            : {}),
         })
         .eq('id', existing.id)
         .select()
@@ -81,6 +85,8 @@ export async function upsertCatalog(entry: {
         image_url: entry.image_url || null,
         main_image_url: entry.main_image_url || null,
         extra_images: entry.extra_images?.length ? entry.extra_images : null,
+        variants:
+          Array.isArray(entry.variants) && entry.variants.length ? entry.variants : null,
         seller: entry.seller || null,
         product_url: entry.product_url || null,
         moq: entry.moq ?? null,
