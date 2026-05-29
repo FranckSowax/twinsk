@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
@@ -11,6 +11,7 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
+import BulkImportModal from '@/components/admin/BulkImportModal';
 import type { Request as RequestType, DocumentType } from '@/lib/types/database';
 
 interface RequestItemWithResults {
@@ -62,6 +63,7 @@ export default function AdminRequestDetailPage() {
   const [generating, setGenerating] = useState(false);
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [proposalLinkCopied, setProposalLinkCopied] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -257,6 +259,17 @@ export default function AdminRequestDetailPage() {
           <Plus className="h-5 w-5" />
           Ajouter un article
         </motion.button>
+        <motion.button
+          type="button"
+          onClick={() => setBulkImportOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50 px-6 py-3 font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-300"
+          title="Importer un JSON de catégories + produits + variantes"
+        >
+          <FileJson className="h-5 w-5" />
+          Importer JSON
+        </motion.button>
       </div>
 
       {/* Progress bar */}
@@ -294,6 +307,13 @@ export default function AdminRequestDetailPage() {
         requestId={uuid}
         onClose={() => setAddItemOpen(false)}
         onCreated={loadData}
+      />
+
+      <BulkImportModal
+        open={bulkImportOpen}
+        requestId={uuid}
+        onClose={() => setBulkImportOpen(false)}
+        onImported={loadData}
       />
 
       {/* Margin controls + results table — visible as soon as there are items */}
