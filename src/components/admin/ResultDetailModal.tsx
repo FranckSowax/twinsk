@@ -39,6 +39,7 @@ interface SearchResultRow {
   dimensions: string | null;
   client_quantity: number | null;
   client_selected: boolean | null;
+  client_variant_id: string | null;
 }
 
 interface ResultDetailModalProps {
@@ -258,9 +259,14 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-700/30">
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                         Variantes ({result.variants.length})
+                        {result.client_variant_id && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                            <Check className="h-2.5 w-2.5" /> Client a choisi
+                          </span>
+                        )}
                       </p>
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[420px] text-left text-xs">
+                        <table className="w-full min-w-[440px] text-left text-xs">
                           <thead>
                             <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                               <th className="px-2 py-1.5">Variante</th>
@@ -273,23 +279,34 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                            {result.variants.map((v) => (
-                              <tr key={v.id} className="text-slate-700 dark:text-slate-200">
-                                <td className="px-2 py-1.5 font-semibold">{v.name}</td>
-                                <td className="px-2 py-1.5">
-                                  {v.price != null ? formatCNY(v.price) : '—'}
-                                </td>
-                                <td className="px-2 py-1.5">{v.moq ?? '—'}</td>
-                                <td className="px-2 py-1.5">{v.capacity || '—'}</td>
-                                <td className="px-2 py-1.5">
-                                  {v.weight != null ? `${v.weight} kg` : '—'}
-                                </td>
-                                <td className="px-2 py-1.5">
-                                  {v.volume != null ? `${v.volume} m³` : '—'}
-                                </td>
-                                <td className="px-2 py-1.5">{v.dimensions || '—'}</td>
-                              </tr>
-                            ))}
+                            {result.variants.map((v) => {
+                              const picked = v.id === result.client_variant_id;
+                              return (
+                                <tr
+                                  key={v.id}
+                                  className={`${picked ? 'bg-green-50 text-slate-800 dark:bg-green-900/20 dark:text-slate-100' : 'text-slate-700 dark:text-slate-200'}`}
+                                >
+                                  <td className="px-2 py-1.5 font-semibold">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      {picked && <Check className="h-3 w-3 text-green-600 dark:text-green-400" />}
+                                      {v.name}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {v.price != null ? formatCNY(v.price) : '—'}
+                                  </td>
+                                  <td className="px-2 py-1.5">{v.moq ?? '—'}</td>
+                                  <td className="px-2 py-1.5">{v.capacity || '—'}</td>
+                                  <td className="px-2 py-1.5">
+                                    {v.weight != null ? `${v.weight} kg` : '—'}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {v.volume != null ? `${v.volume} m³` : '—'}
+                                  </td>
+                                  <td className="px-2 py-1.5">{v.dimensions || '—'}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

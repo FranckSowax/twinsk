@@ -43,13 +43,16 @@ type ViewMode = 'grid' | 'table';
 
 export default function ProposalView({ requestId, clientName, createdAt, items }: ProposalViewProps) {
   // Local pick state
-  const [picks, setPicks] = useState<Record<string, { selected: boolean; quantity: number }>>(() => {
-    const init: Record<string, { selected: boolean; quantity: number }> = {};
+  const [picks, setPicks] = useState<
+    Record<string, { selected: boolean; quantity: number; variantId: string | null }>
+  >(() => {
+    const init: Record<string, { selected: boolean; quantity: number; variantId: string | null }> = {};
     items.forEach((item) => {
       item.results.forEach((r) => {
         init[r.id] = {
           selected: r.client_selected === true,
           quantity: r.client_quantity ?? r.quantity ?? 1,
+          variantId: r.client_variant_id ?? null,
         };
       });
     });
@@ -74,29 +77,43 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
   const [addError, setAddError] = useState('');
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const handleTogglePick = (id: string, selected: boolean) => {
-    setPicks((prev) => ({ ...prev, [id]: { ...prev[id], selected } }));
+  const handleTogglePick = (id: string, selected: boolean, variantId?: string | null) => {
+    setPicks((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        selected,
+        variantId: variantId !== undefined ? variantId : prev[id]?.variantId ?? null,
+      },
+    }));
   };
 
   const handleQtyChange = (id: string, quantity: number) => {
     setPicks((prev) => ({ ...prev, [id]: { ...prev[id], quantity } }));
   };
 
+  const handleVariantChange = (id: string, variantId: string | null) => {
+    setPicks((prev) => ({ ...prev, [id]: { ...prev[id], variantId } }));
+  };
+
   const handleNoteChange = (itemId: string, value: string) => {
     setNotes((prev) => ({ ...prev, [itemId]: value }));
   };
 
-  // Aggregated totals
+  // Aggregated totals — respect the chosen variant price when set
   const totals = useMemo(() => {
     let total = 0;
     let count = 0;
     items.forEach((item) => {
       item.results.forEach((r) => {
         const p = picks[r.id];
-        if (p?.selected) {
-          total += r.price * (p.quantity || 1);
-          count++;
-        }
+        if (!p?.selected) return;
+        const variant = p.variantId
+          ? r.variants?.find((v) => v.id === p.variantId)
+          : null;
+        const unit = variant && variant.price != null ? variant.price : r.price;
+        total += unit * (p.quantity || 1);
+        count++;
       });
     });
     return { total, count };
@@ -126,6 +143,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
           result_id,
           client_selected: p.selected,
           client_quantity: p.quantity,
+          client_variant_id: p.selected ? p.variantId ?? null : null,
         })),
         notes: Object.entries(notes).map(([item_id, note]) => ({ item_id, note })),
       };
@@ -161,13 +179,18 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                   ...live,
                   client_selected: picks[live.id]?.selected ?? false,
                   client_quantity: picks[live.id]?.quantity ?? live.quantity,
+                  client_variant_id: picks[live.id]?.variantId ?? null,
                 };
               })()
             : null
         }
+        selectedVariantId={
+          activeResult ? picks[activeResult.id]?.variantId ?? null : null
+        }
         onClose={() => setActiveResult(null)}
         onToggleSelect={handleTogglePick}
         onQuantityChange={handleQtyChange}
+        onVariantChange={handleVariantChange}
       />
 
       <AddMoreItemsModal
@@ -324,6 +347,14 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                       const pick = picks[result.id];
                       const selected = pick?.selected ?? false;
                       const qty = pick?.quantity ?? result.quantity ?? 1;
+                      const chosenVar = pick?.variantId
+                        ? result.variants?.find((v) => v.id === pick.variantId) || null
+                        : null;
+                      const unitPrice =
+                        chosenVar && chosenVar.price != null
+                          ? chosenVar.price
+                          : result.price;
+                      const hasVar = !!result.variants && result.variants.length > 0;
                       return (
                         <motion.button
                           type="button"
@@ -364,10 +395,19 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                             >
                               {result.title}
                             </p>
+                            {chosenVar ? (
+                              <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                {chosenVar.name}
+                              </span>
+                            ) : hasVar ? (
+                              <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                {result.variants!.length} variantes
+                              </span>
+                            ) : null}
                             <div className="mt-2">
                               <div className="flex items-baseline justify-between gap-2">
                                 <p className="text-base font-bold text-amber-500">
-                                  {formatCNY(result.price)}
+                                  {formatCNY(unitPrice)}
                                 </p>
                                 {selected && (
                                   <p className="text-xs font-semibold text-green-600 dark:text-green-400">
@@ -376,7 +416,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                                 )}
                               </div>
                               <p className="mt-0.5 text-[10px] text-slate-500">
-                                {toMultiCurrency(result.price).formatted.xaf}
+                                {toMultiCurrency(unitPrice).formatted.xaf}
                               </p>
                             </div>
                             {result.moq != null && (
@@ -404,6 +444,14 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                           const pick = picks[result.id];
                           const selected = pick?.selected ?? false;
                           const qty = pick?.quantity ?? result.quantity ?? 1;
+                          const chosenVar = pick?.variantId
+                            ? result.variants?.find((v) => v.id === pick.variantId) || null
+                            : null;
+                          const unitPrice =
+                            chosenVar && chosenVar.price != null
+                              ? chosenVar.price
+                              : result.price;
+                          const hasVar = !!result.variants && result.variants.length > 0;
                           return (
                             <tr
                               key={result.id}
@@ -435,24 +483,35 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
                                       className="h-full w-full object-cover"
                                     />
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <p className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-white">
-                                      {result.title}
-                                    </p>
-                                    {result.client_selected === null && (
-                                      <span className="flex-shrink-0 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                                        Nouveau
+                                  <div className="min-w-0 flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-white">
+                                        {result.title}
+                                      </p>
+                                      {result.client_selected === null && (
+                                        <span className="flex-shrink-0 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                                          Nouveau
+                                        </span>
+                                      )}
+                                    </div>
+                                    {chosenVar ? (
+                                      <span className="inline-flex w-fit items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                        {chosenVar.name}
                                       </span>
-                                    )}
+                                    ) : hasVar ? (
+                                      <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                        {result.variants!.length} variantes
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                               </td>
                               <td className="px-2 py-3 text-right">
                                 <div className="text-sm font-bold text-amber-500">
-                                  {formatCNY(result.price)}
+                                  {formatCNY(unitPrice)}
                                 </div>
                                 <div className="text-[10px] text-slate-500">
-                                  {toMultiCurrency(result.price).formatted.xaf}
+                                  {toMultiCurrency(unitPrice).formatted.xaf}
                                 </div>
                               </td>
                               <td className="px-2 py-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">

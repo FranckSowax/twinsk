@@ -59,6 +59,11 @@ export async function POST(
         const qty = Number(pick.client_quantity);
         if (!isNaN(qty) && qty >= 0) updateFields.client_quantity = qty;
       }
+      // Variant chosen by the client (NULL = base product).
+      if (Object.prototype.hasOwnProperty.call(pick, 'client_variant_id')) {
+        const v = pick.client_variant_id;
+        updateFields.client_variant_id = typeof v === 'string' && v.length ? v : null;
+      }
 
       if (Object.keys(updateFields).length > 0) {
         await supabaseAdmin

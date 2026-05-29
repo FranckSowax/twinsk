@@ -42,6 +42,7 @@ interface SearchResultRow {
   dimensions: string | null;
   client_quantity: number | null;
   client_selected: boolean | null;
+  client_variant_id: string | null;
 }
 
 interface RequestItemWithResults {

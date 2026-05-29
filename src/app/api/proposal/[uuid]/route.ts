@@ -47,6 +47,7 @@ export async function GET(
       dimensions: string | null;
       client_quantity: number | null;
       client_selected: boolean | null;
+      client_variant_id: string | null;
       variants:
         | {
             id?: string;
@@ -119,6 +120,7 @@ export async function GET(
               dimensions: r.dimensions,
               client_quantity: r.client_quantity,
               client_selected: r.client_selected,
+              client_variant_id: r.client_variant_id,
               // Variants: apply the same margin to each variant price so the
               // client sees consistent pricing.
               variants:

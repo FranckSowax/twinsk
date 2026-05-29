@@ -31,23 +31,39 @@ export interface ProposalResult {
   dimensions: string | null;
   client_quantity: number | null;
   client_selected: boolean | null;
+  client_variant_id?: string | null;
   variants?: ProposalVariant[] | null;
 }
 
 interface ProposalDetailModalProps {
   result: ProposalResult | null;
+  selectedVariantId?: string | null;
   onClose: () => void;
-  onToggleSelect: (id: string, selected: boolean) => void;
+  onToggleSelect: (id: string, selected: boolean, variantId?: string | null) => void;
   onQuantityChange: (id: string, qty: number) => void;
+  onVariantChange?: (id: string, variantId: string | null) => void;
 }
 
 export default function ProposalDetailModal({
   result,
+  selectedVariantId,
   onClose,
   onToggleSelect,
   onQuantityChange,
+  onVariantChange,
 }: ProposalDetailModalProps) {
   const isSelected = result?.client_selected === true;
+  const hasVariants = !!result?.variants && result.variants.length > 0;
+  // Resolve the chosen variant from the explicit prop OR fallback to persisted value
+  const chosenVariantId = selectedVariantId ?? result?.client_variant_id ?? null;
+  const chosenVariant = hasVariants && chosenVariantId
+    ? result?.variants?.find((v) => v.id === chosenVariantId) || null
+    : null;
+  // Effective price: variant price if a variant is chosen and provides one, else base price
+  const effectivePrice =
+    chosenVariant && chosenVariant.price != null
+      ? chosenVariant.price
+      : result?.price ?? 0;
   const effectiveQty = result?.client_quantity ?? result?.quantity ?? 1;
 
   return (
@@ -100,7 +116,13 @@ export default function ProposalDetailModal({
                 {result.title}
               </h2>
 
-              <MultiCurrencyPrice amountCny={result.price} variant="large" />
+              {chosenVariant && (
+                <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  Variante choisie : {chosenVariant.name}
+                </div>
+              )}
+
+              <MultiCurrencyPrice amountCny={effectivePrice} variant="large" />
 
               {result.description && (
                 <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
@@ -123,39 +145,56 @@ export default function ProposalDetailModal({
                 )}
               </div>
 
-              {/* Variants */}
-              {result.variants && result.variants.length > 0 && (
+              {/* Variants — selectable */}
+              {hasVariants && result.variants && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-800 dark:bg-amber-900/10">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                    Variantes disponibles ({result.variants.length})
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                    Choisissez une variante ({result.variants.length} disponible{result.variants.length > 1 ? 's' : ''})
                   </p>
                   <div className="space-y-2">
-                    {result.variants.map((v) => (
-                      <div
-                        key={v.id || v.name}
-                        className="rounded-xl border border-amber-200/60 bg-white p-3 text-sm dark:border-amber-800/40 dark:bg-slate-800"
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <p className="font-semibold text-slate-900 dark:text-white">
-                            {v.name}
-                          </p>
-                          {v.price != null && (
-                            <MultiCurrencyPrice amountCny={v.price} variant="stacked" />
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                          {v.moq != null && <span>MOQ : {v.moq}</span>}
-                          {v.capacity && <span>Capacité : {v.capacity}</span>}
-                          {v.weight != null && <span>Poids : {v.weight} kg</span>}
-                          {v.volume != null && <span>Volume : {v.volume} m³</span>}
-                          {v.dimensions && <span>Dim. : {v.dimensions}</span>}
-                        </div>
-                      </div>
-                    ))}
+                    {result.variants.map((v) => {
+                      const active = v.id === chosenVariantId;
+                      return (
+                        <button
+                          key={v.id || v.name}
+                          type="button"
+                          onClick={() => {
+                            if (!onVariantChange) return;
+                            onVariantChange(result.id, active ? null : v.id);
+                          }}
+                          className={`block w-full rounded-xl border-2 p-3 text-left text-sm transition-all ${
+                            active
+                              ? 'border-amber-500 bg-amber-100 shadow-sm ring-2 ring-amber-200 dark:border-amber-400 dark:bg-amber-900/30 dark:ring-amber-800'
+                              : 'border-amber-200/60 bg-white hover:border-amber-400 hover:bg-amber-50 dark:border-amber-800/40 dark:bg-slate-800 dark:hover:bg-amber-900/20'
+                          }`}
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                              {active && (
+                                <Check className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                              )}
+                              {v.name}
+                            </p>
+                            {v.price != null && (
+                              <MultiCurrencyPrice amountCny={v.price} variant="stacked" />
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                            {v.moq != null && <span>MOQ : {v.moq}</span>}
+                            {v.capacity && <span>Capacité : {v.capacity}</span>}
+                            {v.weight != null && <span>Poids : {v.weight} kg</span>}
+                            {v.volume != null && <span>Volume : {v.volume} m³</span>}
+                            {v.dimensions && <span>Dim. : {v.dimensions}</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <p className="mt-3 text-[11px] text-amber-700/80 dark:text-amber-300/80">
-                    Sélectionnez le produit puis précisez la variante souhaitée dans les notes.
-                  </p>
+                  {!chosenVariantId && (
+                    <p className="mt-3 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                      Sélectionnez d&apos;abord la variante souhaitée pour valider le produit.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -192,31 +231,49 @@ export default function ProposalDetailModal({
                   <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     Total pour cette quantité
                   </p>
-                  <MultiCurrencyPrice amountCny={result.price * effectiveQty} variant="stacked" />
+                  <MultiCurrencyPrice amountCny={effectivePrice * effectiveQty} variant="stacked" />
                 </div>
               </div>
 
               {/* Select action */}
-              <motion.button
-                type="button"
-                onClick={() => onToggleSelect(result.id, !isSelected)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-semibold transition-colors ${
-                  isSelected
-                    ? 'bg-green-500 text-white shadow-lg shadow-green-500/25 hover:bg-green-600'
-                    : 'border-2 border-amber-400 bg-white text-amber-700 hover:bg-amber-50 dark:bg-slate-700 dark:text-amber-300'
-                }`}
-              >
-                {isSelected ? (
-                  <>
-                    <Check className="h-5 w-5" />
-                    Choisi — cliquer pour désélectionner
-                  </>
-                ) : (
-                  <>Choisir ce produit</>
-                )}
-              </motion.button>
+              {(() => {
+                const needsVariant = hasVariants && !chosenVariantId;
+                const disabled = !isSelected && needsVariant;
+                return (
+                  <motion.button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return;
+                      onToggleSelect(result.id, !isSelected, chosenVariantId ?? null);
+                    }}
+                    whileHover={disabled ? undefined : { scale: 1.02 }}
+                    whileTap={disabled ? undefined : { scale: 0.98 }}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-semibold transition-colors ${
+                      disabled
+                        ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'
+                        : isSelected
+                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/25 hover:bg-green-600'
+                          : 'border-2 border-amber-400 bg-white text-amber-700 hover:bg-amber-50 dark:bg-slate-700 dark:text-amber-300'
+                    }`}
+                  >
+                    {disabled ? (
+                      <>Choisissez d&apos;abord une variante</>
+                    ) : isSelected ? (
+                      <>
+                        <Check className="h-5 w-5" />
+                        {chosenVariant
+                          ? `Choisi (${chosenVariant.name}) — cliquer pour désélectionner`
+                          : 'Choisi — cliquer pour désélectionner'}
+                      </>
+                    ) : chosenVariant ? (
+                      <>Choisir la variante « {chosenVariant.name} »</>
+                    ) : (
+                      <>Choisir ce produit</>
+                    )}
+                  </motion.button>
+                );
+              })()}
             </div>
           </motion.div>
         </motion.div>
