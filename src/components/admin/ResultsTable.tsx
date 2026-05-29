@@ -19,6 +19,7 @@ interface SearchResultRow {
   price: number;
   image_url: string;
   main_image_url: string | null;
+  extra_images: string[] | null;
   seller: string | null;
   product_url: string;
   selected: boolean;

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink, Check, Tag, Package, Scale, Box, Ruler, Store, Globe, Phone, Mail, MessageCircle } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import SmartImage from '@/components/ui/SmartImage';
+import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 interface SearchResultRow {
@@ -16,6 +17,7 @@ interface SearchResultRow {
   price: number;
   image_url: string;
   main_image_url: string | null;
+  extra_images: string[] | null;
   seller: string | null;
   product_url: string;
   selected: boolean;
@@ -68,22 +70,38 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
             onClick={(e) => e.stopPropagation()}
             className="my-8 w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
           >
-            {/* Header with image */}
+            {/* Header with image(s) */}
             <div className="relative">
-              <div className="aspect-square w-full bg-slate-100 dark:bg-slate-900 sm:aspect-[16/10]">
-                {result.image_url || result.main_image_url ? (
-                  <SmartImage
-                    src={result.main_image_url || result.image_url}
-                    fallbackSrc={result.image_url}
-                    alt={result.title}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30">
-                    <span className="text-6xl">🏭</span>
+              {(() => {
+                const gallery = Array.from(
+                  new Set(
+                    [
+                      result.main_image_url,
+                      result.image_url,
+                      ...(result.extra_images || []),
+                    ].filter((u): u is string => typeof u === 'string' && u.length > 0)
+                  )
+                );
+                if (gallery.length > 1) {
+                  return <ImageGallery images={gallery} alt={result.title} />;
+                }
+                return (
+                  <div className="aspect-square w-full bg-slate-100 dark:bg-slate-900 sm:aspect-[16/10]">
+                    {gallery.length === 1 ? (
+                      <SmartImage
+                        src={gallery[0]}
+                        fallbackSrc={result.image_url}
+                        alt={result.title}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30">
+                        <span className="text-6xl">🏭</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Close button */}
               <button

@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Loader2, Plus, Image as ImageIcon } from 'lucide-react';
+import { X, Upload, Loader2, Plus, Image as ImageIcon, Trash2 } from 'lucide-react';
 
 interface ManualResultModalProps {
   open: boolean;
@@ -23,6 +23,8 @@ export default function ManualResultModal({
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [extraImages, setExtraImages] = useState<string[]>([]);
+  const [extrasUploading, setExtrasUploading] = useState(false);
   const [productUrl, setProductUrl] = useState('');
   const [seller, setSeller] = useState('');
   const [moq, setMoq] = useState('');
@@ -35,12 +37,14 @@ export default function ManualResultModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const extrasInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setTitle('');
     setDescription('');
     setPrice('');
     setImageUrl('');
+    setExtraImages([]);
     setProductUrl('');
     setSeller('');
     setMoq('');
@@ -74,6 +78,29 @@ export default function ManualResultModal({
     }
   };
 
+  const handleExtrasUpload = async (files: FileList) => {
+    if (!files.length) return;
+    setExtrasUploading(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((f) => formData.append('files', f));
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload échoué');
+      const newUrls = (data.urls || []) as string[];
+      setExtraImages((prev) => Array.from(new Set([...prev, ...newUrls])));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur upload');
+    } finally {
+      setExtrasUploading(false);
+    }
+  };
+
+  const removeExtra = (url: string) => {
+    setExtraImages((prev) => prev.filter((u) => u !== url));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -94,6 +121,7 @@ export default function ManualResultModal({
           description,
           price,
           image_url: imageUrl,
+          extra_images: extraImages,
           product_url: productUrl,
           seller,
           moq,
@@ -200,6 +228,72 @@ export default function ManualResultModal({
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Extra images (multi-upload) */}
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Photos supplémentaires
+                      {extraImages.length > 0 && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                          {extraImages.length}
+                        </span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => extrasInputRef.current?.click()}
+                      disabled={extrasUploading}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                    >
+                      {extrasUploading ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" /> Envoi…
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3 w-3" /> Ajouter
+                        </>
+                      )}
+                    </button>
+                    <input
+                      ref={extrasInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files) handleExtrasUpload(e.target.files);
+                        e.target.value = '';
+                      }}
+                    />
+                  </div>
+                  {extraImages.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                      {extraImages.map((url) => (
+                        <div
+                          key={url}
+                          className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700/50"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt="extra" className="h-full w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeExtra(url)}
+                            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/90 text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100 hover:bg-red-600"
+                            title="Retirer"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs text-slate-400 dark:border-slate-700 dark:bg-slate-700/30">
+                      Aucune photo supplémentaire — utilisez « Ajouter » pour téléverser plusieurs images.
+                    </p>
+                  )}
                 </div>
 
                 {/* Title */}

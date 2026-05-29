@@ -21,6 +21,7 @@ export async function POST(
       description,
       price,
       image_url,
+      extra_images,
       product_url,
       seller,
       moq,
@@ -29,6 +30,14 @@ export async function POST(
       dimensions,
       quantity,
     } = body;
+
+    // Normalize extra_images: only keep non-empty strings, drop duplicates with main image
+    const extraImagesArr: string[] = Array.isArray(extra_images)
+      ? extra_images.filter((u: unknown): u is string => typeof u === 'string' && u.trim().length > 0)
+      : [];
+    const dedupedExtras = Array.from(
+      new Set(extraImagesArr.filter((u) => u !== image_url))
+    );
 
     if (!request_item_id) {
       return NextResponse.json({ error: 'request_item_id requis' }, { status: 400 });
@@ -47,6 +56,7 @@ export async function POST(
       price: typeof price === 'number' ? price : parseFloat(price) || 0,
       image_url: image_url || '',
       main_image_url: image_url || null,
+      extra_images: dedupedExtras.length ? dedupedExtras : null,
       seller: seller?.trim() || null,
       product_url: product_url?.trim() || '',
       selected: false,
@@ -69,6 +79,7 @@ export async function POST(
       price: insertData.price,
       image_url: insertData.image_url || undefined,
       main_image_url: insertData.main_image_url ?? undefined,
+      extra_images: insertData.extra_images ?? undefined,
       seller: insertData.seller ?? undefined,
       product_url: insertData.product_url || undefined,
       moq: insertData.moq ?? undefined,
