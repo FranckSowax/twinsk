@@ -72,7 +72,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [addOpen, setAddOpen] = useState(false);
   const [addError, setAddError] = useState('');
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
