@@ -87,7 +87,7 @@ export async function GET(
       .map((item) => ({
         id: item.id,
         image_url: item.image_url,
-        description: item.description,
+        description: sanitizeForPublic(item.description) || null,
         client_note: item.client_note,
         notes: (item.item_notes || []).map((n) => ({
           id: n.id,
