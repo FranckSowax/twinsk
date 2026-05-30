@@ -18,7 +18,7 @@ import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { toMultiCurrency } from '@/lib/utils/formatCurrency';
 import { shortenTitle } from '@/lib/utils/shortenTitle';
-import { BatteryWarning, Info, Package, Ruler, Scale } from 'lucide-react';
+import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale } from 'lucide-react';
 
 const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
 
@@ -86,6 +86,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
     string | null
   >(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -214,17 +215,46 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             </span>
           )}
         </div>
-        <motion.button
-          type="button"
-          onClick={() => setCheckoutOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          disabled={!cartLines.length}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
-        >
-          <ShoppingBag className="h-4 w-4" />
-          {total.count > 0 ? `${total.count} · ${formatFCFA(total.cny)}` : 'Panier'}
-        </motion.button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              title="Vue liste"
+              className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <ListIcon className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              title="Vue grille"
+              className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
+          <motion.button
+            type="button"
+            onClick={() => setCheckoutOpen(true)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            disabled={!cartLines.length}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            {total.count > 0 ? `${total.count} · ${formatFCFA(total.cny)}` : 'Panier'}
+          </motion.button>
+        </div>
       </div>
 
       {/* Cover hero */}
@@ -289,66 +319,135 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {item.products.length} produit(s) disponible(s)
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {item.products.map((p) => {
-                const lineCount = Object.values(cart).filter((l) => l.productId === p.id).length;
-                const hasVariants = !!p.variants && p.variants.length > 0;
-                return (
-                  <motion.button
-                    type="button"
-                    key={p.id}
-                    layout
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => openProduct(p)}
-                    className={`group relative flex flex-col overflow-hidden rounded-2xl border-2 bg-white text-left transition-all hover:border-emerald-400 ${
-                      lineCount > 0 ? 'border-emerald-500 shadow-lg shadow-emerald-500/10' : 'border-slate-200'
-                    }`}
-                  >
-                    <div className="relative aspect-square w-full overflow-hidden bg-slate-100">
-                      <SmartImage
-                        src={p.image_url}
-                        fallbackSrc={p.thumbnail_url}
-                        alt={p.title}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      {p.has_battery && (
-                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg">
-                          <BatteryWarning className="h-2.5 w-2.5" />
-                          Batterie
-                        </span>
-                      )}
-                      {lineCount > 0 && (
-                        <span className="absolute right-2 top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-emerald-500 px-2 text-xs font-bold text-white shadow-lg">
-                          {lineCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-1 flex-col p-3">
-                      <p
-                        className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-900"
-                        title={p.title}
-                      >
-                        {shortenTitle(p.title)}
-                      </p>
-                      {hasVariants && (
-                        <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          {p.variants!.length} variantes
-                        </span>
-                      )}
-                      <div className="mt-2 flex items-baseline justify-between">
-                        <p className="text-base font-bold text-emerald-600">
-                          {formatFCFA(p.price)}
-                        </p>
-                        {p.moq != null && (
-                          <p className="text-[10px] text-slate-500">MOQ {p.moq}</p>
+            {viewMode === 'grid' ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {item.products.map((p) => {
+                  const lineCount = Object.values(cart).filter((l) => l.productId === p.id).length;
+                  const hasVariants = !!p.variants && p.variants.length > 0;
+                  return (
+                    <motion.button
+                      type="button"
+                      key={p.id}
+                      layout
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => openProduct(p)}
+                      className={`group relative flex flex-col overflow-hidden rounded-2xl border-2 bg-white text-left transition-all hover:border-emerald-400 ${
+                        lineCount > 0 ? 'border-emerald-500 shadow-lg shadow-emerald-500/10' : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="relative aspect-square w-full overflow-hidden bg-slate-100">
+                        <SmartImage
+                          src={p.image_url}
+                          fallbackSrc={p.thumbnail_url}
+                          alt={p.title}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        />
+                        {p.has_battery && (
+                          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg">
+                            <BatteryWarning className="h-2.5 w-2.5" />
+                            Batterie
+                          </span>
+                        )}
+                        {lineCount > 0 && (
+                          <span className="absolute right-2 top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-emerald-500 px-2 text-xs font-bold text-white shadow-lg">
+                            {lineCount}
+                          </span>
                         )}
                       </div>
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
+                      <div className="flex flex-1 flex-col p-3">
+                        <p
+                          className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-900"
+                          title={p.title}
+                        >
+                          {shortenTitle(p.title)}
+                        </p>
+                        {hasVariants && (
+                          <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                            {p.variants!.length} variantes
+                          </span>
+                        )}
+                        <div className="mt-2 flex items-baseline justify-between">
+                          <p className="text-base font-bold text-emerald-600">
+                            {formatFCFA(p.price)}
+                          </p>
+                          {p.moq != null && (
+                            <p className="text-[10px] text-slate-500">MOQ {p.moq}</p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <ul className="divide-y divide-slate-100">
+                  {item.products.map((p) => {
+                    const lineCount = Object.values(cart).filter((l) => l.productId === p.id).length;
+                    const hasVariants = !!p.variants && p.variants.length > 0;
+                    return (
+                      <li key={p.id}>
+                        <motion.button
+                          type="button"
+                          layout
+                          whileTap={{ scale: 0.995 }}
+                          onClick={() => openProduct(p)}
+                          className={`flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-emerald-50 ${
+                            lineCount > 0 ? 'bg-emerald-50/40' : 'bg-white'
+                          }`}
+                        >
+                          <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                            <SmartImage
+                              src={p.image_url}
+                              fallbackSrc={p.thumbnail_url}
+                              alt={p.title}
+                              className="h-full w-full object-cover"
+                            />
+                            {lineCount > 0 && (
+                              <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white shadow">
+                                {lineCount}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p
+                                className="line-clamp-1 text-sm font-semibold text-slate-900"
+                                title={p.title}
+                              >
+                                {shortenTitle(p.title)}
+                              </p>
+                              {p.has_battery && (
+                                <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-orange-700">
+                                  <BatteryWarning className="h-2.5 w-2.5" />
+                                  Batterie
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                              {hasVariants && (
+                                <span className="font-semibold text-slate-700">{p.variants!.length} variantes</span>
+                              )}
+                              {p.moq != null && <span>MOQ {p.moq}</span>}
+                              {p.weight != null && <span>{p.weight} kg</span>}
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            <p className="text-sm font-bold text-emerald-600">
+                              {formatFCFA(p.price)}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-emerald-600/70">
+                              Voir détails →
+                            </p>
+                          </div>
+                        </motion.button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </section>
         ))}
       </div>
