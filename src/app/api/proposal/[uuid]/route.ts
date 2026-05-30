@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { sanitizeForPublic } from '@/lib/utils/shortenTitle';
 
 // GET: Public endpoint — returns the proposal (selected products grouped by request item)
 // Only exposes what the client should see (no product URLs, no seller for 1688/taobao source)
@@ -109,8 +110,8 @@ export async function GET(
             if (r.image_url && !gallery.includes(r.image_url)) gallery.push(r.image_url);
             return {
               id: r.id,
-              title: r.title,
-              description: r.description,
+              title: sanitizeForPublic(r.title),
+              description: sanitizeForPublic(r.description) || null,
               image_url: r.main_image_url || r.image_url,
               thumbnail_url: r.image_url,
               gallery,
@@ -135,7 +136,7 @@ export async function GET(
                       .filter((v) => v && typeof v.name === 'string' && v.name.trim().length)
                       .map((v) => ({
                         id: v.id || '',
-                        name: (v.name || '').trim(),
+                        name: sanitizeForPublic(v.name),
                         price:
                           v.price != null
                             ? v.price * (1 + (r.margin_percent || 0) / 100)

@@ -3,6 +3,7 @@
 // Server Component on Railway where localhost:port is unreliable.
 
 import { supabaseAdmin } from './supabase/server';
+import { sanitizeForPublic } from './utils/shortenTitle';
 
 interface RawProduct {
   id: string;
@@ -101,7 +102,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
     .map((item) => ({
       id: item.id,
       image_url: item.image_url,
-      description: item.description,
+      description: sanitizeForPublic(item.description) || null,
       products: (item.offer_products || [])
         .filter((p) => p.selected)
         .map((p) => {
@@ -118,9 +119,9 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
           const priceWithMargin = p.price * (1 + margin / 100);
           return {
             id: p.id,
-            title: p.title,
-            title_original: p.title_original,
-            description: p.description,
+            title: sanitizeForPublic(p.title),
+            title_original: null, // never expose the source-language title to the customer
+            description: sanitizeForPublic(p.description) || null,
             image_url: p.main_image_url || p.image_url,
             thumbnail_url: p.image_url,
             gallery,
@@ -131,9 +132,9 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             dimensions: p.dimensions,
             dimensions_cm: p.dimensions_cm,
             has_battery: !!p.has_battery,
-            info_manquante: p.info_manquante,
-            seller: p.seller,
-            product_url: p.product_url,
+            info_manquante: sanitizeForPublic(p.info_manquante) || null,
+            seller: null, // hide supplier name from the public offer
+            product_url: '',
             variants: Array.isArray(p.variants)
               ? (p.variants as unknown[])
                   .map((v) => {
@@ -149,7 +150,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
                     };
                     return {
                       id: vo.id || '',
-                      name: (vo.name || '').trim(),
+                      name: sanitizeForPublic(vo.name),
                       price:
                         vo.price != null ? vo.price * (1 + margin / 100) : null,
                       moq: vo.moq ?? null,
@@ -169,9 +170,9 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
   return {
     offer: {
       id: offer.id,
-      title: offer.title,
-      theme: offer.theme,
-      description: offer.description,
+      title: sanitizeForPublic(offer.title),
+      theme: sanitizeForPublic(offer.theme) || null,
+      description: sanitizeForPublic(offer.description) || null,
       cover_image_url: offer.cover_image_url,
     },
     items: publicItems,

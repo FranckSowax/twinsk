@@ -17,6 +17,7 @@ import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { toMultiCurrency } from '@/lib/utils/formatCurrency';
+import { shortenTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, Package, Ruler, Scale } from 'lucide-react';
 
 const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
@@ -324,8 +325,11 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                       )}
                     </div>
                     <div className="flex flex-1 flex-col p-3">
-                      <p className="line-clamp-2 min-h-[2.5rem] text-sm font-medium text-slate-900">
-                        {p.title}
+                      <p
+                        className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-900"
+                        title={p.title}
+                      >
+                        {shortenTitle(p.title)}
                       </p>
                       {hasVariants && (
                         <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
@@ -632,7 +636,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-slate-900">{p.title}</p>
+                            <p className="truncate text-sm font-semibold text-slate-900" title={p.title}>{shortenTitle(p.title)}</p>
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
