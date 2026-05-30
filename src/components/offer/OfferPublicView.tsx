@@ -360,7 +360,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                           className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-900"
                           title={p.title}
                         >
-                          {shortenTitle(p.title)}
+                          {shortenTitle(p.title, 5)}
                         </p>
                         {hasVariants && (
                           <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">

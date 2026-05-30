@@ -30,12 +30,12 @@ export function sanitizeForPublic(input: string | null | undefined): string {
 // "Sac à main classique cuir véritable noir 35cm, double anse zip" becomes
 // "Sac à main classique cuir…".
 // Limits to a max number of words and appends an ellipsis if truncated.
-export function shortenTitle(input: string | null | undefined, maxWords = 5): string {
+export function shortenTitle(input: string | null | undefined, maxWords = 3): string {
   if (!input || typeof input !== 'string') return '';
   const cleaned = sanitizeForPublic(input);
   if (!cleaned) return '';
-  // Cut at the first major punctuation
-  const cut = cleaned.split(/[,.;:—–\-(]/)[0].trim();
+  // Cut at the first major punctuation (incl. French / smart quotes)
+  const cut = cleaned.split(/[,.;:—–\-(«»"'’]/)[0].trim();
   if (!cut) return cleaned;
   const words = cut.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) return cut;
