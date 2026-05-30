@@ -45,15 +45,23 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
       return;
     }
 
-    if (!items.length) {
-      setError('Veuillez ajouter au moins un article (photo ou texte)');
+    // Drop totally empty items (auto-created blank that the user never filled)
+    const filledItems = items.filter(
+      (it) => (it.url && it.url.length > 0) || it.description.trim().length > 0,
+    );
+    if (!filledItems.length) {
+      setError('Décrivez au moins un produit (texte ou photo)');
       return;
     }
 
-    // Validate text-only items have a description
-    const invalidTextItem = items.find((it) => it.type === 'text' && !it.description.trim());
-    if (invalidTextItem) {
-      setError('Chaque article texte doit avoir une description');
+    // Every remaining item must have at least a photo OR a description.
+    // (The filter above already guarantees this, but we keep the explicit
+    // check for items partially filled with whitespace only.)
+    const invalidItem = filledItems.find(
+      (it) => !it.url && !it.description.trim(),
+    );
+    if (invalidItem) {
+      setError('Chaque produit doit avoir une description ou une photo');
       return;
     }
 
@@ -79,7 +87,7 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((it) => ({
+          items: filledItems.map((it) => ({
             image_url: it.url || null,
             description: it.description.trim() || null,
           })),

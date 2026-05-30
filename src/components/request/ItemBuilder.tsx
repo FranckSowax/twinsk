@@ -48,6 +48,18 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
   const [listText, setListText] = useState('');
   const [listPreview, setListPreview] = useState<string[] | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const initialized = useRef(false);
+
+  // Auto-create an empty first item at mount so the customer can start typing
+  // their description immediately. Photo upload becomes an inline option per
+  // item, not a precondition.
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    if (items.length === 0) {
+      onChange([{ id: newId(), type: 'text', description: '' }]);
+    }
+  }, [items, onChange]);
 
   const uploadFiles = useCallback(
     async (files: File[]) => {
@@ -147,6 +159,51 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
 
   const handleCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) uploadFiles(Array.from(e.target.files));
+  };
+
+  // Add a photo to a specific existing item (instead of creating a new item).
+  const handleAddPhotoToItem = (itemId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+      setUploading(true);
+      setProgressMsg('Upload de la photo…');
+      try {
+        const formData = new FormData();
+        formData.append('files', file);
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.urls?.[0]) {
+          alert(data.error || 'Erreur upload');
+          return;
+        }
+        onChange(
+          items.map((it) =>
+            it.id === itemId
+              ? { ...it, url: data.urls[0] as string, type: 'image' as const }
+              : it,
+          ),
+        );
+      } finally {
+        setUploading(false);
+        setProgressMsg('');
+      }
+    };
+    input.click();
+  };
+
+  const removePhotoFromItem = (itemId: string) => {
+    onChange(
+      items.map((it) =>
+        it.id === itemId
+          ? { ...it, url: undefined, type: 'text' as const }
+          : it,
+      ),
+    );
   };
 
   const addTextItem = () => {
@@ -341,19 +398,37 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="flex gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4 dark:border-slate-700 dark:bg-slate-800"
+            className="group flex gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4 dark:border-slate-700 dark:bg-slate-800"
           >
-            {/* Thumbnail or text icon */}
+            {/* Thumbnail (image present) OR inline "+ Photo" call-to-action */}
             <div className="relative h-20 w-20 flex-shrink-0 sm:h-24 sm:w-24">
-              {item.type === 'image' && item.url ? (
-                <div className="h-full w-full overflow-hidden rounded-xl">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.url} alt={`Article ${index + 1}`} className="h-full w-full object-cover" />
-                </div>
+              {item.url ? (
+                <>
+                  <div className="h-full w-full overflow-hidden rounded-xl">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.url} alt={`Article ${index + 1}`} className="h-full w-full object-cover" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removePhotoFromItem(item.id)}
+                    disabled={uploading}
+                    className="absolute bottom-0.5 left-0.5 right-0.5 rounded-md bg-slate-900/75 px-1 py-0.5 text-[9px] font-semibold text-white opacity-0 transition-opacity hover:bg-slate-900 group-hover:opacity-100"
+                    title="Retirer la photo"
+                  >
+                    Retirer
+                  </button>
+                </>
               ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30">
-                  <FileText className="h-8 w-8 text-purple-500" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddPhotoToItem(item.id)}
+                  disabled={uploading}
+                  className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-700 transition-colors hover:border-amber-400 hover:from-amber-100 hover:to-orange-100 disabled:opacity-60 dark:from-amber-900/20 dark:to-orange-900/20"
+                  title="Ajouter une photo à cet article"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-[10px] font-semibold leading-tight">+ Photo</span>
+                </button>
               )}
 
               <span className="absolute -left-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white shadow">
@@ -373,19 +448,30 @@ export default function ItemBuilder({ items, onChange }: ItemBuilderProps) {
             {/* Description */}
             <div className="flex-1 min-w-0">
               <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
-                {item.type === 'image' ? 'Description (optionnelle)' : 'Description du produit *'}
+                {item.url ? 'Description (optionnelle)' : 'Description du produit *'}
               </label>
               <textarea
                 value={item.description}
                 onChange={(e) => updateDescription(item.id, e.target.value)}
                 placeholder={
-                  item.type === 'image'
+                  item.url
                     ? 'Ex: Quantité souhaitée, taille, couleur...'
                     : 'Ex: 100 pcs de stylos bleus avec logo personnalisé...'
                 }
-                rows={item.type === 'text' ? 3 : 2}
+                rows={item.url ? 2 : 3}
                 className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500"
               />
+              {!item.url && (
+                <button
+                  type="button"
+                  onClick={() => handleAddPhotoToItem(item.id)}
+                  disabled={uploading}
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 disabled:opacity-50"
+                >
+                  <ImagePlus className="h-3 w-3" />
+                  Ajouter une photo (si dispo)
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
