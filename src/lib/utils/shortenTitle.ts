@@ -41,3 +41,19 @@ export function shortenTitle(input: string | null | undefined, maxWords = 3): st
   if (words.length <= maxWords) return cut;
   return words.slice(0, maxWords).join(' ') + '…';
 }
+
+// Split a category description like "Titre court — Longue note explicative"
+// into { short, rest }. If no em-dash separator is found, returns the whole
+// thing as short. Used by /offer to render a tight bold headline + optional
+// small subtitle.
+export function splitCategoryTitle(input: string | null | undefined): { short: string; rest: string } {
+  if (!input || typeof input !== 'string') return { short: '', rest: '' };
+  const cleaned = sanitizeForPublic(input);
+  if (!cleaned) return { short: '', rest: '' };
+  // Match " — " / " – " / " - " (em, en, hyphen) as separator
+  const m = cleaned.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+  if (m) {
+    return { short: m[1].trim(), rest: m[2].trim() };
+  }
+  return { short: cleaned, rest: '' };
+}

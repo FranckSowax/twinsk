@@ -17,7 +17,7 @@ import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { toMultiCurrency } from '@/lib/utils/formatCurrency';
-import { shortenTitle } from '@/lib/utils/shortenTitle';
+import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale } from 'lucide-react';
 
 const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
@@ -309,13 +309,20 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
 
       {/* Categories */}
       <div className="space-y-10">
-        {items.map((item) => (
+        {items.map((item) => {
+          const { short: catShort, rest: catRest } = splitCategoryTitle(item.description);
+          return (
           <section key={item.id}>
             <div className="mb-4">
               <h2 className="font-display text-xl font-bold text-slate-900">
-                {item.description || 'Produits'}
+                {catShort || 'Produits'}
               </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              {catRest && (
+                <p className="mt-1 line-clamp-2 max-w-3xl text-sm text-slate-500">
+                  {catRest}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-400">
                 {item.products.length} produit(s) disponible(s)
               </p>
             </div>
@@ -449,7 +456,8 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
               </div>
             )}
           </section>
-        ))}
+          );
+        })}
       </div>
 
       {/* Product modal */}
