@@ -2,7 +2,7 @@
 
 import { toMultiCurrency } from '@/lib/utils/formatCurrency';
 
-type Currency = 'CNY' | 'XAF';
+type Currency = 'CNY' | 'USD' | 'EUR' | 'XAF';
 
 interface MultiCurrencyPriceProps {
   amountCny: number;
@@ -11,16 +11,19 @@ interface MultiCurrencyPriceProps {
   className?: string;
 }
 
+const ORDER: Currency[] = ['CNY', 'USD', 'EUR', 'XAF'];
+
+const HEAD_COLOR: Record<Currency, string> = {
+  CNY: 'text-amber-500',
+  USD: 'text-blue-600',
+  EUR: 'text-indigo-600',
+  XAF: 'text-emerald-600',
+};
+
 /**
- * Display a CNY price converted to USD, EUR and XAF.
- *
- * - stacked: CNY big, others small below (default, for modals)
- * - inline: compact horizontal row (for cards/tables)
- * - large: XL CNY + bold conversions (for hero price display)
- *
- * primary='XAF' inverts the hierarchy so FCFA is shown as the main amount and
- * CNY becomes a small "≈" hint. Used on /offer public where the customer
- * thinks in FCFA.
+ * Display a CNY base price converted to all 4 supported currencies (CNY, USD,
+ * EUR, XAF). The `primary` prop controls which currency is shown big as the
+ * headline; the others appear smaller as conversion hints.
  */
 export default function MultiCurrencyPrice({
   amountCny,
@@ -29,12 +32,15 @@ export default function MultiCurrencyPrice({
   className = '',
 }: MultiCurrencyPriceProps) {
   const p = toMultiCurrency(amountCny);
-  const isXafFirst = primary === 'XAF';
-  const head = isXafFirst ? p.formatted.xaf : p.formatted.cny;
-  const headColor = isXafFirst ? 'text-emerald-600' : 'text-amber-500';
-  const secondaries = isXafFirst
-    ? [p.formatted.cny, p.formatted.usd, p.formatted.eur]
-    : [p.formatted.usd, p.formatted.eur, p.formatted.xaf];
+  const formatted: Record<Currency, string> = {
+    CNY: p.formatted.cny,
+    USD: p.formatted.usd,
+    EUR: p.formatted.eur,
+    XAF: p.formatted.xaf,
+  };
+  const head = formatted[primary];
+  const headColor = HEAD_COLOR[primary];
+  const secondaries = ORDER.filter((c) => c !== primary).map((c) => formatted[c]);
 
   if (variant === 'inline') {
     return (

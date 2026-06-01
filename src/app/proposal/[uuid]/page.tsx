@@ -28,6 +28,7 @@ interface ProposalData {
     client_name: string;
     status: string;
     created_at: string;
+    proposal_currency?: 'CNY' | 'USD' | 'EUR' | 'XAF';
   };
   items: ProposalItem[];
 }
@@ -109,6 +110,7 @@ export default function ProposalPage() {
         clientName={data.request.client_name || 'Cher client'}
         createdAt={data.request.created_at}
         items={data.items}
+        proposalCurrency={data.request.proposal_currency || 'CNY'}
       />
     </div>
   );

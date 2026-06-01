@@ -41,6 +41,7 @@ export interface ProposalResult {
 interface ProposalDetailModalProps {
   result: ProposalResult | null;
   selectedVariantId?: string | null;
+  primaryCurrency?: 'CNY' | 'USD' | 'EUR' | 'XAF';
   onClose: () => void;
   onToggleSelect: (id: string, selected: boolean, variantId?: string | null) => void;
   onQuantityChange: (id: string, qty: number) => void;
@@ -50,6 +51,7 @@ interface ProposalDetailModalProps {
 export default function ProposalDetailModal({
   result,
   selectedVariantId,
+  primaryCurrency = 'CNY',
   onClose,
   onToggleSelect,
   onQuantityChange,
@@ -125,7 +127,7 @@ export default function ProposalDetailModal({
                 </div>
               )}
 
-              <MultiCurrencyPrice amountCny={effectivePrice} variant="large" />
+              <MultiCurrencyPrice amountCny={effectivePrice} variant="large" primary={primaryCurrency} />
 
               {result.has_battery && (
                 <div className="flex items-start gap-2 rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 text-sm text-orange-800 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300">
@@ -198,7 +200,7 @@ export default function ProposalDetailModal({
                               {v.name}
                             </p>
                             {v.price != null && (
-                              <MultiCurrencyPrice amountCny={v.price} variant="stacked" />
+                              <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={primaryCurrency} />
                             )}
                           </div>
                           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
@@ -253,7 +255,7 @@ export default function ProposalDetailModal({
                   <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     Total pour cette quantité
                   </p>
-                  <MultiCurrencyPrice amountCny={effectivePrice * effectiveQty} variant="stacked" />
+                  <MultiCurrencyPrice amountCny={effectivePrice * effectiveQty} variant="stacked" primary={primaryCurrency} />
                 </div>
               </div>
 

@@ -37,11 +37,12 @@ interface ProposalViewProps {
   clientName: string;
   createdAt: string;
   items: ProposalItem[];
+  proposalCurrency?: 'CNY' | 'USD' | 'EUR' | 'XAF';
 }
 
 type ViewMode = 'grid' | 'table';
 
-export default function ProposalView({ requestId, clientName, createdAt, items }: ProposalViewProps) {
+export default function ProposalView({ requestId, clientName, createdAt, items, proposalCurrency = 'CNY' }: ProposalViewProps) {
   // Local pick state
   const [picks, setPicks] = useState<
     Record<string, { selected: boolean; quantity: number; variantId: string | null }>
@@ -187,6 +188,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
         selectedVariantId={
           activeResult ? picks[activeResult.id]?.variantId ?? null : null
         }
+        primaryCurrency={proposalCurrency}
         onClose={() => setActiveResult(null)}
         onToggleSelect={handleTogglePick}
         onQuantityChange={handleQtyChange}
@@ -581,7 +583,7 @@ export default function ProposalView({ requestId, clientName, createdAt, items }
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Mes choix ({totals.count} produit{totals.count > 1 ? 's' : ''})
               </p>
-              <MultiCurrencyPrice amountCny={totals.total} variant="stacked" />
+              <MultiCurrencyPrice amountCny={totals.total} variant="stacked" primary={proposalCurrency} />
             </div>
             <motion.button
               type="button"

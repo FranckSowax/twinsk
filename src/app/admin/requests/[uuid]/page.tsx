@@ -12,6 +12,8 @@ import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
+import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
+import { Coins } from 'lucide-react';
 import type { Request as RequestType, DocumentType } from '@/lib/types/database';
 
 interface RequestItemWithResults {
@@ -70,6 +72,8 @@ export default function AdminRequestDetailPage() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [proposalLinkCopied, setProposalLinkCopied] = useState(false);
+  const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const [proposalCurrency, setProposalCurrency] = useState<ProposalCurrency>('CNY');
 
   const loadData = useCallback(async () => {
     const [reqRes, resultsRes] = await Promise.all([
@@ -80,7 +84,13 @@ export default function AdminRequestDetailPage() {
     const reqData = await reqRes.json();
     const resultsData = await resultsRes.json();
 
-    if (reqRes.ok) setRequest(reqData);
+    if (reqRes.ok) {
+      setRequest(reqData);
+      const cur = (reqData as { proposal_currency?: string }).proposal_currency;
+      if (cur === 'CNY' || cur === 'USD' || cur === 'EUR' || cur === 'XAF') {
+        setProposalCurrency(cur);
+      }
+    }
     if (Array.isArray(resultsData)) setItems(resultsData);
     setLoading(false);
   }, [uuid]);
@@ -440,6 +450,14 @@ export default function AdminRequestDetailPage() {
         onImported={loadData}
       />
 
+      <ProposalCurrencyModal
+        open={currencyModalOpen}
+        requestId={uuid}
+        currentCurrency={proposalCurrency}
+        onClose={() => setCurrencyModalOpen(false)}
+        onSaved={(cur) => setProposalCurrency(cur)}
+      />
+
       {/* Margin controls + results table — visible as soon as there are items */}
       {items.length > 0 && (
         <>
@@ -536,6 +554,17 @@ export default function AdminRequestDetailPage() {
                           Copier le lien
                         </>
                       )}
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => setCurrencyModalOpen(true)}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-purple-300 bg-white px-4 py-2 text-sm font-semibold text-purple-700 dark:border-purple-700 dark:bg-slate-800 dark:text-purple-300"
+                      title="Choisir la devise affichée au client"
+                    >
+                      <Coins className="h-4 w-4" />
+                      <span className="font-display tabular-nums">{proposalCurrency}</span>
                     </motion.button>
                     <motion.a
                       href={`/proposal/${uuid}`}

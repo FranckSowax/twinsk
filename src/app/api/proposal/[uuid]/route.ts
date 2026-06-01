@@ -14,7 +14,7 @@ export async function GET(
     // Fetch request
     const { data: request, error: reqError } = await supabaseAdmin
       .from('requests')
-      .select('id, client_name, client_email, client_phone, status, notes, created_at')
+      .select('id, client_name, client_email, client_phone, status, notes, created_at, proposal_currency')
       .eq('id', uuid)
       .single();
 
@@ -159,6 +159,7 @@ export async function GET(
         client_name: request.client_name,
         status: request.status,
         created_at: request.created_at,
+        proposal_currency: (request as { proposal_currency?: string }).proposal_currency || 'CNY',
       },
       items: publicItems,
     });
