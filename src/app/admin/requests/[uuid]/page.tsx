@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson, CheckSquare, Square } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson, CheckSquare, Square, Check, X, Clock, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
@@ -18,6 +18,7 @@ interface RequestItemWithResults {
   id: string;
   image_url: string | null;
   description: string | null;
+  client_note: string | null;
   processed: boolean;
   added_by: 'client' | 'admin';
   search_results: {
@@ -188,6 +189,19 @@ export default function AdminRequestDetailPage() {
   const selectedResults = items.flatMap((i) => i.search_results).filter((r) => r.selected);
   const clientLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/request/${uuid}`;
 
+  // Client feedback summary: counts of products the client has reviewed
+  const allResults = items.flatMap((i) => i.search_results);
+  const totalResults = allResults.length;
+  const clientChosen = allResults.filter((r) => r.client_selected === true).length;
+  const clientRefused = allResults.filter((r) => r.client_selected === false).length;
+  const clientPending = allResults.filter((r) => r.client_selected === null).length;
+  const itemsWithNote = items.filter((i) => i.client_note && i.client_note.trim().length > 0).length;
+  const hasClientFeedback =
+    request?.status === 'client_reviewed' ||
+    clientChosen > 0 ||
+    clientRefused > 0 ||
+    itemsWithNote > 0;
+
   return (
     <div className="space-y-8">
       {/* Back + Header */}
@@ -249,6 +263,93 @@ export default function AdminRequestDetailPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Client feedback summary — visible as soon as the client has reviewed at least one product */}
+      {hasClientFeedback && totalResults > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50/50 p-5 dark:border-emerald-800 dark:from-emerald-900/20 dark:to-green-900/10"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                <Check className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white">
+                  Retour client
+                </p>
+                <p className="text-xs text-slate-500">
+                  {request.status === 'client_reviewed'
+                    ? 'Le client a validé sa sélection'
+                    : 'Validation partielle en cours'}
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-300">
+              {totalResults} produit(s)
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm dark:bg-slate-800">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                <Check className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Choisis</p>
+                <p className="font-display text-xl font-bold tabular-nums text-green-600 dark:text-green-400">{clientChosen}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm dark:bg-slate-800">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                <X className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Refusés</p>
+                <p className="font-display text-xl font-bold tabular-nums text-red-600 dark:text-red-400">{clientRefused}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm dark:bg-slate-800">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                <Clock className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Sans avis</p>
+                <p className="font-display text-xl font-bold tabular-nums text-slate-600 dark:text-slate-300">{clientPending}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm dark:bg-slate-800">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                <MessageSquare className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Avec note</p>
+                <p className="font-display text-xl font-bold tabular-nums text-purple-600 dark:text-purple-400">{itemsWithNote}</p>
+              </div>
+            </div>
+          </div>
+          {itemsWithNote > 0 && (
+            <details className="group mt-3 rounded-xl border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-800 dark:bg-purple-900/10">
+              <summary className="cursor-pointer text-sm font-semibold text-purple-700 dark:text-purple-300">
+                Voir les {itemsWithNote} note(s) client
+              </summary>
+              <div className="mt-2 space-y-2">
+                {items
+                  .filter((i) => i.client_note && i.client_note.trim())
+                  .map((i) => (
+                    <div key={i.id} className="rounded-lg bg-white p-3 text-sm dark:bg-slate-800">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Article : {i.description?.slice(0, 60) || 'Sans description'}
+                      </p>
+                      <p className="text-slate-700 dark:text-slate-200">{i.client_note}</p>
+                    </div>
+                  ))}
+              </div>
+            </details>
+          )}
+        </motion.div>
+      )}
 
       {/* Client link */}
       <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
