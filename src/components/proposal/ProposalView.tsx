@@ -17,7 +17,6 @@ import {
   Type,
   X,
 } from 'lucide-react';
-import { formatCNY, toMultiCurrency } from '@/lib/utils/formatCurrency';
 import ProposalDetailModal, { type ProposalResult } from './ProposalDetailModal';
 import SmartImage from '@/components/ui/SmartImage';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
@@ -406,20 +405,17 @@ export default function ProposalView({ requestId, clientName, createdAt, items, 
                                 {result.variants!.length} variantes
                               </span>
                             ) : null}
-                            <div className="mt-2">
-                              <div className="flex items-baseline justify-between gap-2">
-                                <p className="text-base font-bold text-amber-500">
-                                  {formatCNY(unitPrice)}
+                            <div className="mt-2 flex items-end justify-between gap-2">
+                              <MultiCurrencyPrice
+                                amountCny={unitPrice}
+                                variant="stacked"
+                                primary={proposalCurrency}
+                              />
+                              {selected && (
+                                <p className="text-xs font-semibold text-green-600 dark:text-green-400">
+                                  × {qty}
                                 </p>
-                                {selected && (
-                                  <p className="text-xs font-semibold text-green-600 dark:text-green-400">
-                                    × {qty}
-                                  </p>
-                                )}
-                              </div>
-                              <p className="mt-0.5 text-[10px] text-slate-500">
-                                {toMultiCurrency(unitPrice).formatted.xaf}
-                              </p>
+                              )}
                             </div>
                             {result.moq != null && (
                               <p className="mt-1 text-[10px] text-slate-400">MOQ: {result.moq}</p>
@@ -509,12 +505,12 @@ export default function ProposalView({ requestId, clientName, createdAt, items, 
                                 </div>
                               </td>
                               <td className="px-2 py-3 text-right">
-                                <div className="text-sm font-bold text-amber-500">
-                                  {formatCNY(unitPrice)}
-                                </div>
-                                <div className="text-[10px] text-slate-500">
-                                  {toMultiCurrency(unitPrice).formatted.xaf}
-                                </div>
+                                <MultiCurrencyPrice
+                                  amountCny={unitPrice}
+                                  variant="stacked"
+                                  primary={proposalCurrency}
+                                  className="items-end text-right"
+                                />
                               </td>
                               <td className="px-2 py-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">
                                 {selected ? qty : '—'}
