@@ -87,10 +87,10 @@ export default function ProposalDetailModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
+            className="my-8 w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
           >
             {/* Gallery — fixed at top */}
-            <div className="relative flex-shrink-0">
+            <div className="relative">
               <ImageGallery
                 images={
                   result.gallery?.length
@@ -116,7 +116,7 @@ export default function ProposalDetailModal({
             </div>
 
             {/* Body — scrolls when content exceeds viewport */}
-            <div className="space-y-5 overflow-y-auto p-5 sm:p-6">
+            <div className="space-y-5 p-5 sm:p-6">
               <h2 className="font-display text-lg font-bold text-slate-900 sm:text-xl dark:text-white">
                 {result.title}
               </h2>
