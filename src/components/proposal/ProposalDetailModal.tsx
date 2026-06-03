@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Package, Scale, Box, Ruler, Tag, BatteryWarning, Info } from 'lucide-react';
 import ImageGallery from '@/components/ui/ImageGallery';
+import { VideoEmbed } from '@/components/ui/VideoEmbed';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 // (image_url is optional ; appears on the variant chip and replaces the
@@ -26,6 +27,7 @@ export interface ProposalResult {
   image_url: string;
   thumbnail_url?: string;
   gallery?: string[];
+  videos?: string[];
   price: number; // already includes margin
   quantity: number;
   moq: number | null;
@@ -160,6 +162,19 @@ export default function ProposalDetailModal({
               {result.description && (
                 <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
                   {result.description}
+                </div>
+              )}
+
+              {result.videos && result.videos.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {result.videos.length > 1 ? 'Vidéos' : 'Vidéo'}
+                  </p>
+                  <div className="space-y-2">
+                    {result.videos.map((v) => (
+                      <VideoEmbed key={v} url={v} />
+                    ))}
+                  </div>
                 </div>
               )}
 

@@ -39,6 +39,7 @@ export async function POST(
     price,
     image_url,
     extra_images,
+    videos,
     variants,
     product_url,
     seller,
@@ -62,6 +63,12 @@ export async function POST(
     ? extra_images.filter((u: unknown): u is string => typeof u === 'string' && u.trim().length > 0)
     : [];
   const dedupedExtras = Array.from(new Set(extras.filter((u) => u !== image_url)));
+
+  // Normalize videos
+  const videosArr: string[] = Array.isArray(videos)
+    ? videos.filter((u: unknown): u is string => typeof u === 'string' && u.trim().length > 0)
+    : [];
+  const dedupedVideos = Array.from(new Set(videosArr));
 
   // Normalize variants
   type InVariant = {
@@ -103,6 +110,7 @@ export async function POST(
       image_url: image_url || '',
       main_image_url: image_url || null,
       extra_images: dedupedExtras.length ? dedupedExtras : null,
+      videos: dedupedVideos.length ? dedupedVideos : null,
       variants: cleanedVariants.length ? cleanedVariants : null,
       seller: seller?.trim() || null,
       product_url: product_url?.trim() || '',

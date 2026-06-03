@@ -5,6 +5,7 @@ import { X, ExternalLink, Check, Tag, Package, Scale, Box, Ruler, Store, Globe, 
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
+import { VideoEmbed } from '@/components/ui/VideoEmbed';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
 interface SearchResultRow {
@@ -18,6 +19,7 @@ interface SearchResultRow {
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;
+  videos: string[] | null;
   has_battery: boolean | null;
   info_manquante: string | null;
   dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
@@ -246,6 +248,19 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                     <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
                       <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
                       {result.description}
+                    </div>
+                  )}
+
+                  {result.videos && result.videos.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        {result.videos.length > 1 ? 'Vidéos' : 'Vidéo'}
+                      </p>
+                      <div className="space-y-2">
+                        {result.videos.map((v) => (
+                          <VideoEmbed key={v} url={v} />
+                        ))}
+                      </div>
                     </div>
                   )}
 

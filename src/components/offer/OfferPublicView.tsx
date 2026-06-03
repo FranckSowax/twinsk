@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
+import { VideoEmbed } from '@/components/ui/VideoEmbed';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { toMultiCurrency } from '@/lib/utils/formatCurrency';
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
@@ -42,6 +43,7 @@ interface OfferProduct {
   image_url: string;
   thumbnail_url: string;
   gallery: string[];
+  videos: string[];
   price: number;
   moq: number | null;
   weight: number | null;
@@ -539,6 +541,19 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {activeProduct.description && (
                   <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
                     {activeProduct.description}
+                  </div>
+                )}
+
+                {activeProduct.videos.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      {activeProduct.videos.length > 1 ? 'Vidéos' : 'Vidéo'}
+                    </p>
+                    <div className="space-y-2">
+                      {activeProduct.videos.map((v) => (
+                        <VideoEmbed key={v} url={v} />
+                      ))}
+                    </div>
                   </div>
                 )}
 

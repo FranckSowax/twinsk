@@ -14,6 +14,7 @@ interface RawProduct {
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;
+  videos: string[] | null;
   variants: unknown[] | null;
   seller: string | null;
   product_url: string;
@@ -56,6 +57,7 @@ export interface PublicOfferData {
       image_url: string;
       thumbnail_url: string;
       gallery: string[];
+      videos: string[];
       price: number;
       moq: number | null;
       weight: number | null;
@@ -126,6 +128,9 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             image_url: p.main_image_url || p.image_url,
             thumbnail_url: p.image_url,
             gallery,
+            videos: Array.isArray(p.videos)
+              ? p.videos.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+              : [],
             price: priceWithMargin,
             moq: p.moq,
             weight: p.weight,

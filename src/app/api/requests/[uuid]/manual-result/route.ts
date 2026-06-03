@@ -22,6 +22,7 @@ export async function POST(
       price,
       image_url,
       extra_images,
+      videos,
       product_url,
       seller,
       moq,
@@ -39,6 +40,12 @@ export async function POST(
     const dedupedExtras = Array.from(
       new Set(extraImagesArr.filter((u) => u !== image_url))
     );
+
+    // Normalize videos
+    const videosArr: string[] = Array.isArray(videos)
+      ? videos.filter((u: unknown): u is string => typeof u === 'string' && u.trim().length > 0)
+      : [];
+    const dedupedVideos = Array.from(new Set(videosArr));
 
     // Normalize variants: only keep entries with a non-empty name; coerce numerics.
     type IncomingVariant = {
@@ -95,6 +102,7 @@ export async function POST(
       image_url: image_url || '',
       main_image_url: image_url || null,
       extra_images: dedupedExtras.length ? dedupedExtras : null,
+      videos: dedupedVideos.length ? dedupedVideos : null,
       variants: cleanedVariants.length ? cleanedVariants : null,
       seller: seller?.trim() || null,
       product_url: product_url?.trim() || '',

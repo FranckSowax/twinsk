@@ -38,6 +38,7 @@ export async function GET(
       image_url: string;
       main_image_url: string | null;
       extra_images: string[] | null;
+      videos: string[] | null;
       seller: string | null;
       selected: boolean;
       quantity: number;
@@ -115,6 +116,9 @@ export async function GET(
               image_url: r.main_image_url || r.image_url,
               thumbnail_url: r.image_url,
               gallery,
+              videos: Array.isArray(r.videos)
+                ? r.videos.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+                : [],
               // Apply margin to price for client display
               price: r.price * (1 + (r.margin_percent || 0) / 100),
               quantity: r.quantity,

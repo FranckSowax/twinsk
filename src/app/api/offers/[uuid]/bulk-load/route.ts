@@ -19,6 +19,7 @@ interface InProduct {
   price?: unknown;
   image_url?: string;
   extra_images?: unknown;
+  videos?: unknown;
   product_url?: string;
   seller?: string;
   moq?: unknown;
@@ -86,6 +87,15 @@ function normalizeExtras(input: unknown, mainImage: string): string[] | null {
     .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
     .map((u) => u.trim())
     .filter((u) => u !== mainImage);
+  const deduped = Array.from(new Set(cleaned));
+  return deduped.length ? deduped : null;
+}
+
+function normalizeVideos(input: unknown): string[] | null {
+  if (!Array.isArray(input)) return null;
+  const cleaned = (input as unknown[])
+    .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+    .map((u) => u.trim());
   const deduped = Array.from(new Set(cleaned));
   return deduped.length ? deduped : null;
 }
@@ -177,6 +187,7 @@ export async function POST(
       }
       const mainImage = (p.image_url || '').trim();
       const extras = normalizeExtras(p.extra_images, mainImage);
+      const videos = normalizeVideos(p.videos);
       const variants = normalizeVariants(p.variants);
       variantCount += variants ? variants.length : 0;
 
@@ -192,6 +203,7 @@ export async function POST(
         image_url: mainImage,
         main_image_url: mainImage || null,
         extra_images: extras,
+        videos,
         variants,
         seller: strOrNull(p.seller),
         product_url: (p.product_url || '').trim(),
