@@ -156,6 +156,18 @@ export default function ResultsTable({
     }, 500);
   };
 
+  const handleStringFieldChange = (resultId: string, field: keyof SearchResultRow, value: string | null) => {
+    setSavingIds((prev) => new Set(prev).add(resultId));
+    onUpdate(resultId, { [field]: value });
+    setTimeout(() => {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(resultId);
+        return next;
+      });
+    }, 500);
+  };
+
   if (!items.length) {
     return <p className="text-center text-slate-500">Aucun résultat de recherche</p>;
   }
@@ -355,6 +367,7 @@ export default function ResultsTable({
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">MOQ</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Poids (kg)</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Vol (m³)</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Dimensions</th>
                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Vendeur</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Marge %</th>
@@ -506,6 +519,23 @@ export default function ResultsTable({
                             )
                           }
                           className="w-20 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                        />
+                      </td>
+
+                      {/* Dimensions */}
+                      <td className="px-2 py-3">
+                        <input
+                          type="text"
+                          value={result.dimensions ?? ''}
+                          placeholder="L×l×h cm"
+                          onChange={(e) =>
+                            handleStringFieldChange(
+                              result.id,
+                              'dimensions',
+                              e.target.value || null
+                            )
+                          }
+                          className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
                         />
                       </td>
 
