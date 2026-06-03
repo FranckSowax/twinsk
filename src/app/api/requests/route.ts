@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('requests')
-      .select('*, request_items(count)')
+      .select('*, request_items(id, description, search_results(title))')
       .order('created_at', { ascending: false });
 
     if (error) {

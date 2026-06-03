@@ -10,8 +10,15 @@ export interface RequestRow {
   created_at: string;
   client_name: string;
   client_email: string;
+  client_phone?: string | null;
+  notes?: string | null;
+  destination?: string | null;
   status: string;
-  request_items: { count: number }[];
+  request_items: Array<{
+    id: string;
+    description?: string | null;
+    search_results?: { title: string }[];
+  }>;
 }
 
 interface RequestsTableProps {
@@ -88,7 +95,7 @@ export default function RequestsTable({ requests, onDelete, onRename }: Requests
             {requests.map((req, i) => {
               const status = statusConfig[req.status] || statusConfig.draft;
               const StatusIcon = status.icon;
-              const itemCount = req.request_items?.[0]?.count ?? 0;
+              const itemCount = req.request_items?.length ?? 0;
               const isEditing = editingId === req.id;
 
               return (

@@ -12,8 +12,9 @@ import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
+import EditClientInfoModal from '@/components/admin/EditClientInfoModal';
 import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
-import { Coins } from 'lucide-react';
+import { Coins, Pencil, MapPin } from 'lucide-react';
 import type { Request as RequestType, DocumentType } from '@/lib/types/database';
 
 interface RequestItemWithResults {
@@ -73,6 +74,7 @@ export default function AdminRequestDetailPage() {
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [proposalLinkCopied, setProposalLinkCopied] = useState(false);
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const [editInfoOpen, setEditInfoOpen] = useState(false);
   const [proposalCurrency, setProposalCurrency] = useState<ProposalCurrency>('CNY');
 
   const loadData = useCallback(async () => {
@@ -242,34 +244,58 @@ export default function AdminRequestDetailPage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-700 dark:bg-slate-800"
+        className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800"
       >
-        <div className="flex items-center gap-3">
-          <User className="h-5 w-5 text-slate-400" />
-          <div>
-            <p className="text-xs text-slate-500">Nom</p>
-            <p className="font-medium text-slate-900 dark:text-white">{request.client_name || '—'}</p>
-          </div>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            Informations client
+          </h2>
+          <button
+            type="button"
+            onClick={() => setEditInfoOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Modifier
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          <Mail className="h-5 w-5 text-slate-400" />
-          <div>
-            <p className="text-xs text-slate-500">Email</p>
-            <p className="font-medium text-slate-900 dark:text-white">{request.client_email || '—'}</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="flex items-center gap-3">
+            <User className="h-5 w-5 text-slate-400" />
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">Nom</p>
+              <p className="truncate font-medium text-slate-900 dark:text-white">{request.client_name || '—'}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Phone className="h-5 w-5 text-slate-400" />
-          <div>
-            <p className="text-xs text-slate-500">Téléphone</p>
-            <p className="font-medium text-slate-900 dark:text-white">{request.client_phone || '—'}</p>
+          <div className="flex items-center gap-3">
+            <Mail className="h-5 w-5 text-slate-400" />
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">Email</p>
+              <p className="truncate font-medium text-slate-900 dark:text-white">{request.client_email || '—'}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <FileText className="h-5 w-5 text-slate-400" />
-          <div>
-            <p className="text-xs text-slate-500">Notes</p>
-            <p className="font-medium text-slate-900 dark:text-white">{request.notes || '—'}</p>
+          <div className="flex items-center gap-3">
+            <Phone className="h-5 w-5 text-slate-400" />
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">Téléphone</p>
+              <p className="truncate font-medium text-slate-900 dark:text-white">{request.client_phone || '—'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <MapPin className="h-5 w-5 text-emerald-500" />
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">Destination</p>
+              <p className="truncate font-medium text-slate-900 dark:text-white">
+                {(request as unknown as { destination?: string | null }).destination || '—'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 sm:col-span-2">
+            <FileText className="mt-0.5 h-5 w-5 text-slate-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-slate-500">Notes</p>
+              <p className="font-medium text-slate-900 dark:text-white">{request.notes || '—'}</p>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -456,6 +482,34 @@ export default function AdminRequestDetailPage() {
         currentCurrency={proposalCurrency}
         onClose={() => setCurrencyModalOpen(false)}
         onSaved={(cur) => setProposalCurrency(cur)}
+      />
+
+      <EditClientInfoModal
+        open={editInfoOpen}
+        requestId={uuid}
+        current={{
+          client_name: request.client_name || null,
+          client_email: request.client_email || null,
+          client_phone: request.client_phone || null,
+          destination:
+            (request as unknown as { destination?: string | null }).destination || null,
+          notes: request.notes || null,
+        }}
+        onClose={() => setEditInfoOpen(false)}
+        onSaved={(next) =>
+          setRequest((prev) =>
+            prev
+              ? ({
+                  ...prev,
+                  client_name: next.client_name || '',
+                  client_email: next.client_email || '',
+                  client_phone: next.client_phone || '',
+                  destination: next.destination,
+                  notes: next.notes,
+                } as typeof prev)
+              : prev,
+          )
+        }
       />
 
       {/* Margin controls + results table — visible as soon as there are items */}
