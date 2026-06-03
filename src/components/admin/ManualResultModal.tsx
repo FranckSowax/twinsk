@@ -16,6 +16,7 @@ import {
 export interface ProductVariant {
   id: string;
   name: string;
+  image_url?: string | null;
   price?: number | null;
   moq?: number | null;
   weight?: number | null;
@@ -72,6 +73,7 @@ function emptyVariant(): ProductVariant {
   return {
     id: makeVariantId(),
     name: '',
+    image_url: null,
     price: null,
     moq: null,
     weight: null,
@@ -244,6 +246,7 @@ export default function ManualResultModal({
               : null,
           dimensions: (v.dimensions || '').trim() || null,
           capacity: (v.capacity || '').trim() || null,
+          image_url: (v.image_url || '').trim() || null,
         };
         return cleaned;
       })
@@ -674,6 +677,36 @@ export default function ManualResultModal({
                           className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-600 dark:bg-slate-800"
                         >
                           <div className="mb-2 flex items-center gap-2">
+                            {/* Variant thumbnail / upload button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const input = document.createElement('input');
+                                input.type = 'file';
+                                input.accept = 'image/*';
+                                input.onchange = async (e) => {
+                                  const file = (e.target as HTMLInputElement).files?.[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append('files', file);
+                                  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                  const data = await res.json();
+                                  if (res.ok && data.urls?.[0]) {
+                                    updateVariant(v.id, { image_url: data.urls[0] as string });
+                                  }
+                                };
+                                input.click();
+                              }}
+                              className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 hover:border-amber-400 dark:border-slate-600 dark:bg-slate-700"
+                              title={v.image_url ? 'Changer la photo' : 'Ajouter une photo'}
+                            >
+                              {v.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={v.image_url} alt={v.name || 'Variante'} className="h-full w-full object-cover" />
+                              ) : (
+                                <ImageIcon className="m-auto h-4 w-4 text-slate-400" />
+                              )}
+                            </button>
                             <input
                               type="text"
                               value={v.name}
@@ -683,6 +716,16 @@ export default function ManualResultModal({
                               placeholder="Nom (ex: Petit, 1L, Rouge)"
                               className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                             />
+                            {v.image_url && (
+                              <button
+                                type="button"
+                                onClick={() => updateVariant(v.id, { image_url: null })}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:border-slate-600 dark:bg-slate-700"
+                                title="Retirer la photo"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => removeVariant(v.id)}

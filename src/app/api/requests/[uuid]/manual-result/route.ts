@@ -72,6 +72,7 @@ export async function POST(
             volume: numOrNull(v.volume),
             dimensions: strOrNull(v.dimensions),
             capacity: strOrNull(v.capacity),
+            image_url: strOrNull((v as { image_url?: unknown }).image_url),
           }))
           .filter((v) => v.name.length > 0)
       : [];

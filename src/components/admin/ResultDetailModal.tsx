@@ -24,6 +24,7 @@ interface SearchResultRow {
   variants: {
     id: string;
     name: string;
+    image_url?: string | null;
     price?: number | null;
     moq?: number | null;
     weight?: number | null;
@@ -292,6 +293,7 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                         <table className="w-full min-w-[440px] text-left text-xs">
                           <thead>
                             <tr className="text-[10px] uppercase tracking-wider text-slate-400">
+                              <th className="w-10 px-2 py-1.5">Photo</th>
                               <th className="px-2 py-1.5">Variante</th>
                               <th className="px-2 py-1.5">Prix</th>
                               <th className="px-2 py-1.5">MOQ</th>
@@ -309,6 +311,22 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                                   key={v.id}
                                   className={`${picked ? 'bg-green-50 text-slate-800 dark:bg-green-900/20 dark:text-slate-100' : 'text-slate-700 dark:text-slate-200'}`}
                                 >
+                                  <td className="px-2 py-1.5">
+                                    {v.image_url ? (
+                                      <a
+                                        href={v.image_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block h-10 w-10 overflow-hidden rounded-md ring-1 ring-slate-200 hover:ring-2 hover:ring-amber-400 dark:ring-slate-600"
+                                        title="Ouvrir la photo"
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={v.image_url} alt={v.name} className="h-full w-full object-cover" />
+                                      </a>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-300">—</span>
+                                    )}
+                                  </td>
                                   <td className="px-2 py-1.5 font-semibold">
                                     <span className="inline-flex items-center gap-1.5">
                                       {picked && <Check className="h-3 w-3 text-green-600 dark:text-green-400" />}

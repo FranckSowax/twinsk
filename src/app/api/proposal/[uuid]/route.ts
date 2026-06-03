@@ -146,6 +146,8 @@ export async function GET(
                         volume: v.volume ?? null,
                         dimensions: v.dimensions ?? null,
                         capacity: v.capacity ?? null,
+                        image_url:
+                          (v as { image_url?: string | null }).image_url ?? null,
                       }))
                   : null,
             };

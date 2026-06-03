@@ -5,9 +5,12 @@ import { X, Check, Package, Scale, Box, Ruler, Tag, BatteryWarning, Info } from 
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 
+// (image_url is optional ; appears on the variant chip and replaces the
+//  main gallery image when the variant is picked)
 export interface ProposalVariant {
   id: string;
   name: string;
+  image_url?: string | null;
   price: number | null; // already includes margin
   moq: number | null;
   weight: number | null;
@@ -89,16 +92,29 @@ export default function ProposalDetailModal({
             onClick={(e) => e.stopPropagation()}
             className="my-8 w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-800"
           >
-            {/* Gallery — fixed at top */}
+            {/* Gallery — switches to variant image when one is picked */}
             <div className="relative">
-              <ImageGallery
-                images={
-                  result.gallery?.length
-                    ? result.gallery
-                    : [result.image_url, result.thumbnail_url].filter((u): u is string => !!u)
-                }
-                alt={result.title}
-              />
+              {(() => {
+                const baseGallery = result.gallery?.length
+                  ? result.gallery
+                  : [result.image_url, result.thumbnail_url].filter(
+                      (u): u is string => !!u,
+                    );
+                const variantImg = chosenVariant?.image_url;
+                const images =
+                  variantImg && !baseGallery.includes(variantImg)
+                    ? [variantImg, ...baseGallery]
+                    : variantImg
+                      ? [variantImg, ...baseGallery.filter((u) => u !== variantImg)]
+                      : baseGallery;
+                return (
+                  <ImageGallery
+                    key={variantImg || 'base'}
+                    images={images}
+                    alt={result.title}
+                  />
+                );
+              })()}
               <button
                 type="button"
                 onClick={onClose}
@@ -193,12 +209,20 @@ export default function ProposalDetailModal({
                           }`}
                         >
                           <div className="mb-1 flex items-center justify-between gap-2">
-                            <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                            <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                              {v.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={v.image_url}
+                                  alt={v.name}
+                                  className="h-10 w-10 flex-shrink-0 rounded-md object-cover ring-1 ring-amber-200"
+                                />
+                              ) : null}
                               {active && (
                                 <Check className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                               )}
-                              {v.name}
-                            </p>
+                              <span>{v.name}</span>
+                            </div>
                             {v.price != null && (
                               <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={primaryCurrency} />
                             )}

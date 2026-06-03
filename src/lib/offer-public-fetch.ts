@@ -69,6 +69,7 @@ export interface PublicOfferData {
       variants: Array<{
         id: string;
         name: string;
+        image_url: string | null;
         price: number | null;
         moq: number | null;
         weight: number | null;
@@ -141,6 +142,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
                     const vo = (v || {}) as {
                       id?: string;
                       name?: string;
+                      image_url?: string | null;
                       price?: number | null;
                       moq?: number | null;
                       weight?: number | null;
@@ -158,6 +160,8 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
                       volume: vo.volume ?? null,
                       dimensions: vo.dimensions ?? null,
                       capacity: vo.capacity ?? null,
+                      image_url:
+                        (vo as { image_url?: string | null }).image_url ?? null,
                     };
                   })
                   .filter((v) => v.name)

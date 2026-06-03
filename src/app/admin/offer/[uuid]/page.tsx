@@ -51,6 +51,7 @@ interface OfferProduct {
   variants: {
     id: string;
     name: string;
+    image_url?: string | null;
     price?: number | null;
     moq?: number | null;
     weight?: number | null;

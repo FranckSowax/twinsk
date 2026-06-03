@@ -74,6 +74,7 @@ function normalizeVariants(input: InVariant[] | undefined): null | Record<string
       volume: numOrNull(v.volume),
       dimensions: strOrNull(v.dimensions),
       capacity: strOrNull(v.capacity),
+      image_url: strOrNull((v as { image_url?: unknown }).image_url),
     }))
     .filter((v) => v.name.length > 0);
   return cleaned.length ? cleaned : null;

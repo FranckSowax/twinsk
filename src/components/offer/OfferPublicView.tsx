@@ -25,6 +25,7 @@ const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
 interface OfferVariant {
   id: string;
   name: string;
+  image_url?: string | null;
   price: number | null;
   moq: number | null;
   weight: number | null;
@@ -478,10 +479,22 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
               className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
               <div className="relative flex-shrink-0">
-                <ImageGallery
-                  images={activeProduct.gallery.length ? activeProduct.gallery : [activeProduct.image_url]}
-                  alt={activeProduct.title}
-                />
+                {(() => {
+                  const baseGallery = activeProduct.gallery.length
+                    ? activeProduct.gallery
+                    : [activeProduct.image_url];
+                  const variantImg = variantOfActive(activeProduct, selectedVariantForActive)?.image_url || null;
+                  const images = variantImg
+                    ? [variantImg, ...baseGallery.filter((u) => u !== variantImg)]
+                    : baseGallery;
+                  return (
+                    <ImageGallery
+                      key={variantImg || 'base'}
+                      images={images}
+                      alt={activeProduct.title}
+                    />
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => setActiveProduct(null)}
@@ -616,10 +629,18 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             }`}
                           >
                             <div className="mb-1 flex items-center justify-between gap-2">
-                              <p className="flex items-center gap-2 font-semibold text-slate-900">
+                              <div className="flex items-center gap-2 font-semibold text-slate-900">
+                                {v.image_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={v.image_url}
+                                    alt={v.name}
+                                    className="h-10 w-10 flex-shrink-0 rounded-md object-cover ring-1 ring-emerald-200"
+                                  />
+                                ) : null}
                                 {active && <Check className="h-4 w-4 text-emerald-600" />}
-                                {v.name}
-                              </p>
+                                <span>{v.name}</span>
+                              </div>
                               {v.price != null && (
                                 <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary="XAF" />
                               )}
