@@ -469,16 +469,16 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setActiveProduct(null)}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm sm:items-center"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+              className="my-8 w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
-              <div className="relative flex-shrink-0">
+              <div className="relative">
                 {(() => {
                   const baseGallery = activeProduct.gallery.length
                     ? activeProduct.gallery
@@ -504,7 +504,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 </button>
               </div>
 
-              <div className="space-y-5 overflow-y-auto p-5">
+              <div className="space-y-5 p-5">
                 <div>
                   <h2 className="font-display text-lg font-bold text-slate-900 sm:text-xl">
                     {activeProduct.title}
@@ -710,14 +710,14 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => !submitting && setCheckoutOpen(false)}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm sm:items-center"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+              className="my-8 w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
@@ -734,7 +734,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 </button>
               </div>
 
-              <div className="space-y-4 overflow-y-auto p-5">
+              <div className="space-y-4 p-5">
                 {/* Cart lines */}
                 {cartLines.length === 0 ? (
                   <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
