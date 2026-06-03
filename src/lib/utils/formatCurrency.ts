@@ -67,3 +67,38 @@ export function applyMargin(price: number, marginPercent: number): number {
 export function calculateLineTotal(price: number, quantity: number, marginPercent: number): number {
   return applyMargin(price, marginPercent) * quantity;
 }
+
+export type CurrencyCode = 'CNY' | 'USD' | 'EUR' | 'XAF';
+
+/** Format an amount given in CNY into the requested currency. */
+export function formatInCurrency(amountCny: number, currency: CurrencyCode): string {
+  const converted = amountCny * FX_RATES[currency];
+  switch (currency) {
+    case 'CNY':
+      return formatCNY(converted);
+    case 'USD':
+      return formatUSD(converted);
+    case 'EUR':
+      return formatEUR(converted);
+    case 'XAF':
+      return formatXAF(converted);
+  }
+}
+
+/** Convert an amount given in FCFA into the requested currency (formatted string). */
+export function formatFcfaInCurrency(amountFcfa: number, currency: CurrencyCode): string {
+  // FCFA → CNY → target
+  const amountCny = amountFcfa / FX_RATES.XAF;
+  return formatInCurrency(amountCny, currency);
+}
+
+/** Numeric conversion CNY → target currency. */
+export function convertFromCny(amountCny: number, currency: CurrencyCode): number {
+  return amountCny * FX_RATES[currency];
+}
+
+/** Numeric conversion FCFA → target currency. */
+export function convertFromFcfa(amountFcfa: number, currency: CurrencyCode): number {
+  const amountCny = amountFcfa / FX_RATES.XAF;
+  return amountCny * FX_RATES[currency];
+}

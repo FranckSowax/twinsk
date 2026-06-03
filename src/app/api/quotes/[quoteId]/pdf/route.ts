@@ -4,6 +4,8 @@ import { createElement } from 'react';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import QuotePDF from '@/components/quote/QuotePDF';
 import PackingListPDF from '@/components/quote/PackingListPDF';
+import { computeQuoteTransport } from '@/lib/quote-transport';
+import type { CurrencyCode } from '@/lib/utils/formatCurrency';
 import type { Quote, Request as RequestType, RequestItemWithResults } from '@/lib/types/database';
 
 export async function GET(
@@ -75,6 +77,23 @@ export async function GET(
       });
     } else {
       filenamePrefix = 'devis-twinsk';
+      // Devise affichée au client : tirée de la request (proposal_currency).
+      const rawCur = (req as unknown as { proposal_currency?: string } | null)
+        ?.proposal_currency;
+      const currency: CurrencyCode =
+        rawCur === 'USD' || rawCur === 'EUR' || rawCur === 'XAF' || rawCur === 'CNY'
+          ? rawCur
+          : 'CNY';
+      // Transport calculé sur l ensemble des produits selectionnes.
+      const transport = computeQuoteTransport(
+        selectedResults.map((r) => ({
+          quantity: r.quantity,
+          weight: r.weight,
+          volume: r.volume,
+          has_battery:
+            (r as unknown as { has_battery?: boolean | null }).has_battery ?? null,
+        })),
+      );
       pdfElement = createElement(QuotePDF, {
         quoteId: q.id,
         quoteDate: dateStr,
@@ -83,12 +102,15 @@ export async function GET(
         clientPhone: req?.client_phone || '',
         items: selectedResults.map((r) => ({
           title: r.title,
+          description: r.description,
           image_url: r.image_url,
           price: r.price,
           quantity: r.quantity,
           margin_percent: r.margin_percent,
         })),
-        totalAmount: q.total_amount,
+        totalAmountCny: q.total_amount,
+        currency,
+        transport,
       });
     }
 

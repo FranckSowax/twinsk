@@ -8,6 +8,7 @@ import type { Request as RequestType, Quote } from '@/lib/types/database';
 
 interface RawSearchResult {
   title: string;
+  description: string | null;
   image_url: string;
   price: number;
   quantity: number;
@@ -16,14 +17,19 @@ interface RawSearchResult {
   weight: number | null;
   volume: number | null;
   dimensions: string | null;
+  has_battery: boolean | null;
 }
 
 interface QuoteItemDisplay {
   title: string;
+  description: string | null;
   image_url: string;
   price: number;
   quantity: number;
   margin_percent: number;
+  weight: number | null;
+  volume: number | null;
+  has_battery: boolean | null;
 }
 
 interface PackingItemDisplay {
@@ -62,10 +68,14 @@ export default function QuotePage() {
         setQuoteItems(
           flatRaw.map((r) => ({
             title: r.title,
+            description: r.description,
             image_url: r.image_url,
             price: r.price,
             quantity: r.quantity,
             margin_percent: r.margin_percent,
+            weight: r.weight,
+            volume: r.volume,
+            has_battery: r.has_battery ?? null,
           }))
         );
 
