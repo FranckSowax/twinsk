@@ -348,7 +348,11 @@ export default function OrderSummaryPage() {
 
               <div className="space-y-4">
                 {item.products.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    clientConfirmed={item.selection_source === 'client'}
+                  />
                 ))}
               </div>
 
@@ -377,7 +381,13 @@ export default function OrderSummaryPage() {
   );
 }
 
-function ProductCard({ product: p }: { product: OrderProduct }) {
+function ProductCard({
+  product: p,
+  clientConfirmed = false,
+}: {
+  product: OrderProduct;
+  clientConfirmed?: boolean;
+}) {
   const variant = p.chosen_variant;
   const displayImage = variant?.image_url || p.image_url;
   const unitWeight = variant?.weight ?? p.weight;
@@ -388,7 +398,13 @@ function ProductCard({ product: p }: { product: OrderProduct }) {
   const totalPriceCny = unitPriceCny != null ? unitPriceCny * p.quantity : null;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+    <div
+      className={`rounded-xl border p-4 ${
+        clientConfirmed
+          ? 'border-emerald-300 bg-emerald-50/60'
+          : 'border-slate-200 bg-slate-50/50'
+      }`}
+    >
       <div className="flex gap-4">
         {displayImage && (
           <Image

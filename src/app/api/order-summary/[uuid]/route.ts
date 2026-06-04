@@ -168,6 +168,7 @@ export async function GET(
     const missingInfoCount: { id: string; title: string; reason: string; seller: string | null; product_url: string | null }[] = [];
 
     for (const it of orderItems) {
+      const onlyClientConfirmed = it.selection_source === 'client';
       for (const p of it.products) {
         totalQty += p.quantity;
         const unitWeight = p.chosen_variant?.weight ?? p.weight;
@@ -175,6 +176,9 @@ export async function GET(
         if (unitWeight != null) totalWeight += unitWeight * p.quantity;
         if (unitVolume != null) totalVolume += unitVolume * p.quantity;
         if (p.has_battery) hasBatteryAny = true;
+        // "Infos manquantes" exposees uniquement pour les produits valides
+        // par le client — sinon la sélection peut encore changer.
+        if (!onlyClientConfirmed) continue;
         if (p.info_manquante) {
           missingInfoCount.push({
             id: p.id,
