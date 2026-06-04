@@ -72,7 +72,7 @@ export async function GET(
     const { data: request, error: reqError } = await supabaseAdmin
       .from('requests')
       .select(
-        'id, client_name, client_email, client_phone, destination, status, notes, created_at, proposal_currency',
+        'id, client_name, client_email, client_phone, destination, status, notes, created_at, proposal_currency, final_quote_id',
       )
       .eq('id', uuid)
       .single();
@@ -213,6 +213,7 @@ export async function GET(
         notes: request.notes,
         created_at: request.created_at,
         proposal_currency: (request as { proposal_currency?: string }).proposal_currency || 'CNY',
+        final_quote_id: (request as { final_quote_id?: string | null }).final_quote_id ?? null,
       },
       items: orderItems,
       totals: {

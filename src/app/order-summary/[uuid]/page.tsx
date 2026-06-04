@@ -5,16 +5,23 @@ import { useParams } from 'next/navigation';
 import {
   AlertTriangle,
   Battery,
+  Check,
+  CheckCircle2,
   ExternalLink,
+  FileText,
+  Loader2,
   Mail,
   MapPin,
+  MessageCircle,
   Package,
+  Pencil,
   Phone,
   Printer,
   Ruler,
   Scale,
   ShoppingBag,
   User,
+  X,
 } from 'lucide-react';
 
 interface ChosenVariant {
@@ -81,6 +88,7 @@ interface OrderSummary {
     notes: string | null;
     created_at: string;
     proposal_currency: string;
+    final_quote_id?: string | null;
   };
   items: OrderItem[];
   totals: {
@@ -117,6 +125,15 @@ export default function OrderSummaryPage() {
   const [data, setData] = useState<OrderSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<OrderProduct | null>(null);
+  const [clientInfoOpen, setClientInfoOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const reload = async () => {
+    const res = await fetch(`/api/order-summary/${uuid}`);
+    const json = await res.json();
+    if (res.ok) setData(json);
+  };
 
   useEffect(() => {
     if (!uuid) return;
@@ -141,6 +158,32 @@ export default function OrderSummaryPage() {
       active = false;
     };
   }, [uuid]);
+
+  const handleGenerateQuote = async () => {
+    if (!data) return;
+    const needsClient = !data.request.client_phone?.trim() || !data.request.destination?.trim();
+    if (needsClient) {
+      setClientInfoOpen(true);
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/order-summary/${uuid}/finalize-quote`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (res.ok && json.quote_id) {
+        await reload();
+        window.open(`/quote/${json.quote_id}`, '_blank');
+      } else {
+        alert(json.error || 'Erreur génération devis');
+      }
+    } catch {
+      alert('Erreur réseau');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -350,6 +393,7 @@ export default function OrderSummaryPage() {
                     key={p.id}
                     product={p}
                     clientConfirmed={item.selection_source === 'client'}
+                    onEdit={() => setEditingProduct(p)}
                   />
                 ))}
               </div>
@@ -374,17 +418,430 @@ export default function OrderSummaryPage() {
             </div>
           ))}
         </section>
+
+        <FinalQuoteSection
+          data={data}
+          generating={generating}
+          onGenerate={handleGenerateQuote}
+        />
       </main>
+
+      {editingProduct && (
+        <CompleteInfoModal
+          uuid={uuid}
+          product={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onSaved={async () => {
+            setEditingProduct(null);
+            await reload();
+          }}
+        />
+      )}
+
+      {clientInfoOpen && (
+        <ClientInfoModal
+          uuid={uuid}
+          initialPhone={data.request.client_phone || ''}
+          initialDestination={data.request.destination || ''}
+          onClose={() => setClientInfoOpen(false)}
+          onSaved={async () => {
+            setClientInfoOpen(false);
+            await reload();
+            // chain into generation now that infos are present
+            handleGenerateQuote();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function FinalQuoteSection({
+  data,
+  generating,
+  onGenerate,
+}: {
+  data: OrderSummary;
+  generating: boolean;
+  onGenerate: () => void;
+}) {
+  const { request, items, totals } = data;
+  const hasClientConfirmed = items.some((it) => it.selection_source === 'client');
+  const allReady = hasClientConfirmed && totals.items_with_missing_info.length === 0;
+  const quoteId = request.final_quote_id;
+  const phone = request.client_phone?.replace(/[^\d+]/g, '') || '';
+  const proposalUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/proposal/${request.id}`
+    : `/proposal/${request.id}`;
+  const quoteUrl = quoteId && typeof window !== 'undefined'
+    ? `${window.location.origin}/quote/${quoteId}`
+    : '';
+
+  const waMessage = quoteUrl
+    ? `Bonjour ${request.client_name || ''}, votre devis Twinsk est disponible : ${quoteUrl}`
+    : '';
+  const waHref = phone && waMessage
+    ? `https://wa.me/${phone.replace(/^\+/, '')}?text=${encodeURIComponent(waMessage)}`
+    : '';
+
+  if (!hasClientConfirmed) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 print:hidden">
+        En attente de la validation finale du client sur {' '}
+        <a href={proposalUrl} className="text-amber-700 hover:underline">{proposalUrl}</a>.
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-5 print:hidden">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className={`rounded-xl p-2.5 ${quoteId ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'}`}>
+            {quoteId ? <CheckCircle2 className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+          </div>
+          <div>
+            <p className="font-semibold text-slate-900">
+              {quoteId ? 'Devis final disponible' : 'Devis final avec transport'}
+            </p>
+            <p className="text-sm text-slate-600">
+              {quoteId
+                ? 'Le devis est visible côté client sur /proposal et partageable via WhatsApp.'
+                : allReady
+                ? 'Toutes les infos sont présentes. Vous pouvez générer le devis avec transport aérien/maritime.'
+                : `${totals.items_with_missing_info.length} produit(s) avec infos manquantes — complétez-les pour générer le devis.`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {!quoteId && (
+            <button
+              type="button"
+              onClick={onGenerate}
+              disabled={!allReady || generating}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-md disabled:opacity-50"
+            >
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              {generating ? 'Génération...' : 'Générer le devis final'}
+            </button>
+          )}
+          {quoteId && (
+            <>
+              <a
+                href={quoteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <FileText className="h-4 w-4" />
+                Ouvrir le devis
+              </a>
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Envoyer via WhatsApp
+                </a>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CompleteInfoModal({
+  uuid,
+  product,
+  onClose,
+  onSaved,
+}: {
+  uuid: string;
+  product: OrderProduct;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [weight, setWeight] = useState<string>(product.weight != null ? String(product.weight) : '');
+  const [volume, setVolume] = useState<string>(product.volume != null ? String(product.volume) : '');
+  const [length, setLength] = useState<string>(product.dimensions_cm?.length != null ? String(product.dimensions_cm.length) : '');
+  const [width, setWidth] = useState<string>(product.dimensions_cm?.width != null ? String(product.dimensions_cm.width) : '');
+  const [height, setHeight] = useState<string>(product.dimensions_cm?.height != null ? String(product.dimensions_cm.height) : '');
+  const [hasBattery, setHasBattery] = useState<boolean>(!!product.has_battery);
+  const [seller, setSeller] = useState<string>(product.seller || '');
+  const [productUrl, setProductUrl] = useState<string>(product.product_url || '');
+  const [infoManquante, setInfoManquante] = useState<string>(product.info_manquante || '');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      const body: Record<string, unknown> = {
+        weight: weight.trim() === '' ? null : parseFloat(weight),
+        volume: volume.trim() === '' ? null : parseFloat(volume),
+        has_battery: hasBattery,
+        seller: seller.trim() || null,
+        product_url: productUrl.trim() || null,
+        info_manquante: infoManquante.trim() || null,
+        dimensions_cm: {
+          length: length.trim() === '' ? null : parseFloat(length),
+          width: width.trim() === '' ? null : parseFloat(width),
+          height: height.trim() === '' ? null : parseFloat(height),
+        },
+      };
+      const res = await fetch(`/api/order-summary/${uuid}/product/${product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setErr(json.error || 'Erreur');
+        return;
+      }
+      onSaved();
+    } catch {
+      setErr('Erreur réseau');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="my-8 w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500">Compléter les infos</p>
+            <p className="font-semibold text-slate-900">{product.title}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
+            <X className="h-4 w-4 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Poids (kg)" value={weight} onChange={setWeight} type="number" />
+            <Field label="Volume (m³)" value={volume} onChange={setVolume} type="number" />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-medium text-slate-600">Dimensions (cm)</p>
+            <div className="grid grid-cols-3 gap-2">
+              <Field label="Longueur" value={length} onChange={setLength} type="number" compact />
+              <Field label="Largeur" value={width} onChange={setWidth} type="number" compact />
+              <Field label="Hauteur" value={height} onChange={setHeight} type="number" compact />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 rounded-xl bg-amber-50 p-3">
+            <input
+              type="checkbox"
+              checked={hasBattery}
+              onChange={(e) => setHasBattery(e.target.checked)}
+              className="h-4 w-4 rounded border-amber-300"
+            />
+            <span className="text-sm text-amber-900">
+              Contient une batterie (contraintes aériennes)
+            </span>
+          </label>
+          <Field label="Fournisseur" value={seller} onChange={setSeller} />
+          <Field label="URL source" value={productUrl} onChange={setProductUrl} />
+          <Field
+            label="Note 'info manquante' (vide = aucune)"
+            value={infoManquante}
+            onChange={setInfoManquante}
+            textarea
+          />
+          {err && <p className="text-sm text-rose-600">{err}</p>}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientInfoModal({
+  uuid,
+  initialPhone,
+  initialDestination,
+  onClose,
+  onSaved,
+}: {
+  uuid: string;
+  initialPhone: string;
+  initialDestination: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [phone, setPhone] = useState(initialPhone);
+  const [destination, setDestination] = useState(initialDestination);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!phone.trim() || !destination.trim()) {
+      setErr('Téléphone WhatsApp et destination requis');
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/requests/${uuid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_phone: phone.trim(), destination: destination.trim() }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setErr(json.error || 'Erreur');
+        return;
+      }
+      onSaved();
+    } catch {
+      setErr('Erreur réseau');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="my-8 w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500">Infos client requises</p>
+            <p className="font-semibold text-slate-900">
+              Avant de générer le devis final
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Nécessaires pour partager le devis via WhatsApp.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
+            <X className="h-4 w-4 text-slate-400" />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <Field
+            label="Téléphone WhatsApp (avec indicatif, ex. +24107…)"
+            value={phone}
+            onChange={setPhone}
+          />
+          <Field
+            label="Destination (ville, pays)"
+            value={destination}
+            onChange={setDestination}
+          />
+          {err && <p className="text-sm text-rose-600">{err}</p>}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Continuer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  textarea = false,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  textarea?: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className={`mb-1 block text-xs font-medium text-slate-600 ${compact ? 'text-[10px]' : ''}`}>
+        {label}
+      </span>
+      {textarea ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={2}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          step={type === 'number' ? 'any' : undefined}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+        />
+      )}
+    </label>
   );
 }
 
 function ProductCard({
   product: p,
   clientConfirmed = false,
+  onEdit,
 }: {
   product: OrderProduct;
   clientConfirmed?: boolean;
+  onEdit?: () => void;
 }) {
   const variant = p.chosen_variant;
   const displayImage = variant?.image_url || p.image_url;
@@ -425,9 +882,21 @@ function ProductCard({
                 </p>
               )}
             </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wider text-slate-400">Quantité</p>
-              <p className="text-2xl font-bold text-slate-900">×{p.quantity}</p>
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wider text-slate-400">Quantité</p>
+                <p className="text-2xl font-bold text-slate-900">×{p.quantity}</p>
+              </div>
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 print:hidden"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Compléter
+                </button>
+              )}
             </div>
           </div>
 
