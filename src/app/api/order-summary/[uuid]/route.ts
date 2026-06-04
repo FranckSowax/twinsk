@@ -88,6 +88,13 @@ export async function GET(
 
     const typedItems = (items || []) as unknown as ItemRow[];
 
+    // Order notes (collaborator history on the fiche)
+    const { data: orderNotesRaw } = await supabaseAdmin
+      .from('order_notes')
+      .select('id, author, message, source_lang, message_en, message_zh, created_at')
+      .eq('request_id', uuid)
+      .order('created_at', { ascending: false });
+
     // For each item: prefer client_selected results; fallback to admin selected if client hasn't chosen yet.
     const orderItems = typedItems
       .map((item) => {
@@ -216,6 +223,7 @@ export async function GET(
         final_quote_id: (request as { final_quote_id?: string | null }).final_quote_id ?? null,
       },
       items: orderItems,
+      order_notes: orderNotesRaw || [],
       totals: {
         product_count: orderItems.reduce((acc, it) => acc + it.products.length, 0),
         total_quantity: totalQty,

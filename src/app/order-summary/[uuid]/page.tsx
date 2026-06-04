@@ -9,16 +9,20 @@ import {
   CheckCircle2,
   ExternalLink,
   FileText,
+  Languages,
   Loader2,
   Mail,
   MapPin,
   MessageCircle,
+  MessageSquare,
   Package,
   Pencil,
   Phone,
+  Plus,
   Printer,
   Ruler,
   Scale,
+  Send,
   ShoppingBag,
   User,
   X,
@@ -77,6 +81,16 @@ interface OrderItem {
   products: OrderProduct[];
 }
 
+interface CollabNote {
+  id: string;
+  author: string;
+  message: string;
+  source_lang: string;
+  message_en: string | null;
+  message_zh: string | null;
+  created_at: string;
+}
+
 interface OrderSummary {
   request: {
     id: string;
@@ -91,6 +105,7 @@ interface OrderSummary {
     final_quote_id?: string | null;
   };
   items: OrderItem[];
+  order_notes: CollabNote[];
   totals: {
     product_count: number;
     total_quantity: number;
@@ -418,6 +433,12 @@ export default function OrderSummaryPage() {
             </div>
           ))}
         </section>
+
+        <OrderNotesSection
+          uuid={uuid}
+          notes={data.order_notes || []}
+          onChanged={reload}
+        />
 
         <FinalQuoteSection
           data={data}
@@ -791,6 +812,216 @@ function ClientInfoModal({
         </div>
       </div>
     </div>
+  );
+}
+
+type NoteLang = 'fr' | 'en' | 'zh';
+
+function OrderNotesSection({
+  uuid,
+  notes,
+  onChanged,
+}: {
+  uuid: string;
+  notes: CollabNote[];
+  onChanged: () => Promise<void>;
+}) {
+  const [lang, setLang] = useState<NoteLang>('fr');
+  const [author, setAuthor] = useState('');
+  const [message, setMessage] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [translating, setTranslating] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const add = async () => {
+    if (!message.trim()) {
+      setErr('Message requis');
+      return;
+    }
+    setAdding(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/order-summary/${uuid}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author: author.trim() || undefined, message: message.trim() }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setErr(j.error || 'Erreur');
+        return;
+      }
+      setMessage('');
+      await onChanged();
+    } catch {
+      setErr('Erreur reseau');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const translate = async (noteId: string) => {
+    setTranslating(noteId);
+    try {
+      const res = await fetch(`/api/order-summary/${uuid}/notes/${noteId}/translate`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.error || 'Erreur traduction');
+        return;
+      }
+      await onChanged();
+    } catch {
+      alert('Erreur reseau');
+    } finally {
+      setTranslating(null);
+    }
+  };
+
+  const langs: { key: NoteLang; label: string; flag: string }[] = [
+    { key: 'fr', label: 'Français', flag: 'FR' },
+    { key: 'en', label: 'English', flag: 'EN' },
+    { key: 'zh', label: '中文', flag: 'ZH' },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 print:break-inside-avoid">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-slate-500" />
+          <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            Notes collaborateurs ({notes.length})
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 print:hidden">
+          <Languages className="ml-2 h-3.5 w-3.5 text-slate-400" />
+          {langs.map((l) => (
+            <button
+              key={l.key}
+              type="button"
+              onClick={() => setLang(l.key)}
+              className={`rounded-lg px-2 py-1 text-xs font-semibold transition-colors ${
+                lang === l.key
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {l.flag}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 print:hidden">
+        <div className="grid gap-2 sm:grid-cols-[1fr_3fr_auto]">
+          <input
+            type="text"
+            placeholder="Auteur (optionnel)"
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+          />
+          <input
+            type="text"
+            placeholder="Ajouter une note (français)…"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !adding) add();
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={adding || !message.trim()}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+          >
+            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Ajouter
+          </button>
+        </div>
+        {err && <p className="text-xs text-rose-600">{err}</p>}
+      </div>
+
+      {notes.length === 0 ? (
+        <p className="mt-4 text-sm italic text-slate-400">Aucune note pour le moment.</p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {notes.map((n) => (
+            <NoteRow
+              key={n.id}
+              note={n}
+              lang={lang}
+              translating={translating === n.id}
+              onTranslate={() => translate(n.id)}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function NoteRow({
+  note,
+  lang,
+  translating,
+  onTranslate,
+}: {
+  note: CollabNote;
+  lang: NoteLang;
+  translating: boolean;
+  onTranslate: () => void;
+}) {
+  const wantTranslation = lang !== 'fr';
+  const translated = lang === 'en' ? note.message_en : lang === 'zh' ? note.message_zh : null;
+  const display = wantTranslation && translated ? translated : note.message;
+  const needsTranslation = wantTranslation && !translated;
+
+  return (
+    <li className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-sm">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <p>
+          <span className="font-semibold text-slate-700">{note.author}</span>
+          {' · '}
+          {new Date(note.created_at).toLocaleString('fr-FR', {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </p>
+        {needsTranslation ? (
+          <button
+            type="button"
+            onClick={onTranslate}
+            disabled={translating}
+            className="flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 print:hidden"
+          >
+            {translating ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Send className="h-3 w-3" />
+            )}
+            Traduire {lang.toUpperCase()}
+          </button>
+        ) : (
+          wantTranslation && (
+            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+              {lang.toUpperCase()}
+            </span>
+          )
+        )}
+      </div>
+      <p className="whitespace-pre-wrap text-slate-800">{display}</p>
+      {wantTranslation && translated && (
+        <p className="mt-1 text-[11px] italic text-slate-400">
+          Original FR : {note.message}
+        </p>
+      )}
+    </li>
   );
 }
 
