@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson, CheckSquare, Square, Check, X, Clock, MessageSquare } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson, CheckSquare, Square, Check, X, Clock, MessageSquare, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
@@ -642,6 +642,8 @@ export default function AdminRequestDetailPage() {
           {/* Document type + Generate — only when there's at least one result */}
           {items.some((i) => i.search_results.length > 0) && (
           <>
+          <OrderSummaryShareCard uuid={uuid} />
+
           <DocumentTypeSelector value={documentType} onChange={setDocumentType} />
 
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
@@ -678,6 +680,65 @@ export default function AdminRequestDetailPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function OrderSummaryShareCard({ uuid }: { uuid: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = typeof window !== 'undefined' ? `${window.location.origin}/order-summary/${uuid}` : '';
+
+  const copy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-5 dark:border-slate-700 dark:from-emerald-900/20 dark:to-teal-900/20">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-600 dark:text-emerald-400">
+            <ClipboardList className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-900 dark:text-white">
+              Fiche commande collaborateur
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Synthèse interne (client, sélection finale, notes, infos colisage et fournisseurs).
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={copy}
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+              copied
+                ? 'border-emerald-500 bg-emerald-500 text-white'
+                : 'border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 dark:bg-slate-800 dark:text-emerald-300'
+            }`}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? 'Lien copié' : 'Copier le lien'}
+          </button>
+          <a
+            href={`/order-summary/${uuid}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Ouvrir la fiche
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
