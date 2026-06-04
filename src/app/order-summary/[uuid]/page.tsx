@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Image from 'next/image';
 import {
   AlertTriangle,
   Battery,
@@ -311,11 +310,10 @@ export default function OrderSummaryPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   {item.image_url && (
-                    <Image
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
                       src={item.image_url}
                       alt=""
-                      width={56}
-                      height={56}
                       className="h-14 w-14 rounded-xl object-cover"
                     />
                   )}
@@ -407,11 +405,10 @@ function ProductCard({
     >
       <div className="flex gap-4">
         {displayImage && (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={displayImage}
             alt={p.title}
-            width={96}
-            height={96}
             className="h-24 w-24 flex-shrink-0 rounded-xl object-cover"
           />
         )}
