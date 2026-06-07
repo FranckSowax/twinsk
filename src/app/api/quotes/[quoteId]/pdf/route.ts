@@ -14,6 +14,8 @@ export async function GET(
 ) {
   try {
     const { quoteId } = await params;
+    const origin = new URL(_request.url).origin;
+    const logoUrl = `${origin}/twinsk-logo.jpg`;
 
     const { data: quote, error: quoteError } = await supabaseAdmin
       .from('quotes')
@@ -111,6 +113,7 @@ export async function GET(
         totalAmountCny: q.total_amount,
         currency,
         transport,
+        logoUrl,
       });
     }
 

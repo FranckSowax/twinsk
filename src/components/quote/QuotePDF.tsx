@@ -36,6 +36,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#ffffff',
   },
+  logoImage: {
+    width: 120,
+    height: 120,
+    objectFit: 'contain',
+  },
   logoText: {
     fontSize: 18,
     fontFamily: 'Helvetica-Bold',
@@ -190,12 +195,12 @@ const styles = StyleSheet.create({
   },
 
   // Cols widths
-  colProduct: { width: '50%' },
-  colQty: { width: '12%' },
-  colArea: { width: '10%' },
-  colUnit: { width: '14%' },
-  colTotal: { width: '14%' },
-  colTotalLast: { width: '14%', borderRightWidth: 0 },
+  colProduct: { width: '46%' },
+  colQty: { width: '11%' },
+  colArea: { width: '8%' },
+  colUnit: { width: '15%' },
+  colTotal: { width: '20%' },
+  colTotalLast: { width: '20%', borderRightWidth: 0 },
 
   // Note legale
   legalNote: {
@@ -239,6 +244,7 @@ interface QuotePDFProps {
   totalAmountCny: number;
   currency?: CurrencyCode;
   transport?: QuoteTransportSummary | null;
+  logoUrl?: string;
 }
 
 function fmt(amountCny: number, currency: CurrencyCode): string {
@@ -259,6 +265,7 @@ export default function QuotePDF({
   totalAmountCny,
   currency = 'CNY',
   transport,
+  logoUrl,
 }: QuotePDFProps) {
   // Compute totals
   const itemsTotalCny = items.reduce(
@@ -294,13 +301,17 @@ export default function QuotePDF({
       <Page size="A4" style={styles.page}>
         {/* Header : logo + client */}
         <View style={styles.header}>
-          <View style={styles.logoBlock}>
-            <Text style={styles.logoSubText2}>TWINSK</Text>
-            <View style={styles.logoLine} />
-            <Text style={styles.logoText}>HONG KONG</Text>
-            <View style={styles.logoLine} />
-            <Text style={styles.logoSubText}>COMPANY LIMITED</Text>
-          </View>
+          {logoUrl ? (
+            <Image src={logoUrl} style={styles.logoImage} />
+          ) : (
+            <View style={styles.logoBlock}>
+              <Text style={styles.logoSubText2}>TWINSK</Text>
+              <View style={styles.logoLine} />
+              <Text style={styles.logoText}>HONG KONG</Text>
+              <View style={styles.logoLine} />
+              <Text style={styles.logoSubText}>COMPANY LIMITED</Text>
+            </View>
+          )}
           <View style={styles.clientHeader}>
             <Text style={styles.clientName}>{clientName}</Text>
             <Text style={styles.clientCity}>

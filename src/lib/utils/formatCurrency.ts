@@ -16,16 +16,19 @@ export function formatUSD(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
 
+// Use en-US locale for thousand separator (",") so the embedded PDF font
+// renders correctly. fr-FR uses a narrow no-break space (U+202F) which the
+// default Helvetica face renders as a slash.
 export function formatEUR(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(amount);
+  return `${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} €`;
 }
 
 export function formatXAF(amount: number): string {
   // No decimals for FCFA
-  return `${Math.round(amount).toLocaleString('fr-FR')} FCFA`;
+  return `${Math.round(amount).toLocaleString('en-US')} FCFA`;
 }
 
 export interface MultiCurrencyPrice {
