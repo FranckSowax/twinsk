@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import QuotePDF from '@/components/quote/QuotePDF';
 import PackingListPDF from '@/components/quote/PackingListPDF';
@@ -8,14 +10,29 @@ import { computeQuoteTransport } from '@/lib/quote-transport';
 import type { CurrencyCode } from '@/lib/utils/formatCurrency';
 import type { Quote, Request as RequestType, RequestItemWithResults } from '@/lib/types/database';
 
+// Cache du logo en data URL — evite de relire le fichier a chaque devis
+// et evite tout fetch HTTP cote serveur (qui echoue sur Railway).
+let _logoDataUrlCache: string | null = null;
+async function getLogoDataUrl(): Promise<string | null> {
+  if (_logoDataUrlCache) return _logoDataUrlCache;
+  try {
+    const filePath = path.join(process.cwd(), 'public', 'twinsk-logo.jpg');
+    const buf = await fs.readFile(filePath);
+    _logoDataUrlCache = `data:image/jpeg;base64,${buf.toString('base64')}`;
+    return _logoDataUrlCache;
+  } catch (e) {
+    console.warn('Logo introuvable, fallback texte:', e);
+    return null;
+  }
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ quoteId: string }> }
 ) {
   try {
     const { quoteId } = await params;
-    const origin = new URL(_request.url).origin;
-    const logoUrl = `${origin}/twinsk-logo.jpg`;
+    const logoUrl = (await getLogoDataUrl()) ?? undefined;
 
     const { data: quote, error: quoteError } = await supabaseAdmin
       .from('quotes')
