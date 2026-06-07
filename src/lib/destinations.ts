@@ -43,6 +43,27 @@ export const DESTINATIONS: Record<DestinationCode, Destination> = {
 
 export const DEFAULT_DESTINATION: DestinationCode = 'gabon';
 
+// --- Optimisation conteneur maritime (regle universelle, indep. destination)
+// V < 20 CBM             -> groupage au CBM (tarifs destination)
+// 20 <= V <= 28 CBM      -> conteneur 20' a prix fixe
+// 28 < V <= 72 CBM       -> conteneur 40' a prix fixe
+// V > 72 CBM             -> N x conteneurs 40' (ceil(V/72))
+export const GROUPAGE_MAX_CBM = 20;
+
+export const CONTAINER_20 = {
+  capacityCbm: 28,
+  cost: 5500,
+  currency: 'EUR' as CurrencyCode,
+  label: "Conteneur 20' complet",
+};
+
+export const CONTAINER_40 = {
+  capacityCbm: 72,
+  cost: 7800,
+  currency: 'USD' as CurrencyCode,
+  label: "Conteneur 40' complet",
+};
+
 export const DESTINATION_LIST: Destination[] = Object.values(DESTINATIONS);
 
 /**

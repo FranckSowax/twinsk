@@ -259,6 +259,17 @@ function fmtNativeRate(rate: number, native: CurrencyCode): string {
   return `${formatted} ${native}`;
 }
 
+function fmtNativeAmount(amount: number, native: CurrencyCode): string {
+  const formatted = amount.toLocaleString('en-US', {
+    minimumFractionDigits: native === 'XAF' ? 0 : 2,
+    maximumFractionDigits: native === 'XAF' ? 0 : 2,
+  });
+  if (native === 'XAF') return `${formatted} FCFA`;
+  if (native === 'EUR') return `${formatted} €`;
+  if (native === 'USD') return `$${formatted}`;
+  return `${formatted} ${native}`;
+}
+
 export default function QuotePDF({
   quoteId,
   quoteDate,
@@ -461,7 +472,7 @@ export default function QuotePDF({
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Maritime {hub} (groupage)
+                  Pack Transport Maritime {hub} — {transport.seaModeLabel}
                 </Text>
                 <Text style={{ fontSize: 8, color: '#475569' }}>
                   Destination : {destLabel} · Chargement, transport départ,
@@ -475,10 +486,16 @@ export default function QuotePDF({
                     marginTop: 2,
                   }}
                 >
-                  Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³ ({fmtNativeRate(transport.seaRatePerCbm, transport.nativeCurrency)}/m³)
+                  Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³
+                  {transport.seaMode === 'groupage' &&
+                    ` (${fmtNativeRate(transport.seaRatePerCbm, transport.nativeCurrency)}/m³)`}
+                  {transport.seaMode !== 'groupage' && transport.seaCostNative != null &&
+                    ` — forfait : ${fmtNativeAmount(transport.seaCostNative, transport.seaCostCurrency)}`}
                 </Text>
               </View>
-              <Text style={[styles.tableCell, styles.colQty]}>1</Text>
+              <Text style={[styles.tableCell, styles.colQty]}>
+                {transport.seaContainerCount > 1 ? transport.seaContainerCount : 1}
+              </Text>
               <Text style={[styles.tableCell, styles.colArea]}>—</Text>
               <Text style={[styles.tableCell, styles.colUnit]}>
                 {fmt(transport.seaCostCny, currency)}
@@ -497,7 +514,7 @@ export default function QuotePDF({
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Maritime {hub} (groupage)
+                  Pack Transport Maritime {hub}
                 </Text>
                 <Text style={{ fontSize: 8, color: '#94a3b8' }}>
                   À calculer — volume (CBM) des produits à confirmer

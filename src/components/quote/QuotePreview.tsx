@@ -63,13 +63,17 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
   const destLabel = transport.destinationLabel;
 
   const fmt = (cny: number) => formatInCurrency(cny, currency);
-  const fmtNativeRate = (rate: number) => {
-    const v = rate.toLocaleString('en-US');
-    if (transport.nativeCurrency === 'XAF') return `${v} FCFA`;
-    if (transport.nativeCurrency === 'EUR') return `${v} €`;
-    if (transport.nativeCurrency === 'USD') return `$${v}`;
-    return `${v} ${transport.nativeCurrency}`;
+  const fmtNative = (amount: number, native: typeof transport.nativeCurrency, decimals = 0) => {
+    const v = amount.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    if (native === 'XAF') return `${v} FCFA`;
+    if (native === 'EUR') return `${v} €`;
+    if (native === 'USD') return `$${v}`;
+    return `${v} ${native}`;
   };
+  const fmtNativeRate = (rate: number) => fmtNative(rate, transport.nativeCurrency);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -233,7 +237,10 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               {/* Maritime */}
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
-                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Maritime {hub} (groupage)</p>
+                  <p className="font-bold text-slate-900 dark:text-white">
+                    Pack Transport Maritime {hub}
+                    {transport.seaModeLabel ? ` — ${transport.seaModeLabel}` : ''}
+                  </p>
                   {transport.seaAvailable && transport.seaCostCny != null ? (
                     <>
                       <p className="text-xs text-slate-600">
@@ -241,14 +248,23 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         douane export, formalités admin Chine
                       </p>
                       <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³ ({fmtNativeRate(transport.seaRatePerCbm)}/m³)
+                        Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³
+                        {transport.seaMode === 'groupage'
+                          ? ` (${fmtNativeRate(transport.seaRatePerCbm)}/m³)`
+                          : transport.seaCostNative != null
+                            ? ` — forfait : ${fmtNative(transport.seaCostNative, transport.seaCostCurrency, transport.seaCostCurrency === 'XAF' ? 0 : 2)}`
+                            : ''}
                       </p>
                     </>
                   ) : (
                     <p className="text-xs text-slate-400">À calculer — volume (CBM) des produits à confirmer</p>
                   )}
                 </td>
-                <td className="border-r border-slate-300 p-3 text-center">{transport.seaAvailable ? '1' : '—'}</td>
+                <td className="border-r border-slate-300 p-3 text-center">
+                  {transport.seaAvailable
+                    ? (transport.seaContainerCount > 1 ? transport.seaContainerCount : '1')
+                    : '—'}
+                </td>
                 <td className="border-r border-slate-300 p-3 text-center text-slate-400">—</td>
                 <td className="border-r border-slate-300 p-3 text-center">
                   {transport.seaCostCny != null ? fmt(transport.seaCostCny) : <span className="text-slate-400">—</span>}
