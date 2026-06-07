@@ -2,7 +2,6 @@ import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/render
 import {
   type CurrencyCode,
   formatInCurrency,
-  formatFcfaInCurrency,
 } from '@/lib/utils/formatCurrency';
 import type { QuoteTransportSummary } from '@/lib/quote-transport';
 
@@ -251,8 +250,13 @@ function fmt(amountCny: number, currency: CurrencyCode): string {
   return formatInCurrency(amountCny, currency);
 }
 
-function fmtFcfa(amountFcfa: number, currency: CurrencyCode): string {
-  return formatFcfaInCurrency(amountFcfa, currency);
+function fmtNativeRate(rate: number, native: CurrencyCode): string {
+  // Affichage compact des tarifs unitaires natifs (ex : "13,000 FCFA/kg").
+  const formatted = rate.toLocaleString('en-US');
+  if (native === 'XAF') return `${formatted} FCFA`;
+  if (native === 'EUR') return `${formatted} €`;
+  if (native === 'USD') return `$${formatted}`;
+  return `${formatted} ${native}`;
 }
 
 export default function QuotePDF({
@@ -273,28 +277,21 @@ export default function QuotePDF({
     0,
   );
 
-  // Final FX-converted total = items + transport (transport is FCFA → convert)
-  // We let admin choose ONE transport mode by displaying both — totals show
-  // the sub-total and per-mode totals. For PDF, we add both transports as
-  // OPTIONS, with the grand total = sub-total + the cheapest available
-  // (or sub-total only if neither available).
-  const transportAir = transport?.airAvailable ? transport.airCostFcfa : null;
-  const transportSea = transport?.seaAvailable ? transport.seaCostFcfa : null;
-  // For grand total in the chosen currency, we keep "sub-total" untouched and
-  // list transports as additions. The final "Total à payer" line shows the
-  // sub-total + the cheaper transport mode (most common B2B choice).
-  let finalTransportFcfa: number | null = null;
-  if (transportAir != null && transportSea != null) {
-    finalTransportFcfa = Math.min(transportAir, transportSea);
-  } else if (transportAir != null) {
-    finalTransportFcfa = transportAir;
-  } else if (transportSea != null) {
-    finalTransportFcfa = transportSea;
+  // Couts transport dans la devise du devis (CNY). On affiche les 2 modes ;
+  // le "Total a payer" prend le moins cher disponible (cas B2B le plus courant).
+  const transportAirCny = transport?.airAvailable ? transport.airCostCny : null;
+  const transportSeaCny = transport?.seaAvailable ? transport.seaCostCny : null;
+  let finalTransportCny: number | null = null;
+  if (transportAirCny != null && transportSeaCny != null) {
+    finalTransportCny = Math.min(transportAirCny, transportSeaCny);
+  } else if (transportAirCny != null) {
+    finalTransportCny = transportAirCny;
+  } else if (transportSeaCny != null) {
+    finalTransportCny = transportSeaCny;
   }
-  const finalTransportCny = finalTransportFcfa != null
-    ? finalTransportFcfa / 90.45 // approx CNY ≈ XAF rate (FX_RATES.XAF = 600/7.1)
-    : null;
   const grandTotalCny = itemsTotalCny + (finalTransportCny ?? 0);
+  const hub = transport?.hub || 'LBV';
+  const destLabel = transport?.destinationLabel || 'Gabon (Libreville)';
 
   return (
     <Document>
@@ -406,15 +403,15 @@ export default function QuotePDF({
           </View>
 
           {/* Transport aérien */}
-          {transport?.airAvailable && transport.airCostFcfa != null ? (
+          {transport?.airAvailable && transport.airCostCny != null ? (
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Aérien LBV
+                  Pack Transport Aérien {hub}
                 </Text>
                 <Text style={{ fontSize: 8, color: '#475569' }}>
-                  Chargement, transport départ, contrôle qualité, douane export,
-                  formalités admin Chine
+                  Destination : {destLabel} · Chargement, transport départ,
+                  contrôle qualité, douane export, formalités admin Chine
                 </Text>
                 <Text
                   style={{
@@ -424,14 +421,13 @@ export default function QuotePDF({
                     marginTop: 2,
                   }}
                 >
-                  Poids total : {transport.totalWeight!.toFixed(2)} kg{' '}
-                  {transport.hasBattery ? '(avec batterie · 18 000 FCFA/kg)' : '(13 000 FCFA/kg)'}
+                  Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg{transport.hasBattery ? ' · avec batterie' : ''})
                 </Text>
               </View>
               <Text style={[styles.tableCell, styles.colQty]}>1</Text>
               <Text style={[styles.tableCell, styles.colArea]}>—</Text>
               <Text style={[styles.tableCell, styles.colUnit]}>
-                {fmtFcfa(transport.airCostFcfa, currency)}
+                {fmt(transport.airCostCny, currency)}
               </Text>
               <Text
                 style={[
@@ -440,14 +436,14 @@ export default function QuotePDF({
                   { fontFamily: 'Helvetica-Bold' },
                 ]}
               >
-                {fmtFcfa(transport.airCostFcfa, currency)}
+                {fmt(transport.airCostCny, currency)}
               </Text>
             </View>
           ) : (
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Aérien LBV
+                  Pack Transport Aérien {hub}
                 </Text>
                 <Text style={{ fontSize: 8, color: '#94a3b8' }}>
                   À calculer — poids unitaire des produits à confirmer
@@ -461,15 +457,15 @@ export default function QuotePDF({
           )}
 
           {/* Transport maritime */}
-          {transport?.seaAvailable && transport.seaCostFcfa != null ? (
+          {transport?.seaAvailable && transport.seaCostCny != null ? (
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Maritime LBV (groupage)
+                  Pack Transport Maritime {hub} (groupage)
                 </Text>
                 <Text style={{ fontSize: 8, color: '#475569' }}>
-                  Chargement, transport départ, contrôle qualité, douane export,
-                  formalités admin Chine
+                  Destination : {destLabel} · Chargement, transport départ,
+                  contrôle qualité, douane export, formalités admin Chine
                 </Text>
                 <Text
                   style={{
@@ -479,14 +475,13 @@ export default function QuotePDF({
                     marginTop: 2,
                   }}
                 >
-                  Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³{' '}
-                  (260 000 FCFA/m³)
+                  Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³ ({fmtNativeRate(transport.seaRatePerCbm, transport.nativeCurrency)}/m³)
                 </Text>
               </View>
               <Text style={[styles.tableCell, styles.colQty]}>1</Text>
               <Text style={[styles.tableCell, styles.colArea]}>—</Text>
               <Text style={[styles.tableCell, styles.colUnit]}>
-                {fmtFcfa(transport.seaCostFcfa, currency)}
+                {fmt(transport.seaCostCny, currency)}
               </Text>
               <Text
                 style={[
@@ -495,14 +490,14 @@ export default function QuotePDF({
                   { fontFamily: 'Helvetica-Bold' },
                 ]}
               >
-                {fmtFcfa(transport.seaCostFcfa, currency)}
+                {fmt(transport.seaCostCny, currency)}
               </Text>
             </View>
           ) : (
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Maritime LBV (groupage)
+                  Pack Transport Maritime {hub} (groupage)
                 </Text>
                 <Text style={{ fontSize: 8, color: '#94a3b8' }}>
                   À calculer — volume (CBM) des produits à confirmer

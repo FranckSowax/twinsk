@@ -16,6 +16,7 @@ import EditClientInfoModal from '@/components/admin/EditClientInfoModal';
 import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
 import { Coins, Pencil, MapPin } from 'lucide-react';
 import type { Request as RequestType, DocumentType } from '@/lib/types/database';
+import { destinationLabel as destinationLabelFor } from '@/lib/destinations';
 
 interface RequestItemWithResults {
   id: string;
@@ -288,7 +289,10 @@ export default function AdminRequestDetailPage() {
             <div className="min-w-0">
               <p className="text-xs text-slate-500">Destination</p>
               <p className="truncate font-medium text-slate-900 dark:text-white">
-                {(request as unknown as { destination?: string | null }).destination || '—'}
+                {(() => {
+                  const d = (request as unknown as { destination?: string | null }).destination;
+                  return d ? destinationLabelFor(d) : '—';
+                })()}
               </p>
             </div>
           </div>

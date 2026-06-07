@@ -1,13 +1,13 @@
-// Transport pricing for the quote PDF. Same rates as /offer checkout.
-// - Aérien : 13 000 FCFA / kg (18 000 FCFA / kg si au moins un produit
-//   contient une batterie au lithium)
-// - Maritime groupage : 260 000 FCFA / m³
+// Transport pricing for the quote PDF. Tarifs dependent de la destination
+// (see src/lib/destinations.ts). On retourne le cout dans la devise native
+// du pays + son equivalent CNY pour faciliter le calcul total cote PDF.
 
 import {
-  AIR_RATE_FCFA_PER_KG,
-  AIR_BATTERY_RATE_FCFA_PER_KG,
-  SEA_RATE_FCFA_PER_M3,
-} from './offer-pricing';
+  DEFAULT_DESTINATION,
+  resolveDestination,
+  type DestinationCode,
+} from './destinations';
+import { FX_RATES, type CurrencyCode } from './utils/formatCurrency';
 
 export interface QuoteLine {
   quantity: number;
@@ -17,18 +17,41 @@ export interface QuoteLine {
 }
 
 export interface QuoteTransportSummary {
+  destinationCode: DestinationCode;
+  destinationLabel: string;
+  hub: string;
+  nativeCurrency: CurrencyCode;
   totalWeight: number | null;
   totalVolume: number | null;
   hasBattery: boolean;
   airAvailable: boolean;
   seaAvailable: boolean;
+  /** Tarif aerien applique (par kg, en devise native). */
   airRatePerKg: number;
+  /** Tarif maritime (par m³, en devise native). */
   seaRatePerCbm: number;
-  airCostFcfa: number | null;
-  seaCostFcfa: number | null;
+  /** Cout aerien total dans la devise native. */
+  airCostNative: number | null;
+  /** Cout maritime total dans la devise native. */
+  seaCostNative: number | null;
+  /** Cout aerien total exprime en CNY (pour additionner au sous-total devis). */
+  airCostCny: number | null;
+  /** Cout maritime total exprime en CNY. */
+  seaCostCny: number | null;
 }
 
-export function computeQuoteTransport(lines: QuoteLine[]): QuoteTransportSummary {
+function nativeToCny(amount: number, native: CurrencyCode): number {
+  // FX_RATES[X] = "1 CNY -> X". Pour passer native -> CNY : amount / rate.
+  const rate = FX_RATES[native];
+  if (!rate) return 0;
+  return amount / rate;
+}
+
+export function computeQuoteTransport(
+  lines: QuoteLine[],
+  destinationCode: string | null | undefined = DEFAULT_DESTINATION,
+): QuoteTransportSummary {
+  const dest = resolveDestination(destinationCode);
   let totalWeight = 0;
   let totalVolume = 0;
   let weightKnown = true;
@@ -45,17 +68,29 @@ export function computeQuoteTransport(lines: QuoteLine[]): QuoteTransportSummary
 
   const airAvailable = weightKnown && totalWeight > 0;
   const seaAvailable = volumeKnown && totalVolume > 0;
-  const airRatePerKg = hasBattery ? AIR_BATTERY_RATE_FCFA_PER_KG : AIR_RATE_FCFA_PER_KG;
+  const airRatePerKg = hasBattery
+    ? dest.air_battery_rate_per_kg
+    : dest.air_rate_per_kg;
+  const seaRatePerCbm = dest.sea_rate_per_cbm;
+
+  const airCostNative = airAvailable ? totalWeight * airRatePerKg : null;
+  const seaCostNative = seaAvailable ? totalVolume * seaRatePerCbm : null;
 
   return {
+    destinationCode: dest.code,
+    destinationLabel: dest.label,
+    hub: dest.hub,
+    nativeCurrency: dest.currency,
     totalWeight: weightKnown ? totalWeight : null,
     totalVolume: volumeKnown ? totalVolume : null,
     hasBattery,
     airAvailable,
     seaAvailable,
     airRatePerKg,
-    seaRatePerCbm: SEA_RATE_FCFA_PER_M3,
-    airCostFcfa: airAvailable ? totalWeight * airRatePerKg : null,
-    seaCostFcfa: seaAvailable ? totalVolume * SEA_RATE_FCFA_PER_M3 : null,
+    seaRatePerCbm,
+    airCostNative,
+    seaCostNative,
+    airCostCny: airCostNative != null ? nativeToCny(airCostNative, dest.currency) : null,
+    seaCostCny: seaCostNative != null ? nativeToCny(seaCostNative, dest.currency) : null,
   };
 }

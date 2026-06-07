@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
+  DEFAULT_DESTINATION,
+  DESTINATION_LIST,
+  destinationLabel as destinationLabelFor,
+} from '@/lib/destinations';
+import {
   AlertTriangle,
   Battery,
   Check,
@@ -271,7 +276,9 @@ export default function OrderSummaryPage() {
               {request.destination && (
                 <p className="flex items-center gap-2">
                   <MapPin className="h-3.5 w-3.5 text-emerald-500" />
-                  <span className="font-medium text-emerald-700">{request.destination}</span>
+                  <span className="font-medium text-emerald-700">
+                    {destinationLabelFor(request.destination)}
+                  </span>
                 </p>
               )}
             </div>
@@ -725,23 +732,37 @@ function ClientInfoModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const phoneAlreadyOk = initialPhone.trim().length > 0;
+  const destinationAlreadyOk = initialDestination.trim().length > 0;
   const [phone, setPhone] = useState(initialPhone);
-  const [destination, setDestination] = useState(initialDestination);
+  const [destination, setDestination] = useState(
+    destinationAlreadyOk ? initialDestination : DEFAULT_DESTINATION,
+  );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const save = async () => {
-    if (!phone.trim() || !destination.trim()) {
-      setErr('Téléphone WhatsApp et destination requis');
+    if (!phone.trim()) {
+      setErr('Téléphone WhatsApp requis');
+      return;
+    }
+    if (!destination.trim()) {
+      setErr('Destination requise');
       return;
     }
     setSaving(true);
     setErr(null);
     try {
+      const body: Record<string, string> = { client_phone: phone.trim() };
+      // On ne reecrit la destination que si elle etait vide ou si le user
+      // l a explicitement changee.
+      if (!destinationAlreadyOk || destination.trim() !== initialDestination.trim()) {
+        body.destination = destination.trim();
+      }
       const res = await fetch(`/api/requests/${uuid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_phone: phone.trim(), destination: destination.trim() }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
@@ -755,6 +776,10 @@ function ClientInfoModal({
       setSaving(false);
     }
   };
+
+  const resolvedExistingLabel = destinationAlreadyOk
+    ? destinationLabelFor(initialDestination)
+    : null;
 
   return (
     <div
@@ -780,16 +805,53 @@ function ClientInfoModal({
           </button>
         </div>
         <div className="space-y-3">
-          <Field
-            label="Téléphone WhatsApp (avec indicatif, ex. +24107…)"
-            value={phone}
-            onChange={setPhone}
-          />
-          <Field
-            label="Destination (ville, pays)"
-            value={destination}
-            onChange={setDestination}
-          />
+          {!phoneAlreadyOk && (
+            <Field
+              label="Téléphone WhatsApp (avec indicatif, ex. +24107…)"
+              value={phone}
+              onChange={setPhone}
+            />
+          )}
+          {phoneAlreadyOk && (
+            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Téléphone WhatsApp
+              </p>
+              <p>{phone}</p>
+            </div>
+          )}
+
+          {destinationAlreadyOk ? (
+            <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                Destination déjà enregistrée
+              </p>
+              <p className="font-medium">{resolvedExistingLabel}</p>
+              <p className="mt-1 text-xs text-emerald-700">
+                Les tarifs transport associés au pays seront appliqués au devis.
+              </p>
+            </div>
+          ) : (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">
+                Pays de destination
+              </span>
+              <select
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-300"
+              >
+                {DESTINATION_LIST.map((d) => (
+                  <option key={d.code} value={d.code}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">
+                Tarifs transport appliqués automatiquement selon le pays choisi.
+              </span>
+            </label>
+          )}
           {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-2">

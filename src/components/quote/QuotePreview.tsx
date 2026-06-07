@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Download, Printer } from 'lucide-react';
-import { applyMargin, formatInCurrency, formatFcfaInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
+import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { computeQuoteTransport } from '@/lib/quote-transport';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
@@ -35,6 +35,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
       ? rawCur
       : 'CNY';
 
+  const destinationCode = (request as unknown as { destination?: string | null }).destination ?? null;
   const transport = computeQuoteTransport(
     items.map((i) => ({
       quantity: i.quantity,
@@ -42,26 +43,33 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
       volume: i.volume,
       has_battery: i.has_battery,
     })),
+    destinationCode,
   );
 
   const itemsTotalCny = items.reduce(
     (sum, it) => sum + applyMargin(it.price, it.margin_percent) * it.quantity,
     0,
   );
-  // Convert transport (FCFA) into CNY equivalent to add to grand total
-  const transportFcfaPicked: number | null = (() => {
-    const a = transport.airCostFcfa;
-    const s = transport.seaCostFcfa;
+  const transportCnyPicked: number | null = (() => {
+    const a = transport.airCostCny;
+    const s = transport.seaCostCny;
     if (a != null && s != null) return Math.min(a, s);
     if (a != null) return a;
     if (s != null) return s;
     return null;
   })();
-  const transportCnyPicked = transportFcfaPicked != null ? transportFcfaPicked / 90.45 : null;
   const grandTotalCny = itemsTotalCny + (transportCnyPicked ?? 0);
+  const hub = transport.hub;
+  const destLabel = transport.destinationLabel;
 
   const fmt = (cny: number) => formatInCurrency(cny, currency);
-  const fmtFcfa = (fcfa: number) => formatFcfaInCurrency(fcfa, currency);
+  const fmtNativeRate = (rate: number) => {
+    const v = rate.toLocaleString('en-US');
+    if (transport.nativeCurrency === 'XAF') return `${v} FCFA`;
+    if (transport.nativeCurrency === 'EUR') return `${v} €`;
+    if (transport.nativeCurrency === 'USD') return `$${v}`;
+    return `${v} ${transport.nativeCurrency}`;
+  };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -197,15 +205,15 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               {/* Aérien */}
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
-                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Aérien LBV</p>
-                  {transport.airAvailable && transport.airCostFcfa != null ? (
+                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Aérien {hub}</p>
+                  {transport.airAvailable && transport.airCostCny != null ? (
                     <>
                       <p className="text-xs text-slate-600">
-                        Chargement, transport départ, contrôle qualité, douane export, formalités admin Chine
+                        Destination : {destLabel} · Chargement, transport départ, contrôle qualité,
+                        douane export, formalités admin Chine
                       </p>
                       <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Poids total : {transport.totalWeight!.toFixed(2)} kg{' '}
-                        {transport.hasBattery ? '(avec batterie · 18 000 FCFA/kg)' : '(13 000 FCFA/kg)'}
+                        Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg)}/kg{transport.hasBattery ? ' · avec batterie' : ''})
                       </p>
                     </>
                   ) : (
@@ -215,24 +223,25 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                 <td className="border-r border-slate-300 p-3 text-center">{transport.airAvailable ? '1' : '—'}</td>
                 <td className="border-r border-slate-300 p-3 text-center text-slate-400">—</td>
                 <td className="border-r border-slate-300 p-3 text-center">
-                  {transport.airCostFcfa != null ? fmtFcfa(transport.airCostFcfa) : <span className="text-slate-400">—</span>}
+                  {transport.airCostCny != null ? fmt(transport.airCostCny) : <span className="text-slate-400">—</span>}
                 </td>
                 <td className="p-3 text-right font-bold">
-                  {transport.airCostFcfa != null ? fmtFcfa(transport.airCostFcfa) : <span className="text-slate-400">—</span>}
+                  {transport.airCostCny != null ? fmt(transport.airCostCny) : <span className="text-slate-400">—</span>}
                 </td>
               </tr>
 
               {/* Maritime */}
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
-                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Maritime LBV (groupage)</p>
-                  {transport.seaAvailable && transport.seaCostFcfa != null ? (
+                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Maritime {hub} (groupage)</p>
+                  {transport.seaAvailable && transport.seaCostCny != null ? (
                     <>
                       <p className="text-xs text-slate-600">
-                        Chargement, transport départ, contrôle qualité, douane export, formalités admin Chine
+                        Destination : {destLabel} · Chargement, transport départ, contrôle qualité,
+                        douane export, formalités admin Chine
                       </p>
                       <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³ (260 000 FCFA/m³)
+                        Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³ ({fmtNativeRate(transport.seaRatePerCbm)}/m³)
                       </p>
                     </>
                   ) : (
@@ -242,10 +251,10 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                 <td className="border-r border-slate-300 p-3 text-center">{transport.seaAvailable ? '1' : '—'}</td>
                 <td className="border-r border-slate-300 p-3 text-center text-slate-400">—</td>
                 <td className="border-r border-slate-300 p-3 text-center">
-                  {transport.seaCostFcfa != null ? fmtFcfa(transport.seaCostFcfa) : <span className="text-slate-400">—</span>}
+                  {transport.seaCostCny != null ? fmt(transport.seaCostCny) : <span className="text-slate-400">—</span>}
                 </td>
                 <td className="p-3 text-right font-bold">
-                  {transport.seaCostFcfa != null ? fmtFcfa(transport.seaCostFcfa) : <span className="text-slate-400">—</span>}
+                  {transport.seaCostCny != null ? fmt(transport.seaCostCny) : <span className="text-slate-400">—</span>}
                 </td>
               </tr>
 

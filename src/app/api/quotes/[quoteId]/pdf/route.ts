@@ -86,7 +86,10 @@ export async function GET(
         rawCur === 'USD' || rawCur === 'EUR' || rawCur === 'XAF' || rawCur === 'CNY'
           ? rawCur
           : 'CNY';
-      // Transport calculé sur l ensemble des produits selectionnes.
+      // Transport calculé sur l ensemble des produits selectionnes,
+      // avec les tarifs du pays de destination (Gabon par defaut).
+      const destinationCode =
+        (req as unknown as { destination?: string | null } | null)?.destination ?? null;
       const transport = computeQuoteTransport(
         selectedResults.map((r) => ({
           quantity: r.quantity,
@@ -95,6 +98,7 @@ export async function GET(
           has_battery:
             (r as unknown as { has_battery?: boolean | null }).has_battery ?? null,
         })),
+        destinationCode,
       );
       pdfElement = createElement(QuotePDF, {
         quoteId: q.id,
