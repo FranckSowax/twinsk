@@ -89,7 +89,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
     string | null
   >(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
