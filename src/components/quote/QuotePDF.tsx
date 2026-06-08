@@ -224,6 +224,13 @@ const styles = StyleSheet.create({
   },
 });
 
+interface QuoteVariant {
+  id: string;
+  name: string;
+  price: number | null;
+  is_main: boolean;
+}
+
 interface QuoteItem {
   title: string;
   description?: string | null;
@@ -231,6 +238,7 @@ interface QuoteItem {
   price: number;
   quantity: number;
   margin_percent: number;
+  variants?: QuoteVariant[];
 }
 
 interface QuotePDFProps {
@@ -282,9 +290,16 @@ export default function QuotePDF({
   transport,
   logoUrl,
 }: QuotePDFProps) {
-  // Compute totals
+  // Compute totals — si l item a des variantes, on utilise le prix de la
+  // variante principale (is_main). Sinon le prix produit.
+  const unitPriceFor = (it: QuoteItem): number => {
+    const main = it.variants?.find((v) => v.is_main);
+    if (main && typeof main.price === 'number') return main.price;
+    return it.price;
+  };
   const itemsTotalCny = items.reduce(
-    (sum, it) => sum + it.price * (1 + it.margin_percent / 100) * it.quantity,
+    (sum, it) =>
+      sum + unitPriceFor(it) * (1 + it.margin_percent / 100) * it.quantity,
     0,
   );
 
@@ -367,8 +382,12 @@ export default function QuotePDF({
 
           {/* Data rows */}
           {items.map((item, index) => {
-            const finalPrice = item.price * (1 + item.margin_percent / 100);
+            const unitBase = unitPriceFor(item);
+            const finalPrice = unitBase * (1 + item.margin_percent / 100);
             const lineTotal = finalPrice * item.quantity;
+            const variants = item.variants || [];
+            const mainVariant = variants.find((v) => v.is_main) || null;
+            const otherVariants = variants.filter((v) => !v.is_main);
             return (
               <View key={index} style={styles.tableRow} wrap={false}>
                 <View style={[styles.productCell, styles.colProduct]}>
@@ -382,6 +401,54 @@ export default function QuotePDF({
                         ? item.description.slice(0, 280) + '…'
                         : item.description}
                     </Text>
+                  ) : null}
+                  {variants.length > 0 ? (
+                    <View
+                      style={{
+                        marginTop: 4,
+                        paddingTop: 3,
+                        borderTopWidth: 0.5,
+                        borderTopColor: '#e2e8f0',
+                      }}
+                    >
+                      {mainVariant ? (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            marginBottom: 1,
+                          }}
+                        >
+                          <Text style={{ fontSize: 8, color: '#0f172a', fontFamily: 'Helvetica-Bold' }}>
+                            {mainVariant.name} (variante retenue)
+                          </Text>
+                          <Text style={{ fontSize: 8, color: '#0f172a', fontFamily: 'Helvetica-Bold' }}>
+                            {mainVariant.price != null
+                              ? fmt(mainVariant.price * (1 + item.margin_percent / 100), currency)
+                              : '—'}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {otherVariants.map((v) => (
+                        <View
+                          key={v.id || v.name}
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            marginBottom: 1,
+                          }}
+                        >
+                          <Text style={{ fontSize: 8, color: '#94a3b8' }}>
+                            {v.name} (option · non comptée)
+                          </Text>
+                          <Text style={{ fontSize: 8, color: '#94a3b8' }}>
+                            {v.price != null
+                              ? fmt(v.price * (1 + item.margin_percent / 100), currency)
+                              : '—'}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
                   ) : null}
                 </View>
                 <Text style={[styles.tableCell, styles.colQty]}>{item.quantity}</Text>

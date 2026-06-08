@@ -38,7 +38,26 @@ export async function POST(request: NextRequest) {
 
     const totalAmount = selectedResults.reduce((sum, r) => {
       const margin = r.margin_percent || margin_global || 0;
-      return sum + r.price * (1 + margin / 100) * r.quantity;
+      // Si le produit a des variantes : on compte uniquement la variante
+      // principale (celle choisie par le client, sinon la premiere).
+      const rawVariants = Array.isArray(
+        (r as unknown as { variants?: unknown[] }).variants,
+      )
+        ? ((r as unknown as { variants?: { id?: string; name?: string; price?: number | null }[] }).variants || [])
+        : [];
+      const cleaned = rawVariants.filter(
+        (v) => v && typeof v.name === 'string' && v.name.trim().length > 0,
+      );
+      let unitPrice = r.price;
+      if (cleaned.length) {
+        const clientVariantId = (r as unknown as { client_variant_id?: string | null })
+          .client_variant_id || null;
+        const main =
+          (clientVariantId && cleaned.find((v) => v.id === clientVariantId)) ||
+          cleaned[0];
+        if (main && typeof main.price === 'number') unitPrice = main.price;
+      }
+      return sum + unitPrice * (1 + margin / 100) * r.quantity;
     }, 0);
 
     const { data: quote, error: quoteError } = await supabaseAdmin

@@ -123,14 +123,44 @@ export async function GET(
         clientName: req?.client_name || 'Client',
         clientEmail: req?.client_email || '',
         clientPhone: req?.client_phone || '',
-        items: selectedResults.map((r) => ({
-          title: r.title,
-          description: r.description,
-          image_url: r.image_url,
-          price: r.price,
-          quantity: r.quantity,
-          margin_percent: r.margin_percent,
-        })),
+        items: selectedResults.map((r) => {
+          const rawVariants = Array.isArray(
+            (r as unknown as { variants?: unknown[] }).variants,
+          )
+            ? ((r as unknown as { variants?: { id?: string; name?: string; price?: number | null }[] }).variants || [])
+            : [];
+          const cleaned = rawVariants
+            .filter((v) => v && typeof v.name === 'string' && v.name.trim().length > 0)
+            .map((v) => ({
+              id: v.id || '',
+              name: (v.name || '').trim(),
+              price: typeof v.price === 'number' ? v.price : null,
+            }));
+          const clientVariantId = (r as unknown as { client_variant_id?: string | null })
+            .client_variant_id || null;
+          const mainIndex = (() => {
+            if (!cleaned.length) return -1;
+            if (clientVariantId) {
+              const idx = cleaned.findIndex((v) => v.id === clientVariantId);
+              if (idx >= 0) return idx;
+            }
+            return 0;
+          })();
+          return {
+            title: r.title,
+            description: r.description,
+            image_url: r.image_url,
+            price: r.price,
+            quantity: r.quantity,
+            margin_percent: r.margin_percent,
+            variants: cleaned.map((v, idx) => ({
+              id: v.id,
+              name: v.name,
+              price: v.price,
+              is_main: idx === mainIndex,
+            })),
+          };
+        }),
         totalAmountCny: q.total_amount,
         currency,
         transport,

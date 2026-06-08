@@ -6,6 +6,13 @@ import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/fo
 import { computeQuoteTransport } from '@/lib/quote-transport';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
+interface QuoteVariantDisplay {
+  id: string;
+  name: string;
+  price: number | null;
+  is_main: boolean;
+}
+
 interface QuoteItemDisplay {
   title: string;
   description: string | null;
@@ -16,6 +23,7 @@ interface QuoteItemDisplay {
   weight: number | null;
   volume: number | null;
   has_battery: boolean | null;
+  variants?: QuoteVariantDisplay[];
 }
 
 interface QuotePreviewProps {
@@ -46,8 +54,19 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
     destinationCode,
   );
 
+  /**
+   * Prix unitaire applique pour le calcul du total : celui de la variante
+   * principale s il existe, sinon le prix du produit. La marge s applique
+   * ensuite.
+   */
+  const unitPriceFor = (it: QuoteItemDisplay): number => {
+    const main = it.variants?.find((v) => v.is_main);
+    if (main && typeof main.price === 'number') return main.price;
+    return it.price;
+  };
+
   const itemsTotalCny = items.reduce(
-    (sum, it) => sum + applyMargin(it.price, it.margin_percent) * it.quantity,
+    (sum, it) => sum + applyMargin(unitPriceFor(it), it.margin_percent) * it.quantity,
     0,
   );
   const transportCnyPicked: number | null = (() => {
@@ -167,8 +186,12 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
             </thead>
             <tbody>
               {items.map((it, i) => {
-                const final = applyMargin(it.price, it.margin_percent);
+                const unitBase = unitPriceFor(it);
+                const final = applyMargin(unitBase, it.margin_percent);
                 const lineTotal = final * it.quantity;
+                const variants = it.variants || [];
+                const mainVariant = variants.find((v) => v.is_main);
+                const otherVariants = variants.filter((v) => !v.is_main);
                 return (
                   <tr key={i} className="border-t border-slate-300 align-top">
                     <td className="border-r border-slate-300 p-3">
@@ -185,6 +208,43 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         <p className="mt-1 line-clamp-6 text-xs text-slate-600 dark:text-slate-400">
                           {it.description}
                         </p>
+                      )}
+                      {variants.length > 0 && (
+                        <div className="mt-2 space-y-0.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800/60">
+                          {mainVariant && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-semibold text-slate-900 dark:text-white">
+                                {mainVariant.name}
+                                <span className="ml-1 rounded bg-amber-100 px-1 text-[9px] uppercase tracking-wider text-amber-700">
+                                  variante retenue
+                                </span>
+                              </span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                {mainVariant.price != null
+                                  ? fmt(applyMargin(mainVariant.price, it.margin_percent))
+                                  : '—'}
+                              </span>
+                            </div>
+                          )}
+                          {otherVariants.map((v) => (
+                            <div
+                              key={v.id || v.name}
+                              className="flex items-center justify-between gap-3 text-slate-400 line-through decoration-slate-300"
+                            >
+                              <span>
+                                {v.name}
+                                <span className="ml-1 text-[10px] uppercase tracking-wider no-underline">
+                                  (option · non comptée)
+                                </span>
+                              </span>
+                              <span>
+                                {v.price != null
+                                  ? fmt(applyMargin(v.price, it.margin_percent))
+                                  : '—'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </td>
                     <td className="border-r border-slate-300 p-3 text-center">{it.quantity}</td>

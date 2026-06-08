@@ -6,6 +6,18 @@ import QuotePreview from '@/components/quote/QuotePreview';
 import PackingListPreview from '@/components/quote/PackingListPreview';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
+interface RawVariant {
+  id?: string;
+  name?: string;
+  price?: number | null;
+  moq?: number | null;
+  weight?: number | null;
+  volume?: number | null;
+  dimensions?: string | null;
+  capacity?: string | null;
+  image_url?: string | null;
+}
+
 interface RawSearchResult {
   title: string;
   description: string | null;
@@ -18,6 +30,15 @@ interface RawSearchResult {
   volume: number | null;
   dimensions: string | null;
   has_battery: boolean | null;
+  variants: RawVariant[] | null;
+  client_variant_id: string | null;
+}
+
+export interface QuoteVariantDisplay {
+  id: string;
+  name: string;
+  price: number | null;
+  is_main: boolean;
 }
 
 interface QuoteItemDisplay {
@@ -30,6 +51,7 @@ interface QuoteItemDisplay {
   weight: number | null;
   volume: number | null;
   has_battery: boolean | null;
+  variants: QuoteVariantDisplay[];
 }
 
 interface PackingItemDisplay {
@@ -66,17 +88,43 @@ export default function QuotePage() {
         );
 
         setQuoteItems(
-          flatRaw.map((r) => ({
-            title: r.title,
-            description: r.description,
-            image_url: r.image_url,
-            price: r.price,
-            quantity: r.quantity,
-            margin_percent: r.margin_percent,
-            weight: r.weight,
-            volume: r.volume,
-            has_battery: r.has_battery ?? null,
-          }))
+          flatRaw.map((r) => {
+            const rawVariants = Array.isArray(r.variants) ? r.variants : [];
+            const cleaned = rawVariants
+              .filter((v) => v && typeof v.name === 'string' && v.name.trim().length > 0)
+              .map((v) => ({
+                id: v.id || '',
+                name: v.name!.trim(),
+                price: typeof v.price === 'number' ? v.price : null,
+              }));
+            // Variante principale : celle choisie par le client si presente,
+            // sinon la premiere de la liste.
+            const mainIndex = (() => {
+              if (!cleaned.length) return -1;
+              if (r.client_variant_id) {
+                const idx = cleaned.findIndex((v) => v.id === r.client_variant_id);
+                if (idx >= 0) return idx;
+              }
+              return 0;
+            })();
+            return {
+              title: r.title,
+              description: r.description,
+              image_url: r.image_url,
+              price: r.price,
+              quantity: r.quantity,
+              margin_percent: r.margin_percent,
+              weight: r.weight,
+              volume: r.volume,
+              has_battery: r.has_battery ?? null,
+              variants: cleaned.map((v, idx) => ({
+                id: v.id,
+                name: v.name,
+                price: v.price,
+                is_main: idx === mainIndex,
+              })),
+            };
+          })
         );
 
         setPackingItems(

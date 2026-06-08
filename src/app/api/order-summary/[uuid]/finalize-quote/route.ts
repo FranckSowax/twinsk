@@ -23,7 +23,13 @@ interface ResultRow {
   client_variant_id: string | null;
   info_manquante: string | null;
   variants:
-    | { id?: string; weight?: number | null; volume?: number | null; price?: number | null }[]
+    | {
+        id?: string;
+        name?: string;
+        weight?: number | null;
+        volume?: number | null;
+        price?: number | null;
+      }[]
     | null;
 }
 
@@ -113,11 +119,22 @@ export async function POST(
     }
 
     // Compute total amount (CNY base * margin). Transport is added at PDF render time.
+    // Si le produit a des variantes : prix = variante choisie client, sinon
+    // premiere variante du tableau (les autres ne sont jamais comptees).
     const totalAmount = confirmedProducts.reduce((sum, r) => {
-      const variant = Array.isArray(r.variants) && r.client_variant_id
-        ? r.variants.find((v) => v?.id === r.client_variant_id) || null
-        : null;
-      const unitPrice = variant?.price ?? r.price;
+      const rawVariants = Array.isArray(r.variants) ? r.variants : [];
+      const cleaned = rawVariants.filter(
+        (v) => v && typeof v.name === 'string' && (v.name || '').trim().length > 0,
+      );
+      let variant: { price?: number | null } | null = null;
+      if (cleaned.length) {
+        if (r.client_variant_id) {
+          variant = cleaned.find((v) => v?.id === r.client_variant_id) || null;
+        }
+        if (!variant) variant = cleaned[0];
+      }
+      const unitPrice =
+        variant && typeof variant.price === 'number' ? variant.price : r.price;
       const qty = r.client_quantity != null && r.client_quantity > 0 ? r.client_quantity : r.quantity;
       const margin = r.margin_percent || 0;
       return sum + unitPrice * (1 + margin / 100) * qty;
