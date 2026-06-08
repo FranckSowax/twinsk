@@ -606,6 +606,39 @@ export default function AdminOfferDetailPage() {
             hideClientFeedback
             onUpdate={handleUpdateResult}
             onRefresh={loadData}
+            onMoveResult={async (productId, fromItemId, toItemId) => {
+              // Optimistic update : on deplace immediatement cote client
+              setItems((prev) => {
+                const next = prev.map((it) => ({
+                  ...it,
+                  search_results: it.search_results.filter((r) => r.id !== productId),
+                }));
+                const moved = prev
+                  .find((it) => it.id === fromItemId)?.search_results
+                  .find((r) => r.id === productId);
+                if (!moved) return prev;
+                return next.map((it) =>
+                  it.id === toItemId
+                    ? { ...it, search_results: [...it.search_results, moved] }
+                    : it,
+                );
+              });
+              try {
+                const res = await fetch(`/api/offers/${uuid}/move-product`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ productId, toItemId }),
+                });
+                if (!res.ok) {
+                  const json = await res.json().catch(() => ({}));
+                  alert(json.error || 'Erreur déplacement');
+                  loadData();
+                }
+              } catch {
+                alert('Erreur réseau');
+                loadData();
+              }
+            }}
           />
         </>
       )}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2 } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
@@ -67,6 +67,8 @@ interface ResultsTableProps {
   manualCreateSuffix?: string;
   manualUpdateSuffix?: string;
   hideClientFeedback?: boolean;
+  /** Si fournie, active le drag & drop des lignes entre categories. */
+  onMoveResult?: (productId: string, fromItemId: string, toItemId: string) => Promise<void>;
   onUpdate: (resultId: string, fields: Partial<SearchResultRow>) => void;
   onRefresh: () => void;
 }
@@ -92,6 +94,7 @@ export default function ResultsTable({
   manualCreateSuffix = 'manual-result',
   manualUpdateSuffix = 'results',
   hideClientFeedback = false,
+  onMoveResult,
   onUpdate,
   onRefresh,
 }: ResultsTableProps) {
@@ -104,6 +107,30 @@ export default function ResultsTable({
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<RequestItemWithResults | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [draggingResultId, setDraggingResultId] = useState<string | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+  const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
+  const dragEnabled = !!onMoveResult;
+
+  const handleDropOnItem = async (toItemId: string, fromItemId: string, productId: string) => {
+    if (!onMoveResult || toItemId === fromItemId) {
+      setDraggingResultId(null);
+      setDragOverItemId(null);
+      return;
+    }
+    setMovingIds((prev) => new Set(prev).add(productId));
+    try {
+      await onMoveResult(productId, fromItemId, toItemId);
+    } finally {
+      setMovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+      setDraggingResultId(null);
+      setDragOverItemId(null);
+    }
+  };
 
   const handleDeleteItem = async (item: RequestItemWithResults) => {
     const label = item.description || (item.image_url ? 'Article photo' : 'Article');
@@ -262,7 +289,44 @@ export default function ResultsTable({
     </AnimatePresence>
     <div className="space-y-8">
       {items.map((item) => (
-        <div key={item.id} className="space-y-4">
+        <div
+          key={item.id}
+          className={`space-y-4 rounded-3xl transition-all ${
+            dragEnabled && dragOverItemId === item.id && draggingResultId
+              ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900'
+              : ''
+          }`}
+          onDragOver={(e) => {
+            if (!dragEnabled || !draggingResultId) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (dragOverItemId !== item.id) setDragOverItemId(item.id);
+          }}
+          onDragLeave={(e) => {
+            if (!dragEnabled) return;
+            // ne nettoie que si on quitte vraiment le conteneur
+            const next = e.relatedTarget as Node | null;
+            if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+            if (dragOverItemId === item.id) setDragOverItemId(null);
+          }}
+          onDrop={(e) => {
+            if (!dragEnabled) return;
+            e.preventDefault();
+            const payload = e.dataTransfer.getData('application/x-twinsk-product');
+            if (!payload) return;
+            try {
+              const { productId, fromItemId } = JSON.parse(payload) as {
+                productId: string;
+                fromItemId: string;
+              };
+              if (productId && fromItemId) {
+                handleDropOnItem(item.id, fromItemId, productId);
+              }
+            } catch {
+              // ignore
+            }
+          }}
+        >
           {/* Client item header */}
           <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
             <div
@@ -382,6 +446,21 @@ export default function ResultsTable({
                     <motion.tr
                       key={result.id}
                       layout
+                      draggable={dragEnabled}
+                      onDragStart={(e) => {
+                        if (!dragEnabled) return;
+                        const dt = (e as unknown as React.DragEvent).dataTransfer;
+                        dt.setData(
+                          'application/x-twinsk-product',
+                          JSON.stringify({ productId: result.id, fromItemId: item.id }),
+                        );
+                        dt.effectAllowed = 'move';
+                        setDraggingResultId(result.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingResultId(null);
+                        setDragOverItemId(null);
+                      }}
                       onClick={(e) => {
                         // Only open modal if click is not on an interactive control
                         const target = e.target as HTMLElement;
@@ -394,21 +473,33 @@ export default function ResultsTable({
                           : result.selected
                             ? 'bg-amber-50/50 dark:bg-amber-900/10'
                             : 'bg-white dark:bg-slate-800'
-                      } ${savingIds.has(result.id) ? 'opacity-70' : ''}`}
+                      } ${savingIds.has(result.id) ? 'opacity-70' : ''} ${
+                        draggingResultId === result.id ? 'opacity-40' : ''
+                      } ${movingIds.has(result.id) ? 'opacity-50' : ''}`}
                     >
                       {/* Select */}
                       <td className="px-2 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelect(result)}
-                          className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 transition-colors ${
-                            result.selected
-                              ? 'border-amber-500 bg-amber-500 text-white'
-                              : 'border-slate-300 hover:border-amber-400 dark:border-slate-600'
-                          }`}
-                        >
-                          {result.selected ? <Check className="h-4 w-4" /> : <Minus className="h-3 w-3 text-transparent" />}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {dragEnabled && (
+                            <span
+                              title="Glisser pour déplacer vers une autre catégorie"
+                              className="cursor-grab text-slate-300 hover:text-slate-500 active:cursor-grabbing dark:text-slate-600 dark:hover:text-slate-400"
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelect(result)}
+                            className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 transition-colors ${
+                              result.selected
+                                ? 'border-amber-500 bg-amber-500 text-white'
+                                : 'border-slate-300 hover:border-amber-400 dark:border-slate-600'
+                            }`}
+                          >
+                            {result.selected ? <Check className="h-4 w-4" /> : <Minus className="h-3 w-3 text-transparent" />}
+                          </button>
+                        </div>
                       </td>
 
                       {/* Source badge + client status */}
