@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
+import { roundXafUp } from '@/lib/utils/formatCurrency';
 
 interface OrderLine {
   id: string;
@@ -199,11 +200,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   <p className="text-xs text-emerald-600">{l.variant_name}</p>
                 )}
                 <p className="text-xs text-slate-500">
-                  {l.quantity} × {Math.round(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA
+                  {l.quantity} × {roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA
                 </p>
               </div>
               <p className="text-sm font-bold text-emerald-600">
-                {Math.round(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
+                {roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
               </p>
             </div>
           ))}

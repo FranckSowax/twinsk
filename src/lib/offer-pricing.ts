@@ -80,7 +80,9 @@ export function computeOrderPricing(lines: OrderLineForPricing[]): PricingResult
 
 export function formatFCFA(n: number | null | undefined): string {
   if (n == null) return 'Sur devis';
+  // Arrondi au 500 superieur (politique de prix FCFA).
+  const rounded = n > 0 ? Math.ceil(n / 500) * 500 : Math.round(n);
   return new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
-  }).format(Math.round(n)) + ' FCFA';
+  }).format(rounded) + ' FCFA';
 }

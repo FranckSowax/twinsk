@@ -26,9 +26,19 @@ export function formatEUR(amount: number): string {
   })} €`;
 }
 
+/**
+ * Arrondit un montant FCFA au multiple de 500 superieur.
+ * Ex : 134 234 -> 134 500, 134 500 -> 134 500, 134 501 -> 135 000.
+ * Les valeurs <= 0 sont retournees telles quelles.
+ */
+export function roundXafUp(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return amount;
+  return Math.ceil(amount / 500) * 500;
+}
+
 export function formatXAF(amount: number): string {
-  // No decimals for FCFA
-  return `${Math.round(amount).toLocaleString('en-US')} FCFA`;
+  // FCFA : arrondi au 500 superieur, pas de decimales.
+  return `${roundXafUp(amount).toLocaleString('en-US')} FCFA`;
 }
 
 export interface MultiCurrencyPrice {
