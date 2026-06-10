@@ -206,29 +206,284 @@ const css = `
   .kinova .eyebrow{font-size:10px;letter-spacing:.28em}
   .kinova .hero .label{font-size:10px;letter-spacing:.32em}
 }
+
+/* ============ ANIMATIONS DYNAMIQUES ============ */
+@keyframes kinShimmer{
+  0%{background-position:0% 50%}
+  100%{background-position:200% 50%}
+}
+@keyframes kinGlowPulse{
+  0%,100%{filter:drop-shadow(0 0 12px rgba(201,162,39,.35))}
+  50%{filter:drop-shadow(0 0 28px rgba(226,201,126,.75)) drop-shadow(0 0 60px rgba(201,162,39,.35))}
+}
+@keyframes kinFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-6px)}
+}
+@keyframes kinHeroDot{
+  0%,100%{opacity:1;text-shadow:0 0 32px rgba(201,162,39,.85)}
+  50%{opacity:.55;text-shadow:0 0 60px rgba(226,201,126,1),0 0 100px rgba(201,162,39,.6)}
+}
+@keyframes kinStatPop{
+  from{opacity:0;transform:translateY(20px) scale(.92)}
+  to{opacity:1;transform:none}
+}
+@keyframes kinNetflixGlow{
+  0%,100%{filter:drop-shadow(0 0 12px rgba(229,9,20,.45))}
+  50%{filter:drop-shadow(0 0 26px rgba(229,9,20,.85)) drop-shadow(0 0 60px rgba(229,9,20,.3))}
+}
+@keyframes kinSweep{
+  0%{transform:translateX(-110%)}
+  100%{transform:translateX(110%)}
+}
+
+/* Mot "Fally" et derives -> shimmer dore */
+.kinova .fally-shimmer{
+  display:inline-block;
+  background:linear-gradient(110deg,var(--or) 0%,var(--ivoire) 25%,var(--champagne) 50%,var(--ivoire) 75%,var(--or) 100%);
+  background-size:200% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  font-weight:500;
+  animation:kinShimmer 4.5s linear infinite;
+}
+
+/* Mot "Netflix" -> badge cliquable rouge avec logo */
+.kinova .netflix-mark{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:#E50914;
+  font-weight:500;
+  position:relative;
+}
+.kinova .netflix-mark .nx-logo{
+  height:.95em;
+  width:auto;
+  display:inline-block;
+  vertical-align:-.06em;
+  animation:kinNetflixGlow 3.5s ease-in-out infinite;
+}
+
+/* Hero ".dot" -> pulsation doree */
+.kinova .hero h1 .dot{animation:kinHeroDot 3s ease-in-out infinite}
+
+/* Stats : chiffres en degrade dore + pop-in */
+.kinova .stat .n,.kinova .kpi .n{
+  background:linear-gradient(180deg,#F4E1A5 0%,var(--champagne) 50%,var(--or) 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  position:relative;
+}
+.kinova .stat.is-in .n,.kinova .kpi.is-in .n{
+  animation:kinStatPop .9s cubic-bezier(.2,.7,.3,1) both
+}
+
+/* Halo sous les piliers + cibles + roles au hover */
+.kinova .role,.kinova .cible,.kinova .pilier .note{
+  transition:transform .5s ease,box-shadow .5s ease,border-color .5s ease;
+}
+.kinova .role:hover,.kinova .cible:hover{
+  transform:translateY(-4px);
+  box-shadow:0 22px 60px -28px rgba(201,162,39,.45);
+}
+.kinova .pilier .note:hover{
+  box-shadow:0 18px 50px -20px rgba(201,162,39,.4);
+}
+
+/* Steps : carte avec barre doree animee au survol */
+.kinova .step{position:relative;overflow:hidden;transition:transform .4s ease,background .4s ease}
+.kinova .step::after{
+  content:"";position:absolute;left:0;top:0;height:2px;width:100%;
+  background:linear-gradient(90deg,transparent,var(--or),transparent);
+  transform:translateX(-110%);
+  transition:transform .9s ease;
+}
+.kinova .step:hover{transform:translateY(-3px);background:#15120E}
+.kinova .step:hover::after{transform:translateX(110%)}
+
+/* KIN words du manifesto : sweep dore */
+.kinova .kinword{position:relative;overflow:hidden}
+.kinova .kinword::before{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(110deg,transparent 40%,rgba(226,201,126,.18) 50%,transparent 60%);
+  transform:translateX(-110%);
+  animation:kinSweep 5.5s ease-in-out infinite;
+}
+
+/* Arc SVG : pulsation des cercles */
+.kinova .arc-svg circle:nth-child(3),.kinova .arc-svg circle:nth-child(5){
+  animation:kinGlowPulse 4s ease-in-out infinite
+}
+
+/* Eyebrow numerote : tiret dore qui glisse */
+.kinova .eyebrow{position:relative;display:inline-block;padding-left:28px}
+.kinova .eyebrow::before{
+  content:"";position:absolute;left:0;top:50%;width:18px;height:1px;
+  background:var(--or);transform-origin:left center;
+  animation:kinSweep 6s ease-in-out infinite;
+}
+
+/* Closing : ligne lingala avec accent */
+.kinova .closing .lingala{
+  display:inline-block;
+  background:linear-gradient(110deg,var(--or) 0%,var(--ivoire) 50%,var(--or) 100%);
+  background-size:200% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  animation:kinShimmer 6s linear infinite;
+}
+
+/* Hero : leger float du label */
+.kinova .hero .label b{display:inline-block;animation:kinFloat 4.5s ease-in-out infinite}
+
+/* Reduit l intensite si l utilisateur prefere */
+@media (prefers-reduced-motion:reduce){
+  .kinova .fally-shimmer,
+  .kinova .closing .lingala{animation:none;color:var(--or);background:none;-webkit-text-fill-color:var(--or)}
+  .kinova .hero h1 .dot,
+  .kinova .netflix-mark .nx-logo,
+  .kinova .hero .label b,
+  .kinova .stat.is-in .n,
+  .kinova .kpi.is-in .n,
+  .kinova .kinword::before,
+  .kinova .arc-svg circle,
+  .kinova .eyebrow::before,
+  .kinova .step::after{animation:none}
+}
 `;
+
+// Logo Netflix SVG inline (recupere via Magic MCP - logo_search).
+// Conserve le rouge officiel + utilise par .netflix-mark .nx-logo.
+const NETFLIX_LOGO_SVG = `<svg class="nx-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 551.111 1000" aria-label="Netflix"><defs><linearGradient id="kinNxA" x1="78.234" y1="423.767" x2="221.663" y2="365.092" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#b1060f"/><stop offset=".546" stop-color="#7b010c"/><stop offset="1" stop-color="#e50914" stop-opacity="0"/></linearGradient><linearGradient id="kinNxB" x1="456.365" y1="521.56" x2="309.676" y2="583.495" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#b1060f"/><stop offset=".625" stop-color="#7b010c"/><stop offset="1" stop-color="#b1060f" stop-opacity="0"/></linearGradient></defs><path d="M-1.152-1.152 2.305 1002.67c73.273-14.111 130.892-12.569 195.924-18.44V0Z" fill="url(#kinNxA)"/><path d="M353.816 0h199.381l2.305 1000.365-202.839-33.422z" fill="url(#kinNxB)"/><path d="M1.152 0c4.61 11.525 345.749 981.925 345.749 981.925 56.056-.4 131.219 8.754 205.144 17.288L197.077 0Z" fill="#e50914"/></svg>`;
+
+// Termes "Fally" / "Fally Ipupa" -> shimmer dore (sans casser les enfants HTML).
+// On scanne uniquement les noeuds texte des conteneurs visibles.
+function shimmerFally(root: HTMLElement) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      // Ne pas re-traiter, ne pas toucher aux scripts/styles
+      if (parent.closest('.fally-shimmer,script,style,svg')) return NodeFilter.FILTER_REJECT;
+      return /\bFally\b/.test(node.nodeValue || '')
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const targets: Text[] = [];
+  let n: Node | null;
+  while ((n = walker.nextNode())) targets.push(n as Text);
+  for (const text of targets) {
+    const parts = (text.nodeValue || '').split(/(Fally(?:\s+Ipupa)?)/);
+    if (parts.length === 1) continue;
+    const frag = document.createDocumentFragment();
+    for (const part of parts) {
+      if (!part) continue;
+      if (/^Fally(?:\s+Ipupa)?$/.test(part)) {
+        const span = document.createElement('span');
+        span.className = 'fally-shimmer';
+        span.textContent = part;
+        frag.appendChild(span);
+      } else {
+        frag.appendChild(document.createTextNode(part));
+      }
+    }
+    text.parentNode?.replaceChild(frag, text);
+  }
+}
+
+// Marque "Netflix" dans le corps -> badge avec logo.
+function brandNetflix(root: HTMLElement) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('.netflix-mark,script,style,svg')) return NodeFilter.FILTER_REJECT;
+      return /Netflix/.test(node.nodeValue || '')
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const targets: Text[] = [];
+  let n: Node | null;
+  while ((n = walker.nextNode())) targets.push(n as Text);
+  for (const text of targets) {
+    const parts = (text.nodeValue || '').split(/(Netflix)/);
+    if (parts.length === 1) continue;
+    const frag = document.createDocumentFragment();
+    for (const part of parts) {
+      if (!part) continue;
+      if (part === 'Netflix') {
+        const span = document.createElement('span');
+        span.className = 'netflix-mark';
+        span.innerHTML = `${NETFLIX_LOGO_SVG}Netflix`;
+        frag.appendChild(span);
+      } else {
+        frag.appendChild(document.createTextNode(part));
+      }
+    }
+    text.parentNode?.replaceChild(frag, text);
+  }
+}
 
 export default function KinovaPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const els = document.querySelectorAll<HTMLElement>('.kinova .reveal');
-    if (!('IntersectionObserver' in window) || !els.length) {
-      els.forEach((el) => el.classList.add('in'));
+    const root = document.querySelector<HTMLElement>('.kinova');
+    if (!root) return;
+
+    // 1) Enrichissements typographiques : Fally en shimmer dore + badge Netflix.
+    try {
+      shimmerFally(root);
+      brandNetflix(root);
+    } catch {
+      // ignore – l affichage retombe sur le texte brut
+    }
+
+    // 2) Reveal au scroll + classe is-in sur les stats/kpis pour declencher kinStatPop.
+    const reveals = root.querySelectorAll<HTMLElement>('.reveal');
+    const stats = root.querySelectorAll<HTMLElement>('.stat, .kpi');
+
+    if (!('IntersectionObserver' in window)) {
+      reveals.forEach((el) => el.classList.add('in'));
+      stats.forEach((el) => el.classList.add('is-in'));
       return;
     }
-    const io = new IntersectionObserver(
+
+    const revealIo = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('in');
-            io.unobserve(entry.target);
+            revealIo.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.12 },
     );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    reveals.forEach((el) => revealIo.observe(el));
+
+    const statsIo = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            statsIo.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.35 },
+    );
+    stats.forEach((el) => statsIo.observe(el));
+
+    return () => {
+      revealIo.disconnect();
+      statsIo.disconnect();
+    };
   }, []);
 
   return (
