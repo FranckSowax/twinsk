@@ -1,0 +1,707 @@
+'use client';
+
+import { useEffect } from 'react';
+
+// CSS issu du document source KIN ORIGINS — Strategie Partenaires &
+// Mobilisation des Communautes, augmente de breakpoints mobile.
+const css = `
+:root{
+  --noir:#0B0A08; --noir2:#12100C; --noir3:#171410;
+  --or:#C9A227; --champagne:#E2C97E; --ivoire:#F0E8D8;
+  --gris:#9A9080; --ligne:rgba(201,162,39,.28); --ligne-faible:rgba(240,232,216,.10);
+  --atlantique:#0E1820; --terre:#8A5A2B; --vert:#3A7D5A;
+}
+.kin-origins,.kin-origins *{margin:0;padding:0;box-sizing:border-box}
+.kin-origins{background:var(--noir);color:var(--ivoire);font-family:'Inter',sans-serif;font-weight:300;line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.kin-origins ::selection{background:var(--or);color:var(--noir)}
+.kin-origins .serif{font-family:'Cormorant Garamond',serif}
+.kin-origins .gold{color:var(--or)}
+.kin-origins em{font-style:italic}
+.kin-origins .wrap{max-width:1180px;margin:0 auto;padding:0 7vw}
+.kin-origins section{padding:96px 0;border-top:1px solid var(--ligne-faible)}
+.kin-origins .eyebrow{font-size:11px;letter-spacing:.42em;text-transform:uppercase;color:var(--or);font-weight:500;margin-bottom:26px}
+.kin-origins h1,.kin-origins h2,.kin-origins h3,.kin-origins h4{color:var(--ivoire)}
+.kin-origins h2{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:clamp(28px,4.4vw,56px);line-height:1.08;letter-spacing:.01em;margin-bottom:28px}
+.kin-origins h3{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:23px;line-height:1.2;margin-bottom:12px}
+.kin-origins p.lead{font-family:'Cormorant Garamond',serif;font-size:clamp(18px,2.2vw,26px);line-height:1.45;color:var(--ivoire);max-width:780px}
+.kin-origins p.body,.kin-origins li.body{color:var(--gris);max-width:700px;font-size:15.5px}
+.kin-origins .kin{color:var(--or);font-weight:inherit}
+.kin-origins .rule{width:54px;height:1px;background:var(--or);margin:32px 0}
+.kin-origins .grid2{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}
+.kin-origins .reveal{opacity:0;transform:translateY(24px);transition:opacity .8s ease,transform .8s ease}
+.kin-origins .reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.kin-origins .reveal{opacity:1;transform:none;transition:none}}
+
+/* HERO */
+.kin-origins .hero{min-height:88vh;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;border-top:none;padding:80px 0;
+  background:radial-gradient(1100px 560px at 80% 16%,rgba(201,162,39,.10),transparent 60%),
+             radial-gradient(820px 460px at 10% 92%,rgba(58,125,90,.10),transparent 60%),var(--noir)}
+.kin-origins .hero .label{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:11px;letter-spacing:.4em;text-transform:uppercase;color:var(--gris);margin-bottom:48px}
+.kin-origins .hero .label b{color:var(--or);font-weight:500}
+.kin-origins .hero h1{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:clamp(52px,9.5vw,128px);line-height:.94;letter-spacing:.01em}
+.kin-origins .hero h1 .dot{color:var(--or)}
+.kin-origins .hero .q{margin-top:34px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:clamp(20px,3vw,34px);color:var(--champagne)}
+.kin-origins .hero .pitch{margin-top:40px;max-width:660px;color:var(--ivoire);font-size:16.5px;line-height:1.8}
+
+/* TOC */
+.kin-origins .toc{background:var(--noir2);border-top:none}
+.kin-origins .toc .grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--ligne-faible);margin-top:10px}
+.kin-origins .toc a{background:var(--noir2);padding:26px 28px;display:block;text-decoration:none;color:var(--ivoire);transition:background .3s}
+.kin-origins .toc a:hover{background:var(--noir3)}
+.kin-origins .toc a .n{font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--or);letter-spacing:.05em}
+.kin-origins .toc a .t{font-family:'Cormorant Garamond',serif;font-size:21px;margin-top:6px}
+.kin-origins .toc a .d{font-size:12.5px;color:var(--gris);margin-top:6px}
+
+/* PART DIVIDER */
+.kin-origins .part{padding:120px 0 60px;text-align:left;border-top:1px solid var(--ligne);background:linear-gradient(180deg,var(--noir) 0%,#0D0C0A 100%)}
+.kin-origins .part .k{font-size:12px;letter-spacing:.5em;text-transform:uppercase;color:var(--or);font-weight:500}
+.kin-origins .part h2{font-size:clamp(34px,6vw,72px);margin-top:24px;max-width:960px}
+.kin-origins .part p{color:var(--gris);max-width:720px;margin-top:24px;font-size:16px}
+
+/* STATS */
+.kin-origins .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--ligne-faible)}
+.kin-origins .stat{background:var(--noir2);padding:40px 32px}
+.kin-origins .stat .n{font-family:'Cormorant Garamond',serif;font-size:50px;font-weight:500;color:var(--champagne);line-height:1}
+.kin-origins .stat .l{margin-top:12px;font-size:13px;color:var(--gris);line-height:1.6}
+.kin-origins .stat .src{margin-top:10px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(154,144,128,.55)}
+
+/* CO-BRAND */
+.kin-origins .cobrand{background:var(--noir2);border-left:1px solid var(--or);padding:44px 42px;margin-top:48px}
+.kin-origins .cobrand .tag{font-size:10px;letter-spacing:.34em;text-transform:uppercase;color:var(--or);font-weight:500;margin-bottom:18px}
+.kin-origins .cobrand h3{font-size:30px}
+.kin-origins .cobrand .ws{margin-top:24px;padding:20px 24px;background:rgba(58,125,90,.08);border-left:1px solid var(--vert);font-size:14.5px;color:var(--ivoire)}
+.kin-origins .cobrand .ws b{color:#7FC9A3;font-weight:500}
+
+/* TARGET */
+.kin-origins .target{padding:54px 0;border-top:1px solid var(--ligne-faible)}
+.kin-origins .target:first-of-type{border-top:1px solid var(--ligne)}
+.kin-origins .target .head{display:grid;grid-template-columns:64px 1fr;gap:28px;align-items:baseline;margin-bottom:30px}
+.kin-origins .target .head .num{font-family:'Cormorant Garamond',serif;font-size:30px;color:var(--or)}
+.kin-origins .target .head h3{font-size:clamp(22px,2.6vw,32px);font-weight:500;margin-bottom:6px}
+.kin-origins .target .head .who{font-size:13px;color:var(--gris);letter-spacing:.02em}
+.kin-origins .target .head .who b{color:var(--champagne);font-weight:400}
+.kin-origins .target .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--ligne-faible);margin-left:92px}
+.kin-origins .target .col{background:var(--noir);padding:26px 26px}
+.kin-origins .target .col .ct{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--or);margin-bottom:12px;font-weight:500}
+.kin-origins .target .col p{font-size:13.5px;color:var(--gris);line-height:1.65}
+.kin-origins .target .col p b{color:var(--ivoire);font-weight:400}
+.kin-origins .target .obj{margin-left:92px;margin-top:1px;background:var(--noir2);padding:18px 26px;font-size:13px;color:var(--gris)}
+.kin-origins .target .obj b{color:var(--champagne);font-weight:500;letter-spacing:.02em}
+
+/* TIERS */
+.kin-origins .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--ligne-faible);margin-top:50px}
+.kin-origins .tier{background:var(--noir2);padding:38px 32px}
+.kin-origins .tier .lvl{font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--or);font-weight:500;margin-bottom:14px}
+.kin-origins .tier h3{font-size:24px}
+.kin-origins .tier .price{font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--champagne);font-style:italic;margin:10px 0 18px}
+.kin-origins .tier ul{list-style:none;display:grid;gap:10px}
+.kin-origins .tier ul li{padding-left:22px;position:relative;font-size:13.5px;color:var(--gris)}
+.kin-origins .tier ul li::before{content:"";position:absolute;left:0;top:10px;width:10px;height:1px;background:var(--or)}
+
+/* COMMUNITY */
+.kin-origins .comm{padding:50px 0;border-top:1px solid var(--ligne-faible)}
+.kin-origins .comm:first-of-type{border-top:1px solid var(--ligne)}
+.kin-origins .comm .grid{display:grid;grid-template-columns:280px 1fr;gap:48px;align-items:start}
+.kin-origins .comm .left .num{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--or);letter-spacing:.05em}
+.kin-origins .comm .left h3{font-size:clamp(22px,2.5vw,30px);font-weight:500;margin-top:10px}
+.kin-origins .comm .left .size{margin-top:14px;font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--champagne);font-style:italic}
+.kin-origins .comm .right .row{margin-bottom:18px}
+.kin-origins .comm .right .row:last-child{margin-bottom:0}
+.kin-origins .comm .right .rt{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--or);font-weight:500;margin-bottom:6px}
+.kin-origins .comm .right .row p{font-size:14px;color:var(--gris);max-width:680px}
+.kin-origins .comm .right .row p b{color:var(--ivoire);font-weight:400}
+.kin-origins .comm .hook{margin-top:14px;padding:14px 20px;border-left:1px solid var(--champagne);background:var(--noir2);font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;color:var(--ivoire)}
+
+/* GEO */
+.kin-origins .geo{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--ligne-faible);margin-top:46px}
+.kin-origins .geo .c{background:var(--noir2);padding:28px 24px}
+.kin-origins .geo .c h4{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600;margin-bottom:8px}
+.kin-origins .geo .c p{font-size:12.5px;color:var(--gris);line-height:1.6}
+
+/* SEQUENCE */
+.kin-origins .seq{counter-reset:s;margin-top:50px}
+.kin-origins .seqrow{display:grid;grid-template-columns:90px 1fr;gap:34px;padding:28px 0;border-top:1px solid var(--ligne-faible)}
+.kin-origins .seqrow:first-child{border-top:1px solid var(--ligne)}
+.kin-origins .seqrow .ph{font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--champagne)}
+.kin-origins .seqrow h4{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:500;margin-bottom:8px}
+.kin-origins .seqrow p{font-size:14px;color:var(--gris);max-width:740px}
+
+/* FUNNEL / loop */
+.kin-origins .loop{background:var(--atlantique);padding:90px 0}
+.kin-origins .loop .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--ligne-faible);margin-top:50px}
+.kin-origins .loop .node{background:var(--noir2);padding:30px 22px;text-align:left}
+.kin-origins .loop .node .i{font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--or);margin-bottom:12px}
+.kin-origins .loop .node h4{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;margin-bottom:8px;line-height:1.2}
+.kin-origins .loop .node p{font-size:12px;color:var(--gris);line-height:1.6}
+
+/* CLOSING */
+.kin-origins .closing{padding:140px 0;border-top:1px solid var(--ligne)}
+.kin-origins .closing h2{font-size:clamp(32px,5.5vw,68px);max-width:980px}
+.kin-origins .closing .q{font-family:'Cormorant Garamond',serif;font-size:23px;color:var(--or);margin-top:40px;letter-spacing:.04em}
+.kin-origins footer{padding:42px 0;border-top:1px solid var(--ligne-faible);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:rgba(154,144,128,.6)}
+.kin-origins footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+
+/* Tablette */
+@media(max-width:980px){
+  .kin-origins .grid2,.kin-origins .comm .grid{grid-template-columns:1fr;gap:30px}
+  .kin-origins .grid3,.kin-origins .tiers{grid-template-columns:1fr}
+  .kin-origins .target .head{grid-template-columns:1fr;gap:8px}
+  .kin-origins .target .cols,.kin-origins .target .obj{margin-left:0}
+  .kin-origins .target .cols{grid-template-columns:1fr}
+  .kin-origins .geo{grid-template-columns:repeat(2,1fr)}
+  .kin-origins .loop .flow{grid-template-columns:1fr}
+  .kin-origins .toc .grid{grid-template-columns:1fr}
+  .kin-origins .seqrow{grid-template-columns:1fr;gap:8px}
+  .kin-origins section{padding:64px 0}
+  .kin-origins .hero{min-height:auto;padding:70px 0}
+  .kin-origins .part{padding:80px 0 40px}
+  .kin-origins .loop{padding:70px 0}
+}
+
+/* Mobile L */
+@media(max-width:640px){
+  .kin-origins .wrap{padding:0 6vw}
+  .kin-origins section{padding:56px 0}
+  .kin-origins .closing{padding:80px 0}
+  .kin-origins .hero{padding:70px 0 56px}
+  .kin-origins .hero h1{font-size:clamp(46px,15vw,82px)}
+  .kin-origins .hero .label{margin-bottom:32px;gap:8px 16px}
+  .kin-origins .hero .pitch{margin-top:30px;font-size:15.5px;line-height:1.7}
+  .kin-origins .hero .q{margin-top:26px}
+  .kin-origins .stat{padding:30px 24px}
+  .kin-origins .stat .n{font-size:42px}
+  .kin-origins .cobrand{padding:32px 26px}
+  .kin-origins .cobrand h3{font-size:24px}
+  .kin-origins .cobrand .ws{padding:16px 18px}
+  .kin-origins .target{padding:40px 0}
+  .kin-origins .target .head .num{font-size:24px}
+  .kin-origins .target .col{padding:22px 22px}
+  .kin-origins .comm{padding:36px 0}
+  .kin-origins .comm .hook{padding:12px 16px;font-size:16px}
+  .kin-origins .tier{padding:30px 26px}
+  .kin-origins .geo .c{padding:24px 22px}
+  .kin-origins .loop .node{padding:26px 20px}
+  .kin-origins .part{padding:64px 0 32px}
+  .kin-origins .closing .q{font-size:19px;margin-top:30px}
+  .kin-origins .toc a{padding:22px 22px}
+  .kin-origins footer{font-size:9px;letter-spacing:.22em}
+  .kin-origins footer .wrap{flex-direction:column;align-items:flex-start;padding:0 6vw}
+  .kin-origins h2{margin-bottom:22px}
+  .kin-origins .eyebrow{margin-bottom:20px;letter-spacing:.36em}
+}
+
+/* Mobile S */
+@media(max-width:480px){
+  .kin-origins .geo{grid-template-columns:1fr}
+  .kin-origins .hero h1{font-size:clamp(40px,16vw,68px)}
+  .kin-origins p.body,.kin-origins li.body{font-size:14.5px}
+  .kin-origins p.lead{font-size:18px}
+  .kin-origins .comm .left .size{font-size:15px}
+}
+
+/* Mobile XS */
+@media(max-width:360px){
+  .kin-origins{font-size:15px}
+  .kin-origins .wrap{padding:0 5vw}
+  .kin-origins .eyebrow{font-size:10px;letter-spacing:.28em}
+  .kin-origins .hero .label{font-size:10px;letter-spacing:.3em}
+}
+`;
+
+export default function KinOriginsPage() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const els = document.querySelectorAll<HTMLElement>('.kin-origins .reveal');
+    if (!('IntersectionObserver' in window) || !els.length) {
+      els.forEach((el) => el.classList.add('in'));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet"
+      />
+      <style dangerouslySetInnerHTML={{ __html: css }} />
+
+      <div
+        className="kin-origins"
+        dangerouslySetInnerHTML={{
+          __html: `
+<header class="hero">
+  <div class="wrap">
+    <div class="label"><b>KIN ORIGINS</b><span>·</span><span>Un projet de l'écosystème WE ARE KIN</span><span>·</span><span>KINOVA × Fally Ipupa</span><span>·</span><span>Confidentiel</span></div>
+    <h1>KIN<br>ORIGINS<span class="dot">.</span></h1>
+    <div class="q">"Where does your story begin?"</div>
+    <p class="pitch">L'ADN comme billet d'entrée vers Kinshasa. Ce document répond à deux questions, dans l'ordre&nbsp;: <strong>qui finance</strong> — quelles entreprises cibler comme sponsors, investisseurs et partenaire co-brand, et avec quels arguments les convaincre. Puis <strong>qui vient</strong> — quelles communautés américaines mobiliser autour de la question qui change tout.</p>
+  </div>
+</header>
+
+<section class="toc">
+  <div class="wrap">
+    <div class="eyebrow">Sommaire</div>
+    <div class="grid">
+      <a href="#concept"><div class="n">00</div><div class="t">Le concept &amp; le partenaire science</div><div class="d">Le modèle co-brand et le candidat évident&nbsp;: African Ancestry.</div></a>
+      <a href="#partie1"><div class="n">Partie I</div><div class="t">Les partenaires — cibler &amp; convaincre</div><div class="d">8 familles de sponsors/investisseurs, leurs angles, leurs objections, les niveaux d'engagement.</div></a>
+      <a href="#arguments"><div class="n">I.b</div><div class="t">Les arguments transversaux</div><div class="d">Les chiffres et le récit qui fonctionnent sur tous.</div></a>
+      <a href="#partie2"><div class="n">Partie II</div><div class="t">La cible — les communautés US</div><div class="d">Églises, universités, fraternités, investisseurs, entrepreneurs, créateurs.</div></a>
+      <a href="#geo"><div class="n">II.b</div><div class="t">Géographie &amp; séquence d'activation</div><div class="d">Les villes prioritaires et l'ordre de bataille.</div></a>
+      <a href="#loop"><div class="n">II.c</div><div class="t">La boucle vertueuse</div><div class="d">Comment l'argent des sponsors devient des voyageurs, puis la preuve qui ramène les sponsors.</div></a>
+    </div>
+  </div>
+</section>
+
+<section id="concept">
+  <div class="wrap">
+    <div class="eyebrow reveal">00 — Le concept</div>
+    <h2 class="reveal">Une marque qui transforme une question<br>en <span class="gold">voyage, en données et en récit</span>.</h2>
+    <div class="grid2 reveal">
+      <p class="lead">KIN Origins est l'entité commerciale et marketing de l'écosystème. Elle ne vend pas un test ADN&nbsp;: elle vend un commencement. Le test révèle une origine en Afrique centrale — l'espace Kongo — et cette révélation déclenche une invitation personnelle à rentrer à la maison, à Kinshasa, lors du festival.</p>
+      <div>
+        <p class="body">KIN Origins détient la marque, la campagne « Where does your story begin? », la relation client et la base de prospects opt-in. La <em>science</em>, elle, vient d'un partenaire établi. C'est tout l'intérêt du modèle co-brand&nbsp;: ne pas construire un laboratoire réglementé de zéro, mais s'allier à une crédibilité déjà acquise.</p>
+        <div class="rule"></div>
+        <p class="body">Chaque test vendu aux États-Unis est à la fois <b style="color:var(--ivoire);font-weight:400">une marge</b>, <b style="color:var(--ivoire);font-weight:400">un prospect qualifié</b> pour les voyages KIN Routes et le forum KIN Bridge, et <b style="color:var(--ivoire);font-weight:400">une histoire médiatisable</b>. Le marketing s'autofinance.</p>
+      </div>
+    </div>
+
+    <div class="cobrand reveal">
+      <div class="tag">Le partenaire science — candidat n°1</div>
+      <h3>African Ancestry</h3>
+      <p class="body" style="margin-top:14px;max-width:880px">Entreprise black-owned de Washington DC, fondée en 2003 par Dr. Gina Paige et Dr. Rick Kittles. C'est la <b style="color:var(--ivoire);font-weight:400">première société de tests ADN détenue par des Afro-Américains</b> et le leader du traçage des lignées africaines&nbsp;: la plus grande base de données d'ADN africain du marché (plus de 30&nbsp;000 échantillons indigènes), capable d'identifier le <em>pays</em> et le <em>groupe ethnique</em> d'origine — pas seulement le continent. Plus de 500&nbsp;000 personnes testées, dont des figures comme Oprah Winfrey, Spike Lee ou Chadwick Boseman. Politique de confidentialité radicale&nbsp;: l'ADN est détruit, jamais revendu — un argument de confiance décisif pour la communauté.</p>
+      <div class="ws">
+        <b>L'espace blanc, et c'est tout l'argument&nbsp;:</b> African Ancestry organise déjà des voyages « Family Reunion » vers le Ghana, le Sénégal, la Sierra Leone et le Cameroun — et a même formalisé une offre de citoyenneté avec la Sierra Leone. Mais <b>jamais vers l'Afrique centrale, jamais vers le Congo</b>, alors que l'espace Kongo fut l'un des tout premiers bassins d'origine de la traite. KIN Origins × African Ancestry, ce serait <b>la première destination « retour » d'Afrique centrale</b> — un nouveau territoire pour eux, une caution scientifique et communautaire imbattable pour nous.
+      </div>
+      <p class="body" style="margin-top:22px;max-width:880px">Plan B si l'exclusivité n'est pas possible&nbsp;: un acteur au breakdown sub-régional très fin (type LivingDNA, 70+ régions) pour la précision, ou un mainstream (AncestryDNA, 23andMe) pour le volume et la notoriété — mais African Ancestry reste le choix qui aligne science, légitimité et récit. On l'approche en premier, en proposant une <em>co-création</em>, pas une simple licence.</p>
+    </div>
+  </div>
+</section>
+
+<div class="part" id="partie1">
+  <div class="wrap">
+    <div class="k reveal">Partie I</div>
+    <h2 class="reveal">Les partenaires.<br>D'abord les cibler. Ensuite les convaincre.</h2>
+    <p class="reveal">Huit familles d'entreprises ont une raison <em>structurelle</em> — pas philanthropique — de financer KIN Origins. Pour chacune&nbsp;: qui viser, l'angle qui leur parle, ce qu'on leur offre, et l'objection à désamorcer avant qu'ils ne la formulent.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">01</div>
+        <div>
+          <h3>ADN &amp; généalogie — le co-brand scientifique</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> African Ancestry (n°1), LivingDNA, AncestryDNA, 23andMe, MyHeritage.</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>Une <b>nouvelle destination de retour</b> qu'aucun d'eux n'exploite — l'Afrique centrale — et un canal d'acquisition clients massif via le festival et sa machine média US.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Co-branding sur la campagne, volume de tests porté par les sponsors, intégration au voyage et à la cérémonie. Pour eux&nbsp;: des ventes <b>et</b> du contenu émotionnel premium.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Acquisition de clients à coût marketing partagé, extension de gamme géographique, association à un mouvement culturel mondial diffusé jusque sur Netflix.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « pourquoi partager notre marque ? » → Réponse&nbsp;: KIN Origins amène la demande et le récit&nbsp;; vous amenez la science. Le Congo est un marché que vous n'adressez pas aujourd'hui — c'est du revenu incrémental, pas de la cannibalisation.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">02</div>
+        <div>
+          <h3>Fintech &amp; transfert d'argent — le corridor diaspora</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> Flutterwave, Chipper Cash, Remitly, Wise, World&nbsp;Remit/Sendwave, Western Union, MoneyGram, et les acteurs Mobile Money (Airtel Money, M-Pesa).</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>La diaspora envoie déjà de l'argent vers l'Afrique. KIN Origins crée le moment où cet argent devient <b>un voyage, un investissement, une relation durable</b> — exactement leur cœur de métier.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Le rail de paiement officiel du festival, des voyages et du forum&nbsp;: billetterie, packages, dons, transferts vers les commerçants congolais. Naming d'un « KIN Wallet ».</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Acquisition d'utilisateurs sur le corridor USA→Afrique centrale, données de paiement, et positionnement sur la finance diaspora (diaspora bonds, KIN Fund).</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « le corridor Congo est petit pour nous » → Réponse&nbsp;: ~56&nbsp;Md$ de transferts vers l'Afrique subsaharienne en 2024 et une diaspora US sous-bancarisée sur ce corridor. Vous ne sponsorisez pas un événement, vous ouvrez un canal d'acquisition.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">03</div>
+        <div>
+          <h3>Compagnies aériennes — le pont physique</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> Ethiopian Airlines, Kenya Airways, RwandAir, Brussels Airlines, Air France, Delta (porteur US), Turkish, Qatar.</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>On ne peut pas faire un retour sans avion. Le festival <b>crée la demande sur une route</b> et offre un moment média en or&nbsp;: le premier charter direct USA→Kinshasa.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Transporteur officiel, charters « The Landing » filmés pour le documentaire, tarifs de groupe, exclusivité sur les délégations églises/universités.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Remplissage sur une route à développer, image de marque associée à l'émotion du retour, accès aux réseaux de voyage de groupe afro-américains.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « Kinshasa est complexe en accès » → Réponse&nbsp;: c'est justement pourquoi le premier qui structure la route avec nous capte un marché captif, sans concurrence, et l'image du pionnier.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">04</div>
+        <div>
+          <h3>Banques &amp; finance diaspora — le KIN Fund</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> banques panafricaines (Ecobank, UBA, Access), banques régionales RDC (Rawbank, Equity BCDC), banques US à programmes multiculturels, family offices et fonds afro-américains.</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>Le forum KIN Bridge transforme l'émotion en capital&nbsp;: <b>véhicules d'investissement diaspora</b> (immobilier, hôtellerie, créatif), diaspora bonds, comptes diaspora.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Sponsor titre du forum, deal room, présentation du « KIN Fund » devant un public d'investisseurs afro-américains pré-qualifiés par le parcours.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Pipeline de clients fortunés diaspora, dépôts en devises, origination de deals RDC, image de banque qui bâtit l'Afrique de demain.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « risque pays » → Réponse&nbsp;: les transferts diaspora dépassent déjà les IDE en Afrique&nbsp;; le KIN Fund canalise une épargne motivée et patiente, adossée à des actifs réels et à un récit identitaire fort.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">05</div>
+        <div>
+          <h3>Médias &amp; streaming — l'amplificateur</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> Netflix (priorité), BET/Paramount, Revolt, OWN, iHeart (réseau podcasts Black), Spotify, AfroLand, plateformes panafricaines.</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>La série « The Return to Kin » et le single Fally × artiste US offrent un <b>contenu prêt à diffuser</b> sur un sujet à forte audience noire américaine, avec une destination réservable à la clé.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Droits sur la série, intégration produit, exclusivités contenu, partenariat éditorial — KIN Origins comme déclencheur narratif de toute la saison.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Programme à fort engagement, renouvelable chaque année avec le festival, sur une verticale (héritage + voyage) que les précédents ont validée.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « encore un docu Afrique ? » → Réponse&nbsp;: aucun de ces titres n'avait une destination que le spectateur peut réserver à la fin de l'épisode. Ici, le contenu génère du commerce mesurable.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">06</div>
+        <div>
+          <h3>Beauté, mode &amp; lifestyle — les budgets multiculturels</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> L'Oréal, Unilever (SheaMoisture), Procter &amp; Gamble (My Black is Beautiful), marques black-owned (Pattern, Mielle, Topicals), maisons de mode et streetwear.</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>Le festival est un défilé vivant de beauté et de style noirs — sapologie, coiffure, mode congolaise. Ces marques cherchent <b>l'authenticité culturelle</b>, pas le placement forcé.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Espaces « Heritage Village » beauté/mode, contenus avec les ambassadrices, kits voyage co-brandés, présence sur la cérémonie et le tapis.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Accès direct à une communauté à fort pouvoir d'achat et exigeante sur les valeurs, contenu UGC massif, association à un mouvement culturel premium.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « ROI difficile à mesurer » → Réponse&nbsp;: 67% des consommateurs noirs américains changent de marque si elle ne s'aligne pas sur leurs causes. Être présent au retour à la source, c'est l'alignement ultime.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">07</div>
+        <div>
+          <h3>Spiritueux &amp; boissons — le sponsoring festival classique</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> Diageo (Guinness, Johnnie Walker — forts en Afrique), Heineken/Bralima (Primus, présent à Kinshasa), Pernod Ricard, marques de spiritueux black-owned (Uncle Nearest, Ten To One rhum).</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>La nightlife et les rooftops du festival sont leur terrain naturel. Guinness et Primus sont <b>déjà des marques de l'imaginaire congolais et africain</b>.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>Naming des espaces nightlife et after-hours curatés, activations rooftop, cocktails signature « KIN », visibilité maîtrisée et non envahissante.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Volume, image premium, ancrage local (Primus) ou panafricain (Guinness), et un pont vers le marché afro-américain via les rhums et whiskeys black-owned.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « sur-commercialisation » → Réponse&nbsp;: la philosophie KINOVA exclut le branding agressif. On vend une intégration élégante, pas des banderoles — ce qui protège <em>leur</em> image autant que la nôtre.</div>
+    </div>
+
+    <div class="target reveal">
+      <div class="head">
+        <div class="num">08</div>
+        <div>
+          <h3>Télécoms &amp; institutions — la connectivité &amp; la caution</h3>
+          <div class="who"><b>Cibles&nbsp;:</b> télécoms (MTN, Airtel, Orange, Vodacom)&nbsp;; institutions (gouvernement RDC, ministère du Tourisme, Union africaine — « 6ᵉ région »), fondations.</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col"><div class="ct">L'angle</div><p>Les télécoms veulent connecter la diaspora&nbsp;; les institutions veulent du soft power. KIN Origins leur offre <b>un récit national positif</b> et un canal vers les Afro-descendants.</p></div>
+        <div class="col"><div class="ct">Ce qu'on offre</div><p>SIM/eSIM voyageurs co-brandées, connectivité du festival, et pour les institutions&nbsp;: facilitation e-visa, patronage officiel, mise en récit du Congo moderne.</p></div>
+        <div class="col"><div class="ct">Leur ROI</div><p>Acquisition voyageurs, données, et pour l'État&nbsp;: tourisme, image, diplomatie culturelle — l'argument central de The Congo Initiative.</p></div>
+      </div>
+      <div class="obj"><b>Objection à anticiper&nbsp;:</b> « lenteur institutionnelle » → Réponse&nbsp;: on apporte un projet clé en main, déjà financé par le privé&nbsp;; l'État n'a qu'à faciliter (visas, sécurité, accueil) pour récolter le crédit politique et économique.</div>
+    </div>
+  </div>
+</section>
+
+<section id="arguments">
+  <div class="wrap">
+    <div class="eyebrow reveal">I.b — Les arguments transversaux</div>
+    <h2 class="reveal">Quatre vérités qui fonctionnent<br>sur <span class="gold">n'importe quel interlocuteur</span>.</h2>
+
+    <div class="grid3 reveal" style="margin-top:40px">
+      <div class="stat"><div class="n">≈2,1&nbsp;Bn$</div><div class="l">de pouvoir d'achat afro-américain (2024) — multiplié par 2,4 depuis 2000. Comparable au PIB d'un pays du top 10 mondial.</div><div class="src">Selig Center / Nielsen</div></div>
+      <div class="stat"><div class="n">52%</div><div class="l">des Afro-Américains ont moins de 35 ans — une influence démesurée sur les tendances numériques et culturelles.</div><div class="src">US Census / Nielsen 2024</div></div>
+      <div class="stat"><div class="n">67%</div><div class="l">cherchent une alternative si une marque ne s'aligne pas sur les causes qui leur tiennent à cœur. L'alignement n'est pas un bonus&nbsp;: c'est le ticket d'entrée.</div><div class="src">Nielsen 2024</div></div>
+    </div>
+
+    <div class="grid2 reveal" style="margin-top:64px">
+      <div>
+        <h3>1 — Le « premier arrivé »</h3>
+        <p class="body">Le Ghana a capté le récit du retour. Personne n'occupe l'Afrique centrale. La place est <em>vide</em> — et le premier qui la prend la garde. C'est un argument de rareté&nbsp;: on ne vend pas une part de marché, on vend la fondation d'un marché.</p>
+        <div class="rule"></div>
+        <h3>2 — Le sponsoring qui se rembourse</h3>
+        <p class="body">À la différence d'un festival classique, KIN Origins offre un <b style="color:var(--ivoire);font-weight:400">canal d'acquisition mesurable</b>&nbsp;: tests vendus, voyageurs convertis, deals signés. On parle ROI, pas mécénat.</p>
+      </div>
+      <div>
+        <h3>3 — Co-brand &gt; sponsoring</h3>
+        <p class="body">Un logo sur une scène s'oublie. Une <b style="color:var(--ivoire);font-weight:400">co-création</b> — un « KIN Wallet », un « KIN Fund », des kits ADN co-brandés — installe la marque dans le récit et dans le produit. On propose aux meilleurs partenaires de <em>construire</em>, pas seulement de financer.</p>
+        <div class="rule"></div>
+        <h3>4 — Fally, la caution &amp; le récit</h3>
+        <p class="body">Avoir le plus grand artiste d'Afrique centrale comme tête d'affiche et parrain culturel, plus une série pensée pour Netflix, garantit <b style="color:var(--ivoire);font-weight:400">l'attention</b>. Les marques n'achètent pas un risque&nbsp;: elles achètent une visibilité quasi certaine.</p>
+      </div>
+    </div>
+
+    <div class="eyebrow reveal" style="margin-top:80px">Les trois niveaux d'engagement</div>
+    <div class="tiers reveal">
+      <div class="tier">
+        <div class="lvl">Niveau 1</div>
+        <h3>Sponsor</h3>
+        <div class="price">visibilité &amp; activation</div>
+        <ul>
+          <li>Présence de marque maîtrisée sur le festival et le parcours.</li>
+          <li>Activations physiques (Heritage Village, nightlife, tapis).</li>
+          <li>Accès aux contenus et aux audiences.</li>
+          <li>Engagement annuel, renouvelable.</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="lvl">Niveau 2</div>
+        <h3>Co-brand</h3>
+        <div class="price">construire un produit ensemble</div>
+        <ul>
+          <li>Un produit conjoint&nbsp;: KIN Wallet, KIN Fund, kit ADN, SIM voyageur.</li>
+          <li>Marque intégrée au produit et au récit, pas seulement à l'événement.</li>
+          <li>Partage de la valeur générée (tests, transferts, dépôts).</li>
+          <li>Exclusivité sectorielle.</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="lvl">Niveau 3</div>
+        <h3>Investisseur</h3>
+        <div class="price">une part de l'écosystème</div>
+        <ul>
+          <li>Capital dans KIN Origins, KIN Routes ou la plateforme festival.</li>
+          <li>Siège dans la gouvernance, vision long terme.</li>
+          <li>Exposition à plusieurs lignes de revenus (test, voyage, forum, média).</li>
+          <li>Le modèle proposé à Fally lui-même&nbsp;: du patrimoine, pas un cachet.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="part" id="partie2">
+  <div class="wrap">
+    <div class="k reveal">Partie II</div>
+    <h2 class="reveal">La cible.<br>Préparer le terrain américain.</h2>
+    <p class="reveal">« Where does your story begin? » ne se diffuse pas comme une pub. Elle se propage par les <em>institutions de confiance</em> de l'Amérique noire. On ne fait pas du marketing vers ces communautés&nbsp;: on s'allie à leurs réseaux, en leur donnant un rôle fondateur. Voici qui viser, pourquoi ils sont réceptifs, par quel canal les atteindre et avec quel message.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 01</div>
+          <h3>Les églises noires</h3>
+          <div class="size">L'institution la plus puissante de l'Amérique noire.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>AME Church (African Methodist Episcopal), National Baptist Convention, COGIC (Church of God in Christ), grandes megachurches afro-américaines et leurs pasteurs-influenceurs.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>L'Église noire mêle <b>foi, identité et organisation collective</b>. Le retour aux origines y résonne comme un pèlerinage. Et surtout&nbsp;: ces communautés <b>voyagent en groupe</b> — un « church trip » peut remplir un charter entier.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Approcher les pasteurs et conseils d'église, proposer des « KIN Pilgrimages » de congrégation, des prêches/événements autour de l'héritage, des révélations ADN collectives lors des services.</p></div>
+          <div class="hook">"Come and stand on the land your ancestors were taken from. This is a homecoming, not a vacation."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 02</div>
+          <h3>Les HBCU</h3>
+          <div class="size">Les universités historiquement noires &amp; leurs réseaux d'anciens.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>Howard, Spelman, Morehouse, Hampton, FAMU, North Carolina A&amp;T… leurs départements d'études africaines/diaspora, leurs bureaux d'échange international, et surtout leurs <b>alumni associations</b>.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Population éduquée, mobile, en réseau et fière de son héritage. Le festival offre un cadre <b>académique et institutionnel</b> (échanges, recherche, conférences) en plus de l'émotion — parfait pour des partenariats officiels.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Accords d'échange avec les universités congolaises, voyages d'étude, présence au forum KIN Bridge, mobilisation des réseaux alumni (voyages de promotion, levées de fonds).</p></div>
+          <div class="hook">"Your education brought you far. Now discover where the story actually began."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 03</div>
+          <h3>The Divine Nine</h3>
+          <div class="size">Les 9 fraternités &amp; sororités noires (NPHC).</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>Alpha Phi Alpha, Alpha Kappa Alpha, Kappa Alpha Psi, Omega Psi Phi, Delta Sigma Theta, Phi Beta Sigma, Zeta Phi Beta, Sigma Gamma Rho, Iota Phi Theta.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Des réseaux à vie de professionnels noirs accomplis, structurés, fiers, qui <b>se déplacent en groupe</b> pour leurs conventions et missions de service. Adhésion = appartenance = voyage collectif naturel.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Délégations fondatrices par organisation, « chapitres KIN », intégration aux conventions nationales, expériences VIP et service communautaire sur place à Kinshasa.</p></div>
+          <div class="hook">"From your line to your lineage. Bring your brothers and sisters home."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 04</div>
+          <h3>Investisseurs &amp; patrimoine</h3>
+          <div class="size">La diaspora qui ne vient pas que danser.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>Family offices afro-américains, réseaux d'angel investors et fonds VC noirs, individus à haut patrimoine, endowments et fondations.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Ils cherchent du <b>deal flow africain authentique</b> et un sens à leur capital. Le forum KIN Bridge et le niveau « Héritage » des voyages leur offrent accès, exclusivité et récit.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Invitations sélectives au forum, deal room, présentation du KIN Fund et des véhicules diaspora, dîners privés avec Fally et les décideurs congolais.</p></div>
+          <div class="hook">"Your roots are an asset class. Invest where your story began."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 05</div>
+          <h3>Entrepreneurs &amp; business</h3>
+          <div class="size">Les réseaux d'affaires noirs américains.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>US Black Chambers, National Black Chamber of Commerce, réseaux de franchises et marques black-owned, conférences (AfroTech, Essence Festival, Black Enterprise).</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Le forum donne une <b>raison professionnelle</b> de venir — et un statut corporate/déductible au voyage. Le Congo = nouveau marché, fournisseurs, partenariats, expansion.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Délégations business, stands au forum, mise en relation avec entrepreneurs et institutions RDC, présence dans les grands rendez-vous business noirs US en amont.</p></div>
+          <div class="hook">"Trade with the continent that shaped you. The deals start in Kinshasa."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 06</div>
+          <h3>Associations professionnelles</h3>
+          <div class="size">Médecins, juristes, ingénieurs noirs.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>National Medical Association, National Bar Association, National Society of Black Engineers (NSBE), associations de cadres et de professionnels afro-américains.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Membres à fort revenu, habitués aux conventions annuelles et au voyage, en quête de sens et de <b>missions à impact</b> (santé, formation, ingénierie) en lien avec l'Afrique.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Volets professionnels et missions au sein du festival (santé, droit OHADA, tech), conventions délocalisées, certification ADN comme porte d'entrée du séjour.</p></div>
+          <div class="hook">"Bring your expertise home. Heritage and impact, in one journey."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 07</div>
+          <h3>Black Travel Movement &amp; créateurs</h3>
+          <div class="size">Les voix qui font les destinations.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>Travel Noire, Nomadness Travel Tribe, Black &amp; Abroad, agences de voyage de groupe afro-américaines, créateurs voyage/culture, podcasteurs généalogie.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Ils ont industrialisé les voyages de groupe vers le Ghana et le Sénégal et <b>cherchent la prochaine destination</b>. On leur donne l'exclusivité de la première — avec commissions et co-branding.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Partenariats agences (KIN Routes), voyages presse/créateurs en classe affaires dès l'édition 1, contenus embarqués, programme d'affiliation.</p></div>
+          <div class="hook">"You showed them West Africa. Now show them where it all started — Central Africa."</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comm reveal">
+      <div class="grid">
+        <div class="left">
+          <div class="num">Communauté 08</div>
+          <h3>Communautés culturelles &amp; héritage</h3>
+          <div class="size">Les gardiens de la mémoire.</div>
+        </div>
+        <div class="right">
+          <div class="row"><div class="rt">Qui</div><p>Passionnés de généalogie (la communauté African Ancestry, héritiers de <em>Roots</em>), organisations panafricanistes, communautés Juneteenth et Kwanzaa, cercles afro-culturels.</p></div>
+          <div class="row"><div class="rt">Pourquoi réceptifs</div><p>Pour eux, la quête des origines est <b>déjà un mode de vie</b>. Ils sont les premiers convertis, les plus crédibles, et les meilleurs prescripteurs auprès des autres communautés.</p></div>
+          <div class="row"><div class="rt">Le canal</div><p>Partenariats avec les plateformes généalogie, présence aux célébrations Juneteenth/Kwanzaa, contenus historiques sur le royaume Kongo, ambassadeurs « racines ».</p></div>
+          <div class="hook">"You've been searching your whole life. The answer has a city: Kinshasa."</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section id="geo">
+  <div class="wrap">
+    <div class="eyebrow reveal">II.b — Géographie</div>
+    <h2 class="reveal">Où frapper en premier.</h2>
+    <p class="lead reveal">On ne s'éparpille pas sur 50 États. On concentre l'édition 1 sur les capitales de l'Amérique noire — là où les communautés ci-dessus sont les plus denses, les plus connectées et les plus médiatiques.</p>
+    <div class="geo reveal">
+      <div class="c"><h4>Atlanta</h4><p>La « Mecque noire ». HBCU, business, culture, médias. Le hub naturel — point de départ symbolique de la campagne.</p></div>
+      <div class="c"><h4>Houston &amp; le Texas</h4><p>Le plus grand marché afro-américain en pouvoir d'achat. Églises immenses, entrepreneurs, énergie.</p></div>
+      <div class="c"><h4>DMV (DC–Maryland–Virginie)</h4><p>Howard, institutions, classe professionnelle aisée — et le siège d'African Ancestry. Cœur intellectuel.</p></div>
+      <div class="c"><h4>New York</h4><p>Harlem, Brooklyn, médias, mode, finance, diaspora africaine. La vitrine et la presse.</p></div>
+      <div class="c"><h4>Chicago</h4><p>Histoire militante, Église noire puissante, scène culturelle profonde.</p></div>
+      <div class="c"><h4>La Nouvelle-Orléans</h4><p>Le pont culturel le plus évident vers le Congo&nbsp;: Congo Square, racines musicales directes.</p></div>
+      <div class="c"><h4>Detroit</h4><p>Fierté noire, héritage Motown, communautés organisées.</p></div>
+      <div class="c"><h4>Los Angeles</h4><p>Industrie culturelle, créateurs, influence Hollywood pour la série et les ambassadeurs.</p></div>
+    </div>
+
+    <div class="eyebrow reveal" style="margin-top:80px">II.b — Séquence d'activation</div>
+    <h2 class="reveal">L'ordre de bataille.</h2>
+    <div class="seq reveal">
+      <div class="seqrow"><div class="ph">Vague 1</div><div><h4>Les ambassadeurs</h4><p>5 à 7 figures afro-américaines (artistes, athlètes, créateurs) font le test, puis le voyage, caméras embarquées. Leur révélation devient le premier contenu — et la preuve sociale qui crédibilise tout le reste.</p></div></div>
+      <div class="seqrow"><div class="ph">Vague 2</div><div><h4>Les institutions</h4><p>On signe les têtes de réseau&nbsp;: une grande église, une HBCU, une organisation Divine Nine, une agence du Black Travel Movement. Chaque accord débloque des centaines de personnes d'un coup.</p></div></div>
+      <div class="seqrow"><div class="ph">Vague 3</div><div><h4>Les communautés</h4><p>La campagne « Where does your story begin? » se déploie ville par ville via ces relais&nbsp;: prêches, conventions, campus, barbershops, podcasts. Les tests se vendent, les groupes se forment.</p></div></div>
+      <div class="seqrow"><div class="ph">Vague 4</div><div><h4>La masse &amp; les médias</h4><p>Single, trailer de la série, presse noire américaine, réseaux sociaux. Le festival devient un rendez-vous national. La demande dépasse l'offre — la rareté fait le prestige.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="loop" id="loop">
+  <div class="wrap">
+    <div class="eyebrow reveal">II.c — La boucle vertueuse</div>
+    <h2 class="reveal">Comment les deux parties<br>s'alimentent l'une l'autre.</h2>
+    <p class="lead reveal">Le génie du système&nbsp;: l'argent des sponsors finance la campagne, la campagne mobilise les communautés, les communautés deviennent des testeurs et des voyageurs, leurs histoires et leurs chiffres deviennent la preuve qui ramène — plus gros — les sponsors de l'édition suivante.</p>
+    <div class="flow reveal">
+      <div class="node"><div class="i">01</div><h4>Les partenaires financent</h4><p>Sponsors, co-brands et investisseurs apportent le capital et les rails (paiement, vol, banque, média).</p></div>
+      <div class="node"><div class="i">02</div><h4>La campagne mobilise</h4><p>« Where does your story begin? » se propage via les églises, HBCU, fraternités et créateurs.</p></div>
+      <div class="node"><div class="i">03</div><h4>Les communautés agissent</h4><p>Tests ADN achetés, packages réservés, délégations formées, forum rempli.</p></div>
+      <div class="node"><div class="i">04</div><h4>Le récit se crée</h4><p>Cérémonie, festival, série Netflix, single&nbsp;: des images et des deals qui font le tour du monde.</p></div>
+      <div class="node"><div class="i">05</div><h4>La preuve revient</h4><p>Chiffres et audience prouvent le ROI → les partenaires reviennent plus nombreux. La boucle s'élargit.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="closing">
+  <div class="wrap">
+    <h2 class="reveal">D'abord on cible. Ensuite on convainc.<br>Puis on <span class="gold">prépare ceux qui rentrent</span>.</h2>
+    <div class="q reveal">"Where does your story begin?" — La question qui finance et qui mobilise.</div>
+    <div class="rule reveal"></div>
+    <p class="body reveal" style="max-width:760px">Prochaine étape logique&nbsp;: transformer ce cadre en deux outils d'approche — un <em>deck sponsors</em> en anglais (chiffré en dollars, par famille d'entreprises) et une <em>liste nominative</em> de réseaux et de contacts à activer ville par ville.</p>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>KIN ORIGINS · Écosystème WE ARE KIN · KINOVA × Fally Ipupa</span>
+    <span>Document de travail confidentiel — entreprises citées = cibles à approcher, non engagées · chiffres indicatifs</span>
+  </div>
+</footer>
+        `,
+        }}
+      />
+    </>
+  );
+}
