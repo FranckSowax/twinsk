@@ -446,6 +446,7 @@ export default function ResultsTable({
                     <motion.tr
                       key={result.id}
                       layout
+                      data-flip-id={`product-${result.id}`}
                       draggable={dragEnabled}
                       onDragStart={(e) => {
                         if (!dragEnabled) return;

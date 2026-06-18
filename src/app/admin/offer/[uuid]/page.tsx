@@ -1,6 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import gsap from 'gsap';
+import { Flip } from 'gsap/Flip';
+
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(Flip);
+}
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
@@ -607,22 +614,51 @@ export default function AdminOfferDetailPage() {
             onUpdate={handleUpdateResult}
             onRefresh={loadData}
             onMoveResult={async (productId, fromItemId, toItemId) => {
-              // Optimistic update : on deplace immediatement cote client
-              setItems((prev) => {
-                const next = prev.map((it) => ({
-                  ...it,
-                  search_results: it.search_results.filter((r) => r.id !== productId),
-                }));
-                const moved = prev
-                  .find((it) => it.id === fromItemId)?.search_results
-                  .find((r) => r.id === productId);
-                if (!moved) return prev;
-                return next.map((it) =>
-                  it.id === toItemId
-                    ? { ...it, search_results: [...it.search_results, moved] }
-                    : it,
-                );
+              // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
+              const state = Flip.getState('[data-flip-id]', {
+                props: 'backgroundColor,borderColor,boxShadow',
               });
+
+              // 2. Optimistic move via flushSync pour que React applique le
+              //    re-rendu de maniere synchrone avant Flip.from().
+              flushSync(() => {
+                setItems((prev) => {
+                  const moved = prev
+                    .find((it) => it.id === fromItemId)?.search_results
+                    .find((r) => r.id === productId);
+                  if (!moved) return prev;
+                  return prev.map((it) => {
+                    if (it.id === fromItemId) {
+                      return {
+                        ...it,
+                        search_results: it.search_results.filter((r) => r.id !== productId),
+                      };
+                    }
+                    if (it.id === toItemId) {
+                      return { ...it, search_results: [...it.search_results, moved] };
+                    }
+                    return it;
+                  });
+                });
+              });
+
+              // 3. Animation FLIP : interpole de l ancienne position vers la nouvelle.
+              Flip.from(state, {
+                duration: 0.55,
+                ease: 'power3.inOut',
+                absolute: true,
+                stagger: 0.02,
+                onEnter: (elements) =>
+                  gsap.fromTo(
+                    elements,
+                    { opacity: 0, scale: 0.92 },
+                    { opacity: 1, scale: 1, duration: 0.4, ease: 'power2.out' },
+                  ),
+                onLeave: (elements) =>
+                  gsap.to(elements, { opacity: 0, scale: 0.92, duration: 0.3 }),
+              });
+
+              // 4. API call en parallele (sans bloquer l animation).
               try {
                 const res = await fetch(`/api/offers/${uuid}/move-product`, {
                   method: 'POST',
