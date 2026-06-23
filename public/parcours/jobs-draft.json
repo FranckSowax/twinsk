@@ -1,0 +1,15 @@
+{
+  "draft_480p_fast": {
+    "usine":  "7ad68354-fd3a-4745-9215-57ca86a29011",
+    "camion": "c460b42b-eb04-4da5-b2c7-4690e4dd0a03",
+    "cargo":  "b7f1c03b-5537-4878-a79d-a96e3e962f07",
+    "tarmac": "c4eb5204-a09a-4cdd-88fa-a44599de8e44",
+    "agence": "b03d7943-46ab-412e-aaf1-36914cf2f9b1",
+    "mains":  "ee0686f0-59fc-4c44-a5fc-9ceeeeb7affd"
+  },
+  "hd_720p_std": {
+    "usine":  "95f7c6b0-c93b-4f5a-96d3-1588a5251fd1",
+    "tarmac": "2a23919f-781f-46b5-93ca-475011bda264",
+    "mains":  "39fd234d-ef6e-49c5-9795-36a5f4d2a5c6"
+  }
+}
