@@ -41,6 +41,7 @@
   position: relative;
   z-index: 2;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -98,6 +99,7 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh; /* évite le saut lié à la barre d'adresse mobile */
   overflow: hidden;
 }
 
@@ -107,6 +109,16 @@
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/* Scrim de lisibilité : assombrit le bas pour que la légende reste lisible sur photo claire */
+.sticky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.15) 32%, transparent 55%);
 }
 
 .caption {
@@ -166,6 +178,7 @@
   position: relative;
   z-index: 2;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -222,8 +235,30 @@
   font-size: 0.95rem;
 }
 
+/* --- Mobile / petits écrans --- */
+@media (max-width: 768px) {
+  /* Scroll moins long par scène : ~6×220vh au lieu de 6×300vh, plus confortable au doigt */
+  .scene { height: 220vh; }
+
+  .caption {
+    left: 1.25rem;
+    right: 1.25rem;
+    bottom: clamp(1.75rem, 7vh, 3rem);
+    max-width: none;
+  }
+
+  .captionBody { margin-top: 0.6rem; }
+
+  /* Scrim un peu plus marqué : texte plein-largeur sur petit écran */
+  .sticky::after {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.68) 0%, rgba(0, 0, 0, 0.2) 38%, transparent 62%);
+  }
+
+  .cta { width: 100%; max-width: 22rem; justify-content: center; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scene { height: auto; }
-  .sticky { position: relative; height: 100vh; }
+  .sticky { position: relative; height: 100vh; height: 100dvh; }
   .scrollHint { animation: none; }
 }

@@ -92,6 +92,8 @@ export default function ParcoursExperience() {
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     gsap.registerPlugin(ScrollTrigger);
+    // Ignore les resize dus à la barre d'adresse mobile (évite les recalculs saccadés)
+    ScrollTrigger.config({ ignoreMobileResize: true });
 
     const ctx = gsap.context(() => {
       // --- Lenis (smooth scroll) synchronisé à ScrollTrigger ---
@@ -231,16 +233,24 @@ export default function ParcoursExperience() {
         });
       }
 
-      // Resize : recalcule tous les canvas
+      // Resize : redessine toujours les canvas (peu coûteux), mais ne rafraîchit
+      // ScrollTrigger que si la LARGEUR change (orientation/desktop), pas sur le
+      // simple toggle de la barre d'adresse mobile qui ne change que la hauteur.
+      let lastWidth = window.innerWidth;
       const onResize = () => {
         renderers.forEach((r) => r());
-        ScrollTrigger.refresh();
+        if (window.innerWidth !== lastWidth) {
+          lastWidth = window.innerWidth;
+          ScrollTrigger.refresh();
+        }
       };
       window.addEventListener('resize', onResize);
+      window.addEventListener('orientationchange', onResize);
 
       // Cleanup local au context
       return () => {
         window.removeEventListener('resize', onResize);
+        window.removeEventListener('orientationchange', onResize);
         lenis?.destroy();
       };
     }, rootRef);
