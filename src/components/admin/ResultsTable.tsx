@@ -48,6 +48,10 @@ interface SearchResultRow {
   client_quantity: number | null;
   client_selected: boolean | null;
   client_variant_id: string | null;
+  // Métriques de fiabilité fournisseur (classement) — null si inconnu
+  repurchase_rate?: number | null;
+  sales?: number | null;
+  star_rate?: number | null;
 }
 
 interface RequestItemWithResults {
@@ -86,6 +90,25 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: 'manuel',
   factory: 'usine',
 };
+
+// Score de fiabilité fournisseur : réachat > ventes > note (valeurs inconnues reléguées).
+function trustScore(r: Pick<SearchResultRow, 'repurchase_rate' | 'sales' | 'star_rate'>): number {
+  const rate = r.repurchase_rate ?? -1;
+  const sales = r.sales ?? -1;
+  const star = r.star_rate ?? -1;
+  return rate * 1_000_000 + Math.log10(sales + 1) * 1000 + star;
+}
+
+// Formate un volume de ventes : 1234 → "1,2k", 12000 → "12k"
+function formatSales(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.', ',')}k`;
+  return String(n);
+}
+
+// True si le résultat porte au moins une métrique de fiabilité exploitable.
+function hasTrust(r: SearchResultRow): boolean {
+  return r.repurchase_rate != null || r.sales != null || r.star_rate != null;
+}
 
 export default function ResultsTable({
   items,
@@ -416,7 +439,10 @@ export default function ResultsTable({
 
           {/* Results — split into products vs factories */}
           {(() => {
-            const products = item.search_results.filter((r) => r.source !== 'factory');
+            const products = item.search_results
+              .filter((r) => r.source !== 'factory')
+              // Classement par fiabilité fournisseur (réachat > ventes > note)
+              .sort((a, b) => trustScore(b) - trustScore(a));
             const factories = item.search_results.filter((r) => r.source === 'factory');
             return item.search_results.length > 0 ? (
               <div className="space-y-4">
@@ -435,6 +461,7 @@ export default function ResultsTable({
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Vol (m³)</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Dimensions</th>
                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Vendeur</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-slate-500">Fiabilité</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Qté</th>
                     <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-slate-500">Marge %</th>
                     <th className="px-2 py-2 text-right text-xs font-semibold uppercase text-slate-500">Prix final</th>
@@ -636,6 +663,40 @@ export default function ResultsTable({
                       {/* Seller */}
                       <td className="px-2 py-3 max-w-[140px] truncate text-sm text-slate-500" title={result.seller || ''}>
                         {result.seller || '—'}
+                      </td>
+
+                      {/* Fiabilité fournisseur */}
+                      <td className="px-2 py-3 whitespace-nowrap">
+                        {hasTrust(result) ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {result.repurchase_rate != null && (
+                              <span
+                                title="Taux de réachat (回头率) — fidélité des acheteurs"
+                                className="inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                              >
+                                {Math.round(result.repurchase_rate)}% réachat
+                              </span>
+                            )}
+                            {result.sales != null && result.sales > 0 && (
+                              <span
+                                title="Volume de ventes"
+                                className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                              >
+                                {formatSales(result.sales)} vts
+                              </span>
+                            )}
+                            {result.star_rate != null && result.star_rate > 0 && (
+                              <span
+                                title="Note moyenne boutique"
+                                className="inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                              >
+                                ★ {result.star_rate.toFixed(1)}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
 
                       {/* Quantity */}

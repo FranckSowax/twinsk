@@ -43,7 +43,28 @@ interface PendingResult {
   volume: number | null;
   dimensions: string | null;
   client_quantity: number | null;
+  // Métriques de fiabilité fournisseur (pour le classement) — null si inconnu
+  repurchase_rate: number | null; // 回头率 (1688), critère N°1
+  sales: number | null; // volume de ventes
+  star_rate: number | null; // note moyenne boutique (1688)
   catalog_id?: string | null;
+}
+
+// Convertit une valeur potentiellement string/number en nombre fini, sinon null
+function toNum(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+// Score de fiabilité fournisseur : réachat > ventes > note. Plus haut = mieux classé.
+// Les valeurs inconnues (null) sont reléguées en fin de liste.
+function trustScore(r: { repurchase_rate: number | null; sales: number | null; star_rate: number | null }): number {
+  const rate = r.repurchase_rate ?? -1; // 0-100
+  const sales = r.sales ?? -1;
+  const star = r.star_rate ?? -1; // 0-5
+  // Pondération : réachat domine, puis ventes (log pour éviter qu'un gros volume écrase tout), puis note.
+  return rate * 1_000_000 + Math.log10(sales + 1) * 1000 + star;
 }
 
 // POST: Trigger Taobao + 1688 image search, translate via Kimi, store in DB
@@ -207,6 +228,9 @@ export async function POST(
             volume: null,
             dimensions: null,
             client_quantity: null,
+            repurchase_rate: null, // Taobao ne remonte pas le réachat
+            sales: toNum(taobaoItem.sales),
+            star_rate: null,
           });
         }
       } else if (!isQuotaError(taobaoRes.reason)) {
@@ -303,6 +327,10 @@ export async function POST(
             volume: null,
             dimensions: null,
             client_quantity: null,
+            // Métriques de fiabilité — disponibles directement dans la liste de recherche 1688
+            repurchase_rate: toNum(aliItem.rePurchaseRate),
+            sales: toNum(aliItem.sales),
+            star_rate: toNum(aliItem.averageStarRate),
           });
         });
       } else if (!isQuotaError(alibaba1688Res.reason)) {
@@ -381,6 +409,9 @@ export async function POST(
               volume: null,
               dimensions: null,
               client_quantity: null,
+              repurchase_rate: null, // usine via LLM : pas de métrique marketplace
+              sales: null,
+              star_rate: null,
             });
           }
         } catch (err) {
@@ -432,6 +463,18 @@ export async function POST(
         }
       });
     }
+
+    // --- Classement par fiabilité fournisseur (Priorité 1) ---
+    // Au sein de chaque article, on ordonne les résultats marketplace par score de
+    // fiabilité décroissant (réachat > ventes > note). Les usines (factory) restent
+    // regroupées à la fin de leur article (elles n'ont pas de métrique marketplace).
+    allResults.sort((a, b) => {
+      if (a.request_item_id !== b.request_item_id) return 0; // garde le regroupement par article
+      const aFactory = a.source === 'factory' ? 1 : 0;
+      const bFactory = b.source === 'factory' ? 1 : 0;
+      if (aFactory !== bFactory) return aFactory - bFactory; // factories en dernier
+      return trustScore(b) - trustScore(a); // meilleur fournisseur d'abord
+    });
 
     // --- Upsert into catalog + attach catalog_id ---
     for (const r of allResults) {
