@@ -99,8 +99,10 @@ export default function AdminOfferDetailPage() {
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingTheme, setEditingTheme] = useState(false);
+  const [editingDesc, setEditingDesc] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [themeDraft, setThemeDraft] = useState('');
+  const [descDraft, setDescDraft] = useState('');
   const [publicLinkCopied, setPublicLinkCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
@@ -117,6 +119,7 @@ export default function AdminOfferDetailPage() {
       setOffer(oData);
       setTitleDraft(oData.title || '');
       setThemeDraft(oData.theme || '');
+      setDescDraft(oData.description || '');
     }
     if (Array.isArray(rData)) setItems(rData);
     setLoading(false);
@@ -196,6 +199,7 @@ export default function AdminOfferDetailPage() {
       setOffer(data);
       setTitleDraft(data.title || '');
       setThemeDraft(data.theme || '');
+      setDescDraft(data.description || '');
     } finally {
       setSaving(false);
     }
@@ -427,6 +431,73 @@ export default function AdminOfferDetailPage() {
                   className="text-sm text-purple-600 hover:underline dark:text-purple-300"
                 >
                   {offer.theme || '+ ajouter un thème'}
+                </button>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="mt-3">
+              {editingDesc ? (
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    value={descDraft}
+                    onChange={(e) => setDescDraft(e.target.value)}
+                    placeholder="Description de l'offre (affichée sur la page publique)"
+                    autoFocus
+                    rows={3}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        patchOffer({ description: descDraft.trim() || null });
+                        setEditingDesc(false);
+                      }
+                      if (e.key === 'Escape') {
+                        setDescDraft(offer.description || '');
+                        setEditingDesc(false);
+                      }
+                    }}
+                    className="w-full resize-y rounded-xl border border-amber-400 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none dark:bg-slate-700 dark:text-white"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        patchOffer({ description: descDraft.trim() || null });
+                        setEditingDesc(false);
+                      }}
+                      disabled={saving}
+                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDescDraft(offer.description || '');
+                        setEditingDesc(false);
+                      }}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+                    >
+                      Annuler
+                    </button>
+                    <span className="text-xs text-slate-400">⌘/Ctrl + Entrée pour enregistrer</span>
+                  </div>
+                </div>
+              ) : offer.description ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingDesc(true)}
+                  title="Cliquer pour éditer"
+                  className="block w-full cursor-pointer whitespace-pre-wrap rounded-lg px-1 text-left text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/40"
+                >
+                  {offer.description}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingDesc(true)}
+                  className="text-sm text-slate-400 hover:text-amber-500 hover:underline"
+                >
+                  + ajouter une description
                 </button>
               )}
             </div>
