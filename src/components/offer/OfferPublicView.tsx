@@ -262,10 +262,18 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             disabled={!cartLines.length}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+            className="flex min-w-[128px] flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50 sm:min-w-[160px]"
           >
-            <ShoppingBag className="h-4 w-4" />
-            {total.count > 0 ? `${total.count} · ${formatFCFA(total.cny)}` : 'Panier'}
+            <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+            {total.count > 0 ? (
+              <span className="flex items-center gap-1.5">
+                <span className="tabular-nums">{total.count}</span>
+                <span className="opacity-70">·</span>
+                <span className="tabular-nums">{formatFCFA(total.cny)}</span>
+              </span>
+            ) : (
+              'Voir le panier'
+            )}
           </motion.button>
         </div>
       </div>
