@@ -15,7 +15,7 @@ interface SearchResultRow {
   title: string;
   title_original: string | null;
   description: string | null;
-  price: number;
+  price: number | null; // null = prix à confirmer
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;
@@ -161,7 +161,7 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                   <FactoryContactSection description={result.description} />
 
                   {/* Price estimate + MOQ */}
-                  {result.price > 0 && (
+                  {result.price != null && result.price > 0 && (
                     <div>
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                         Prix estimé unitaire
@@ -202,14 +202,18 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                         Prix {result.margin_percent > 0 ? 'avec marge' : 'd\'achat'}
                       </p>
                       <div className="flex items-start gap-3">
-                        <MultiCurrencyPrice
-                          amountCny={
-                            result.margin_percent > 0
-                              ? applyMargin(result.price, result.margin_percent)
-                              : result.price
-                          }
-                          variant="large"
-                        />
+                        {result.price == null ? (
+                          <p className="text-lg font-bold text-amber-600">Prix à confirmer</p>
+                        ) : (
+                          <MultiCurrencyPrice
+                            amountCny={
+                              result.margin_percent > 0
+                                ? applyMargin(result.price, result.margin_percent)
+                                : result.price
+                            }
+                            variant="large"
+                          />
+                        )}
                         {result.product_url && (
                           <a
                             href={result.product_url}
@@ -223,7 +227,7 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                         )}
                       </div>
                     </div>
-                    {result.margin_percent > 0 && (
+                    {result.margin_percent > 0 && result.price != null && (
                       <p className="text-xs text-slate-500">
                         Prix d&apos;achat brut : {formatCNY(result.price)} · Marge : {result.margin_percent}%
                       </p>

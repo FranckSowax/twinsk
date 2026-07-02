@@ -65,7 +65,8 @@ export interface PublicOfferData {
       gallery: string[];
       detail_images: string[];
       videos: string[];
-      price: number | null; // null = « sur devis »
+      price: number | null; // prix produit exact (null = porté par paliers/variantes)
+      from_price: number; // prix d'affichage « à partir de » (toujours > 0, jamais inventé)
       price_tiers: { min_qty: number; price: number }[] | null;
       variants_total: number | null;
       moq: number | null;
@@ -130,7 +131,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
           const margin = p.margin_percent || 0;
           const withMargin = (v: number | null | undefined): number | null =>
             v == null ? null : v * (1 + margin / 100);
-          const priceWithMargin = withMargin(p.price); // null si « sur devis »
+          const priceWithMargin = withMargin(p.price);
           // Paliers : applique la marge, conserve l'ordre par min_qty, filtre l'invalide
           const priceTiers = Array.isArray(p.price_tiers)
             ? p.price_tiers
@@ -140,6 +141,42 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
           const detailImages = Array.isArray(p.detail_images)
             ? p.detail_images.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
             : [];
+          const mappedVariants = Array.isArray(p.variants)
+            ? (p.variants as unknown[])
+                .map((v) => {
+                  const vo = (v || {}) as {
+                    id?: string; name?: string; image_url?: string | null;
+                    price?: number | null; moq?: number | null; weight?: number | null;
+                    volume?: number | null; dimensions?: string | null; capacity?: string | null;
+                  };
+                  return {
+                    id: vo.id || '',
+                    name: sanitizeForPublic(vo.name),
+                    price: vo.price != null ? vo.price * (1 + margin / 100) : null,
+                    moq: vo.moq ?? null,
+                    weight: vo.weight ?? null,
+                    volume: vo.volume ?? null,
+                    dimensions: vo.dimensions ?? null,
+                    capacity: vo.capacity ?? null,
+                    image_url: (vo as { image_url?: string | null }).image_url ?? null,
+                  };
+                })
+                .filter((v) => v.name)
+            : null;
+
+          // Prix d'affichage « à partir de » : plus petit prix POSITIF réel disponible
+          // (produit, palier ou variante). Sur 1688 le prix existe toujours ; une absence
+          // totale = défaut de collecte → from_price = 0 → produit filtré ci-dessous.
+          const candidates: number[] = [];
+          if (priceWithMargin != null && priceWithMargin > 0) candidates.push(priceWithMargin);
+          for (const t of priceTiers || []) if (t.price > 0) candidates.push(t.price);
+          for (const v of mappedVariants || []) if (v.price != null && v.price > 0) candidates.push(v.price);
+          const fromPrice = candidates.length ? Math.min(...candidates) : 0;
+          if (fromPrice === 0) {
+            // Donnée à corriger en amont (re-scrape). Ne sera pas affiché au client.
+            console.warn(`[offer ${uuid}] produit sans prix exploitable filtré: ${p.id} "${p.title}"`);
+          }
+
           return {
             id: p.id,
             title: sanitizeForPublic(p.title),
@@ -153,6 +190,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
               ? p.videos.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
               : [],
             price: priceWithMargin,
+            from_price: fromPrice,
             price_tiers: priceTiers && priceTiers.length ? priceTiers : null,
             variants_total: typeof p.variants_total === 'number' ? p.variants_total : null,
             moq: p.moq,
@@ -164,38 +202,12 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             info_manquante: sanitizeForPublic(p.info_manquante) || null,
             seller: null, // hide supplier name from the public offer
             product_url: '',
-            variants: Array.isArray(p.variants)
-              ? (p.variants as unknown[])
-                  .map((v) => {
-                    const vo = (v || {}) as {
-                      id?: string;
-                      name?: string;
-                      image_url?: string | null;
-                      price?: number | null;
-                      moq?: number | null;
-                      weight?: number | null;
-                      volume?: number | null;
-                      dimensions?: string | null;
-                      capacity?: string | null;
-                    };
-                    return {
-                      id: vo.id || '',
-                      name: sanitizeForPublic(vo.name),
-                      price:
-                        vo.price != null ? vo.price * (1 + margin / 100) : null,
-                      moq: vo.moq ?? null,
-                      weight: vo.weight ?? null,
-                      volume: vo.volume ?? null,
-                      dimensions: vo.dimensions ?? null,
-                      capacity: vo.capacity ?? null,
-                      image_url:
-                        (vo as { image_url?: string | null }).image_url ?? null,
-                    };
-                  })
-                  .filter((v) => v.name)
-              : null,
+            variants: mappedVariants,
           };
-        }),
+        })
+        // Sécurité rétro-compat : ne jamais publier un produit sans prix exploitable
+        // (offres anciennes / prix forcé à 0). Il est filtré, pas affiché « sur devis ».
+        .filter((p) => p.from_price > 0),
     }))
     .filter((item) => item.products.length > 0);
 

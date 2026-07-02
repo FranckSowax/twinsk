@@ -29,7 +29,7 @@ export interface ExistingResult {
   id: string;
   title: string;
   description: string | null;
-  price: number;
+  price: number | null; // null = prix à confirmer
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;

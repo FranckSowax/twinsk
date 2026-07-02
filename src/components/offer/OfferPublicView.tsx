@@ -22,9 +22,10 @@ import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale } from 'lucide-react';
 
 const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
-// Prix affiché : montant FCFA, ou « Sur devis » quand le prix est masqué (null).
-const priceLabel = (cny: number | null | undefined) =>
-  cny == null ? 'Sur devis' : formatFCFA(cny);
+// Prix affiché sur une carte produit. Un produit publié a toujours un prix
+// (sinon il est filtré) : prix exact, ou « dès … » quand il vient des paliers/variantes.
+const cardPriceLabel = (p: { price: number | null; from_price: number }) =>
+  p.price != null ? formatFCFA(p.price) : `dès ${formatFCFA(p.from_price)}`;
 
 interface OfferVariant {
   id: string;
@@ -48,7 +49,8 @@ interface OfferProduct {
   gallery: string[];
   detail_images: string[];
   videos: string[];
-  price: number | null; // null = « sur devis »
+  price: number | null; // prix produit exact (null = porté par paliers/variantes)
+  from_price: number; // prix d'affichage « à partir de » (toujours > 0)
   price_tiers: { min_qty: number; price: number }[] | null;
   variants_total: number | null;
   moq: number | null;
@@ -112,19 +114,18 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   const total = useMemo(() => {
     let cny = 0;
     let count = 0;
-    let quoteCount = 0; // lignes « sur devis » (prix null) : comptées mais hors total chiffré
     for (const line of cartLines) {
       const p = allProducts.find((pp) => pp.id === line.productId);
       if (!p) continue;
       const variant = line.variantId
         ? p.variants?.find((v) => v.id === line.variantId)
         : null;
-      const unit = variant && variant.price != null ? variant.price : p.price;
+      // Prix unitaire : variante chiffrée, sinon prix produit, sinon « à partir de »
+      const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
+      cny += unit * line.quantity;
       count += line.quantity;
-      if (unit == null) quoteCount += line.quantity;
-      else cny += unit * line.quantity;
     }
-    return { cny, count, quoteCount };
+    return { cny, count };
   }, [cartLines, allProducts]);
 
   const cartKey = (productId: string, variantId: string | null) =>
@@ -264,9 +265,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
           >
             <ShoppingBag className="h-4 w-4" />
-            {total.count > 0
-              ? `${total.count} · ${total.cny > 0 ? formatFCFA(total.cny) : 'sur devis'}`
-              : 'Panier'}
+            {total.count > 0 ? `${total.count} · ${formatFCFA(total.cny)}` : 'Panier'}
           </motion.button>
         </div>
       </div>
@@ -399,7 +398,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                         )}
                         <div className="mt-2 flex items-baseline justify-between">
                           <p className="text-base font-bold text-emerald-600">
-                            {priceLabel(p.price)}
+                            {cardPriceLabel(p)}
                           </p>
                           {p.moq != null && (
                             <p className="text-[10px] text-slate-500">MOQ {p.moq}</p>
@@ -465,7 +464,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                           </div>
                           <div className="flex-shrink-0 text-right">
                             <p className="text-sm font-bold text-emerald-600">
-                              {priceLabel(p.price)}
+                              {cardPriceLabel(p)}
                             </p>
                             <p className="mt-0.5 text-[10px] text-emerald-600/70">
                               Voir détails →
@@ -537,15 +536,19 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 </div>
 
                 {(() => {
-                  const effective =
-                    variantOfActive(activeProduct, selectedVariantForActive)?.price ??
-                    activeProduct.price;
-                  return effective == null ? (
-                    <p className="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-lg font-bold text-slate-700">
-                      Sur devis
-                    </p>
-                  ) : (
-                    <MultiCurrencyPrice amountCny={effective} variant="large" primary="XAF" />
+                  const variantPrice = variantOfActive(activeProduct, selectedVariantForActive)?.price;
+                  // Prix exact (produit ou variante sélectionnée), sinon « à partir de »
+                  const exact = variantPrice ?? activeProduct.price;
+                  if (exact != null) {
+                    return <MultiCurrencyPrice amountCny={exact} variant="large" primary="XAF" />;
+                  }
+                  return (
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                        À partir de
+                      </span>
+                      <MultiCurrencyPrice amountCny={activeProduct.from_price} variant="large" primary="XAF" />
+                    </div>
                   );
                 })()}
 
@@ -734,12 +737,8 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                                 {active && <Check className="h-4 w-4 text-emerald-600" />}
                                 <span>{v.name}</span>
                               </div>
-                              {v.price != null ? (
+                              {v.price != null && (
                                 <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary="XAF" />
-                              ) : (
-                                <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
-                                  Sur devis
-                                </span>
                               )}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -845,7 +844,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                       const variant = line.variantId
                         ? p.variants?.find((v) => v.id === line.variantId)
                         : null;
-                      const unit = variant && variant.price != null ? variant.price : p.price;
+                      const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
                       const key = cartKey(line.productId, line.variantId);
                       return (
                         <div
@@ -865,13 +864,11 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
-                            <p className="text-xs text-slate-500">
-                              {unit == null ? 'Sur devis' : `${formatFCFA(unit)} × ${line.quantity}`}
-                            </p>
+                            <p className="text-xs text-slate-500">{formatFCFA(unit)} × {line.quantity}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <p className="text-sm font-bold text-emerald-600">
-                              {unit == null ? 'Sur devis' : formatFCFA(unit * line.quantity)}
+                              {formatFCFA(unit * line.quantity)}
                             </p>
                             <div className="flex items-center gap-1">
                               <button
@@ -904,19 +901,8 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {/* Total */}
                 {cartLines.length > 0 && (
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-semibold text-emerald-700">Total panier</p>
-                      {total.quoteCount > 0 && (
-                        <p className="text-xs text-slate-500">
-                          + {total.quoteCount} article{total.quoteCount > 1 ? 's' : ''} sur devis
-                        </p>
-                      )}
-                    </div>
-                    {total.cny > 0 ? (
-                      <MultiCurrencyPrice amountCny={total.cny} variant="stacked" primary="XAF" />
-                    ) : (
-                      <p className="text-sm font-bold text-slate-700">Sur devis</p>
-                    )}
+                    <p className="text-sm font-semibold text-emerald-700">Total panier</p>
+                    <MultiCurrencyPrice amountCny={total.cny} variant="stacked" primary="XAF" />
                   </div>
                 )}
 

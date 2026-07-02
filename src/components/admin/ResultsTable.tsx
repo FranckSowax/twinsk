@@ -17,7 +17,7 @@ interface SearchResultRow {
   title: string;
   title_original: string | null;
   description: string | null;
-  price: number;
+  price: number | null; // null = prix à confirmer (produit à paliers ou collecte incomplète)
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;
@@ -584,7 +584,11 @@ export default function ResultsTable({
 
                       {/* Price */}
                       <td className="px-2 py-3 text-sm font-medium text-slate-900 dark:text-white">
-                        {formatCNY(result.price)}
+                        {result.price == null ? (
+                          <span className="text-amber-600">Prix à confirmer</span>
+                        ) : (
+                          formatCNY(result.price)
+                        )}
                       </td>
 
                       {/* MOQ */}
@@ -736,7 +740,9 @@ export default function ResultsTable({
 
                       {/* Final price */}
                       <td className="px-2 py-3 text-right text-sm font-semibold text-amber-600 dark:text-amber-400">
-                        {formatCNY(applyMargin(result.price, result.margin_percent) * result.quantity)}
+                        {result.price == null
+                          ? '—'
+                          : formatCNY(applyMargin(result.price, result.margin_percent) * result.quantity)}
                       </td>
 
                       {/* Actions */}
@@ -807,7 +813,7 @@ export default function ResultsTable({
                               {result.moq != null && (
                                 <p className="mt-1 text-[10px] text-slate-400">MOQ: {result.moq}</p>
                               )}
-                              {result.price > 0 && (
+                              {result.price != null && result.price > 0 && (
                                 <p className="mt-1 text-xs font-medium text-amber-600">{formatCNY(result.price)}/u</p>
                               )}
                             </div>
