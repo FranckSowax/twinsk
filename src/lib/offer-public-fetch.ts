@@ -10,7 +10,7 @@ interface RawProduct {
   title: string;
   title_original: string | null;
   description: string | null;
-  price: number;
+  price: number | null; // v3.1 : null = « sur devis »
   image_url: string;
   main_image_url: string | null;
   extra_images: string[] | null;
@@ -27,6 +27,11 @@ interface RawProduct {
   info_manquante: string | null;
   margin_percent: number;
   selected: boolean;
+  // v3.1
+  price_tiers: { min_qty?: number | null; price?: number | null }[] | null;
+  detail_images: string[] | null;
+  variants_total: number | null;
+  // description_source : INTERNE — volontairement non lu ici (jamais exposé au client)
 }
 
 interface RawItem {
@@ -44,6 +49,7 @@ export interface PublicOfferData {
     theme: string | null;
     description: string | null;
     cover_image_url: string | null;
+    note: string | null; // meta.note — chapô/contexte (safe côté client)
   };
   items: Array<{
     id: string;
@@ -57,8 +63,11 @@ export interface PublicOfferData {
       image_url: string;
       thumbnail_url: string;
       gallery: string[];
+      detail_images: string[];
       videos: string[];
-      price: number;
+      price: number | null; // null = « sur devis »
+      price_tiers: { min_qty: number; price: number }[] | null;
+      variants_total: number | null;
       moq: number | null;
       weight: number | null;
       volume: number | null;
@@ -86,7 +95,7 @@ export interface PublicOfferData {
 export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | null> {
   const { data: offer, error: offerErr } = await supabaseAdmin
     .from('offers')
-    .select('id, title, theme, description, cover_image_url, status, created_at')
+    .select('id, title, theme, description, cover_image_url, status, created_at, note')
     .eq('id', uuid)
     .single();
   if (offerErr || !offer) return null;
@@ -119,7 +128,18 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
           }
           if (p.image_url && !gallery.includes(p.image_url)) gallery.push(p.image_url);
           const margin = p.margin_percent || 0;
-          const priceWithMargin = p.price * (1 + margin / 100);
+          const withMargin = (v: number | null | undefined): number | null =>
+            v == null ? null : v * (1 + margin / 100);
+          const priceWithMargin = withMargin(p.price); // null si « sur devis »
+          // Paliers : applique la marge, conserve l'ordre par min_qty, filtre l'invalide
+          const priceTiers = Array.isArray(p.price_tiers)
+            ? p.price_tiers
+                .map((t) => ({ min_qty: t.min_qty ?? null, price: withMargin(t.price) }))
+                .filter((t): t is { min_qty: number; price: number } => t.min_qty != null && t.price != null)
+            : null;
+          const detailImages = Array.isArray(p.detail_images)
+            ? p.detail_images.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+            : [];
           return {
             id: p.id,
             title: sanitizeForPublic(p.title),
@@ -128,10 +148,13 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             image_url: p.main_image_url || p.image_url,
             thumbnail_url: p.image_url,
             gallery,
+            detail_images: detailImages,
             videos: Array.isArray(p.videos)
               ? p.videos.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
               : [],
             price: priceWithMargin,
+            price_tiers: priceTiers && priceTiers.length ? priceTiers : null,
+            variants_total: typeof p.variants_total === 'number' ? p.variants_total : null,
             moq: p.moq,
             weight: p.weight,
             volume: p.volume,
@@ -183,6 +206,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       theme: sanitizeForPublic(offer.theme) || null,
       description: sanitizeForPublic(offer.description) || null,
       cover_image_url: offer.cover_image_url,
+      note: sanitizeForPublic((offer as { note?: string | null }).note) || null,
     },
     items: publicItems,
   };

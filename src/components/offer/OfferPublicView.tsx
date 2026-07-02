@@ -22,6 +22,9 @@ import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale } from 'lucide-react';
 
 const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
+// Prix affiché : montant FCFA, ou « Sur devis » quand le prix est masqué (null).
+const priceLabel = (cny: number | null | undefined) =>
+  cny == null ? 'Sur devis' : formatFCFA(cny);
 
 interface OfferVariant {
   id: string;
@@ -43,8 +46,11 @@ interface OfferProduct {
   image_url: string;
   thumbnail_url: string;
   gallery: string[];
+  detail_images: string[];
   videos: string[];
-  price: number;
+  price: number | null; // null = « sur devis »
+  price_tiers: { min_qty: number; price: number }[] | null;
+  variants_total: number | null;
   moq: number | null;
   weight: number | null;
   volume: number | null;
@@ -71,6 +77,7 @@ interface Props {
     theme: string | null;
     description: string | null;
     cover_image_url: string | null;
+    note: string | null; // meta.note — chapô/contexte
   };
   items: OfferItem[];
 }
@@ -105,6 +112,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   const total = useMemo(() => {
     let cny = 0;
     let count = 0;
+    let quoteCount = 0; // lignes « sur devis » (prix null) : comptées mais hors total chiffré
     for (const line of cartLines) {
       const p = allProducts.find((pp) => pp.id === line.productId);
       if (!p) continue;
@@ -112,10 +120,11 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
         ? p.variants?.find((v) => v.id === line.variantId)
         : null;
       const unit = variant && variant.price != null ? variant.price : p.price;
-      cny += unit * line.quantity;
       count += line.quantity;
+      if (unit == null) quoteCount += line.quantity;
+      else cny += unit * line.quantity;
     }
-    return { cny, count };
+    return { cny, count, quoteCount };
   }, [cartLines, allProducts]);
 
   const cartKey = (productId: string, variantId: string | null) =>
@@ -255,7 +264,9 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
           >
             <ShoppingBag className="h-4 w-4" />
-            {total.count > 0 ? `${total.count} · ${formatFCFA(total.cny)}` : 'Panier'}
+            {total.count > 0
+              ? `${total.count} · ${total.cny > 0 ? formatFCFA(total.cny) : 'sur devis'}`
+              : 'Panier'}
           </motion.button>
         </div>
       </div>
@@ -309,6 +320,15 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
           )}
         </div>
       </div>
+
+      {/* Note de contexte / analyse (meta.note) */}
+      {offer.note && (
+        <div className="mx-auto mt-4 max-w-4xl px-4">
+          <div className="whitespace-pre-wrap rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {offer.note}
+          </div>
+        </div>
+      )}
 
       {/* Categories */}
       <div className="space-y-10">
@@ -379,7 +399,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                         )}
                         <div className="mt-2 flex items-baseline justify-between">
                           <p className="text-base font-bold text-emerald-600">
-                            {formatFCFA(p.price)}
+                            {priceLabel(p.price)}
                           </p>
                           {p.moq != null && (
                             <p className="text-[10px] text-slate-500">MOQ {p.moq}</p>
@@ -445,7 +465,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                           </div>
                           <div className="flex-shrink-0 text-right">
                             <p className="text-sm font-bold text-emerald-600">
-                              {formatFCFA(p.price)}
+                              {priceLabel(p.price)}
                             </p>
                             <p className="mt-0.5 text-[10px] text-emerald-600/70">
                               Voir détails →
@@ -516,14 +536,39 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                   )}
                 </div>
 
-                <MultiCurrencyPrice
-                  amountCny={
+                {(() => {
+                  const effective =
                     variantOfActive(activeProduct, selectedVariantForActive)?.price ??
-                    activeProduct.price
-                  }
-                  variant="large"
-                  primary="XAF"
-                />
+                    activeProduct.price;
+                  return effective == null ? (
+                    <p className="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-lg font-bold text-slate-700">
+                      Sur devis
+                    </p>
+                  ) : (
+                    <MultiCurrencyPrice amountCny={effective} variant="large" primary="XAF" />
+                  );
+                })()}
+
+                {/* Paliers de prix par quantité (v3.1) */}
+                {activeProduct.price_tiers && activeProduct.price_tiers.length > 0 && (
+                  <div className="overflow-hidden rounded-2xl border border-slate-200">
+                    <p className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Prix par quantité
+                    </p>
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-slate-100">
+                        {activeProduct.price_tiers.map((t) => (
+                          <tr key={t.min_qty}>
+                            <td className="px-4 py-2 text-slate-600">≥ {t.min_qty} pcs</td>
+                            <td className="px-4 py-2 text-right font-semibold text-emerald-600">
+                              {formatFCFA(t.price)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {activeProduct.has_battery && (
                   <div className="flex items-start gap-2 rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 text-sm text-orange-800">
@@ -541,6 +586,33 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {activeProduct.description && (
                   <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
                     {activeProduct.description}
+                  </div>
+                )}
+
+                {/* Détails techniques (v3.1) — galerie secondaire, distincte de la principale */}
+                {activeProduct.detail_images.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Détails techniques
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {activeProduct.detail_images.map((src) => (
+                        <a
+                          key={src}
+                          href={src}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                        >
+                          <SmartImage
+                            src={src}
+                            fallbackSrc={src}
+                            alt="Détail technique"
+                            className="h-24 w-full object-cover transition-transform hover:scale-105"
+                          />
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -624,9 +696,15 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {/* Variants */}
                 {activeProduct.variants && activeProduct.variants.length > 0 && (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-700">
                       Choisissez une variante
                     </p>
+                    {activeProduct.variants_total != null &&
+                      activeProduct.variants_total > activeProduct.variants.length && (
+                        <p className="mb-3 text-xs text-slate-500">
+                          {activeProduct.variants_total} variantes disponibles — échantillon représentatif affiché
+                        </p>
+                      )}
                     <div className="space-y-2">
                       {activeProduct.variants.map((v) => {
                         const active = v.id === selectedVariantForActive;
@@ -656,8 +734,12 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                                 {active && <Check className="h-4 w-4 text-emerald-600" />}
                                 <span>{v.name}</span>
                               </div>
-                              {v.price != null && (
+                              {v.price != null ? (
                                 <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary="XAF" />
+                              ) : (
+                                <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
+                                  Sur devis
+                                </span>
                               )}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -783,11 +865,13 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
-                            <p className="text-xs text-slate-500">{formatFCFA(unit)} × {line.quantity}</p>
+                            <p className="text-xs text-slate-500">
+                              {unit == null ? 'Sur devis' : `${formatFCFA(unit)} × ${line.quantity}`}
+                            </p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <p className="text-sm font-bold text-emerald-600">
-                              {formatFCFA(unit * line.quantity)}
+                              {unit == null ? 'Sur devis' : formatFCFA(unit * line.quantity)}
                             </p>
                             <div className="flex items-center gap-1">
                               <button
@@ -820,8 +904,19 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {/* Total */}
                 {cartLines.length > 0 && (
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                    <p className="text-sm font-semibold text-emerald-700">Total panier</p>
-                    <MultiCurrencyPrice amountCny={total.cny} variant="stacked" primary="XAF" />
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-700">Total panier</p>
+                      {total.quoteCount > 0 && (
+                        <p className="text-xs text-slate-500">
+                          + {total.quoteCount} article{total.quoteCount > 1 ? 's' : ''} sur devis
+                        </p>
+                      )}
+                    </div>
+                    {total.cny > 0 ? (
+                      <MultiCurrencyPrice amountCny={total.cny} variant="stacked" primary="XAF" />
+                    ) : (
+                      <p className="text-sm font-bold text-slate-700">Sur devis</p>
+                    )}
                   </div>
                 )}
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { normalizeLogistics } from '@/lib/logistics';
+import { normalizeMeta, normalizeProductV31Fields } from '@/lib/offer-ingest';
 
 interface InVariant {
   id?: string;
@@ -33,6 +34,12 @@ interface InProduct {
   has_battery?: unknown;
   info_manquante?: unknown;
   variants?: InVariant[];
+  // Champs catalogue v3.1 (optionnels, désormais omis si vides)
+  price_tiers?: unknown;
+  detail_images?: unknown;
+  video_url?: unknown;
+  variants_total?: unknown;
+  description_source?: unknown;
 }
 interface InCategory {
   title?: string;
@@ -42,6 +49,7 @@ interface InCategory {
 }
 interface InBody {
   categories?: InCategory[];
+  meta?: unknown; // meta catalogue v3.1 (marche_cible, tri, mode, note, quality)
 }
 
 function numOrNull(v: unknown): number | null {
@@ -139,6 +147,23 @@ export async function POST(
   let totalVariants = 0;
   const errors: string[] = [];
 
+  // meta v3.1 (marche_cible, tri, mode, note, quality) → persistée sur l'offre.
+  // Best-effort : une erreur ici (colonnes absentes) ne bloque pas l'import produits.
+  const meta = normalizeMeta(body.meta);
+  if (meta) {
+    const { error: metaErr } = await supabaseAdmin
+      .from('offers')
+      .update({
+        marche_cible: meta.marche_cible,
+        tri: meta.tri,
+        mode: meta.mode,
+        note: meta.note,
+        quality: meta.quality,
+      })
+      .eq('id', uuid);
+    if (metaErr) errors.push(`meta ignorée: ${metaErr.message}`);
+  }
+
   for (const cat of categories) {
     const catTitle = (cat.title || '').trim();
     if (!catTitle) {
@@ -187,9 +212,16 @@ export async function POST(
       }
       const mainImage = (p.image_url || '').trim();
       const extras = normalizeExtras(p.extra_images, mainImage);
-      const videos = normalizeVideos(p.videos);
+      const baseVideos = normalizeVideos(p.videos);
       const variants = normalizeVariants(p.variants);
       variantCount += variants ? variants.length : 0;
+
+      // Champs catalogue v3.1 : prix nullable (sur devis), paliers, images de détail,
+      // video_url repliée dans videos[], total SKU, provenance.
+      const v31 = normalizeProductV31Fields(p, {
+        existingVideos: baseVideos,
+        excludeImages: [mainImage, ...(extras || [])],
+      });
 
       const logi = normalizeLogistics(p);
       rows.push({
@@ -199,11 +231,11 @@ export async function POST(
         title,
         title_original: strOrNull(p.title_original),
         description: strOrNull(p.description),
-        price: numOrNull(p.price) ?? 0,
+        price: v31.price, // null = « sur devis » (ne plus forcer à 0)
         image_url: mainImage,
         main_image_url: mainImage || null,
         extra_images: extras,
-        videos,
+        videos: v31.videos,
         variants,
         seller: strOrNull(p.seller),
         product_url: (p.product_url || '').trim(),
@@ -217,6 +249,11 @@ export async function POST(
         dimensions_cm: logi.dimensions_cm,
         has_battery: logi.has_battery,
         info_manquante: logi.info_manquante,
+        // v3.1
+        price_tiers: v31.price_tiers,
+        detail_images: v31.detail_images,
+        variants_total: v31.variants_total,
+        description_source: v31.description_source,
       });
     }
 
