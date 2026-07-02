@@ -7,6 +7,15 @@ const WHAPI_BASE = process.env.WHAPI_BASE_URL || 'https://gate.whapi.cloud';
 // Groupe WhatsApp de diffusion Twinsk par défaut (JID). Surchargeable via env.
 export const DEFAULT_GROUP_ID = process.env.WHAPI_GROUP_ID || '120363408414253084@g.us';
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// --- Règles de conformité anti-blocage (ajout de participants) ---
+// L'ajout massif direct = risque anti-spam Meta. On ajoute par petits lots espacés,
+// avec un plafond par appel. Au-delà : privilégier le lien d'invitation (voie sûre).
+const ADD_BATCH_SIZE = 5; // participants par lot
+const ADD_BATCH_DELAY_MS = 3000; // pause entre lots
+export const MAX_ADD_PER_CALL = 20; // plafond dur par requête
+
 export interface WhapiResult {
   ok: boolean;
   error?: string;
@@ -14,14 +23,18 @@ export interface WhapiResult {
 }
 
 /** Appel bas-niveau à un endpoint WHAPI (gère token + erreurs). */
-async function whapiPost(path: string, payload: Record<string, unknown>): Promise<WhapiResult> {
+async function whapiRequest(
+  method: 'POST' | 'PATCH',
+  path: string,
+  payload: Record<string, unknown>,
+): Promise<WhapiResult> {
   if (!WHAPI_TOKEN) {
     console.warn('[Whapi] WHAPI_TOKEN manquant — envoi ignoré');
     return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
   }
   try {
     const res = await fetch(`${WHAPI_BASE}${path}`, {
-      method: 'POST',
+      method,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${WHAPI_TOKEN}`,
@@ -43,6 +56,11 @@ async function whapiPost(path: string, payload: Record<string, unknown>): Promis
     console.error('[Whapi] Erreur:', err);
     return { ok: false, error: String(err).slice(0, 200) };
   }
+}
+
+/** Raccourci POST. */
+function whapiPost(path: string, payload: Record<string, unknown>): Promise<WhapiResult> {
+  return whapiRequest('POST', path, payload);
 }
 
 /** Appel GET bas-niveau à un endpoint WHAPI. */
@@ -170,16 +188,75 @@ export async function getGroupInfo(
   };
 }
 
-/** Ajoute des participants à un groupe. Numéros au format international (sans +),
- *  convertis en Chat ID `<numéro>@s.whatsapp.net` (format attendu par WHAPI). */
+export interface AddParticipantsResult {
+  ok: boolean;
+  error?: string;
+  requested: number; // numéros fournis (valides, dédupliqués)
+  attempted: number; // numéros réellement soumis à WHAPI
+  skipped: number; // au-delà du plafond MAX_ADD_PER_CALL
+  batches: number;
+}
+
+/**
+ * Ajoute des participants à un groupe, en CONFORMITÉ anti-blocage Meta :
+ *  - numéros dédupliqués et convertis en Chat ID `<numéro>@s.whatsapp.net`
+ *  - envoi par petits lots (ADD_BATCH_SIZE) espacés (ADD_BATCH_DELAY_MS)
+ *  - plafond dur par appel (MAX_ADD_PER_CALL) ; au-delà, le surplus est ignoré
+ *    (l'appelant doit privilégier le lien d'invitation pour les grandes listes).
+ * Rappel : WhatsApp peut refuser silencieusement certains contacts (privacy/blocage).
+ */
 export async function addGroupParticipants(
   phones: string[],
   id: string = DEFAULT_GROUP_ID,
+): Promise<AddParticipantsResult> {
+  const clean = Array.from(
+    new Set(phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8)),
+  );
+  if (!clean.length) {
+    return { ok: false, error: 'Aucun numéro valide (format international sans +)', requested: 0, attempted: 0, skipped: 0, batches: 0 };
+  }
+  const capped = clean.slice(0, MAX_ADD_PER_CALL);
+  const skipped = clean.length - capped.length;
+
+  let attempted = 0;
+  let batches = 0;
+  let lastError: string | undefined;
+
+  for (let i = 0; i < capped.length; i += ADD_BATCH_SIZE) {
+    const batch = capped.slice(i, i + ADD_BATCH_SIZE).map((n) => `${n}@s.whatsapp.net`);
+    const res = await whapiPost(`/groups/${encodeURIComponent(id)}/participants`, {
+      participants: batch,
+    });
+    batches += 1;
+    if (res.ok) attempted += batch.length;
+    else lastError = res.error;
+    if (i + ADD_BATCH_SIZE < capped.length) await sleep(ADD_BATCH_DELAY_MS);
+  }
+
+  return {
+    ok: attempted > 0,
+    error: attempted > 0 ? undefined : lastError,
+    requested: clean.length,
+    attempted,
+    skipped,
+    batches,
+  };
+}
+
+/** Configure l'URL de webhook WHAPI (PATCH /settings) pour recevoir les événements. */
+export async function setWhapiWebhook(
+  url: string,
+  events: string[] = ['messages'],
 ): Promise<WhapiResult> {
-  const clean = phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8);
-  if (!clean.length) return { ok: false, error: 'Aucun numéro valide (format international sans +)' };
-  const participants = clean.map((n) => `${n}@s.whatsapp.net`);
-  return whapiPost(`/groups/${encodeURIComponent(id)}/participants`, { participants });
+  return whapiRequest('PATCH', '/settings', {
+    webhooks: [
+      {
+        url,
+        mode: 'body',
+        events: events.map((type) => ({ type, method: 'post' })),
+      },
+    ],
+  });
 }
 
 /** Envoie une image (media = URL publique) avec légende optionnelle. */

@@ -20,6 +20,7 @@ import {
   X,
   BarChart3,
   Plus,
+  Webhook,
 } from 'lucide-react';
 
 interface GroupInfo {
@@ -36,6 +37,14 @@ interface PubOffer {
   theme: string | null;
   status: string;
   cover_image_url: string | null;
+}
+
+interface PollRow {
+  id: string;
+  title: string | null;
+  results: { name?: string; count?: number; voters?: string[] }[] | null;
+  total_votes: number;
+  updated_at: string;
 }
 
 export default function AdminWhatsappPage() {
@@ -69,6 +78,12 @@ export default function AdminWhatsappPage() {
   const [offersLoading, setOffersLoading] = useState(true);
   const [bcId, setBcId] = useState<string | null>(null);
   const [bcStatus, setBcStatus] = useState<Record<string, string>>({});
+
+  // Réponses aux sondages (webhooks)
+  const [polls, setPolls] = useState<PollRow[]>([]);
+  const [pollsLoading, setPollsLoading] = useState(true);
+  const [webhookConfiguring, setWebhookConfiguring] = useState(false);
+  const [webhookMsg, setWebhookMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,10 +121,42 @@ export default function AdminWhatsappPage() {
     }
   }, []);
 
+  const loadPolls = useCallback(async () => {
+    setPollsLoading(true);
+    try {
+      const res = await fetch('/api/whapi/polls');
+      const data = await res.json();
+      if (Array.isArray(data.polls)) setPolls(data.polls);
+    } finally {
+      setPollsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
     loadOffers();
-  }, [load, loadOffers]);
+    loadPolls();
+  }, [load, loadOffers, loadPolls]);
+
+  const configureWebhook = async () => {
+    setWebhookConfiguring(true);
+    setWebhookMsg(null);
+    try {
+      const res = await fetch('/api/whapi/webhook/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: window.location.origin }),
+      });
+      const data = await res.json();
+      setWebhookMsg(
+        res.ok ? '✅ Webhook configuré — les votes seront suivis ici' : `❌ ${data.error || 'Échec'}`,
+      );
+    } catch {
+      setWebhookMsg('❌ Erreur réseau');
+    } finally {
+      setWebhookConfiguring(false);
+    }
+  };
 
   const uploadAnnImage = async (file: File) => {
     setAnnUploading(true);
@@ -224,7 +271,14 @@ export default function AdminWhatsappPage() {
         setAddMsg(`❌ ${data.error || 'Échec de l’ajout'}`);
         return;
       }
-      setAddMsg(`✅ ${list.length} numéro(s) ajouté(s)`);
+      const parts = [`✅ ${data.attempted} numéro(s) soumis en ${data.batches} lot(s) espacé(s)`];
+      if (data.skipped > 0) {
+        parts.push(
+          `— ${data.skipped} ignoré(s) (plafond ${20}/envoi : préférez le lien d’invitation)`,
+        );
+      }
+      parts.push('· WhatsApp peut refuser certains contacts (privacy/blocage)');
+      setAddMsg(parts.join(' '));
       setPhones('');
       load();
     } catch {
@@ -512,6 +566,86 @@ export default function AdminWhatsappPage() {
         )}
       </div>
 
+      {/* Réponses aux sondages (webhooks) */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <BarChart3 className="h-4 w-4" />
+            Réponses aux sondages
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={loadPolls}
+              disabled={pollsLoading}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300"
+            >
+              {pollsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Rafraîchir
+            </button>
+            <button
+              type="button"
+              onClick={configureWebhook}
+              disabled={webhookConfiguring}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300"
+            >
+              {webhookConfiguring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Webhook className="h-3.5 w-3.5" />}
+              Configurer le webhook
+            </button>
+          </div>
+        </div>
+        {webhookMsg && (
+          <p className="mb-3 text-xs font-medium text-slate-600 dark:text-slate-300">{webhookMsg}</p>
+        )}
+
+        {pollsLoading ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
+          </div>
+        ) : polls.length === 0 ? (
+          <p className="py-2 text-xs text-slate-400">
+            Aucune réponse pour l’instant. Cliquez « Configurer le webhook » (une fois, en prod),
+            envoyez un sondage, et les votes s’afficheront ici.
+          </p>
+        ) : (
+          <ul className="space-y-4">
+            {polls.map((poll) => {
+              const total = poll.total_votes || 0;
+              return (
+                <li key={poll.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {poll.title || '(sans titre)'}
+                    </p>
+                    <span className="flex-shrink-0 text-xs text-slate-400">{total} vote(s)</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {(poll.results || []).map((r, i) => {
+                      const count = r.count || 0;
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                      return (
+                        <div key={i}>
+                          <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                            <span className="truncate">{r.name}</span>
+                            <span className="flex-shrink-0 tabular-nums">{count} · {pct}%</span>
+                          </div>
+                          <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                            <div
+                              className="h-full rounded-full bg-[#25D366]"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       {/* Diffuser une offre publiée */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
@@ -566,10 +700,22 @@ export default function AdminWhatsappPage() {
           <UserPlus className="h-4 w-4" />
           Ajouter des participants
         </h2>
-        <p className="mb-3 text-xs text-slate-400">
+        <p className="mb-2 text-xs text-slate-400">
           Numéros au format international sans « + » (ex. 24177000000), séparés par un espace, une
-          virgule ou un retour à la ligne. N’ajoutez que des personnes consentantes.
+          virgule ou un retour à la ligne.
         </p>
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+          <div>
+            <p className="font-semibold">Conformité anti-blocage (Meta)</p>
+            <p className="mt-0.5">
+              N’ajoutez que des personnes <strong>consentantes</strong>. L’ajout se fait par petits
+              lots espacés, plafonné à <strong>20 numéros/envoi</strong>. Au-delà, ou en cas de doute,
+              partagez plutôt le <strong>lien d’invitation</strong> (voie sûre, zéro risque de blocage).
+              WhatsApp peut refuser silencieusement certains contacts (paramètres de confidentialité).
+            </p>
+          </div>
+        </div>
         <textarea
           value={phones}
           onChange={(e) => setPhones(e.target.value)}

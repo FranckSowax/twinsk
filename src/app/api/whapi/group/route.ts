@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_GROUP_ID, getGroupInfo, addGroupParticipants } from '@/lib/whapi';
 
+// Les lots espacés (anti-blocage) peuvent durer plusieurs secondes.
+export const maxDuration = 60;
+
 function isAdmin(request: NextRequest): boolean {
   const cookie = request.cookies.get('admin_token');
   return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
@@ -25,5 +28,10 @@ export async function POST(request: NextRequest) {
   }
   const res = await addGroupParticipants(phones, body.id || DEFAULT_GROUP_ID);
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 502 });
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    attempted: res.attempted,
+    skipped: res.skipped,
+    batches: res.batches,
+  });
 }
