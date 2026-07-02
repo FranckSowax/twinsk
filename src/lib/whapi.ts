@@ -139,14 +139,16 @@ export async function getGroupInfo(
   };
 }
 
-/** Ajoute des participants à un groupe (numéros au format international, sans +). */
+/** Ajoute des participants à un groupe. Numéros au format international (sans +),
+ *  convertis en Chat ID `<numéro>@s.whatsapp.net` (format attendu par WHAPI). */
 export async function addGroupParticipants(
   phones: string[],
   id: string = DEFAULT_GROUP_ID,
 ): Promise<WhapiResult> {
   const clean = phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8);
   if (!clean.length) return { ok: false, error: 'Aucun numéro valide (format international sans +)' };
-  return whapiPost(`/groups/${encodeURIComponent(id)}/participants`, { participants: clean });
+  const participants = clean.map((n) => `${n}@s.whatsapp.net`);
+  return whapiPost(`/groups/${encodeURIComponent(id)}/participants`, { participants });
 }
 
 /** Envoie une image (media = URL publique) avec légende optionnelle. */
