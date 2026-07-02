@@ -45,9 +45,108 @@ async function whapiPost(path: string, payload: Record<string, unknown>): Promis
   }
 }
 
+/** Appel GET bas-niveau à un endpoint WHAPI. */
+async function whapiGet<T = unknown>(path: string): Promise<{ ok: boolean; data?: T; error?: string }> {
+  if (!WHAPI_TOKEN) {
+    return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
+  }
+  try {
+    const res = await fetch(`${WHAPI_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${WHAPI_TOKEN}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: `Whapi ${res.status}: ${JSON.stringify(data).slice(0, 200)}` };
+    }
+    return { ok: true, data: data as T };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+}
+
 /** Envoie un message texte (le lien génère un aperçu automatiquement). */
 export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID): Promise<WhapiResult> {
   return whapiPost('/messages/text', { to, body, typing_time: 0 });
+}
+
+// ----------------------------------------------------------------------------
+// Gestion de groupe
+// ----------------------------------------------------------------------------
+
+export interface WhapiGroupSummary {
+  id: string;
+  name: string;
+  participantsCount: number;
+}
+
+export interface WhapiGroupInfo extends WhapiGroupSummary {
+  adminsCount: number;
+  inviteLink: string | null;
+}
+
+interface RawParticipant { id?: string; rank?: string }
+interface RawGroup { id?: string; name?: string; subject?: string; size?: number; participants?: RawParticipant[] }
+
+const ADMIN_RANKS = new Set(['admin', 'superadmin', 'creator', 'owner']);
+
+/** Liste les groupes du numéro connecté (pour retrouver un group id). */
+export async function listWhapiGroups(): Promise<{ ok: boolean; groups?: WhapiGroupSummary[]; error?: string }> {
+  const r = await whapiGet<{ groups?: RawGroup[] }>('/groups?count=100');
+  if (!r.ok) return { ok: false, error: r.error };
+  const raw = Array.isArray(r.data?.groups) ? r.data!.groups! : [];
+  return {
+    ok: true,
+    groups: raw.map((g) => ({
+      id: g.id || '',
+      name: g.name || g.subject || '(sans nom)',
+      participantsCount: g.size ?? (Array.isArray(g.participants) ? g.participants.length : 0),
+    })),
+  };
+}
+
+/** Récupère le lien d'invitation d'un groupe (best-effort). */
+export async function getGroupInviteLink(id: string = DEFAULT_GROUP_ID): Promise<string | null> {
+  const r = await whapiGet<{ invite_link?: string; invite_code?: string } | string>(
+    `/groups/${encodeURIComponent(id)}/invite`,
+  );
+  if (!r.ok || !r.data) return null;
+  const d = r.data as { invite_link?: string; invite_code?: string } | string;
+  if (typeof d === 'string') return d.startsWith('http') ? d : `https://chat.whatsapp.com/${d}`;
+  if (d.invite_link) return d.invite_link;
+  if (d.invite_code) return `https://chat.whatsapp.com/${d.invite_code}`;
+  return null;
+}
+
+/** Infos d'un groupe : nom, nb participants, nb admins, lien d'invitation. */
+export async function getGroupInfo(
+  id: string = DEFAULT_GROUP_ID,
+): Promise<{ ok: boolean; group?: WhapiGroupInfo; error?: string }> {
+  const r = await whapiGet<RawGroup>(`/groups/${encodeURIComponent(id)}`);
+  if (!r.ok) return { ok: false, error: r.error };
+  const d = r.data || {};
+  const participants = Array.isArray(d.participants) ? d.participants : [];
+  const adminsCount = participants.filter((p) => p.rank && ADMIN_RANKS.has(p.rank)).length;
+  const inviteLink = await getGroupInviteLink(id);
+  return {
+    ok: true,
+    group: {
+      id: d.id || id,
+      name: d.name || d.subject || '(sans nom)',
+      participantsCount: d.size ?? participants.length,
+      adminsCount,
+      inviteLink,
+    },
+  };
+}
+
+/** Ajoute des participants à un groupe (numéros au format international, sans +). */
+export async function addGroupParticipants(
+  phones: string[],
+  id: string = DEFAULT_GROUP_ID,
+): Promise<WhapiResult> {
+  const clean = phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8);
+  if (!clean.length) return { ok: false, error: 'Aucun numéro valide (format international sans +)' };
+  return whapiPost(`/groups/${encodeURIComponent(id)}/participants`, { participants: clean });
 }
 
 /** Envoie une image (media = URL publique) avec légende optionnelle. */
