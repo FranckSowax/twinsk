@@ -215,22 +215,23 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       {/* Sticky header with cart total */}
-      <div className="sticky top-2 z-30 mb-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-6">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 text-white">
-            <Sparkles className="h-4 w-4" />
+      <div className="sticky top-2 z-30 mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-6">
+        {/* Ligne 1 : titre + thème + bascule de vue */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 text-white">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <p className="truncate text-sm font-bold text-slate-900">{offer.title}</p>
+            {offer.theme && (
+              <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                <Tag className="h-2.5 w-2.5" />
+                {offer.theme}
+              </span>
+            )}
           </div>
-          <p className="truncate text-sm font-bold text-slate-900">{offer.title}</p>
-          {offer.theme && (
-            <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
-              <Tag className="h-2.5 w-2.5" />
-              {offer.theme}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
           {/* View toggle */}
-          <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div className="hidden sm:flex flex-shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             <button
               type="button"
               onClick={() => setViewMode('list')}
@@ -256,26 +257,27 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
               <LayoutGrid className="h-4 w-4" />
             </button>
           </div>
-          <motion.button
-            type="button"
-            onClick={() => setCheckoutOpen(true)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            disabled={!cartLines.length}
-            className="flex min-w-[128px] flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50 sm:min-w-[160px]"
-          >
-            <ShoppingBag className="h-4 w-4 flex-shrink-0" />
-            {total.count > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <span className="tabular-nums">{total.count}</span>
-                <span className="opacity-70">·</span>
-                <span className="tabular-nums">{formatFCFA(total.cny)}</span>
-              </span>
-            ) : (
-              'Voir le panier'
-            )}
-          </motion.button>
         </div>
+        {/* Ligne 2 : bouton panier pleine largeur, sous le titre */}
+        <motion.button
+          type="button"
+          onClick={() => setCheckoutOpen(true)}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          disabled={!cartLines.length}
+          className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+        >
+          <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+          {total.count > 0 ? (
+            <span className="flex items-center gap-1.5">
+              <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
+              <span className="opacity-70">·</span>
+              <span className="tabular-nums">{formatFCFA(total.cny)}</span>
+            </span>
+          ) : (
+            'Voir le panier'
+          )}
+        </motion.button>
       </div>
 
       {/* Cover hero */}
