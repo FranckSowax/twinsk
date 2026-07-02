@@ -29,6 +29,8 @@ interface BulkResponse {
   success?: boolean;
   inserted?: { categories: number; products: number; variants: number };
   report?: { title: string; productsInserted: number; productsFailed: number; variantsInserted: number; errors: string[] }[];
+  rejected?: { category: string; title: string; reason: string }[];
+  warnings?: { category: string; title: string; message: string }[];
   errors?: string[];
   error?: string;
 }
@@ -216,6 +218,38 @@ export default function BulkImportModal({
                         ))}
                     </ul>
                   )}
+                </div>
+              )}
+
+              {/* Produits rejetés (prix absent → re-scraper) */}
+              {result?.rejected && result.rejected.length > 0 && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                    {result.rejected.length} produit(s) rejeté(s) — à re-scraper
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-xs text-red-700 dark:text-red-300/90">
+                    {result.rejected.map((r, i) => (
+                      <li key={i}>
+                        <strong>{r.category} › {r.title}</strong> : {r.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Incohérences non bloquantes (produits conservés, à vérifier) */}
+              {result?.warnings && result.warnings.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    {result.warnings.length} alerte(s) à vérifier
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-300/90">
+                    {result.warnings.map((w, i) => (
+                      <li key={i}>
+                        <strong>{w.category} › {w.title}</strong> : {w.message}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

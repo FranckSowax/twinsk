@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { normalizeLogistics } from '@/lib/logistics';
-import { normalizeMeta, normalizeProductV31Fields } from '@/lib/offer-ingest';
+import { normalizeMeta, normalizeProductV31Fields, assessProductPricing } from '@/lib/offer-ingest';
 
 interface InVariant {
   id?: string;
@@ -35,6 +35,7 @@ interface InProduct {
   info_manquante?: unknown;
   variants?: InVariant[];
   // Champs catalogue v3.1 (optionnels, désormais omis si vides)
+  price_range?: unknown; // { min, max } — peut valoir null (utilisé pour la validation prix)
   price_tiers?: unknown;
   detail_images?: unknown;
   video_url?: unknown;
@@ -146,6 +147,9 @@ export async function POST(
   let totalProducts = 0;
   let totalVariants = 0;
   const errors: string[] = [];
+  // Produits non ingérés (prix absent = scrape incomplet) + incohérences non bloquantes.
+  const rejected: { category: string; title: string; reason: string }[] = [];
+  const warnings: { category: string; title: string; message: string }[] = [];
 
   // meta v3.1 (marche_cible, tri, mode, note, quality) → persistée sur l'offre.
   // Best-effort : une erreur ici (colonnes absentes) ne bloque pas l'import produits.
@@ -214,7 +218,6 @@ export async function POST(
       const extras = normalizeExtras(p.extra_images, mainImage);
       const baseVideos = normalizeVideos(p.videos);
       const variants = normalizeVariants(p.variants);
-      variantCount += variants ? variants.length : 0;
 
       // Champs catalogue v3.1 : prix nullable (sur devis), paliers, images de détail,
       // video_url repliée dans videos[], total SKU, provenance.
@@ -223,6 +226,22 @@ export async function POST(
         excludeImages: [mainImage, ...(extras || [])],
       });
 
+      // Validation prix : un produit sans AUCUN signal de prix = scrape incomplet → rejet.
+      const pricing = assessProductPricing(p, {
+        tiers: v31.price_tiers,
+        variants: variants as { price: number | null }[] | null,
+      });
+      if (pricing.reject) {
+        itemReport.productsFailed += 1;
+        itemReport.errors.push(`"${title}" rejeté : ${pricing.reason}`);
+        rejected.push({ category: catTitle, title, reason: pricing.reason! });
+        continue; // ne pas ingérer ce produit
+      }
+      if (pricing.warning) {
+        warnings.push({ category: catTitle, title, message: pricing.warning });
+      }
+
+      variantCount += variants ? variants.length : 0;
       const logi = normalizeLogistics(p);
       rows.push({
         offer_item_id: itemRow.id,
@@ -283,6 +302,11 @@ export async function POST(
       products: totalProducts,
       variants: totalVariants,
     },
+    // Produits non ingérés (prix absent) — l'agent de sourcing doit re-scraper ces fiches.
+    rejected,
+    rejected_count: rejected.length,
+    // Incohérences non bloquantes (produit conservé, à vérifier).
+    warnings,
     report,
     errors,
   });

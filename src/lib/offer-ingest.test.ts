@@ -7,6 +7,7 @@ import {
   normalizeVariantsTotal,
   normalizeMeta,
   normalizeProductV31Fields,
+  assessProductPricing,
 } from './offer-ingest';
 
 describe('normalizePrice — prix masqué / sur devis', () => {
@@ -102,6 +103,40 @@ describe('normalizeMeta — meta offre (quality/mode internes)', () => {
     expect(out?.note).toContain('38-45');
     expect(out?.marche_cible).toContain('Afrique');
     expect(out?.quality).toMatchObject({ products: 12, warnings_count: 1 });
+  });
+});
+
+describe('assessProductPricing — validation prix (scrape incomplet)', () => {
+  const noCtx = { tiers: null, variants: null };
+
+  it('aucun signal de prix (price null, pas de range/tiers/variantes) → REJET', () => {
+    const r = assessProductPricing({ price: null }, noCtx);
+    expect(r.reject).toBe(true);
+    expect(r.reason).toContain('re-scraper');
+  });
+  it('price null + price_range.min null → REJET', () => {
+    const r = assessProductPricing({ price: null, price_range: { min: null, max: null } }, noCtx);
+    expect(r.reject).toBe(true);
+  });
+  it('price null MAIS price_range.min présent → accepté', () => {
+    expect(assessProductPricing({ price: null, price_range: { min: 30 } }, noCtx).reject).toBe(false);
+  });
+  it('price null MAIS price_tiers présents → accepté (signal de prix)', () => {
+    const r = assessProductPricing({ price: null }, { tiers: [{ min_qty: 10, price: 42 }], variants: null });
+    expect(r.reject).toBe(false);
+  });
+  it('price null MAIS une variante a un prix → accepté', () => {
+    const r = assessProductPricing({ price: null }, { tiers: null, variants: [{ price: 280 }, { price: null }] });
+    expect(r.reject).toBe(false);
+  });
+  it('produit chiffré mais TOUTES les variantes sans prix → warning (conservé)', () => {
+    const r = assessProductPricing({ price: 100 }, { tiers: null, variants: [{ price: null }, { price: null }] });
+    expect(r.reject).toBe(false);
+    expect(r.warning).toContain('variantes sans prix');
+  });
+  it('produit chiffré, variantes chiffrées → ni rejet ni warning', () => {
+    const r = assessProductPricing({ price: 100 }, { tiers: null, variants: [{ price: 90 }] });
+    expect(r).toEqual({ reject: false });
   });
 });
 
