@@ -69,6 +69,18 @@ export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID)
   return whapiPost('/messages/text', { to, body, typing_time: 0 });
 }
 
+/** Diffuse une annonce libre : image (avec le texte en légende) OU texte seul. */
+export async function broadcastAnnouncement(
+  message: string,
+  imageUrl?: string | null,
+  to: string = DEFAULT_GROUP_ID,
+): Promise<WhapiResult> {
+  const text = message.trim();
+  if (imageUrl) return sendWhapiImage(imageUrl, text || undefined, to);
+  if (!text) return { ok: false, error: 'Message ou image requis' };
+  return sendWhapiText(text, to);
+}
+
 // ----------------------------------------------------------------------------
 // Gestion de groupe
 // ----------------------------------------------------------------------------
