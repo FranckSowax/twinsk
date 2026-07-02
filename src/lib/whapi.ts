@@ -1,6 +1,6 @@
 // Intégration WHAPI (whapi.cloud) — diffusion de messages WhatsApp (groupes/canaux).
 // Modèle : src/lib/telegram.ts. Secret via variable d'environnement (WHAPI_TOKEN).
-// Endpoint : POST https://gate.whapi.cloud/messages/text  (Bearer token).
+// Endpoints : POST /messages/text · /messages/image · /messages/interactive (Bearer token).
 
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN;
 const WHAPI_BASE = process.env.WHAPI_BASE_URL || 'https://gate.whapi.cloud';
@@ -13,23 +13,20 @@ export interface WhapiResult {
   messageId?: string;
 }
 
-/** Envoie un message texte WhatsApp (le lien génère un aperçu automatiquement). */
-export async function sendWhapiText(
-  body: string,
-  to: string = DEFAULT_GROUP_ID,
-): Promise<WhapiResult> {
+/** Appel bas-niveau à un endpoint WHAPI (gère token + erreurs). */
+async function whapiPost(path: string, payload: Record<string, unknown>): Promise<WhapiResult> {
   if (!WHAPI_TOKEN) {
     console.warn('[Whapi] WHAPI_TOKEN manquant — envoi ignoré');
     return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
   }
   try {
-    const res = await fetch(`${WHAPI_BASE}/messages/text`, {
+    const res = await fetch(`${WHAPI_BASE}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${WHAPI_TOKEN}`,
       },
-      body: JSON.stringify({ to, body, typing_time: 0 }),
+      body: JSON.stringify(payload),
     });
     const data = (await res.json().catch(() => ({}))) as {
       sent?: boolean;
@@ -38,10 +35,9 @@ export async function sendWhapiText(
     };
     if (!res.ok || data.sent === false) {
       const err = typeof data.error === 'string' ? data.error : JSON.stringify(data.error ?? {});
-      console.error(`[Whapi] envoi échoué: ${res.status} ${err}`);
+      console.error(`[Whapi] ${path} échoué: ${res.status} ${err}`);
       return { ok: false, error: `Whapi ${res.status}: ${err.slice(0, 200)}` };
     }
-    console.log('[Whapi] Message envoyé');
     return { ok: true, messageId: data.message?.id };
   } catch (err) {
     console.error('[Whapi] Erreur:', err);
@@ -49,30 +45,96 @@ export async function sendWhapiText(
   }
 }
 
-/** Compose le message de diffusion d'une offre (formatage WhatsApp *gras* / _italique_). */
-export function buildOfferBroadcast(args: {
+/** Envoie un message texte (le lien génère un aperçu automatiquement). */
+export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID): Promise<WhapiResult> {
+  return whapiPost('/messages/text', { to, body, typing_time: 0 });
+}
+
+/** Envoie une image (media = URL publique) avec légende optionnelle. */
+export async function sendWhapiImage(
+  mediaUrl: string,
+  caption: string | undefined,
+  to: string = DEFAULT_GROUP_ID,
+): Promise<WhapiResult> {
+  // WHAPI accepte `media` sous forme d'URL publique (ou base64 / media id).
+  return whapiPost('/messages/image', { to, media: mediaUrl, caption });
+}
+
+/** Envoie un message interactif avec un bouton URL (boutons WHAPI = « as-is », instables). */
+export async function sendWhapiButtonLink(args: {
+  body: string;
+  buttonTitle: string;
+  url: string;
+  to?: string;
+}): Promise<WhapiResult> {
+  return whapiPost('/messages/interactive', {
+    to: args.to ?? DEFAULT_GROUP_ID,
+    type: 'button',
+    body: { text: args.body },
+    action: {
+      buttons: [{ type: 'url', title: args.buttonTitle.slice(0, 20), id: 'offer_link', url: args.url }],
+    },
+  });
+}
+
+/** Corps du message d'une offre : titre (*gras*) + thème (_italique_) + description. */
+export function buildOfferBody(args: {
   title: string;
   theme?: string | null;
-  note?: string | null;
-  url: string;
+  description?: string | null;
 }): string {
   return [
     `🛍️ *${args.title}*`,
     args.theme ? `_${args.theme}_` : null,
-    args.note ? `\n${args.note}` : null,
-    ``,
-    `👉 ${args.url}`,
-    ``,
-    `Commandez directement via le lien 👆`,
+    args.description ? `\n${args.description}` : null,
   ]
     .filter((l): l is string => l !== null)
     .join('\n');
 }
 
-/** Diffuse le lien public d'une offre dans le groupe WhatsApp Twinsk. */
-export async function broadcastOfferLink(
-  args: { title: string; theme?: string | null; note?: string | null; url: string },
-  to?: string,
-): Promise<WhapiResult> {
-  return sendWhapiText(buildOfferBroadcast(args), to);
+export interface BroadcastResult {
+  ok: boolean;
+  error?: string;
+  steps: { image?: WhapiResult; message: WhapiResult };
+  /** true si le message final est passé par le fallback texte (bouton échoué). */
+  buttonFallback?: boolean;
+}
+
+/**
+ * Diffuse une offre dans le groupe : image (cover/upload) PUIS message + bouton URL.
+ * Si le bouton échoue (instabilité WHAPI), repli sur un message texte avec le lien.
+ */
+export async function broadcastOfferRich(args: {
+  title: string;
+  theme?: string | null;
+  description?: string | null;
+  url: string;
+  imageUrl?: string | null;
+  to?: string;
+}): Promise<BroadcastResult> {
+  const to = args.to ?? DEFAULT_GROUP_ID;
+  const body = buildOfferBody(args);
+
+  // 1) Image d'abord (best-effort).
+  let image: WhapiResult | undefined;
+  if (args.imageUrl) {
+    image = await sendWhapiImage(args.imageUrl, undefined, to);
+  }
+
+  // 2) Message avec bouton URL, fallback texte + lien si échec.
+  let buttonFallback = false;
+  let message = await sendWhapiButtonLink({ body, buttonTitle: 'Voir l’offre', url: args.url, to });
+  if (!message.ok) {
+    buttonFallback = true;
+    message = await sendWhapiText(`${body}\n\n👉 ${args.url}`, to);
+  }
+
+  const ok = message.ok && (args.imageUrl ? !!image?.ok : true);
+  const error = !message.ok
+    ? message.error
+    : args.imageUrl && !image?.ok
+      ? `Image non envoyée : ${image?.error}`
+      : undefined;
+
+  return { ok, error, steps: { image, message }, buttonFallback };
 }

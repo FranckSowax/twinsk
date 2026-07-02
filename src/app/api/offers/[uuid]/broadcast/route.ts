@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { broadcastOfferLink } from '@/lib/whapi';
+import { broadcastOfferRich } from '@/lib/whapi';
 
-// POST: diffuse le lien public de l'offre dans le groupe WhatsApp (admin only).
+// POST: diffuse l'offre (image + message + bouton lien) dans le groupe WhatsApp (admin only).
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> },
@@ -15,7 +15,7 @@ export async function POST(
   const { uuid } = await params;
   const { data: offer, error } = await supabaseAdmin
     .from('offers')
-    .select('id, title, theme, status')
+    .select('id, title, theme, description, cover_image_url, status')
     .eq('id', uuid)
     .single();
   if (error || !offer) {
@@ -28,19 +28,30 @@ export async function POST(
     );
   }
 
-  // Base URL : fournie par le client (window.location.origin), sinon dérivée de la requête.
-  const body = (await request.json().catch(() => ({}))) as { origin?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    origin?: string;
+    imageUrl?: string | null;
+  };
   const origin = body.origin?.replace(/\/$/, '') || new URL(request.url).origin;
   const publicUrl = `${origin}/offer/${uuid}`;
+  // Image : celle fournie par l'admin (upload), sinon la cover de l'offre.
+  const imageUrl = body.imageUrl || offer.cover_image_url || null;
 
-  const result = await broadcastOfferLink({
+  const result = await broadcastOfferRich({
     title: offer.title,
     theme: offer.theme,
+    description: offer.description,
     url: publicUrl,
+    imageUrl,
   });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error || 'Échec de la diffusion' }, { status: 502 });
   }
-  return NextResponse.json({ success: true, url: publicUrl, messageId: result.messageId });
+  return NextResponse.json({
+    success: true,
+    url: publicUrl,
+    imageSent: !!imageUrl && !!result.steps.image?.ok,
+    buttonFallback: !!result.buttonFallback,
+  });
 }

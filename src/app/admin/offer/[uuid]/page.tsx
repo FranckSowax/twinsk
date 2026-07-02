@@ -108,6 +108,10 @@ export default function AdminOfferDetailPage() {
   const [saving, setSaving] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
+  const [broadcastImageMode, setBroadcastImageMode] = useState<'cover' | 'upload'>('cover');
+  const [broadcastUploadUrl, setBroadcastUploadUrl] = useState<string | null>(null);
+  const [broadcastUploading, setBroadcastUploading] = useState(false);
+  const broadcastFileRef = useRef<HTMLInputElement>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const coverFileRef = useRef<HTMLInputElement>(null);
 
@@ -214,21 +218,45 @@ export default function AdminOfferDetailPage() {
     await patchOffer({ status: next });
   };
 
+  const handleBroadcastImageFile = async (file: File) => {
+    setBroadcastUploading(true);
+    setBroadcastMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.urls?.[0]) {
+        setBroadcastMsg(`❌ ${data.error || 'Erreur upload image'}`);
+        return;
+      }
+      setBroadcastUploadUrl(data.urls[0]);
+      setBroadcastImageMode('upload');
+    } finally {
+      setBroadcastUploading(false);
+    }
+  };
+
   const broadcastToGroup = async () => {
+    const imageUrl =
+      broadcastImageMode === 'upload' ? broadcastUploadUrl : offer?.cover_image_url || null;
     setBroadcasting(true);
     setBroadcastMsg(null);
     try {
       const res = await fetch(`/api/offers/${uuid}/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: window.location.origin }),
+        body: JSON.stringify({ origin: window.location.origin, imageUrl }),
       });
       const data = await res.json();
-      setBroadcastMsg(
-        res.ok
-          ? '✅ Lien diffusé dans le groupe WhatsApp'
-          : `❌ ${data.error || 'Échec de la diffusion'}`,
-      );
+      if (!res.ok) {
+        setBroadcastMsg(`❌ ${data.error || 'Échec de la diffusion'}`);
+        return;
+      }
+      const parts = ['✅ Diffusé dans le groupe WhatsApp'];
+      if (imageUrl && !data.imageSent) parts.push('(image non envoyée)');
+      if (data.buttonFallback) parts.push('(bouton indisponible → lien texte)');
+      setBroadcastMsg(parts.join(' '));
     } catch {
       setBroadcastMsg('❌ Erreur réseau');
     } finally {
@@ -614,29 +642,108 @@ export default function AdminOfferDetailPage() {
                 </Link>
               </div>
 
-              {/* Diffusion dans le groupe WhatsApp (via WHAPI) */}
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <motion.button
-                  type="button"
-                  onClick={broadcastToGroup}
-                  disabled={broadcasting}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#25D366]/25 disabled:opacity-60"
-                >
-                  {broadcasting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                  Diffuser dans le groupe WhatsApp
-                </motion.button>
-                {broadcastMsg && (
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                    {broadcastMsg}
-                  </span>
-                )}
-              </div>
+              {/* Diffusion dans le groupe WhatsApp (via WHAPI) : image + message + bouton */}
+              {(() => {
+                const chosenImage =
+                  broadcastImageMode === 'upload' ? broadcastUploadUrl : offer.cover_image_url;
+                return (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Diffusion WhatsApp — image + message
+                    </p>
+
+                    {/* Choix de l'image */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBroadcastImageMode('cover')}
+                        disabled={!offer.cover_image_url}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          broadcastImageMode === 'cover'
+                            ? 'bg-emerald-500 text-white'
+                            : 'border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        Cover de l’offre
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => broadcastFileRef.current?.click()}
+                        disabled={broadcastUploading}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          broadcastImageMode === 'upload'
+                            ? 'bg-emerald-500 text-white'
+                            : 'border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {broadcastUploading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="h-3.5 w-3.5" />
+                        )}
+                        {broadcastUploadUrl ? 'Changer l’image' : 'Uploader une image'}
+                      </button>
+                      <input
+                        ref={broadcastFileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleBroadcastImageFile(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
+
+                    {/* Aperçu image + message */}
+                    <div className="mt-3 flex gap-3">
+                      {chosenImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={chosenImage}
+                          alt="Image de diffusion"
+                          className="h-16 w-16 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] text-slate-400 dark:bg-slate-700">
+                          sans image
+                        </div>
+                      )}
+                      <div className="min-w-0 text-xs text-slate-500">
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">{offer.title}</p>
+                        {offer.theme && <p className="italic">{offer.theme}</p>}
+                        {offer.description && <p className="line-clamp-2">{offer.description}</p>}
+                        <p className="mt-1 text-emerald-600">＋ bouton « Voir l’offre » → lien public</p>
+                      </div>
+                    </div>
+
+                    {/* Bouton diffuser */}
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <motion.button
+                        type="button"
+                        onClick={broadcastToGroup}
+                        disabled={broadcasting}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#25D366]/25 disabled:opacity-60"
+                      >
+                        {broadcasting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        Diffuser dans le groupe
+                      </motion.button>
+                      {broadcastMsg && (
+                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                          {broadcastMsg}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
