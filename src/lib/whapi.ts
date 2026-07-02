@@ -69,6 +69,25 @@ export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID)
   return whapiPost('/messages/text', { to, body, typing_time: 0 });
 }
 
+/** Envoie un sondage (poll) — l'option interactive STABLE de WhatsApp (vs boutons). */
+export async function sendWhapiPoll(args: {
+  title: string;
+  options: string[];
+  multiple?: boolean;
+  to?: string;
+}): Promise<WhapiResult> {
+  const title = args.title.trim();
+  const opts = args.options.map((o) => o.trim()).filter(Boolean).slice(0, 12);
+  if (!title) return { ok: false, error: 'Titre du sondage requis' };
+  if (opts.length < 2) return { ok: false, error: 'Au moins 2 options requises' };
+  return whapiPost('/messages/poll', {
+    to: args.to ?? DEFAULT_GROUP_ID,
+    title,
+    options: opts,
+    count: args.multiple ? 0 : 1, // 1 = choix unique · 0 = choix multiples
+  });
+}
+
 /** Diffuse une annonce libre : image (avec le texte en légende) OU texte seul. */
 export async function broadcastAnnouncement(
   message: string,
