@@ -20,6 +20,7 @@ import {
   ImageIcon,
   Loader2,
   Plus,
+  Send,
   Sparkles,
   Tag,
   Trash2,
@@ -105,6 +106,8 @@ export default function AdminOfferDetailPage() {
   const [descDraft, setDescDraft] = useState('');
   const [publicLinkCopied, setPublicLinkCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const coverFileRef = useRef<HTMLInputElement>(null);
 
@@ -209,6 +212,28 @@ export default function AdminOfferDetailPage() {
     if (!offer) return;
     const next = offer.status === 'published' ? 'draft' : 'published';
     await patchOffer({ status: next });
+  };
+
+  const broadcastToGroup = async () => {
+    setBroadcasting(true);
+    setBroadcastMsg(null);
+    try {
+      const res = await fetch(`/api/offers/${uuid}/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: window.location.origin }),
+      });
+      const data = await res.json();
+      setBroadcastMsg(
+        res.ok
+          ? '✅ Lien diffusé dans le groupe WhatsApp'
+          : `❌ ${data.error || 'Échec de la diffusion'}`,
+      );
+    } catch {
+      setBroadcastMsg('❌ Erreur réseau');
+    } finally {
+      setBroadcasting(false);
+    }
   };
 
   const handleCoverFile = async (file: File) => {
@@ -587,6 +612,30 @@ export default function AdminOfferDetailPage() {
                   <ExternalLink className="h-4 w-4" />
                   Aperçu
                 </Link>
+              </div>
+
+              {/* Diffusion dans le groupe WhatsApp (via WHAPI) */}
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <motion.button
+                  type="button"
+                  onClick={broadcastToGroup}
+                  disabled={broadcasting}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#25D366]/25 disabled:opacity-60"
+                >
+                  {broadcasting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  Diffuser dans le groupe WhatsApp
+                </motion.button>
+                {broadcastMsg && (
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {broadcastMsg}
+                  </span>
+                )}
               </div>
             </div>
           </div>
