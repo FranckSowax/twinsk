@@ -8,6 +8,7 @@ import Link from 'next/link';
 import SearchTrigger from '@/components/admin/SearchTrigger';
 import RetranslateButton from '@/components/admin/RetranslateButton';
 import ResultsTable from '@/components/admin/ResultsTable';
+import { useAdminT } from '@/components/admin/LocaleProvider';
 import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
@@ -67,6 +68,7 @@ interface RequestItemWithResults {
 }
 
 export default function AdminRequestDetailPage() {
+  const { t } = useAdminT();
   const { uuid } = useParams<{ uuid: string }>();
   const [request, setRequest] = useState<RequestType | null>(null);
   const [items, setItems] = useState<RequestItemWithResults[]>([]);
@@ -226,7 +228,7 @@ export default function AdminRequestDetailPage() {
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-amber-500"
         >
           <ArrowLeft className="h-4 w-4" />
-          Retour aux demandes
+          {t('request.back')}
         </Link>
 
         <div className="flex items-start justify-between">
@@ -423,7 +425,7 @@ export default function AdminRequestDetailPage() {
           className="flex items-center gap-2 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 px-6 py-3 font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-300"
         >
           <Plus className="h-5 w-5" />
-          Ajouter un article
+          {t('action.addItem')}
         </motion.button>
         <motion.button
           type="button"
@@ -434,7 +436,7 @@ export default function AdminRequestDetailPage() {
           title="Importer un JSON de catégories + produits + variantes"
         >
           <FileJson className="h-5 w-5" />
-          Importer JSON
+          {t('action.importJson')}
         </motion.button>
       </div>
 
@@ -538,7 +540,7 @@ export default function AdminRequestDetailPage() {
                     title="Sélectionner tous les produits"
                   >
                     <CheckSquare className="h-4 w-4" />
-                    Tout sélectionner
+                    {t('action.selectAll')}
                   </button>
                   <button
                     type="button"
@@ -548,7 +550,7 @@ export default function AdminRequestDetailPage() {
                     title="Désélectionner tous les produits"
                   >
                     <Square className="h-4 w-4" />
-                    Tout désélectionner
+                    {t('action.deselectAll')}
                   </button>
                   <span className="ml-1 text-xs font-medium text-slate-500">
                     {selectedCount} / {total} sélectionné(s)

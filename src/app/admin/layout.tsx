@@ -19,21 +19,33 @@ import {
   Youtube,
   Sparkles,
   MessageCircle,
+  Languages,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
+import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
+import type { TKey } from '@/lib/i18n/admin';
 
-const NAV_ITEMS = [
-  { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
-  { href: '/admin/requests', label: 'Sourcing', icon: Package },
-  { href: '/admin/offer', label: 'Offres B2C', icon: Sparkles },
-  { href: '/admin/whatsapp', label: 'WhatsApp', icon: MessageCircle },
-  { href: '/admin/freight', label: 'Fret', icon: Ship },
-  { href: '/admin/leads', label: 'Services', icon: Inbox },
-  { href: '/admin/youtube', label: 'YouTube', icon: Youtube },
-  { href: '/admin/catalog', label: 'Catalogue', icon: BookOpen },
+const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
+  { href: '/admin', key: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/admin/requests', key: 'nav.sourcing', icon: Package },
+  { href: '/admin/offer', key: 'nav.offers', icon: Sparkles },
+  { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
+  { href: '/admin/freight', key: 'nav.freight', icon: Ship },
+  { href: '/admin/leads', key: 'nav.services', icon: Inbox },
+  { href: '/admin/youtube', key: 'nav.youtube', icon: Youtube },
+  { href: '/admin/catalog', key: 'nav.catalog', icon: BookOpen },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminLocaleProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </AdminLocaleProvider>
+  );
+}
+
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
+  const { t, locale, setLocale } = useAdminT();
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -138,7 +150,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="text-sm font-bold text-white">T</span>
           </div>
           <span className="font-display text-base font-bold text-slate-900 dark:text-white">
-            TWINSK Admin
+            {t('brand')}
           </span>
         </Link>
         <button
@@ -171,7 +183,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span className="text-sm font-bold text-white">T</span>
               </div>
               <span className="font-display text-lg font-bold text-slate-900 dark:text-white">
-                TWINSK Admin
+                {t('brand')}
               </span>
             </Link>
             <button
@@ -194,12 +206,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span className="flex items-center gap-2">
                 {creating ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Création…
+                    <Loader2 className="h-4 w-4 animate-spin" /> {t('layout.creating')}
                   </>
                 ) : (
                   <>
                     <Plus className="h-4 w-4" />
-                    Nouvelle demande
+                    {t('layout.newRequest')}
                   </>
                 )}
               </span>
@@ -217,8 +229,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <Package className="h-4 w-4 text-amber-500" />
                   <div className="flex-1">
-                    <div className="font-medium">Sourcing</div>
-                    <div className="text-[11px] text-slate-500">Produits 1688/Alibaba</div>
+                    <div className="font-medium">{t('layout.sourcing')}</div>
+                    <div className="text-[11px] text-slate-500">{t('layout.sourcingSub')}</div>
                   </div>
                   <ArrowUpRight className="h-3 w-3 text-slate-400" />
                 </button>
@@ -229,8 +241,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <Ship className="h-4 w-4 text-amber-500" />
                   <div className="flex-1">
-                    <div className="font-medium">Fret</div>
-                    <div className="text-[11px] text-slate-500">Aérien/maritime + photos</div>
+                    <div className="font-medium">{t('layout.freight')}</div>
+                    <div className="text-[11px] text-slate-500">{t('layout.freightSub')}</div>
                   </div>
                   <ArrowUpRight className="h-3 w-3 text-slate-400" />
                 </button>
@@ -257,19 +269,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {t(item.key)}
                 </Link>
               );
             })}
           </nav>
 
+          {/* Bascule de langue FR / 中文 */}
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/50">
+            <Languages className="ml-1.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+            <div className="flex flex-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setLocale('fr')}
+                className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors ${
+                  locale === 'fr'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                FR
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocale('zh')}
+                className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors ${
+                  locale === 'zh'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                中文
+              </button>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <LogOut className="h-4 w-4" />
-            Déconnexion
+            {t('layout.logout')}
           </button>
         </aside>
 

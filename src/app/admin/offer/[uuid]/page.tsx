@@ -31,6 +31,7 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
+import { useAdminT } from '@/components/admin/LocaleProvider';
 
 interface OfferRow {
   id: string;
@@ -92,6 +93,7 @@ interface OfferItemWithProducts {
 }
 
 export default function AdminOfferDetailPage() {
+  const { t } = useAdminT();
   const { uuid } = useParams<{ uuid: string }>();
   const [offer, setOffer] = useState<OfferRow | null>(null);
   const [items, setItems] = useState<OfferItemWithProducts[]>([]);
@@ -309,7 +311,7 @@ export default function AdminOfferDetailPage() {
         className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-amber-500"
       >
         <ArrowLeft className="h-4 w-4" />
-        Retour aux offres
+        {t('offer.back')}
       </Link>
 
       {/* Cover image uploader */}
@@ -581,12 +583,12 @@ export default function AdminOfferDetailPage() {
               {isPublished ? (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  Publiée
+                  {t('action.published')}
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Publier
+                  {t('action.publish')}
                 </>
               )}
             </motion.button>
@@ -603,7 +605,7 @@ export default function AdminOfferDetailPage() {
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-slate-900 dark:text-white">
-                Lien public à partager
+                {t('offer.publicLink')}
               </h3>
               <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
                 Diffusez ce lien dans vos groupes WhatsApp / réseaux sociaux. Les
@@ -629,7 +631,7 @@ export default function AdminOfferDetailPage() {
                   className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25"
                 >
                   {publicLinkCopied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {publicLinkCopied ? 'Copié !' : 'Copier'}
+                  {publicLinkCopied ? t('offer.copied') : t('offer.copy')}
                 </motion.button>
                 <Link
                   href={`/offer/${uuid}`}
@@ -638,7 +640,7 @@ export default function AdminOfferDetailPage() {
                   className="flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 dark:border-emerald-700 dark:bg-slate-800 dark:text-emerald-300"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  Aperçu
+                  {t('offer.preview')}
                 </Link>
               </div>
 
@@ -733,7 +735,7 @@ export default function AdminOfferDetailPage() {
                         ) : (
                           <Send className="h-4 w-4" />
                         )}
-                        Diffuser dans le groupe
+                        {t('offer.broadcastGroup')}
                       </motion.button>
                       {broadcastMsg && (
                         <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -759,7 +761,7 @@ export default function AdminOfferDetailPage() {
           className="flex items-center gap-2 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 px-6 py-3 font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-300"
         >
           <Plus className="h-5 w-5" />
-          Ajouter une catégorie
+          {t('action.addCategory')}
         </motion.button>
         <motion.button
           type="button"
@@ -769,7 +771,7 @@ export default function AdminOfferDetailPage() {
           className="flex items-center gap-2 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50 px-6 py-3 font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-300"
         >
           <FileJson className="h-5 w-5" />
-          Importer JSON
+          {t('action.importJson')}
         </motion.button>
         <Link
           href={`/offer/${uuid}`}
@@ -777,7 +779,7 @@ export default function AdminOfferDetailPage() {
           className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
         >
           <ArrowUpRight className="h-5 w-5" />
-          Vue publique
+          {t('action.publicView')}
         </Link>
       </div>
 
@@ -814,7 +816,7 @@ export default function AdminOfferDetailPage() {
                     disabled={allSelected}
                     className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
                   >
-                    Tout sélectionner
+                    {t('action.selectAll')}
                   </button>
                   <button
                     type="button"
@@ -822,7 +824,7 @@ export default function AdminOfferDetailPage() {
                     disabled={selectedCount === 0}
                     className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                   >
-                    Tout désélectionner
+                    {t('action.deselectAll')}
                   </button>
                   <span className="ml-1 text-xs font-medium text-slate-500">
                     {selectedCount} / {total} visible(s) sur l&apos;offre publique
