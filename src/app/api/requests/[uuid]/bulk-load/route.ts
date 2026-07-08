@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor } from '@/lib/collab';
+import { foldVideoUrl } from '@/lib/offer-ingest';
 import { normalizeLogistics } from '@/lib/logistics';
 
 interface InVariant {
@@ -33,6 +34,7 @@ interface InProduct {
   dimensions_cm?: unknown;
   has_battery?: unknown;
   info_manquante?: unknown;
+  video_url?: unknown; // v3.1 : vidéo produit (repliée dans videos[])
   supplier_shipping_price?: unknown; // INTERNE : livraison fournisseur → dépôt Chine (CNY)
   delivery_time?: unknown; // INTERNE : délai de livraison
   quantity?: unknown;
@@ -203,7 +205,8 @@ export async function POST(
         }
         const mainImage = (p.image_url || '').trim();
         const extras = normalizeExtras(p.extra_images, mainImage);
-        const videos = normalizeVideos(p.videos);
+        // v3.1 : replie video_url (vidéo unique) dans le tableau videos[].
+        const videos = foldVideoUrl(normalizeVideos(p.videos), p.video_url);
         const variants = normalizeVariants(p.variants);
         const variantCount = variants ? variants.length : 0;
 
