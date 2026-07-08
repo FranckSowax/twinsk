@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package } from 'lucide-react';
+import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode } from 'lucide-react';
 
 interface Order {
   id: string;
@@ -12,6 +12,7 @@ interface Order {
   grand_total_fcfa: number | null;
   transport_mode: string | null;
   status: string;
+  order_status: string;
   payment_status: string;
   payment_method: string | null;
   payment_proof_url: string | null;
@@ -23,6 +24,7 @@ interface DetailLine {
   product_id: string | null;
   product_title: string | null;
   product_image: string | null;
+  product_url: string | null;
   variant_name: string | null;
   quantity: number;
   unit_price_fcfa: number;
@@ -41,6 +43,21 @@ interface OrderDetail {
 }
 
 const TRANSPORT_LABEL: Record<string, string> = { air: 'Aérien', sea: 'Maritime', quote: 'Devis' };
+
+const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'unpaid', label: 'Non payé' },
+  { value: 'paid', label: 'Payée' },
+  { value: 'shipped', label: 'Expédié' },
+  { value: 'delivered', label: 'Livrée' },
+];
+const ORDER_STATUS_CLS: Record<string, string> = {
+  unpaid: 'border-slate-300 text-slate-600',
+  paid: 'border-emerald-300 text-emerald-700 bg-emerald-50',
+  shipped: 'border-blue-300 text-blue-700 bg-blue-50',
+  delivered: 'border-purple-300 text-purple-700 bg-purple-50',
+};
+// L'étiquette d'envoi est disponible dès que la commande est payée.
+const canLabel = (s: string) => s === 'paid' || s === 'shipped' || s === 'delivered';
 
 const PAY_LABEL: Record<string, { txt: string; cls: string }> = {
   submitted: { txt: 'À vérifier', cls: 'bg-amber-100 text-amber-700' },
@@ -89,8 +106,24 @@ export default function AdminOrdersPage() {
       });
       await load();
       if (detail?.order.id === o.id) {
-        setDetail((d) => (d ? { ...d, order: { ...d.order, payment_status: 'paid', status: 'paid' } } : d));
+        setDetail((d) => (d ? { ...d, order: { ...d.order, payment_status: 'paid', status: 'paid', order_status: 'paid' } } : d));
       }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changeStatus = async (id: string, order_status: string) => {
+    setBusy(id);
+    try {
+      await fetch(`/api/admin/orders/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_status }),
+      });
+      // Optimiste : maj locale immédiate (liste + modal), sans recharger si filtre actif.
+      setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, order_status } : o)));
+      setDetail((d) => (d && d.order.id === id ? { ...d, order: { ...d.order, order_status } } : d));
     } finally {
       setBusy(null);
     }
@@ -163,6 +196,34 @@ export default function AdminOrdersPage() {
                   <p className="text-[11px] text-slate-400">{fmtDate(o.created_at)}</p>
                 </div>
                 <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${pay.cls}`}>{pay.txt}</span>
+
+                {/* Statut de traitement — dropdown */}
+                <select
+                  value={o.order_status || 'unpaid'}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => { e.stopPropagation(); changeStatus(o.id, e.target.value); }}
+                  disabled={busy === o.id}
+                  className={`flex-shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 ${ORDER_STATUS_CLS[o.order_status || 'unpaid']}`}
+                >
+                  {ORDER_STATUS_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+
+                {/* Étiquette d'envoi (dès que payée) */}
+                {canLabel(o.order_status) && (
+                  <a
+                    href={`/admin/commandes/${o.id}/etiquette`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Étiquette d'envoi"
+                    className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+                  >
+                    <QrCode className="h-3.5 w-3.5" /> Étiquette
+                  </a>
+                )}
+
                 {o.payment_status === 'submitted' && (
                   <button
                     onClick={(e) => { e.stopPropagation(); validate(o); }}
@@ -241,7 +302,22 @@ export default function AdminOrdersPage() {
                             {l.variant_name && <p className="text-xs text-emerald-600">{l.variant_name}</p>}
                             <p className="text-xs text-slate-500">{l.quantity} × {fmt(l.unit_price_fcfa)}</p>
                           </div>
-                          <p className="flex-shrink-0 text-sm font-bold text-emerald-600">{fmt(l.subtotal_fcfa)}</p>
+                          <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                            <p className="text-sm font-bold text-emerald-600">{fmt(l.subtotal_fcfa)}</p>
+                            {l.product_url ? (
+                              <a
+                                href={l.product_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Payer le fournisseur sur 1688"
+                                className="flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-orange-600"
+                              >
+                                <CreditCard className="h-3 w-3" /> Payer
+                              </a>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Lien 1688 indisponible</span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -269,6 +345,21 @@ export default function AdminOrdersPage() {
                       <p className="mb-4 text-xs text-slate-500">Réf. eBilling : <span className="font-mono">{d.ebilling_reference}</span></p>
                     )}
 
+                    {/* Statut de traitement */}
+                    <div className="mb-4 flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Statut</span>
+                      <select
+                        value={d.order_status || 'unpaid'}
+                        onChange={(e) => changeStatus(d.id, e.target.value)}
+                        disabled={busy === d.id}
+                        className={`rounded-lg border px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 ${ORDER_STATUS_CLS[d.order_status || 'unpaid']}`}
+                      >
+                        {ORDER_STATUS_OPTIONS.map((s) => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-2">
                       {d.payment_status === 'submitted' && (
@@ -279,6 +370,16 @@ export default function AdminOrdersPage() {
                         >
                           {busy === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Valider le paiement
                         </button>
+                      )}
+                      {canLabel(d.order_status) && (
+                        <a
+                          href={`/admin/commandes/${d.id}/etiquette`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-xl border border-slate-900 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+                        >
+                          <QrCode className="h-4 w-4" /> Étiquette d’envoi
+                        </a>
                       )}
                       <a
                         href={`/offer/${d.offer_id}/order/${d.id}`}

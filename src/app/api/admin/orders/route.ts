@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   let query = supabaseAdmin
     .from('offer_orders')
     .select(
-      'id, offer_id, client_name, client_phone, items_total_fcfa, grand_total_fcfa, transport_mode, status, payment_status, payment_method, payment_proof_url, created_at',
+      'id, offer_id, client_name, client_phone, items_total_fcfa, grand_total_fcfa, transport_mode, status, order_status, payment_status, payment_method, payment_proof_url, created_at',
     )
     .order('created_at', { ascending: false })
     .limit(100);

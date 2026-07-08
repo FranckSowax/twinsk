@@ -126,9 +126,10 @@ export async function POST(
       unit_price_cny: unitWithMargin,
       quantity: qty,
       subtotal_cny: subtotal,
-      // Snapshot produit (nom + image) — robuste à la suppression du produit.
+      // Snapshot produit (nom + image + URL 1688) — robuste à la suppression du produit.
       product_title: product.title,
       product_image: product.main_image_url || product.image_url || null,
+      product_url: product.product_url || null,
     });
   }
 
