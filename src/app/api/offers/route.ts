@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { resolveActor } from '@/lib/collab';
 
 function isAdmin(request: NextRequest): boolean {
   const cookie = request.cookies.get('admin_token');
   return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
 }
 
-// GET: List all offers (admin only)
+// GET: List all offers (admin OU collaborateur)
 export async function GET(request: NextRequest) {
-  if (!isAdmin(request)) {
+  if (!(await resolveActor(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
   const { data, error } = await supabaseAdmin

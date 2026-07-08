@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 
-function isAdmin(request: NextRequest): boolean {
-  const cookie = request.cookies.get('admin_token');
-  return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
-}
-
-// POST: Add items to an offer (admin only)
+// POST: Add items to an offer (admin OU collaborateur)
 // Body: { items: [{ image_url, description }] }
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> }
 ) {
-  if (!isAdmin(request)) {
+  const actor = await resolveActor(request);
+  if (!actor) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
   const { uuid } = await params;
+  await logCollabAction(actor, { action: 'add_item', target_type: 'offer', target_id: uuid, description: 'Catégorie/article ajouté' });
   const { items } = await request.json();
   if (!Array.isArray(items) || !items.length) {
     return NextResponse.json({ error: 'Aucun article fourni' }, { status: 400 });

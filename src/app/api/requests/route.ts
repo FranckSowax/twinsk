@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { resolveActor } from '@/lib/collab';
 
 // POST: Create a new request — open to clients (LP) and admins.
 // Accepts: { client_name?, client_email?, client_phone?, notes? }
@@ -38,8 +39,7 @@ export async function POST(request: NextRequest) {
 // GET: List all requests (admin)
 export async function GET(request: NextRequest) {
   try {
-    const adminCookie = request.cookies.get('admin_token');
-    if (!adminCookie || adminCookie.value !== process.env.ADMIN_PASSWORD) {
+    if (!(await resolveActor(request))) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 

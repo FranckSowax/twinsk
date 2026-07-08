@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { upsertCatalog } from '@/lib/catalog';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 
 // POST: Add a manual product result to a request item
 export async function POST(
@@ -8,12 +9,13 @@ export async function POST(
   { params }: { params: Promise<{ uuid: string }> }
 ) {
   try {
-    const adminCookie = request.cookies.get('admin_token');
-    if (!adminCookie || adminCookie.value !== process.env.ADMIN_PASSWORD) {
+    const actor = await resolveActor(request);
+    if (!actor) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
-    await params; // consume params
+    const { uuid: reqUuid } = await params;
+    await logCollabAction(actor, { action: 'add_product', target_type: 'request', target_id: reqUuid, description: 'Produit ajouté manuellement' });
     const body = await request.json();
     const {
       request_item_id,

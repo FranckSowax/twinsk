@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { normalizeLogistics } from '@/lib/logistics';
 import { normalizeMeta, normalizeProductV31Fields, assessProductPricing } from '@/lib/offer-ingest';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 
 interface InVariant {
   id?: string;
@@ -114,8 +115,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> }
 ) {
-  const cookie = request.cookies.get('admin_token');
-  if (!cookie || cookie.value !== process.env.ADMIN_PASSWORD) {
+  const actor = await resolveActor(request);
+  if (!actor) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
@@ -294,6 +295,13 @@ export async function POST(
     }
     report.push(itemReport);
   }
+
+  await logCollabAction(actor, {
+    action: 'bulk_import',
+    target_type: 'offer',
+    target_id: uuid,
+    description: `Import JSON : ${totalProducts} produit(s), ${report.length} catégorie(s)`,
+  });
 
   return NextResponse.json({
     success: true,

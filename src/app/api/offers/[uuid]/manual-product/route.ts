@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-
-function isAdmin(request: NextRequest): boolean {
-  const cookie = request.cookies.get('admin_token');
-  return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
-}
+import { resolveActor, logCollabAction } from '@/lib/collab';
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
@@ -26,10 +22,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> }
 ) {
-  if (!isAdmin(request)) {
+  const actor = await resolveActor(request);
+  if (!actor) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
-  await params;
+  const { uuid } = await params;
 
   const body = await request.json();
   const {
@@ -126,5 +123,11 @@ export async function POST(
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await logCollabAction(actor, {
+    action: 'add_product',
+    target_type: 'offer',
+    target_id: uuid,
+    description: `Produit ajouté : ${strOrNull(title) || '(sans titre)'}`,
+  });
   return NextResponse.json(data);
 }

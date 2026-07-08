@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 
-function isAdmin(request: NextRequest): boolean {
-  const cookie = request.cookies.get('admin_token');
-  return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
-}
+// Libellés FR des champs modifiables (pour le journal d'audit).
+const FIELD_LABELS: Record<string, string> = {
+  dimensions: 'Dimensions',
+  weight: 'Poids',
+  volume: 'Volume',
+  price: 'Prix',
+  moq: 'MOQ',
+  quantity: 'Quantité',
+  margin_percent: 'Marge',
+  title: 'Titre',
+  description: 'Description',
+  seller: 'Vendeur',
+  variants: 'Variantes',
+  has_battery: 'Batterie',
+  selected: 'Sélection',
+};
 
 // GET: List items + products for an offer, shaped like /api/requests/[uuid]/results
 // so the existing ResultsTable component can render unchanged.
@@ -12,7 +25,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> }
 ) {
-  if (!isAdmin(request)) {
+  if (!(await resolveActor(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
   const { uuid } = await params;
@@ -51,16 +64,18 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> }
 ) {
-  if (!isAdmin(request)) {
+  const actor = await resolveActor(request);
+  if (!actor) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
-  await params;
+  const { uuid } = await params;
 
   const { updates } = await request.json();
   if (!Array.isArray(updates) || !updates.length) {
     return NextResponse.json({ error: 'Aucune mise à jour' }, { status: 400 });
   }
 
+  const changedFields = new Set<string>();
   for (const update of updates) {
     const { id, ...fields } = update;
     if (!id) continue;
@@ -86,9 +101,20 @@ export async function PATCH(
       'has_battery',
     ];
     const clean: Record<string, unknown> = {};
-    for (const k of allowed) if (k in fields) clean[k] = fields[k];
+    for (const k of allowed) if (k in fields) { clean[k] = fields[k]; changedFields.add(k); }
     if (!Object.keys(clean).length) continue;
     await supabaseAdmin.from('offer_products').update(clean).eq('id', id);
+  }
+
+  // Audit : journalise la mise à jour si l'auteur est un collaborateur.
+  const labels = [...changedFields].filter((f) => f !== 'selected').map((f) => FIELD_LABELS[f] || f);
+  if (labels.length) {
+    await logCollabAction(actor, {
+      action: 'update_product',
+      target_type: 'offer',
+      target_id: uuid,
+      description: `Fiche(s) mise(s) à jour : ${labels.join(', ')}`,
+    });
   }
   return NextResponse.json({ success: true });
 }

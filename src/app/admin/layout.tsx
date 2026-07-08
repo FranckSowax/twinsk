@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Package,
   Plus,
@@ -20,6 +20,7 @@ import {
   Sparkles,
   MessageCircle,
   Languages,
+  Users,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
@@ -46,20 +47,51 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const { t, locale, setLocale } = useAdminT();
-  const [authenticated, setAuthenticated] = useState(false);
+  const [role, setRole] = useState<'admin' | 'collab' | null>(null);
   const [checking, setChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [creating, setCreating] = useState<'request' | 'freight' | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const loadRole = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) {
+        setRole(null);
+        return;
+      }
+      const d = (await res.json()) as { role: 'admin' | 'collab' | null };
+      setRole(d.role);
+      // Collaborateur : interface en chinois par défaut (sauf préférence déjà choisie)
+      if (d.role === 'collab') {
+        try {
+          if (!localStorage.getItem('twinsk_admin_locale')) setLocale('zh');
+        } catch {
+          setLocale('zh');
+        }
+      }
+    } finally {
+      setChecking(false);
+    }
+  }, [setLocale]);
 
   useEffect(() => {
-    fetch('/api/requests')
-      .then((res) => {
-        if (res.ok) setAuthenticated(true);
-      })
-      .finally(() => setChecking(false));
-  }, []);
+    loadRole();
+  }, [loadRole]);
+
+  // Collaborateur : accès limité à /admin/offer et /admin/requests → redirection sinon.
+  useEffect(() => {
+    if (
+      role === 'collab' &&
+      pathname &&
+      !pathname.startsWith('/admin/offer') &&
+      !pathname.startsWith('/admin/requests')
+    ) {
+      router.replace('/admin/offer');
+    }
+  }, [role, pathname, router]);
 
   // Close menus on route change
   useEffect(() => {
@@ -75,8 +107,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!authenticated) {
-    return <AdminLogin onLogin={() => setAuthenticated(true)} />;
+  if (!role) {
+    return <AdminLogin onLogin={loadRole} />;
   }
 
   const createSourcing = async () => {
@@ -136,10 +168,21 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handleLogout = () => {
-    document.cookie = 'admin_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    setAuthenticated(false);
+  const handleLogout = async () => {
+    if (role === 'collab') {
+      await fetch('/api/collab/logout', { method: 'POST' }).catch(() => {});
+    } else {
+      document.cookie = 'admin_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    }
+    setRole(null);
   };
+
+  // Menu selon le rôle : collaborateur = Sourcing + Offres uniquement.
+  const COLLAB_HREFS = new Set(['/admin/requests', '/admin/offer']);
+  const navItems =
+    role === 'collab'
+      ? NAV_ITEMS.filter((i) => COLLAB_HREFS.has(i.href))
+      : [...NAV_ITEMS, { href: '/admin/collaborateurs', key: 'nav.collaborators' as TKey, icon: Users }];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -195,7 +238,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {/* Create dropdown */}
+          {/* Create dropdown (admin uniquement) */}
+          {role === 'admin' && (
           <div className="relative mb-5">
             <button
               type="button"
@@ -249,10 +293,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </div>
+          )}
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active =
                 item.href === '/admin'

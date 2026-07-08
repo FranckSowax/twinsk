@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 
 // POST: deplace un offer_product d une categorie (offer_item) a une autre
 // au sein de la meme offre. Utilise par le drag & drop sur /admin/offer.
@@ -8,10 +9,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string }> },
 ) {
-  const cookie = request.cookies.get('admin_token');
-  if (!cookie || cookie.value !== process.env.ADMIN_PASSWORD) {
+  const actor = await resolveActor(request);
+  if (!actor) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const { uuid: moveUuid } = await params;
+  await logCollabAction(actor, { action: 'move_product', target_type: 'offer', target_id: moveUuid, description: 'Produit déplacé entre catégories' });
 
   try {
     const { uuid } = await params;

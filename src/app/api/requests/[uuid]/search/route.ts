@@ -4,6 +4,7 @@ import { searchByImage, searchByKeyword } from '@/lib/taobao/api';
 import { searchByImage1688, getItemDetail1688, searchByKeyword1688 } from '@/lib/alibaba1688/api';
 import { translateBatch, translateToChinese, findFactories, type TranslationItem } from '@/lib/kimi/api';
 import { upsertCatalog, factoryExternalId } from '@/lib/catalog';
+import { resolveActor } from '@/lib/collab';
 
 export const maxDuration = 60;
 
@@ -73,8 +74,7 @@ export async function POST(
   { params }: { params: Promise<{ uuid: string }> }
 ) {
   try {
-    const adminCookie = request.cookies.get('admin_token');
-    if (!adminCookie || adminCookie.value !== process.env.ADMIN_PASSWORD) {
+    if (!(await resolveActor(request))) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
