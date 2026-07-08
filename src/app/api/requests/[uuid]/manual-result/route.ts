@@ -31,6 +31,8 @@ export async function POST(
       weight,
       volume,
       dimensions,
+      supplier_shipping_price,
+      delivery_time,
       quantity,
       variants,
     } = body;
@@ -115,6 +117,8 @@ export async function POST(
       weight: weight != null && weight !== '' ? Number(weight) : null,
       volume: volume != null && volume !== '' ? Number(volume) : null,
       dimensions: dimensions?.trim() || null,
+      supplier_shipping_price: numOrNull(supplier_shipping_price),
+      delivery_time: strOrNull(delivery_time),
       client_quantity: null,
     };
 

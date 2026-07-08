@@ -37,6 +37,8 @@ interface InProduct {
   variants?: InVariant[];
   // Champs catalogue v3.1 (optionnels, désormais omis si vides)
   price_range?: unknown; // { min, max } — peut valoir null (utilisé pour la validation prix)
+  supplier_shipping_price?: unknown; // INTERNE : livraison fournisseur → dépôt Chine (CNY)
+  delivery_time?: unknown; // INTERNE : délai de livraison (texte)
   price_tiers?: unknown;
   detail_images?: unknown;
   video_url?: unknown;
@@ -274,6 +276,9 @@ export async function POST(
         detail_images: v31.detail_images,
         variants_total: v31.variants_total,
         description_source: v31.description_source,
+        // Champs internes (jamais exposés au client)
+        supplier_shipping_price: numOrNull(p.supplier_shipping_price),
+        delivery_time: strOrNull(p.delivery_time),
       });
     }
 

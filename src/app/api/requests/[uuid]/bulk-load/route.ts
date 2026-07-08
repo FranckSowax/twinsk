@@ -33,6 +33,8 @@ interface InProduct {
   dimensions_cm?: unknown;
   has_battery?: unknown;
   info_manquante?: unknown;
+  supplier_shipping_price?: unknown; // INTERNE : livraison fournisseur → dépôt Chine (CNY)
+  delivery_time?: unknown; // INTERNE : délai de livraison
   quantity?: unknown;
   variants?: InVariant[];
 }
@@ -232,6 +234,9 @@ export async function POST(
           has_battery: logi.has_battery,
           info_manquante: logi.info_manquante,
           client_quantity: null,
+          // Champs internes (jamais exposés au client)
+          supplier_shipping_price: numOrNull(p.supplier_shipping_price),
+          delivery_time: strOrNull(p.delivery_time),
         });
         rowVariantCounts.push(variantCount);
       }

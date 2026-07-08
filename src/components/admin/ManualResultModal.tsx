@@ -41,6 +41,8 @@ export interface ExistingResult {
   dimensions: string | null;
   quantity: number;
   variants?: ProductVariant[] | null;
+  supplier_shipping_price?: number | null;
+  delivery_time?: string | null;
 }
 
 interface ManualResultModalProps {
@@ -108,6 +110,8 @@ export default function ManualResultModal({
   const [weight, setWeight] = useState('');
   const [volume, setVolume] = useState('');
   const [dimensions, setDimensions] = useState('');
+  const [supplierShipping, setSupplierShipping] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [variants, setVariants] = useState<ProductVariant[]>([]);
 
@@ -136,6 +140,10 @@ export default function ManualResultModal({
       setWeight(existingResult.weight != null ? String(existingResult.weight) : '');
       setVolume(existingResult.volume != null ? String(existingResult.volume) : '');
       setDimensions(existingResult.dimensions || '');
+      setSupplierShipping(
+        existingResult.supplier_shipping_price != null ? String(existingResult.supplier_shipping_price) : '',
+      );
+      setDeliveryTime(existingResult.delivery_time || '');
       setQuantity(String(existingResult.quantity || 1));
       setVariants(
         (existingResult.variants || []).map((v) => ({
@@ -156,6 +164,8 @@ export default function ManualResultModal({
       setWeight('');
       setVolume('');
       setDimensions('');
+      setSupplierShipping('');
+      setDeliveryTime('');
       setQuantity('1');
       setVariants([]);
       setError('');
@@ -301,6 +311,8 @@ export default function ManualResultModal({
                 weight: weight !== '' ? Number(weight) : null,
                 volume: volume !== '' ? Number(volume) : null,
                 dimensions: dimensions.trim() || null,
+                supplier_shipping_price: supplierShipping !== '' ? Number(supplierShipping) : null,
+                delivery_time: deliveryTime.trim() || null,
                 quantity: quantity !== '' ? Math.max(1, Number(quantity)) : 1,
                 variants: cleanedVariants.length ? cleanedVariants : null,
               },
@@ -329,6 +341,8 @@ export default function ManualResultModal({
             weight,
             volume,
             dimensions,
+            supplier_shipping_price: supplierShipping !== '' ? Number(supplierShipping) : null,
+            delivery_time: deliveryTime.trim() || null,
             quantity,
             variants: cleanedVariants,
           }),
@@ -612,6 +626,40 @@ export default function ManualResultModal({
                       placeholder="30x20x15 cm"
                       className={inputClass}
                     />
+                  </div>
+                </div>
+
+                {/* Champs INTERNES (jamais affichés au client) */}
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800 dark:bg-amber-900/10">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                    Interne (non visible par le client)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Livraison → dépôt Chine (CNY)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={supplierShipping}
+                        onChange={(e) => setSupplierShipping(e.target.value)}
+                        placeholder="0.00"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Délai de livraison
+                      </label>
+                      <input
+                        type="text"
+                        value={deliveryTime}
+                        onChange={(e) => setDeliveryTime(e.target.value)}
+                        placeholder="Ex : 7-10 jours"
+                        className={inputClass}
+                      />
+                    </div>
                   </div>
                 </div>
 

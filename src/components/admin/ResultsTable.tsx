@@ -54,6 +54,9 @@ interface SearchResultRow {
   repurchase_rate?: number | null;
   sales?: number | null;
   star_rate?: number | null;
+  // Champs INTERNES (jamais exposés au client)
+  supplier_shipping_price?: number | null;
+  delivery_time?: string | null;
 }
 
 interface RequestItemWithResults {
@@ -250,6 +253,8 @@ export default function ResultsTable({
               weight: editingResult.result.weight,
               volume: editingResult.result.volume,
               dimensions: editingResult.result.dimensions,
+              supplier_shipping_price: editingResult.result.supplier_shipping_price ?? null,
+              delivery_time: editingResult.result.delivery_time ?? null,
               quantity: editingResult.result.quantity,
               variants: editingResult.result.variants,
             }

@@ -44,6 +44,8 @@ export async function POST(
     weight,
     volume,
     dimensions,
+    supplier_shipping_price,
+    delivery_time,
     quantity,
     has_battery,
   } = body;
@@ -119,6 +121,8 @@ export async function POST(
       volume: volume != null && volume !== '' ? Number(volume) : null,
       dimensions: dimensions?.trim() || null,
       has_battery: !!has_battery,
+      supplier_shipping_price: numOrNull(supplier_shipping_price),
+      delivery_time: strOrNull(delivery_time),
     })
     .select()
     .single();
