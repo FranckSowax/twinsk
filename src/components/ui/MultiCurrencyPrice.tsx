@@ -1,6 +1,6 @@
 'use client';
 
-import { toMultiCurrency } from '@/lib/utils/formatCurrency';
+import { toMultiCurrency, formatXAF } from '@/lib/utils/formatCurrency';
 
 type Currency = 'CNY' | 'USD' | 'EUR' | 'XAF';
 
@@ -9,6 +9,9 @@ interface MultiCurrencyPriceProps {
   variant?: 'stacked' | 'inline' | 'large';
   primary?: Currency; // which currency to show as the headline price (default CNY)
   className?: string;
+  // Force la valeur FCFA affichée (déjà en FCFA) au lieu de la dériver de amountCny.
+  // Utilisé pour que le total = somme des lignes arrondies (cohérence panier).
+  xafOverrideFcfa?: number;
 }
 
 const ORDER: Currency[] = ['CNY', 'USD', 'EUR', 'XAF'];
@@ -30,13 +33,14 @@ export default function MultiCurrencyPrice({
   variant = 'stacked',
   primary = 'CNY',
   className = '',
+  xafOverrideFcfa,
 }: MultiCurrencyPriceProps) {
   const p = toMultiCurrency(amountCny);
   const formatted: Record<Currency, string> = {
     CNY: p.formatted.cny,
     USD: p.formatted.usd,
     EUR: p.formatted.eur,
-    XAF: p.formatted.xaf,
+    XAF: xafOverrideFcfa != null ? formatXAF(xafOverrideFcfa) : p.formatted.xaf,
   };
   const head = formatted[primary];
   const headColor = HEAD_COLOR[primary];

@@ -54,7 +54,7 @@ export async function PATCH(
   );
 
   let transportCost: number | null = null;
-  let grandTotal: number | null = pricing.itemsTotalFcfa;
+  let grandTotal: number | null = pricing.itemsTotalFcfaRounded;
   if (mode === 'air') {
     if (!pricing.airAvailable) {
       return NextResponse.json(
@@ -84,7 +84,7 @@ export async function PATCH(
     .update({
       transport_mode: mode,
       transport_cost: transportCost,
-      items_total_fcfa: pricing.itemsTotalFcfa,
+      items_total_fcfa: pricing.itemsTotalFcfaRounded,
       total_weight: pricing.totalWeight,
       total_volume: pricing.totalVolume,
       grand_total_fcfa: grandTotal,

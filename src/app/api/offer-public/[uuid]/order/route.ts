@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 
 interface Pick {
   product_id: string;
@@ -28,16 +29,14 @@ export async function POST(
     picks?: Pick[];
   };
 
+  // Coordonnées désormais OPTIONNELLES à la création : elles sont saisies plus
+  // tard sur la page commande (après le choix du transport, avant le paiement).
+  // Le miroir vers /admin/requests est différé jusqu'à la saisie des coordonnées
+  // (route .../contact) pour éviter des demandes fantômes de paniers abandonnés.
   const clientName = (body.client_name || '').trim();
   const clientPhone = (body.client_phone || '').trim();
   const clientEmail = (body.client_email || '').trim();
 
-  if (!clientName) {
-    return NextResponse.json({ error: 'Nom requis' }, { status: 400 });
-  }
-  if (!clientPhone) {
-    return NextResponse.json({ error: 'Téléphone WhatsApp requis' }, { status: 400 });
-  }
   const picks = Array.isArray(body.picks) ? body.picks : [];
   if (!picks.length) {
     return NextResponse.json({ error: 'Aucun produit sélectionné' }, { status: 400 });
@@ -162,78 +161,24 @@ export async function POST(
   const linesWithOrder = lineRows.map((l) => ({ ...l, order_id: orderRow.id }));
   await supabaseAdmin.from('offer_order_lines').insert(linesWithOrder);
 
-  // 3. Mirror to a request in /admin/requests so the admin sees it.
-  const { data: requestRow } = await supabaseAdmin
-    .from('requests')
-    .insert({
-      client_name: clientName,
-      client_email: clientEmail || null,
-      client_phone: clientPhone,
-      notes: `Commande issue de l'offre "${offer.title}"`,
-      status: 'submitted',
-    })
-    .select()
-    .single();
-
-  if (requestRow) {
-    // Build a single request_item that mirrors the cart
-    const { data: itemRow } = await supabaseAdmin
-      .from('request_items')
-      .insert({
-        request_id: requestRow.id,
-        image_url: null,
-        description: `Sélection offre ${offer.title}`,
-        processed: true,
-        added_by: 'admin',
-      })
-      .select()
-      .single();
-    if (itemRow) {
-      // Build the search_results rows by inheriting the offer_products data
-      const srRows = picks
-        .map((pick) => {
-          const product = productMap.get(pick.product_id);
-          if (!product) return null;
-          const qty = Math.max(1, Math.trunc(Number(pick.quantity) || 1));
-          return {
-            request_item_id: itemRow.id,
-            source: 'manual',
-            taobao_item_id: '',
-            title: product.title,
-            description: product.description,
-            price: product.price,
-            image_url: product.image_url,
-            main_image_url: product.main_image_url,
-            extra_images: product.extra_images,
-            variants: product.variants,
-            seller: product.seller,
-            product_url: product.product_url,
-            selected: true,
-            quantity: qty,
-            margin_percent: product.margin_percent,
-            moq: product.moq,
-            weight: product.weight,
-            volume: product.volume,
-            dimensions: product.dimensions,
-            client_quantity: qty,
-            client_selected: true,
-            client_variant_id: pick.variant_id || null,
-          };
-        })
-        .filter(Boolean) as Record<string, unknown>[];
-      if (srRows.length) {
-        await supabaseAdmin.from('search_results').insert(srRows);
-      }
-    }
+  // 3. Le miroir vers /admin/requests est créé plus tard, quand le client
+  //    renseigne ses coordonnées (route .../contact). Cf. mirrorOrderToRequest.
+  if (clientName && clientPhone) {
+    // Compat : si des coordonnées sont fournies dès la création (ancien flux),
+    // on met à jour et on crée le miroir immédiatement.
     await supabaseAdmin
       .from('offer_orders')
-      .update({ request_id: requestRow.id })
+      .update({ client_name: clientName, client_phone: clientPhone, client_email: clientEmail || null })
       .eq('id', orderRow.id);
+    const requestId = await mirrorOrderToRequest({
+      orderId: orderRow.id,
+      offerTitle: offer.title,
+      clientName,
+      clientPhone,
+      clientEmail,
+    });
+    return NextResponse.json({ success: true, order_id: orderRow.id, request_id: requestId });
   }
 
-  return NextResponse.json({
-    success: true,
-    order_id: orderRow.id,
-    request_id: requestRow?.id || null,
-  });
+  return NextResponse.json({ success: true, order_id: orderRow.id, request_id: null });
 }

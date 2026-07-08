@@ -34,6 +34,7 @@ interface OrderLine {
 interface Pricing {
   itemsTotalCny: number;
   itemsTotalFcfa: number;
+  itemsTotalFcfaRounded: number;
   totalWeight: number | null;
   totalVolume: number | null;
   hasBattery: boolean;
@@ -89,6 +90,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const [airtelUploading, setAirtelUploading] = useState(false);
   const [airtelSubmitting, setAirtelSubmitting] = useState(false);
   const airtelFileRef = useRef<HTMLInputElement>(null);
+  // Coordonnées client (saisies après le transport, avant le paiement).
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [savingContact, setSavingContact] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +114,16 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   useEffect(() => {
     load();
   }, [load]);
+
+  // Pré-remplit le formulaire coordonnées si la commande en a déjà (sans écraser
+  // ce que le client est en train de taper).
+  useEffect(() => {
+    const o = data?.order;
+    if (!o) return;
+    if (o.client_name) setContactName((v) => v || o.client_name);
+    if (o.client_phone) setContactPhone((v) => v || o.client_phone);
+    if (o.client_email) setContactEmail((v) => v || o.client_email || '');
+  }, [data]);
 
   const pickTransport = async (mode: 'air' | 'sea' | 'quote') => {
     setSavingTransport(mode);
@@ -193,6 +209,37 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
     }
   };
 
+  const saveContact = async () => {
+    if (!contactName.trim() || !contactPhone.trim()) {
+      setError('Nom et numéro WhatsApp requis');
+      return;
+    }
+    setSavingContact(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/offer-public/${offerId}/order/${orderId}/contact`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_name: contactName.trim(),
+            client_phone: contactPhone.trim(),
+            client_email: contactEmail.trim() || undefined,
+          }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Erreur enregistrement');
+        return;
+      }
+      await load();
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -213,9 +260,17 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const transportPicked = !!order.transport_mode;
   const paymentDone = paymentParam === 'mock-success' || order.payment_status === 'paid';
   const paymentSubmitted = order.payment_status === 'submitted';
-  const grandTotalFcfa = roundXafUp(pricing.itemsTotalFcfa + (order.transport_cost || 0));
+  const grandTotalFcfa = roundXafUp(pricing.itemsTotalFcfaRounded + (order.transport_cost || 0));
+  // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
+  const contactComplete = !!order.client_name && !!order.client_phone;
+  // Formulaire coordonnées à afficher : transport choisi mais coordonnées manquantes.
+  const needContact = transportPicked && !contactComplete;
   const canPay =
-    transportPicked && order.transport_mode !== 'quote' && !paymentDone && !paymentSubmitted;
+    transportPicked &&
+    order.transport_mode !== 'quote' &&
+    contactComplete &&
+    !paymentDone &&
+    !paymentSubmitted;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
@@ -230,13 +285,19 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               Votre commande
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Bonjour {order.client_name} — votre demande est enregistrée. Choisissez
-              maintenant le mode de transport pour finaliser.
+              {contactComplete ? (
+                <>Bonjour {order.client_name} — votre demande est enregistrée.</>
+              ) : (
+                <>Votre sélection est enregistrée.</>
+              )}{' '}
+              Choisissez le transport, renseignez vos coordonnées, puis réglez.
             </p>
-            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              <MessageCircle className="h-3 w-3" />
-              WhatsApp : {order.client_phone}
-            </div>
+            {contactComplete && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <MessageCircle className="h-3 w-3" />
+                WhatsApp : {order.client_phone}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -282,7 +343,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         </div>
         <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
           <p className="text-sm font-semibold text-emerald-700">Sous-total produits</p>
-          <MultiCurrencyPrice amountCny={pricing.itemsTotalCny} variant="stacked" primary="XAF" />
+          <MultiCurrencyPrice amountCny={pricing.itemsTotalCny} xafOverrideFcfa={pricing.itemsTotalFcfaRounded} variant="stacked" primary="XAF" />
         </div>
         <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-slate-500">
           <p>
@@ -394,7 +455,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           <div className="mt-4 space-y-2 rounded-2xl bg-slate-900 p-5 text-white">
             <div className="flex items-center justify-between text-sm text-slate-300">
               <span>Sous-total produits</span>
-              <span>{formatFCFA(pricing.itemsTotalFcfa)}</span>
+              <span>{formatFCFA(pricing.itemsTotalFcfaRounded)}</span>
             </div>
             <div className="flex items-center justify-between text-sm text-slate-300">
               <span>Transport ({order.transport_mode === 'air' ? 'aérien' : 'maritime'})</span>
@@ -413,11 +474,62 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         )}
         {transportPicked && order.transport_mode === 'quote' && (
           <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
-            Votre demande de devis est enregistrée. Notre équipe vous contactera sur
-            WhatsApp ({order.client_phone}) sous 48h.
+            {contactComplete ? (
+              <>Votre demande de devis est enregistrée. Notre équipe vous contactera sur
+              WhatsApp ({order.client_phone}) sous 48h.</>
+            ) : (
+              <>Votre demande de devis est enregistrée. Renseignez vos coordonnées
+              ci-dessous pour que notre équipe vous recontacte.</>
+            )}
           </div>
         )}
       </section>
+
+      {/* Coordonnées client — après le transport, avant le paiement */}
+      {needContact && (
+        <section className="mb-6 space-y-3 rounded-3xl border border-slate-200 bg-white p-6">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+              <MessageCircle className="h-4 w-4 text-emerald-500" />
+              Vos coordonnées
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Nous en avons besoin pour confirmer votre commande et vous suivre sur WhatsApp.
+            </p>
+          </div>
+          <input
+            type="text"
+            placeholder="Votre nom complet *"
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
+          <input
+            type="tel"
+            placeholder="Numéro WhatsApp (avec indicatif +241 / +242…) *"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
+          <input
+            type="email"
+            placeholder="Email (optionnel)"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
+          <motion.button
+            type="button"
+            onClick={saveContact}
+            disabled={savingContact}
+            whileTap={{ scale: 0.99 }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
+          >
+            {savingContact ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            {order.transport_mode === 'quote' ? 'Enregistrer mes coordonnées' : 'Continuer vers le paiement'}
+          </motion.button>
+        </section>
+      )}
 
       {/* Paiement */}
       {canPay && (

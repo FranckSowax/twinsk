@@ -1,11 +1,15 @@
 // Exchange rates — base: CNY
 // Updated: 2026-04-08. Adjust as needed or fetch from API later.
-// 1 USD ≈ 600 XAF (fixed peg), 1 USD ≈ 7.1 CNY, 1 EUR ≈ 7.7 CNY
+// 1 USD ≈ 7.1 CNY, 1 EUR ≈ 7.7 CNY.
+// IMPORTANT : le taux CNY→FCFA doit rester IDENTIQUE à CNY_TO_FCFA dans
+// src/lib/offer-pricing.ts (source de vérité du montant payé par le client).
+// Auparavant dérivé du peg USD (≈84,5) — désynchronisé de la page commande (91),
+// ce qui affichait un même produit à 3 500 dans le panier et 4 000 à la commande.
 export const FX_RATES = {
   CNY: 1,
   USD: 1 / 7.1, // 1 CNY → USD
   EUR: 1 / 7.7, // 1 CNY → EUR
-  XAF: (1 / 7.1) * 600, // 1 CNY → USD → XAF
+  XAF: 91, // 1 CNY → FCFA (aligné sur CNY_TO_FCFA d'offer-pricing)
 } as const;
 
 export function formatCNY(amount: number): string {
@@ -27,17 +31,17 @@ export function formatEUR(amount: number): string {
 }
 
 /**
- * Arrondit un montant FCFA au multiple de 500 superieur.
- * Ex : 134 234 -> 134 500, 134 500 -> 134 500, 134 501 -> 135 000.
+ * Arrondit un montant FCFA au multiple de 100 superieur.
+ * Ex : 3 461 -> 3 500, 3 500 -> 3 500, 3 501 -> 3 600.
  * Les valeurs <= 0 sont retournees telles quelles.
  */
 export function roundXafUp(amount: number): number {
   if (!Number.isFinite(amount) || amount <= 0) return amount;
-  return Math.ceil(amount / 500) * 500;
+  return Math.ceil(amount / 100) * 100;
 }
 
 export function formatXAF(amount: number): string {
-  // FCFA : arrondi au 500 superieur, pas de decimales.
+  // FCFA : arrondi au 100 superieur, pas de decimales.
   return `${roundXafUp(amount).toLocaleString('en-US')} FCFA`;
 }
 

@@ -2,6 +2,7 @@
 // Tarifs Twinsk fournis par l'admin :
 //  - Aérien : 13 000 FCFA / kg (18 000 FCFA / kg si batterie au lithium)
 //  - Maritime : 260 000 FCFA / m³
+import { roundXafUp } from '@/lib/utils/formatCurrency';
 
 // Tarifs configurables via variables d'environnement (défauts Twinsk).
 export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 13000;
@@ -10,6 +11,7 @@ export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_
 export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 260000;
 
 // Taux de conversion CNY -> FCFA (mis à jour manuellement, ~91 FCFA / CNY).
+// IMPORTANT : garder synchronisé avec FX_RATES.XAF dans src/lib/utils/formatCurrency.ts.
 // Sera remplacé par une source live si besoin.
 export const CNY_TO_FCFA = 91;
 
@@ -24,6 +26,9 @@ export interface OrderLineForPricing {
 export interface PricingResult {
   itemsTotalCny: number;
   itemsTotalFcfa: number;
+  // Total produits = SOMME des sous-totaux de ligne arrondis (au 100 sup.).
+  // C'est le montant affiché au client : garantit que lignes = total.
+  itemsTotalFcfaRounded: number;
   totalWeight: number | null;
   totalVolume: number | null;
   hasBattery: boolean;
@@ -43,6 +48,12 @@ export function computeOrderPricing(lines: OrderLineForPricing[]): PricingResult
     0,
   );
   const itemsTotalFcfa = itemsTotalCny * CNY_TO_FCFA;
+  // Somme des sous-totaux de ligne arrondis individuellement — DOIT correspondre
+  // à ce que le client additionne visuellement ligne par ligne.
+  const itemsTotalFcfaRounded = lines.reduce(
+    (s, l) => s + roundXafUp(l.unit_price_cny * l.quantity * CNY_TO_FCFA),
+    0,
+  );
 
   let totalWeight = 0;
   let totalVolume = 0;
@@ -70,6 +81,7 @@ export function computeOrderPricing(lines: OrderLineForPricing[]): PricingResult
   return {
     itemsTotalCny,
     itemsTotalFcfa,
+    itemsTotalFcfaRounded,
     totalWeight: weightKnown ? totalWeight : null,
     totalVolume: volumeKnown ? totalVolume : null,
     hasBattery,
@@ -79,15 +91,16 @@ export function computeOrderPricing(lines: OrderLineForPricing[]): PricingResult
     seaCost,
     airAvailable,
     seaAvailable,
-    airTotal: airCost != null ? itemsTotalFcfa + airCost : null,
-    seaTotal: seaCost != null ? itemsTotalFcfa + seaCost : null,
+    // Total à payer = total produits arrondi (somme des lignes) + transport.
+    airTotal: airCost != null ? itemsTotalFcfaRounded + airCost : null,
+    seaTotal: seaCost != null ? itemsTotalFcfaRounded + seaCost : null,
   };
 }
 
 export function formatFCFA(n: number | null | undefined): string {
   if (n == null) return 'Sur devis';
-  // Arrondi au 500 superieur (politique de prix FCFA).
-  const rounded = n > 0 ? Math.ceil(n / 500) * 500 : Math.round(n);
+  // Arrondi au 100 superieur (politique de prix FCFA).
+  const rounded = n > 0 ? Math.ceil(n / 100) * 100 : Math.round(n);
   return new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
   }).format(rounded) + ' FCFA';

@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { toMultiCurrency } from '@/lib/utils/formatCurrency';
+import { toMultiCurrency, roundXafUp, formatXAF } from '@/lib/utils/formatCurrency';
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale } from 'lucide-react';
 
@@ -98,9 +98,6 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   >(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -113,6 +110,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   const total = useMemo(() => {
     let cny = 0;
     let count = 0;
+    let fcfa = 0; // somme des sous-totaux de ligne arrondis → total == somme des lignes
     for (const line of cartLines) {
       const p = allProducts.find((pp) => pp.id === line.productId);
       if (!p) continue;
@@ -122,9 +120,10 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
       // Prix unitaire : variante chiffrée, sinon prix produit, sinon « à partir de »
       const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
       cny += unit * line.quantity;
+      fcfa += roundXafUp(toMultiCurrency(unit * line.quantity).xaf);
       count += line.quantity;
     }
-    return { cny, count };
+    return { cny, count, fcfa };
   }, [cartLines, allProducts]);
 
   const cartKey = (productId: string, variantId: string | null) =>
@@ -168,10 +167,6 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   };
 
   const submitOrder = async () => {
-    if (!name.trim() || !phone.trim()) {
-      setSubmitError('Nom et numéro WhatsApp requis');
-      return;
-    }
     if (!cartLines.length) {
       setSubmitError('Panier vide');
       return;
@@ -179,13 +174,11 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
     setSubmitting(true);
     setSubmitError('');
     try {
+      // Coordonnées saisies plus tard (page commande, après le transport).
       const res = await fetch(`/api/offer-public/${offerId}/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          client_name: name.trim(),
-          client_phone: phone.trim(),
-          client_email: email.trim() || undefined,
           picks: cartLines.map((l) => ({
             product_id: l.productId,
             variant_id: l.variantId,
@@ -271,7 +264,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             <span className="flex items-center gap-1.5">
               <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
               <span className="opacity-70">·</span>
-              <span className="tabular-nums">{formatFCFA(total.cny)}</span>
+              <span className="tabular-nums">{formatXAF(total.fcfa)}</span>
             </span>
           ) : (
             'Voir le panier'
@@ -886,37 +879,17 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {cartLines.length > 0 && (
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
                     <p className="text-sm font-semibold text-emerald-700">Total panier</p>
-                    <MultiCurrencyPrice amountCny={total.cny} variant="stacked" primary="XAF" />
+                    <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={total.fcfa} variant="stacked" primary="XAF" />
                   </div>
                 )}
 
-                {/* Customer form */}
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Vos coordonnées
+                {/* Les coordonnées sont demandées à l'étape suivante
+                    (après le choix du transport, avant le paiement). */}
+                {cartLines.length > 0 && (
+                  <p className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
+                    Étape suivante : choix du transport, puis vos coordonnées et le paiement.
                   </p>
-                  <input
-                    type="text"
-                    placeholder="Votre nom complet *"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Numéro WhatsApp (avec indicatif +241 / +242…) *"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email (optionnel)"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
-                </div>
+                )}
 
                 {submitError && (
                   <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{submitError}</p>
