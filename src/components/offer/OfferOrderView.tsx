@@ -400,6 +400,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <p className="font-display text-lg font-bold text-emerald-600">
               {formatFCFA(pricing.airCost)}
             </p>
+            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
             <p className="text-[10px] text-slate-400">
               Estimation transport seul
             </p>
@@ -430,6 +431,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <p className="font-display text-lg font-bold text-emerald-600">
               {formatFCFA(pricing.seaCost)}
             </p>
+            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 60 à 85 jours</p>
             <p className="text-[10px] text-slate-400">
               Estimation transport seul
             </p>

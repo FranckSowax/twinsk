@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink } from 'lucide-react';
+import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package } from 'lucide-react';
 
 interface Order {
   id: string;
@@ -17,6 +17,30 @@ interface Order {
   payment_proof_url: string | null;
   created_at: string;
 }
+
+interface DetailLine {
+  id: string;
+  product_id: string | null;
+  product_title: string | null;
+  product_image: string | null;
+  variant_name: string | null;
+  quantity: number;
+  unit_price_fcfa: number;
+  subtotal_fcfa: number;
+}
+interface OrderDetail {
+  order: Order & {
+    client_email: string | null;
+    transport_cost: number | null;
+    total_weight: number | null;
+    total_volume: number | null;
+    ebilling_reference: string | null;
+    offer_title: string | null;
+  };
+  lines: DetailLine[];
+}
+
+const TRANSPORT_LABEL: Record<string, string> = { air: 'Aérien', sea: 'Maritime', quote: 'Devis' };
 
 const PAY_LABEL: Record<string, { txt: string; cls: string }> = {
   submitted: { txt: 'À vérifier', cls: 'bg-amber-100 text-amber-700' },
@@ -36,6 +60,8 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [onlyPending, setOnlyPending] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,9 +87,24 @@ export default function AdminOrdersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payment_status: 'paid' }),
       });
-      load();
+      await load();
+      if (detail?.order.id === o.id) {
+        setDetail((d) => (d ? { ...d, order: { ...d.order, payment_status: 'paid', status: 'paid' } } : d));
+      }
     } finally {
       setBusy(null);
+    }
+  };
+
+  const openDetail = async (id: string) => {
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`);
+      const data = await res.json();
+      if (res.ok) setDetail(data);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -98,9 +139,13 @@ export default function AdminOrdersPage() {
           {orders.map((o) => {
             const pay = PAY_LABEL[o.payment_status] || PAY_LABEL.pending;
             return (
-              <div key={o.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+              <div
+                key={o.id}
+                onClick={() => openDetail(o.id)}
+                className="flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/30 dark:border-slate-700 dark:bg-slate-800"
+              >
                 {o.payment_proof_url ? (
-                  <a href={o.payment_proof_url} target="_blank" rel="noopener noreferrer" className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg ring-1 ring-slate-200">
+                  <a onClick={(e) => e.stopPropagation()} href={o.payment_proof_url} target="_blank" rel="noopener noreferrer" className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg ring-1 ring-slate-200">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={o.payment_proof_url} alt="Preuve" className="h-full w-full object-cover" />
                     <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 p-0.5 text-white"><ExternalLink className="h-3 w-3" /></span>
@@ -120,7 +165,7 @@ export default function AdminOrdersPage() {
                 <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${pay.cls}`}>{pay.txt}</span>
                 {o.payment_status === 'submitted' && (
                   <button
-                    onClick={() => validate(o)}
+                    onClick={(e) => { e.stopPropagation(); validate(o); }}
                     disabled={busy === o.id}
                     className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
                   >
@@ -130,6 +175,125 @@ export default function AdminOrdersPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal détail commande */}
+      {(detail || detailLoading) && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+          onClick={() => { setDetail(null); }}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {detailLoading || !detail ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
+                <Loader2 className="h-5 w-5 animate-spin" /> Chargement…
+              </div>
+            ) : (
+              (() => {
+                const d = detail.order;
+                const pay = PAY_LABEL[d.payment_status] || PAY_LABEL.pending;
+                return (
+                  <>
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900 dark:text-white">
+                          <Package className="h-5 w-5 text-emerald-500" /> Commande
+                        </h2>
+                        {d.offer_title && <p className="truncate text-sm text-slate-500">{d.offer_title}</p>}
+                        <p className="text-[11px] text-slate-400">#{d.id.slice(0, 8)} · {fmtDate(d.created_at)}</p>
+                      </div>
+                      <button onClick={() => setDetail(null)} className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${pay.cls}`}>{pay.txt}</span>
+                      {d.payment_method && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{d.payment_method}</span>}
+                      {d.transport_mode && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{TRANSPORT_LABEL[d.transport_mode] || d.transport_mode}</span>}
+                    </div>
+
+                    {/* Client */}
+                    <div className="mb-4 rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-800">
+                      <p className="font-semibold text-slate-900 dark:text-white">{d.client_name || '—'}</p>
+                      <p className="text-slate-600 dark:text-slate-300">📱 {d.client_phone || '—'}</p>
+                      {d.client_email && <p className="text-slate-600 dark:text-slate-300">✉️ {d.client_email}</p>}
+                    </div>
+
+                    {/* Lignes */}
+                    <div className="mb-4 space-y-2">
+                      {detail.lines.map((l) => (
+                        <div key={l.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800">
+                          <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
+                            {l.product_image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={l.product_image} alt={l.product_title || ''} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-slate-300"><ShoppingBag className="h-5 w-5" /></div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{l.product_title || (l.product_id ? `Produit #${l.product_id.slice(0, 8)}` : 'Produit')}</p>
+                            {l.variant_name && <p className="text-xs text-emerald-600">{l.variant_name}</p>}
+                            <p className="text-xs text-slate-500">{l.quantity} × {fmt(l.unit_price_fcfa)}</p>
+                          </div>
+                          <p className="flex-shrink-0 text-sm font-bold text-emerald-600">{fmt(l.subtotal_fcfa)}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Totaux */}
+                    <div className="mb-4 space-y-1.5 rounded-2xl bg-slate-900 p-4 text-sm text-white">
+                      <div className="flex justify-between text-slate-300"><span>Sous-total produits</span><span>{fmt(d.items_total_fcfa)}</span></div>
+                      {d.transport_mode && d.transport_mode !== 'quote' && (
+                        <div className="flex justify-between text-slate-300"><span>Transport ({TRANSPORT_LABEL[d.transport_mode]})</span><span>{fmt(d.transport_cost)}</span></div>
+                      )}
+                      <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold"><span>Total</span><span className="text-emerald-400">{fmt(d.grand_total_fcfa || d.items_total_fcfa)}</span></div>
+                    </div>
+
+                    {/* Preuve de paiement Airtel */}
+                    {d.payment_proof_url && (
+                      <div className="mb-4">
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Preuve de paiement</p>
+                        <a href={d.payment_proof_url} target="_blank" rel="noopener noreferrer" className="inline-block overflow-hidden rounded-xl ring-1 ring-slate-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={d.payment_proof_url} alt="Preuve" className="max-h-64 w-auto object-contain" />
+                        </a>
+                      </div>
+                    )}
+                    {d.ebilling_reference && (
+                      <p className="mb-4 text-xs text-slate-500">Réf. eBilling : <span className="font-mono">{d.ebilling_reference}</span></p>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {d.payment_status === 'submitted' && (
+                        <button
+                          onClick={() => validate(d)}
+                          disabled={busy === d.id}
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                        >
+                          {busy === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Valider le paiement
+                        </button>
+                      )}
+                      <a
+                        href={`/offer/${d.offer_id}/order/${d.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+                      >
+                        <ExternalLink className="h-4 w-4" /> Page client
+                      </a>
+                    </div>
+                  </>
+                );
+              })()
+            )}
+          </div>
         </div>
       )}
     </div>

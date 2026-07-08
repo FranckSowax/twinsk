@@ -205,9 +205,9 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
-      {/* Sticky header with cart total */}
-      <div className="sticky top-2 z-30 mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-6">
+    <div className="mx-auto max-w-5xl px-4 pt-6 pb-28 sm:px-6 sm:pt-10">
+      {/* En-tête (non flottant) : titre + thème + bascule de vue */}
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6">
         {/* Ligne 1 : titre + thème + bascule de vue */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -250,26 +250,6 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             </button>
           </div>
         </div>
-        {/* Ligne 2 : bouton panier pleine largeur, sous le titre */}
-        <motion.button
-          type="button"
-          onClick={() => setCheckoutOpen(true)}
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          disabled={!cartLines.length}
-          className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
-        >
-          <ShoppingBag className="h-4 w-4 flex-shrink-0" />
-          {total.count > 0 ? (
-            <span className="flex items-center gap-1.5">
-              <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
-              <span className="opacity-70">·</span>
-              <span className="tabular-nums">{formatXAF(total.fcfa)}</span>
-            </span>
-          ) : (
-            'Voir le panier'
-          )}
-        </motion.button>
       </div>
 
       {/* En-tête : thème (badge) + titre, AU-DESSUS de la cover */}
@@ -921,6 +901,31 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Barre panier fixée en bas (pleine largeur, ancrée — pas flottante) */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur">
+        <div className="mx-auto max-w-5xl">
+          <motion.button
+            type="button"
+            onClick={() => setCheckoutOpen(true)}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            disabled={!cartLines.length}
+            className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+          >
+            <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+            {total.count > 0 ? (
+              <span className="flex items-center gap-1.5">
+                <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
+                <span className="opacity-70">·</span>
+                <span className="tabular-nums">{formatXAF(total.fcfa)}</span>
+              </span>
+            ) : (
+              'Voir le panier'
+            )}
+          </motion.button>
+        </div>
+      </div>
     </div>
   );
 }
