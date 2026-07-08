@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Guide collaborateurs — TWINSK · 协作者指南</title>
+<style>
+  :root{
+    --emerald:#10b981; --emerald-d:#059669; --amber:#f59e0b; --slate:#0f172a;
+    --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --card:#ffffff; --blue:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--slate);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 20px 80px}
+  header.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .top-in{max-width:860px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px}
+  .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--amber),#ea580c);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}
+  .lang{display:flex;gap:4px;background:#f1f5f9;border:1px solid var(--line);border-radius:10px;padding:3px}
+  .lang button{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-weight:700;font-size:13px;cursor:pointer;color:var(--muted)}
+  .lang button.active{background:#fff;color:var(--slate);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .hero{padding:40px 0 10px}
+  .hero h1{font-size:30px;line-height:1.2;margin:0 0 8px}
+  .hero p{color:var(--muted);font-size:16px;margin:0}
+  h2{font-size:21px;margin:38px 0 6px;padding-top:12px;border-top:2px solid var(--line)}
+  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;
+    background:var(--emerald);color:#fff;font-size:14px;margin-right:10px;vertical-align:middle}
+  h3{font-size:16px;margin:22px 0 6px}
+  p{margin:8px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0;
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:10px 0}
+  ol.steps>li{counter-increment:s;position:relative;padding:8px 0 8px 40px;border-bottom:1px dashed var(--line)}
+  ol.steps>li:last-child{border-bottom:0}
+  ol.steps>li::before{content:counter(s);position:absolute;left:0;top:8px;width:26px;height:26px;border-radius:50%;
+    background:#ecfdf5;color:var(--emerald-d);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;border:1px solid #a7f3d0}
+  .btn{display:inline-block;padding:2px 9px;border-radius:7px;font-weight:700;font-size:13px;white-space:nowrap}
+  .btn.green{background:#ecfdf5;color:var(--emerald-d);border:1px solid #a7f3d0}
+  .btn.blue{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}
+  .btn.amber{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+  .btn.gray{background:#f1f5f9;color:#334155;border:1px solid var(--line)}
+  .field{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f1f5f9;border:1px solid var(--line);
+    border-radius:6px;padding:1px 7px;font-size:13px;font-weight:600}
+  .tip{background:#f0fdf4;border-left:4px solid var(--emerald);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0}
+  .warn{background:#fffbeb;border-left:4px solid var(--amber);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0}
+  .warn b,.tip b{display:block;margin-bottom:2px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;overflow:hidden;border-radius:10px;border:1px solid var(--line)}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  th{background:#f8fafc;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+  tr:last-child td{border-bottom:0}
+  .muted{color:var(--muted)}
+  .lang-body{display:none}
+  .lang-body.show{display:block}
+  footer{margin-top:50px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;text-align:center}
+  @media(max-width:520px){.hero h1{font-size:24px}h2{font-size:19px}}
+</style>
+</head>
+<body class="lang-zh">
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><span class="logo">T</span> TWINSK</div>
+    <div class="lang" role="group" aria-label="Langue / 语言">
+      <button id="btn-zh" class="active" onclick="setLang('zh')">中文</button>
+      <button id="btn-fr" onclick="setLang('fr')">Français</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= 中文 ================= -->
+<div class="lang-body show" data-lang="zh">
+  <section class="hero">
+    <h1>产品资料管理指南</h1>
+    <p>如何使用 <b>/request（采购请求）</b> 和 <b>/offer（B2C 优惠）</b> 后台界面：修正价格、联系卖家获取尺寸和重量、维护并更新产品资料。</p>
+  </section>
+
+  <div class="tip"><b>💡 第一步：把界面切换成中文</b>登录后台后，在左侧菜单底部有一个语言开关，点击 <span class="btn gray">中文</span> 即可把整个后台切换成中文。本指南中的按钮名称与切换后看到的一致。</div>
+
+  <h2><span class="n">1</span>登录与两个界面的区别</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>打开管理员后台 <span class="field">/admin</span>，输入管理密码登录。</li>
+      <li><b>采购（/admin/requests）</b>：客户提交的<b>采购请求</b>。我们在这里为客户寻找产品、报价。</li>
+      <li><b>B2C 优惠（/admin/offer）</b>：面向大众的<b>公开商品目录</b>，发布后生成可分享的链接。</li>
+    </ol>
+    <p class="muted">两个界面的<b>产品表格完全相同</b>，操作方法一致。本指南对两者都适用。</p>
+  </div>
+
+  <h2><span class="n">2</span>看懂产品表格</h2>
+  <p>每个产品是表格中的一行。主要列：</p>
+  <table>
+    <tr><th>列</th><th>含义</th></tr>
+    <tr><td><b>来源</b></td><td>淘宝 / 1688 / 手动 / 工厂</td></tr>
+    <tr><td><b>产品</b></td><td>图片 + 标题</td></tr>
+    <tr><td><b>价格 (人民币)</b></td><td>采购价（人民币）。<b>这是要重点核对的字段。</b></td></tr>
+    <tr><td><b>起订量 / 重量 / 体积 / 尺寸</b></td><td>物流信息（用于运费计算）</td></tr>
+    <tr><td><b>可靠度</b></td><td>卖家回头率、销量、评分</td></tr>
+    <tr><td><b>数量 / 利润% / 最终价格</b></td><td>报价用</td></tr>
+  </table>
+
+  <h2><span class="n">3</span>修正一个价格</h2>
+  <div class="warn"><b>⚠️ 重要原则</b>1688 上的产品<b>一定有价格</b>。如果某个产品没有价格，说明是采集不完整，<b>必须去核对并补上真实价格</b>，不能留空或填 0。</div>
+  <div class="card">
+    <ol class="steps">
+      <li>在产品行右侧点击 <span class="btn gray">✎ 编辑</span>（铅笔图标）。</li>
+      <li>在弹窗中找到 <span class="field">价格 (人民币)</span> 字段。</li>
+      <li>填入正确的人民币采购价（例如 <b>42.5</b>）。</li>
+      <li>点击 <span class="btn green">保存</span>。</li>
+    </ol>
+    <p class="muted">💬 如需要，可先点击该产品行打开详情，再点击 <span class="btn blue">访问网站</span> 打开卖家页面核实当前价格。</p>
+  </div>
+
+  <h2><span class="n">4</span>联系卖家获取重量和尺寸</h2>
+  <p>运费按重量和体积计算，所以每个产品都需要准确的 <b>重量</b> 和 <b>尺寸</b>。若资料缺失：</p>
+  <div class="card">
+    <ol class="steps">
+      <li>点击产品行打开<b>详情</b>，再点击 <span class="btn blue">访问网站</span>（卖家的 1688 / 淘宝页面）。</li>
+      <li>通过<b>旺旺 / 阿里聊天</b>联系卖家，索取：单件<b>净重（公斤）</b> 和 <b>包装尺寸（长×宽×高，厘米）</b>。是否带电池也要确认。</li>
+      <li>拿到数据后，回到产品行点击 <span class="btn gray">✎ 编辑</span>。</li>
+      <li>填写 <span class="field">重量 (公斤)</span> 和 <span class="field">尺寸</span>（例如 <b>70×40×8 cm</b>）。</li>
+      <li>点击 <span class="btn green">保存</span>。</li>
+    </ol>
+  </div>
+  <div class="tip"><b>✅ 询问卖家的标准话术</b>「您好，请问这款产品单件净重多少公斤？包装箱尺寸（长×宽×高）是多少厘米？是否含锂电池？谢谢！」</div>
+
+  <h2><span class="n">5</span>管理规格（颜色 / 型号）</h2>
+  <div class="card">
+    <p>一个产品可以有多个<b>规格</b>（颜色、尺码、型号）。在 <span class="btn gray">✎ 编辑</span> 弹窗底部的<b>规格</b>区域：</p>
+    <ol class="steps">
+      <li>为每个规格填写<b>名称</b>（必填）。</li>
+      <li>如价格不同，填写该规格的<b>价格</b>；相同则留空。</li>
+      <li>尽量为每个规格<b>上传对应图片</b>——这样客户在 /offer 页面点击规格时能看到对应照片。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">6</span>手动添加一个产品</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>在某个分类卡片右上角点击 <span class="btn green">＋ 手动添加</span>。</li>
+      <li>填写：<span class="field">产品标题</span>（必填）、<span class="field">价格 (人民币)</span>、图片、卖家、起订量、<span class="field">重量 (公斤)</span>、<span class="field">尺寸</span>、规格。</li>
+      <li>点击 <span class="btn green">保存</span>。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">7</span>完成前的检查清单</h2>
+  <div class="card">
+    <table>
+      <tr><th>检查项</th><th>要求</th></tr>
+      <tr><td>价格 (人民币)</td><td>已填写，&gt; 0，与卖家页面一致</td></tr>
+      <tr><td>重量 + 尺寸</td><td>已从卖家处确认并填写</td></tr>
+      <tr><td>规格</td><td>名称完整，尽量配图</td></tr>
+      <tr><td>电池</td><td>如含锂电池需标注（运输限制）</td></tr>
+      <tr><td>图片</td><td>清晰、与产品相符</td></tr>
+    </table>
+    <p class="muted">全部核对无误后，产品资料即可用于报价（/request）或发布（/offer）。</p>
+  </div>
+</div>
+
+<!-- ================= FRANÇAIS ================= -->
+<div class="lang-body" data-lang="fr">
+  <section class="hero">
+    <h1>Guide de gestion des fiches produits</h1>
+    <p>Comment utiliser les interfaces <b>/request (demandes de sourcing)</b> et <b>/offer (offres B2C)</b> : corriger les prix, contacter les vendeurs pour obtenir dimensions et poids, gérer et mettre à jour les fiches produits.</p>
+  </section>
+
+  <div class="tip"><b>💡 Étape préalable : passer l'interface en chinois</b>Après connexion, un sélecteur de langue se trouve en bas du menu latéral. Cliquez sur <span class="btn gray">中文</span> pour basculer tout l'admin en chinois. Les noms de boutons de ce guide correspondent à ce que vous verrez.</div>
+
+  <h2><span class="n">1</span>Connexion et différence entre les deux interfaces</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>Ouvrez l'admin <span class="field">/admin</span> et connectez-vous avec le mot de passe.</li>
+      <li><b>Sourcing (/admin/requests)</b> : les <b>demandes</b> envoyées par un client. On y cherche les produits et on chiffre.</li>
+      <li><b>Offres B2C (/admin/offer)</b> : un <b>catalogue public</b> ; une fois publié, il génère un lien partageable.</li>
+    </ol>
+    <p class="muted">Le <b>tableau produits est identique</b> dans les deux. Ce guide s'applique aux deux.</p>
+  </div>
+
+  <h2><span class="n">2</span>Comprendre le tableau produits</h2>
+  <p>Chaque produit est une ligne. Colonnes principales :</p>
+  <table>
+    <tr><th>Colonne</th><th>Signification</th></tr>
+    <tr><td><b>Source</b></td><td>taobao / 1688 / manuel / usine</td></tr>
+    <tr><td><b>Produit</b></td><td>image + titre</td></tr>
+    <tr><td><b>Prix CNY</b></td><td>prix d'achat (yuan). <b>Le champ à vérifier en priorité.</b></td></tr>
+    <tr><td><b>MOQ / Poids / Vol / Dimensions</b></td><td>logistique (calcul du fret)</td></tr>
+    <tr><td><b>Fiabilité</b></td><td>réachat, ventes, note du vendeur</td></tr>
+    <tr><td><b>Qté / Marge% / Prix final</b></td><td>pour le chiffrage</td></tr>
+  </table>
+
+  <h2><span class="n">3</span>Corriger un prix</h2>
+  <div class="warn"><b>⚠️ Règle importante</b>Sur 1688, un produit a <b>toujours</b> un prix. S'il n'en a pas, c'est une collecte incomplète : il <b>faut aller vérifier et renseigner le vrai prix</b>, jamais laisser vide ou 0.</div>
+  <div class="card">
+    <ol class="steps">
+      <li>À droite de la ligne produit, cliquez sur <span class="btn gray">✎ Modifier</span> (icône crayon).</li>
+      <li>Dans la fenêtre, repérez le champ <span class="field">Prix (CNY)</span>.</li>
+      <li>Saisissez le bon prix d'achat en yuan (ex. <b>42.5</b>).</li>
+      <li>Cliquez sur <span class="btn green">Enregistrer</span>.</li>
+    </ol>
+    <p class="muted">💬 Au besoin, ouvrez la fiche (clic sur la ligne) puis <span class="btn blue">Visiter le site web</span> pour vérifier le prix chez le vendeur.</p>
+  </div>
+
+  <h2><span class="n">4</span>Contacter le vendeur pour le poids et les dimensions</h2>
+  <p>Le fret se calcule au poids et au volume : chaque produit a besoin d'un <b>poids</b> et de <b>dimensions</b> exacts. Si l'info manque :</p>
+  <div class="card">
+    <ol class="steps">
+      <li>Cliquez sur la ligne pour ouvrir la <b>fiche</b>, puis <span class="btn blue">Visiter le site web</span> (page 1688 / Taobao du vendeur).</li>
+      <li>Contactez le vendeur via <b>Wangwang / chat Alibaba</b> et demandez : <b>poids net unitaire (kg)</b> et <b>dimensions du colis (L×l×h, cm)</b>. Vérifiez aussi la présence de batterie.</li>
+      <li>Une fois les données obtenues, revenez sur la ligne et cliquez <span class="btn gray">✎ Modifier</span>.</li>
+      <li>Renseignez <span class="field">Poids (kg)</span> et <span class="field">Dimensions</span> (ex. <b>70×40×8 cm</b>).</li>
+      <li>Cliquez sur <span class="btn green">Enregistrer</span>.</li>
+    </ol>
+  </div>
+  <div class="tip"><b>✅ Message type au vendeur (à copier)</b>「您好，请问这款产品单件净重多少公斤？包装箱尺寸（长×宽×高）是多少厘米？是否含锂电池？谢谢！」<br><span class="muted">(Bonjour, quel est le poids net unitaire en kg ? Les dimensions du carton L×l×h en cm ? Contient-il une batterie au lithium ? Merci !)</span></div>
+
+  <h2><span class="n">5</span>Gérer les variantes (couleur / modèle)</h2>
+  <div class="card">
+    <p>Un produit peut avoir plusieurs <b>variantes</b> (couleurs, tailles, modèles). Dans la fenêtre <span class="btn gray">✎ Modifier</span>, section <b>variantes</b> :</p>
+    <ol class="steps">
+      <li>Donnez un <b>nom</b> à chaque variante (obligatoire).</li>
+      <li>Renseignez un <b>prix</b> par variante s'il diffère ; laissez vide sinon.</li>
+      <li>Ajoutez si possible une <b>photo par variante</b> — ainsi le client voit la bonne image en cliquant la variante sur /offer.</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">6</span>Ajouter un produit manuellement</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>En haut à droite d'une catégorie, cliquez <span class="btn green">＋ Produit manuel</span>.</li>
+      <li>Remplissez : <span class="field">Titre du produit</span> (obligatoire), <span class="field">Prix (CNY)</span>, image, vendeur, MOQ, <span class="field">Poids (kg)</span>, <span class="field">Dimensions</span>, variantes.</li>
+      <li>Cliquez sur <span class="btn green">Enregistrer</span>.</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">7</span>Check-list avant de terminer</h2>
+  <div class="card">
+    <table>
+      <tr><th>Vérification</th><th>Exigence</th></tr>
+      <tr><td>Prix (CNY)</td><td>renseigné, &gt; 0, cohérent avec le site vendeur</td></tr>
+      <tr><td>Poids + Dimensions</td><td>confirmés auprès du vendeur et saisis</td></tr>
+      <tr><td>Variantes</td><td>noms complets, photos si possible</td></tr>
+      <tr><td>Batterie</td><td>signalée si lithium (restriction transport)</td></tr>
+      <tr><td>Images</td><td>nettes et conformes au produit</td></tr>
+    </table>
+    <p class="muted">Une fois tout vérifié, la fiche est prête pour le chiffrage (/request) ou la publication (/offer).</p>
+  </div>
+</div>
+
+<footer>TWINSK · Guide collaborateurs / 协作者指南</footer>
+</div>
+
+<script>
+  function setLang(l){
+    document.body.className = 'lang-' + l;
+    document.documentElement.lang = l;
+    document.querySelectorAll('.lang-body').forEach(function(el){
+      el.classList.toggle('show', el.getAttribute('data-lang') === l);
+    });
+    document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
+    document.getElementById('btn-fr').classList.toggle('active', l === 'fr');
+    try{ localStorage.setItem('twinsk_guide_lang', l); }catch(e){}
+  }
+  try{ var s = localStorage.getItem('twinsk_guide_lang'); if(s==='fr'||s==='zh') setLang(s); }catch(e){}
+</script>
+</body>
+</html>
