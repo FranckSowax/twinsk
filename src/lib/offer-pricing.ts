@@ -3,9 +3,11 @@
 //  - Aérien : 13 000 FCFA / kg (18 000 FCFA / kg si batterie au lithium)
 //  - Maritime : 260 000 FCFA / m³
 
-export const AIR_RATE_FCFA_PER_KG = 13000;
-export const AIR_BATTERY_RATE_FCFA_PER_KG = 18000;
-export const SEA_RATE_FCFA_PER_M3 = 260000;
+// Tarifs configurables via variables d'environnement (défauts Twinsk).
+export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 13000;
+// Tarif aérien spécial pour les produits AVEC batterie (lithium — dangereux).
+export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_FCFA_PER_KG) || 18000;
+export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 260000;
 
 // Taux de conversion CNY -> FCFA (mis à jour manuellement, ~91 FCFA / CNY).
 // Sera remplacé par une source live si besoin.
@@ -25,6 +27,8 @@ export interface PricingResult {
   totalWeight: number | null;
   totalVolume: number | null;
   hasBattery: boolean;
+  airRate: number;
+  seaRate: number;
   airCost: number | null;
   seaCost: number | null;
   airAvailable: boolean;
@@ -69,6 +73,8 @@ export function computeOrderPricing(lines: OrderLineForPricing[]): PricingResult
     totalWeight: weightKnown ? totalWeight : null,
     totalVolume: volumeKnown ? totalVolume : null,
     hasBattery,
+    airRate,
+    seaRate: SEA_RATE_FCFA_PER_M3,
     airCost,
     seaCost,
     airAvailable,

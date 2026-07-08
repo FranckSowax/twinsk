@@ -11,14 +11,17 @@ import {
   Ship,
   ShoppingBag,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Smartphone, Upload, Clock } from 'lucide-react';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 
 interface OrderLine {
   id: string;
-  product_id: string;
+  product_id: string | null;
+  product_title: string | null;
+  product_image: string | null;
   variant_id: string | null;
   variant_name: string | null;
   unit_price_cny: number;
@@ -34,6 +37,8 @@ interface Pricing {
   totalWeight: number | null;
   totalVolume: number | null;
   hasBattery: boolean;
+  airRate: number;
+  seaRate: number;
   airAvailable: boolean;
   seaAvailable: boolean;
   airCost: number | null;
@@ -52,6 +57,8 @@ interface OrderRow {
   transport_cost: number | null;
   status: string;
   payment_status: string;
+  payment_method: string | null;
+  payment_proof_url: string | null;
   ebilling_reference: string | null;
   request_id: string | null;
 }
@@ -60,6 +67,7 @@ interface OrderData {
   order: OrderRow;
   lines: OrderLine[];
   pricing: Pricing;
+  airtel_number: string | null;
 }
 
 interface Props {
@@ -76,6 +84,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   );
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'ebilling' | 'airtel' | null>(null);
+  const [airtelProofUrl, setAirtelProofUrl] = useState<string | null>(null);
+  const [airtelUploading, setAirtelUploading] = useState(false);
+  const [airtelSubmitting, setAirtelSubmitting] = useState(false);
+  const airtelFileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -138,6 +151,48 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
     }
   };
 
+  const uploadAirtelProof = async (file: File) => {
+    setAirtelUploading(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.urls?.[0]) {
+        setError(json.error || 'Erreur upload');
+        return;
+      }
+      setAirtelProofUrl(json.urls[0]);
+    } finally {
+      setAirtelUploading(false);
+    }
+  };
+
+  const submitAirtel = async () => {
+    if (!airtelProofUrl) return;
+    setAirtelSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/offer-public/${offerId}/order/${orderId}/pay-airtel`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proof_url: airtelProofUrl }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Erreur');
+        return;
+      }
+      await load();
+    } finally {
+      setAirtelSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -154,9 +209,13 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
     );
   }
 
-  const { order, lines, pricing } = data;
+  const { order, lines, pricing, airtel_number } = data;
   const transportPicked = !!order.transport_mode;
-  const paymentDone = paymentParam === 'mock-success';
+  const paymentDone = paymentParam === 'mock-success' || order.payment_status === 'paid';
+  const paymentSubmitted = order.payment_status === 'submitted';
+  const grandTotalFcfa = roundXafUp(pricing.itemsTotalFcfa + (order.transport_cost || 0));
+  const canPay =
+    transportPicked && order.transport_mode !== 'quote' && !paymentDone && !paymentSubmitted;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
@@ -192,10 +251,22 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           {lines.map((l) => (
             <div
               key={l.id}
-              className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+              className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
             >
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-800">Produit #{l.product_id.slice(0, 8)}</p>
+              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                {l.product_image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={l.product_image} alt={l.product_title || ''} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-slate-300">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-slate-800">
+                  {l.product_title || (l.product_id ? `Produit #${l.product_id.slice(0, 8)}` : 'Produit')}
+                </p>
                 {l.variant_name && (
                   <p className="text-xs text-emerald-600">{l.variant_name}</p>
                 )}
@@ -203,7 +274,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   {l.quantity} × {roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA
                 </p>
               </div>
-              <p className="text-sm font-bold text-emerald-600">
+              <p className="flex-shrink-0 text-sm font-bold text-emerald-600">
                 {roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
               </p>
             </div>
@@ -262,9 +333,8 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               {order.transport_mode === 'air' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
             <p className="text-xs text-slate-500">
-              {pricing.hasBattery
-                ? '18 000 FCFA / kg (avec batteries)'
-                : '13 000 FCFA / kg'}
+              {pricing.airRate.toLocaleString('fr-FR')} FCFA / kg
+              {pricing.hasBattery ? ' (avec batteries)' : ''}
             </p>
             <p className="font-display text-lg font-bold text-emerald-600">
               {formatFCFA(pricing.airCost)}
@@ -349,39 +419,136 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         )}
       </section>
 
-      {/* Checkout */}
-      {transportPicked && order.transport_mode !== 'quote' && !paymentDone && (
+      {/* Paiement */}
+      {canPay && (
         <section className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 p-6">
           <h2 className="font-semibold text-slate-900">Paiement</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Vous serez redirigé vers eBilling pour finaliser le paiement de votre commande.
+            Montant à régler : <b className="text-emerald-700">{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b>. Choisissez votre moyen de paiement.
           </p>
-          <motion.button
-            type="button"
-            onClick={startCheckout}
-            disabled={checkingOut}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
-          >
-            {checkingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-            Payer via eBilling
-          </motion.button>
-          <p className="mt-2 text-[10px] text-amber-700/80">
-            ⚠️ Intégration eBilling en mode démo — utilisez vos credentials pour activer le vrai paiement.
-          </p>
+
+          {/* Choix de la méthode */}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('ebilling')}
+              className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${
+                paymentMethod === 'ebilling' ? 'border-emerald-500 bg-white text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+              }`}
+            >
+              <CreditCard className="h-4 w-4" /> eBilling
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('airtel')}
+              className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${
+                paymentMethod === 'airtel' ? 'border-red-500 bg-white text-red-600' : 'border-slate-200 bg-white text-slate-600 hover:border-red-300'
+              }`}
+            >
+              <Smartphone className="h-4 w-4" /> Airtel Money
+            </button>
+          </div>
+
+          {/* eBilling */}
+          {paymentMethod === 'ebilling' && (
+            <div className="mt-4">
+              <motion.button
+                type="button"
+                onClick={startCheckout}
+                disabled={checkingOut}
+                whileTap={{ scale: 0.99 }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
+              >
+                {checkingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                Payer via eBilling
+              </motion.button>
+              <p className="mt-2 text-[10px] text-amber-700/80">
+                ⚠️ Intégration eBilling en cours d’activation.
+              </p>
+            </div>
+          )}
+
+          {/* Airtel Money */}
+          {paymentMethod === 'airtel' && (
+            <div className="mt-4 space-y-3 rounded-2xl border border-red-200 bg-white p-4">
+              <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
+                <li>
+                  Envoyez <b className="text-red-600">{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b> par Airtel Money au numéro :{' '}
+                  <b className="whitespace-nowrap">{airtel_number || '—'}</b>
+                  {!airtel_number && (
+                    <span className="block text-xs text-amber-600">(numéro non configuré — contactez-nous sur WhatsApp)</span>
+                  )}
+                </li>
+                <li>Faites une <b>capture d’écran</b> de la confirmation du virement.</li>
+                <li>Téléversez-la ci-dessous, puis validez.</li>
+              </ol>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {airtelProofUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={airtelProofUrl} alt="Preuve" className="h-16 w-16 rounded-lg object-cover ring-1 ring-slate-200" />
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => airtelFileRef.current?.click()}
+                  disabled={airtelUploading}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {airtelUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  {airtelProofUrl ? 'Changer la capture' : 'Ajouter la capture'}
+                </button>
+                <input
+                  ref={airtelFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadAirtelProof(f);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              <motion.button
+                type="button"
+                onClick={submitAirtel}
+                disabled={!airtelProofUrl || airtelSubmitting}
+                whileTap={{ scale: 0.99 }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/25 disabled:opacity-50"
+              >
+                {airtelSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                J’ai payé — envoyer la preuve
+              </motion.button>
+            </div>
+          )}
         </section>
       )}
 
+      {/* En attente de vérification (Airtel) */}
+      {paymentSubmitted && !paymentDone && (
+        <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-center">
+          <Clock className="mx-auto h-12 w-12 text-amber-500" />
+          <h2 className="mt-3 font-display text-xl font-bold text-amber-800">Paiement en cours de vérification</h2>
+          <p className="mt-2 text-sm text-amber-700">
+            Nous avons bien reçu votre preuve de paiement Airtel Money. Notre équipe la vérifie et validera votre commande sous peu.
+          </p>
+          <p className="mt-1 text-xs text-amber-700/80">Vous recevrez une confirmation sur WhatsApp ({order.client_phone}).</p>
+        </section>
+      )}
+
+      {/* Commande validée */}
       {paymentDone && (
         <section className="rounded-3xl border border-green-300 bg-green-50 p-6 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
           <h2 className="mt-3 font-display text-xl font-bold text-green-800">
-            Paiement enregistré !
+            {order.payment_status === 'paid' ? 'Paiement validé !' : 'Paiement enregistré !'}
           </h2>
-          <p className="mt-2 text-sm text-green-700">
-            Réf. eBilling : <code>{order.ebilling_reference}</code>
-          </p>
+          {order.ebilling_reference && (
+            <p className="mt-2 text-sm text-green-700">
+              Réf. eBilling : <code>{order.ebilling_reference}</code>
+            </p>
+          )}
           <p className="mt-1 text-xs text-green-700/80">
             Vous recevrez une confirmation sur WhatsApp. Notre équipe lance votre commande.
           </p>

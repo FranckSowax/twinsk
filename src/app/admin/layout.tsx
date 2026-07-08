@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Languages,
   Users,
+  ShoppingBag,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
@@ -30,6 +31,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin', key: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/admin/requests', key: 'nav.sourcing', icon: Package },
   { href: '/admin/offer', key: 'nav.offers', icon: Sparkles },
+  { href: '/admin/commandes', key: 'nav.orders', icon: ShoppingBag },
   { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
   { href: '/admin/freight', key: 'nav.freight', icon: Ship },
   { href: '/admin/leads', key: 'nav.services', icon: Inbox },

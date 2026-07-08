@@ -67,6 +67,8 @@ export async function GET(
       transport_cost: order.transport_cost,
       status: order.status,
       payment_status: order.payment_status,
+      payment_method: order.payment_method ?? null,
+      payment_proof_url: order.payment_proof_url ?? null,
       ebilling_reference: order.ebilling_reference,
       created_at: order.created_at,
       request_id: order.request_id,
@@ -77,5 +79,7 @@ export async function GET(
       subtotal_fcfa: l.subtotal_cny * CNY_TO_FCFA,
     })),
     pricing,
+    // Numéro Airtel Money Twinsk (env) affiché dans les instructions de paiement.
+    airtel_number: process.env.AIRTEL_MONEY_NUMBER || null,
   });
 }
