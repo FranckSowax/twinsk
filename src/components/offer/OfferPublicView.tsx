@@ -280,18 +280,37 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
         </motion.button>
       </div>
 
-      {/* Cover hero */}
+      {/* En-tête : thème (badge) + titre, AU-DESSUS de la cover */}
+      <div className="mb-4">
+        {offer.theme && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm">
+            <Tag className="h-3 w-3" />
+            {offer.theme}
+          </span>
+        )}
+        <h1 className="mt-3 font-display text-3xl font-bold uppercase tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl">
+          {offer.theme || offer.title}
+        </h1>
+        {offer.theme && (
+          <p className="mt-1 text-base font-medium text-slate-600 dark:text-slate-300 sm:text-lg">
+            {offer.title}
+          </p>
+        )}
+        {offer.description && (
+          <p className="mt-3 max-w-2xl text-sm text-slate-500 dark:text-slate-400 sm:text-base">
+            {offer.description}
+          </p>
+        )}
+      </div>
+
+      {/* Cover (image seule, sans texte superposé) */}
       <div className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
         {offer.cover_image_url ? (
-          <>
-            <SmartImage
-              src={offer.cover_image_url}
-              alt={offer.theme || offer.title}
-              className="h-64 w-full object-cover sm:h-80"
-            />
-            {/* Dark gradient overlay for legibility */}
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-900/20 to-slate-900/85" />
-          </>
+          <SmartImage
+            src={offer.cover_image_url}
+            alt={offer.theme || offer.title}
+            className="h-64 w-full object-cover sm:h-80"
+          />
         ) : (
           <div className="relative h-56 w-full bg-gradient-to-br from-emerald-600 via-emerald-500 to-green-500 sm:h-72">
             <div
@@ -305,39 +324,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             />
           </div>
         )}
-
-        {/* Overlay content */}
-        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
-          {offer.theme && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-lg">
-              <Tag className="h-3 w-3" />
-              {offer.theme}
-            </span>
-          )}
-          <h1 className="mt-3 font-display text-3xl font-bold uppercase tracking-tight text-white drop-shadow-lg sm:text-4xl lg:text-5xl">
-            {offer.theme || offer.title}
-          </h1>
-          {offer.theme && (
-            <p className="mt-1 text-base font-medium text-white/85 sm:text-lg">
-              {offer.title}
-            </p>
-          )}
-          {offer.description && (
-            <p className="mt-3 max-w-2xl text-sm text-white/90 sm:text-base">
-              {offer.description}
-            </p>
-          )}
-        </div>
       </div>
-
-      {/* Note de contexte / analyse (meta.note) */}
-      {offer.note && (
-        <div className="mx-auto mt-4 max-w-4xl px-4">
-          <div className="whitespace-pre-wrap rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {offer.note}
-          </div>
-        </div>
-      )}
 
       {/* Categories */}
       <div className="space-y-10">
