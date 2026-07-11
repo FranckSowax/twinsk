@@ -459,14 +459,14 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setActiveProduct(null)}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-0 backdrop-blur-sm sm:p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="my-8 w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl"
+              className="min-h-full w-full overflow-hidden rounded-none bg-white shadow-2xl sm:my-8 sm:min-h-0 sm:max-w-xl sm:rounded-3xl"
             >
               <div className="relative">
                 {(() => {
@@ -763,14 +763,14 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => !submitting && setCheckoutOpen(false)}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-0 backdrop-blur-sm sm:p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="my-8 w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+              className="min-h-full w-full overflow-hidden rounded-none bg-white shadow-2xl sm:my-8 sm:min-h-0 sm:max-w-md sm:rounded-3xl"
             >
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
