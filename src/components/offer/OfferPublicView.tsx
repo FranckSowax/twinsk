@@ -24,7 +24,7 @@ const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
 // Prix affiché sur une carte produit. Un produit publié a toujours un prix
 // (sinon il est filtré) : prix exact, ou « dès … » quand il vient des paliers/variantes.
 const cardPriceLabel = (p: { price: number | null; from_price: number }) =>
-  p.price != null ? formatFCFA(p.price) : `dès ${formatFCFA(p.from_price)}`;
+  `À partir de ${formatFCFA(p.price != null ? p.price : p.from_price)}`;
 
 interface OfferVariant {
   id: string;
