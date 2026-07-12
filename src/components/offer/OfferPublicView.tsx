@@ -272,7 +272,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             {offer.theme}
           </span>
         )}
-        <h1 className="mt-3 font-display text-3xl font-bold uppercase tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl">
+        <h1 className="mt-3 font-display text-3xl font-bold uppercase tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
           {offer.theme || offer.title}
         </h1>
         {offer.theme && (
