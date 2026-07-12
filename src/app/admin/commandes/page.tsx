@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode } from 'lucide-react';
+import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode, Save, Trash2, Plus, Plane, Ship } from 'lucide-react';
 
 interface Order {
   id: string;
@@ -27,8 +27,12 @@ interface DetailLine {
   product_url: string | null;
   variant_name: string | null;
   quantity: number;
+  unit_price_cny: number | null;
   unit_price_fcfa: number;
   subtotal_fcfa: number;
+  weight: number | null;
+  volume: number | null;
+  has_battery: boolean | null;
 }
 interface OrderDetail {
   order: Order & {
@@ -146,6 +150,18 @@ export default function AdminOrdersPage() {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  // Recharge le détail sans flicker (garde le modal ouvert) + rafraîchit la liste.
+  const reloadDetail = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`);
+      const data = await res.json();
+      if (res.ok) setDetail(data);
+    } catch {
+      // ignore
+    }
+    load();
   };
 
   return (
@@ -292,53 +308,34 @@ export default function AdminOrdersPage() {
                       {d.transport_mode && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{TRANSPORT_LABEL[d.transport_mode] || d.transport_mode}</span>}
                     </div>
 
-                    {/* Client */}
-                    <div className="mb-4 rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-800">
-                      <p className="font-semibold text-slate-900 dark:text-white">{d.client_name || '—'}</p>
-                      <p className="text-slate-600 dark:text-slate-300">📱 {d.client_phone || '—'}</p>
-                      {d.client_email && <p className="text-slate-600 dark:text-slate-300">✉️ {d.client_email}</p>}
-                    </div>
+                    {/* Client (éditable) */}
+                    <ClientEditor order={d} onSaved={() => reloadDetail(d.id)} />
 
-                    {/* Lignes */}
-                    <div className="mb-4 space-y-2">
+                    {/* Mode de transport (éditable) */}
+                    <TransportSelector order={d} onSaved={() => reloadDetail(d.id)} />
+
+                    {/* Lignes (éditables) */}
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Produits</p>
+                      {(d.total_weight == null || d.total_volume == null) && (
+                        <span className="text-[11px] font-medium text-amber-600">⚠️ Poids/volume manquants — total transport indisponible</span>
+                      )}
+                    </div>
+                    <div className="mb-3 space-y-2">
                       {detail.lines.map((l) => (
-                        <div key={l.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800">
-                          <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
-                            {l.product_image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={l.product_image} alt={l.product_title || ''} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-slate-300"><ShoppingBag className="h-5 w-5" /></div>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{l.product_title || (l.product_id ? `Produit #${l.product_id.slice(0, 8)}` : 'Produit')}</p>
-                            {l.variant_name && <p className="text-xs text-emerald-600">{l.variant_name}</p>}
-                            <p className="text-xs text-slate-500">{l.quantity} × {fmt(l.unit_price_fcfa)}</p>
-                          </div>
-                          <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                            <p className="text-sm font-bold text-emerald-600">{fmt(l.subtotal_fcfa)}</p>
-                            {l.product_url ? (
-                              <a
-                                href={l.product_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Payer le fournisseur sur 1688"
-                                className="flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-orange-600"
-                              >
-                                <CreditCard className="h-3 w-3" /> Payer
-                              </a>
-                            ) : (
-                              <span className="text-[10px] text-slate-400">Lien 1688 indisponible</span>
-                            )}
-                          </div>
-                        </div>
+                        <LineEditor key={l.id} orderId={d.id} line={l} onSaved={() => reloadDetail(d.id)} />
                       ))}
                     </div>
 
+                    {/* Ajouter un produit */}
+                    <AddLineForm orderId={d.id} onSaved={() => reloadDetail(d.id)} />
+
                     {/* Totaux */}
-                    <div className="mb-4 space-y-1.5 rounded-2xl bg-slate-900 p-4 text-sm text-white">
+                    <div className="mb-4 mt-4 space-y-1.5 rounded-2xl bg-slate-900 p-4 text-sm text-white">
                       <div className="flex justify-between text-slate-300"><span>Sous-total produits</span><span>{fmt(d.items_total_fcfa)}</span></div>
+                      <div className="flex justify-between text-slate-400 text-xs">
+                        <span>Poids : {d.total_weight != null ? `${d.total_weight} kg` : '—'} · Volume : {d.total_volume != null ? `${d.total_volume} m³` : '—'}</span>
+                      </div>
                       {d.transport_mode && d.transport_mode !== 'quote' && (
                         <div className="flex justify-between text-slate-300"><span>Transport ({TRANSPORT_LABEL[d.transport_mode]})</span><span>{fmt(d.transport_cost)}</span></div>
                       )}
@@ -411,6 +408,299 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sous-composants d'édition (admin)
+// ---------------------------------------------------------------------------
+
+const inputCls =
+  'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
+
+function ClientEditor({
+  order,
+  onSaved,
+}: {
+  order: OrderDetail['order'];
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(order.client_name || '');
+  const [phone, setPhone] = useState(order.client_phone || '');
+  const [email, setEmail] = useState(order.client_email || '');
+  const [saving, setSaving] = useState(false);
+  const dirty =
+    name !== (order.client_name || '') ||
+    phone !== (order.client_phone || '') ||
+    email !== (order.client_email || '');
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_name: name, client_phone: phone, client_email: email }),
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mb-4 space-y-2 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Coordonnées client</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <input className={inputCls} placeholder="Nom complet" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className={inputCls} placeholder="Téléphone / WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input className={inputCls} placeholder="Email (optionnel)" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      {dirty && (
+        <button
+          onClick={save}
+          disabled={saving}
+          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Enregistrer les coordonnées
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TransportSelector({
+  order,
+  onSaved,
+}: {
+  order: OrderDetail['order'];
+  onSaved: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const set = async (mode: string) => {
+    setBusy(true);
+    try {
+      await fetch(`/api/admin/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transport_mode: mode }),
+      });
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const opt = (mode: string, label: string, Icon: typeof Plane) => (
+    <button
+      onClick={() => set(mode)}
+      disabled={busy}
+      className={`flex items-center gap-1.5 rounded-lg border-2 px-3 py-1.5 text-xs font-semibold disabled:opacity-60 ${
+        order.transport_mode === mode
+          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" /> {label}
+    </button>
+  );
+  return (
+    <div className="mb-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mode de transport</p>
+      <div className="flex flex-wrap gap-2">
+        {opt('air', 'Aérien', Plane)}
+        {opt('sea', 'Maritime', Ship)}
+        {opt('quote', 'Devis', CreditCard)}
+      </div>
+    </div>
+  );
+}
+
+function LineEditor({
+  orderId,
+  line,
+  onSaved,
+}: {
+  orderId: string;
+  line: DetailLine;
+  onSaved: () => void;
+}) {
+  const [qty, setQty] = useState(String(line.quantity));
+  const [priceCny, setPriceCny] = useState(line.unit_price_cny != null ? String(line.unit_price_cny) : '');
+  const [weight, setWeight] = useState(line.weight != null ? String(line.weight) : '');
+  const [volume, setVolume] = useState(line.volume != null ? String(line.volume) : '');
+  const [battery, setBattery] = useState(!!line.has_battery);
+  const [saving, setSaving] = useState(false);
+  const [del, setDel] = useState(false);
+
+  const dirty =
+    qty !== String(line.quantity) ||
+    priceCny !== (line.unit_price_cny != null ? String(line.unit_price_cny) : '') ||
+    weight !== (line.weight != null ? String(line.weight) : '') ||
+    volume !== (line.volume != null ? String(line.volume) : '') ||
+    battery !== !!line.has_battery;
+
+  const num = (s: string): number | null => (s.trim() === '' ? null : Number(s));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/orders/${orderId}/lines/${line.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quantity: Math.max(1, Math.trunc(Number(qty) || 1)),
+          unit_price_cny: num(priceCny) ?? 0,
+          weight: num(weight),
+          volume: num(volume),
+          has_battery: battery,
+        }),
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Retirer ce produit de la commande ?')) return;
+    setDel(true);
+    try {
+      await fetch(`/api/admin/orders/${orderId}/lines/${line.id}`, { method: 'DELETE' });
+      onSaved();
+    } finally {
+      setDel(false);
+    }
+  };
+
+  const missing = weight.trim() === '' || volume.trim() === '';
+
+  return (
+    <div className={`rounded-xl border p-2.5 ${missing ? 'border-amber-300 bg-amber-50/40 dark:border-amber-700 dark:bg-amber-900/10' : 'border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
+          {line.product_image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={line.product_image} alt={line.product_title || ''} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-slate-300"><ShoppingBag className="h-4 w-4" /></div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{line.product_title || 'Produit'}</p>
+          {line.variant_name && <p className="text-xs text-emerald-600">{line.variant_name}</p>}
+        </div>
+        {line.product_url && (
+          <a href={line.product_url} target="_blank" rel="noopener noreferrer" title="Payer le fournisseur sur 1688" className="flex flex-shrink-0 items-center gap-1 rounded-lg bg-orange-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-orange-600">
+            <CreditCard className="h-3 w-3" /> Payer
+          </a>
+        )}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className="text-[10px] font-medium text-slate-500">Qté
+          <input className={inputCls} type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+        </label>
+        <label className="text-[10px] font-medium text-slate-500">Prix (CNY)
+          <input className={inputCls} type="number" step="any" value={priceCny} onChange={(e) => setPriceCny(e.target.value)} />
+        </label>
+        <label className={`text-[10px] font-medium ${weight.trim() === '' ? 'text-amber-600' : 'text-slate-500'}`}>Poids (kg)
+          <input className={inputCls} type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} />
+        </label>
+        <label className={`text-[10px] font-medium ${volume.trim() === '' ? 'text-amber-600' : 'text-slate-500'}`}>Volume (m³)
+          <input className={inputCls} type="number" step="any" value={volume} onChange={(e) => setVolume(e.target.value)} />
+        </label>
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+          <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-3.5 w-3.5 rounded" /> Batterie
+        </label>
+        <div className="flex items-center gap-2">
+          {dirty && (
+            <button onClick={save} disabled={saving} className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60">
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Enregistrer
+            </button>
+          )}
+          <button onClick={remove} disabled={del} className="flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60">
+            {del ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddLineForm({ orderId, onSaved }: { orderId: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [priceCny, setPriceCny] = useState('');
+  const [qty, setQty] = useState('1');
+  const [weight, setWeight] = useState('');
+  const [volume, setVolume] = useState('');
+  const [battery, setBattery] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const num = (s: string): number | null => (s.trim() === '' ? null : Number(s));
+
+  const add = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/orders/${orderId}/lines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_title: title.trim(),
+          unit_price_cny: num(priceCny) ?? 0,
+          quantity: Math.max(1, Math.trunc(Number(qty) || 1)),
+          weight: num(weight),
+          volume: num(volume),
+          has_battery: battery,
+        }),
+      });
+      setTitle(''); setPriceCny(''); setQty('1'); setWeight(''); setVolume(''); setBattery(false);
+      setOpen(false);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300">
+        <Plus className="h-3.5 w-3.5" /> Ajouter un produit
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-800 dark:bg-emerald-900/10">
+      <input className={inputCls} placeholder="Nom du produit *" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className="text-[10px] font-medium text-slate-500">Prix (CNY)
+          <input className={inputCls} type="number" step="any" value={priceCny} onChange={(e) => setPriceCny(e.target.value)} />
+        </label>
+        <label className="text-[10px] font-medium text-slate-500">Qté
+          <input className={inputCls} type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+        </label>
+        <label className="text-[10px] font-medium text-slate-500">Poids (kg)
+          <input className={inputCls} type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} />
+        </label>
+        <label className="text-[10px] font-medium text-slate-500">Volume (m³)
+          <input className={inputCls} type="number" step="any" value={volume} onChange={(e) => setVolume(e.target.value)} />
+        </label>
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+          <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-3.5 w-3.5 rounded" /> Batterie
+        </label>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-600">Annuler</button>
+          <button onClick={add} disabled={saving || !title.trim()} className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60">
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Ajouter
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

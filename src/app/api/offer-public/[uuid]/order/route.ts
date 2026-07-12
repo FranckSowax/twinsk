@@ -130,6 +130,10 @@ export async function POST(
       product_title: product.title,
       product_image: product.main_image_url || product.image_url || null,
       product_url: product.product_url || null,
+      // Snapshot poids/volume/batterie (variante prioritaire) — éditable par l'admin.
+      weight: variant?.weight ?? product.weight ?? null,
+      volume: variant?.volume ?? product.volume ?? null,
+      has_battery: product.has_battery ?? null,
     });
   }
 

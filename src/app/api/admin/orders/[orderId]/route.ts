@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin } from '@/lib/collab';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
+import { recomputeOrder } from '@/lib/admin-order';
 
 // GET: détail complet d'une commande (admin) — pour le modal.
 export async function GET(
@@ -23,7 +24,7 @@ export async function GET(
 
   const { data: lineRows } = await supabaseAdmin
     .from('offer_order_lines')
-    .select('id, product_id, product_title, product_image, product_url, variant_name, quantity, unit_price_cny, subtotal_cny')
+    .select('id, product_id, product_title, product_image, product_url, variant_name, quantity, unit_price_cny, subtotal_cny, weight, volume, has_battery')
     .eq('order_id', orderId);
 
   // Fallback : produits non encore snapshotés (anciennes commandes) → on récupère
@@ -56,9 +57,11 @@ export async function GET(
   });
 }
 
-// PATCH: valider le paiement OU changer le statut de traitement (admin).
-// Body: { payment_status?: 'paid' | 'pending', order_status?: 'unpaid'|'paid'|'shipped'|'delivered' }
+// PATCH: éditer une commande (admin) — paiement, statut, infos client, transport.
+// Body: { payment_status?, order_status?, client_name?, client_phone?,
+//         client_email?, transport_mode? ('air'|'sea'|'quote') }
 const ORDER_STATUSES = ['unpaid', 'paid', 'shipped', 'delivered'] as const;
+const TRANSPORT_MODES = ['air', 'sea', 'quote'] as const;
 
 export async function PATCH(
   request: NextRequest,
@@ -69,9 +72,14 @@ export async function PATCH(
   const body = (await request.json().catch(() => ({}))) as {
     payment_status?: string;
     order_status?: string;
+    client_name?: string;
+    client_phone?: string;
+    client_email?: string;
+    transport_mode?: string;
   };
 
   const patch: Record<string, unknown> = {};
+  let needRecompute = false;
 
   if (body.payment_status !== undefined) {
     if (body.payment_status !== 'paid' && body.payment_status !== 'pending') {
@@ -80,7 +88,6 @@ export async function PATCH(
     patch.payment_status = body.payment_status;
     if (body.payment_status === 'paid') {
       patch.status = 'paid';
-      // Valider le paiement fait passer le statut de traitement à « payée ».
       patch.order_status = 'paid';
     }
   }
@@ -92,11 +99,26 @@ export async function PATCH(
     patch.order_status = body.order_status;
   }
 
+  if (body.client_name !== undefined) patch.client_name = body.client_name.trim();
+  if (body.client_phone !== undefined) patch.client_phone = body.client_phone.trim();
+  if (body.client_email !== undefined) patch.client_email = body.client_email.trim() || null;
+
+  if (body.transport_mode !== undefined) {
+    if (!TRANSPORT_MODES.includes(body.transport_mode as (typeof TRANSPORT_MODES)[number])) {
+      return NextResponse.json({ error: 'Mode transport invalide' }, { status: 400 });
+    }
+    patch.transport_mode = body.transport_mode;
+    if (patch.status === undefined) patch.status = 'transport_selected';
+    needRecompute = true; // le coût transport dépend du mode
+  }
+
   if (!Object.keys(patch).length) {
     return NextResponse.json({ error: 'Rien à mettre à jour' }, { status: 400 });
   }
 
   const { error } = await supabaseAdmin.from('offer_orders').update(patch).eq('id', orderId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+
+  const totals = needRecompute ? await recomputeOrder(orderId) : null;
+  return NextResponse.json({ success: true, totals });
 }
