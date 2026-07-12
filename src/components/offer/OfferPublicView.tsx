@@ -16,15 +16,9 @@ import { useRouter } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { toMultiCurrency, roundXafUp, formatXAF } from '@/lib/utils/formatCurrency';
+import { roundXafUp, formatXAF, formatCNY, formatUSD, formatEUR, formatInCurrency, convertFromCny, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search } from 'lucide-react';
-
-const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
-// Prix affiché sur une carte produit. Un produit publié a toujours un prix
-// (sinon il est filtré) : prix exact, ou « dès … » quand il vient des paliers/variantes.
-const cardPriceLabel = (p: { price: number | null; from_price: number }) =>
-  `À partir de ${formatFCFA(p.price != null ? p.price : p.from_price)}`;
 
 interface OfferVariant {
   id: string;
@@ -79,6 +73,7 @@ interface Props {
     description: string | null;
     cover_image_url: string | null;
     note: string | null; // meta.note — chapô/contexte
+    currency?: CurrencyCode; // devise affichée (défaut XAF)
   };
   items: OfferItem[];
 }
@@ -91,6 +86,14 @@ interface CartLine {
 
 export default function OfferPublicView({ offerId, offer, items }: Props) {
   const router = useRouter();
+  // Devise affichée au client (défaut FCFA). Les autres devises restent en conversion (≈).
+  const currency: CurrencyCode = offer.currency || 'XAF';
+  const fmtPrice = (cny: number) => formatInCurrency(cny, currency);
+  const cardPriceLabel = (p: { price: number | null; from_price: number }) =>
+    `À partir de ${fmtPrice(p.price != null ? p.price : p.from_price)}`;
+  // Formate une valeur DÉJÀ dans la devise choisie (pour les totaux sommés).
+  const fmtPrimaryValue = (v: number) =>
+    currency === 'CNY' ? formatCNY(v) : currency === 'USD' ? formatUSD(v) : currency === 'EUR' ? formatEUR(v) : formatXAF(v);
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [activeProduct, setActiveProduct] = useState<OfferProduct | null>(null);
   const [selectedVariantForActive, setSelectedVariantForActive] = useState<
@@ -122,7 +125,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   const total = useMemo(() => {
     let cny = 0;
     let count = 0;
-    let fcfa = 0; // somme des sous-totaux de ligne arrondis → total == somme des lignes
+    let primary = 0; // somme des sous-totaux de ligne arrondis (devise) → total == somme des lignes
     for (const line of cartLines) {
       const p = allProducts.find((pp) => pp.id === line.productId);
       if (!p) continue;
@@ -131,12 +134,14 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
         : null;
       // Prix unitaire : variante chiffrée, sinon prix produit, sinon « à partir de »
       const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
-      cny += unit * line.quantity;
-      fcfa += roundXafUp(toMultiCurrency(unit * line.quantity).xaf);
+      const lineCny = unit * line.quantity;
+      cny += lineCny;
+      const v = convertFromCny(lineCny, currency);
+      primary += currency === 'XAF' ? roundXafUp(v) : Math.round(v * 100) / 100;
       count += line.quantity;
     }
-    return { cny, count, fcfa };
-  }, [cartLines, allProducts]);
+    return { cny, count, primary };
+  }, [cartLines, allProducts, currency]);
 
   const cartKey = (productId: string, variantId: string | null) =>
     `${productId}::${variantId || ''}`;
@@ -522,14 +527,14 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                   // Prix exact (produit ou variante sélectionnée), sinon « à partir de »
                   const exact = variantPrice ?? activeProduct.price;
                   if (exact != null) {
-                    return <MultiCurrencyPrice amountCny={exact} variant="large" primary="XAF" />;
+                    return <MultiCurrencyPrice amountCny={exact} variant="large" primary={currency} />;
                   }
                   return (
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                         À partir de
                       </span>
-                      <MultiCurrencyPrice amountCny={activeProduct.from_price} variant="large" primary="XAF" />
+                      <MultiCurrencyPrice amountCny={activeProduct.from_price} variant="large" primary={currency} />
                     </div>
                   );
                 })()}
@@ -546,7 +551,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                           <tr key={t.min_qty}>
                             <td className="px-4 py-2 text-slate-600">≥ {t.min_qty} pcs</td>
                             <td className="px-4 py-2 text-right font-semibold text-emerald-600">
-                              {formatFCFA(t.price)}
+                              {fmtPrice(t.price)}
                             </td>
                           </tr>
                         ))}
@@ -727,7 +732,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                                 <span>{v.name}</span>
                               </div>
                               {v.price != null && (
-                                <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary="XAF" />
+                                <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} />
                               )}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -853,11 +858,11 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
-                            <p className="text-xs text-slate-500">{formatFCFA(unit)} × {line.quantity}</p>
+                            <p className="text-xs text-slate-500">{fmtPrice(unit)} × {line.quantity}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <p className="text-sm font-bold text-emerald-600">
-                              {formatFCFA(unit * line.quantity)}
+                              {fmtPrice(unit * line.quantity)}
                             </p>
                             <div className="flex items-center gap-1">
                               <button
@@ -891,7 +896,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 {cartLines.length > 0 && (
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
                     <p className="text-sm font-semibold text-emerald-700">Total panier</p>
-                    <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={total.fcfa} variant="stacked" primary="XAF" />
+                    <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={currency === 'XAF' ? total.primary : undefined} variant="stacked" primary={currency} />
                   </div>
                 )}
 
@@ -950,7 +955,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
               <span className="flex items-center gap-1.5">
                 <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
                 <span className="opacity-70">·</span>
-                <span className="tabular-nums">{formatXAF(total.fcfa)}</span>
+                <span className="tabular-nums">{fmtPrimaryValue(total.primary)}</span>
               </span>
             ) : (
               'Voir le panier'
@@ -995,7 +1000,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="font-display text-lg font-bold text-slate-900">{variantLightbox.name}</h3>
                   {variantLightbox.price != null && (
-                    <MultiCurrencyPrice amountCny={variantLightbox.price} variant="stacked" primary="XAF" />
+                    <MultiCurrencyPrice amountCny={variantLightbox.price} variant="stacked" primary={currency} />
                   )}
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">

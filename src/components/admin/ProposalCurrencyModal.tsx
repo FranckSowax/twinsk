@@ -23,10 +23,15 @@ const OPTIONS: Option[] = [
 
 interface ProposalCurrencyModalProps {
   open: boolean;
-  requestId: string;
+  /** Requête (mode par défaut). Ignoré si apiUrl est fourni. */
+  requestId?: string;
   currentCurrency: ProposalCurrency;
   onClose: () => void;
   onSaved: (currency: ProposalCurrency) => void;
+  /** URL PATCH personnalisée (ex: /api/offers/[uuid]). Défaut : /api/requests/[requestId]. */
+  apiUrl?: string;
+  /** Clé du corps de requête. Défaut : proposal_currency. */
+  bodyKey?: string;
 }
 
 export default function ProposalCurrencyModal({
@@ -35,6 +40,8 @@ export default function ProposalCurrencyModal({
   currentCurrency,
   onClose,
   onSaved,
+  apiUrl,
+  bodyKey = 'proposal_currency',
 }: ProposalCurrencyModalProps) {
   const [selected, setSelected] = useState<ProposalCurrency>(currentCurrency);
   const [saving, setSaving] = useState(false);
@@ -44,10 +51,11 @@ export default function ProposalCurrencyModal({
     setError('');
     setSaving(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}`, {
+      const url = apiUrl || `/api/requests/${requestId}`;
+      const res = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposal_currency: selected }),
+        body: JSON.stringify({ [bodyKey]: selected }),
       });
       if (!res.ok) {
         const data = await res.json();

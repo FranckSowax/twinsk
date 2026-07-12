@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
+import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -41,6 +42,7 @@ interface OfferRow {
   status: 'draft' | 'published' | 'closed';
   cover_image_url: string | null;
   created_at: string;
+  offer_currency?: string | null;
 }
 
 interface OfferProduct {
@@ -119,6 +121,8 @@ export default function AdminOfferDetailPage() {
   const coverFileRef = useRef<HTMLInputElement>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [sentCollabIds, setSentCollabIds] = useState<Set<string>>(new Set());
+  const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const [offerCurrency, setOfferCurrency] = useState<ProposalCurrency>('XAF');
 
   // Rôle : le bouton « Envoyer aux collaborateurs » est réservé à l'admin.
   useEffect(() => {
@@ -187,6 +191,7 @@ export default function AdminOfferDetailPage() {
     const rData = await rRes.json();
     if (oRes.ok) {
       setOffer(oData);
+      if (oData.offer_currency) setOfferCurrency(oData.offer_currency);
       setTitleDraft(oData.title || '');
       setThemeDraft(oData.theme || '');
       setDescDraft(oData.description || '');
@@ -681,9 +686,32 @@ export default function AdminOfferDetailPage() {
                 </>
               )}
             </motion.button>
+
+            {/* Devise affichée au client (défaut FCFA) */}
+            <button
+              type="button"
+              onClick={() => setCurrencyModalOpen(true)}
+              title="Devise affichée au client sur le lien public"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300"
+            >
+              <span>💱</span> Devise&nbsp;: <span className="font-display tabular-nums text-emerald-600">{offerCurrency}</span>
+            </button>
           </div>
         </div>
       </motion.div>
+
+      {/* Modal choix de devise */}
+      <ProposalCurrencyModal
+        open={currencyModalOpen}
+        currentCurrency={offerCurrency}
+        apiUrl={`/api/offers/${uuid}`}
+        bodyKey="offer_currency"
+        onClose={() => setCurrencyModalOpen(false)}
+        onSaved={(cur) => {
+          setOfferCurrency(cur);
+          setOffer((prev) => (prev ? { ...prev, offer_currency: cur } : prev));
+        }}
+      />
 
       {/* Public link block */}
       {isPublished && (
