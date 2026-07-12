@@ -52,6 +52,21 @@ export async function PATCH(
   const { error } = await supabaseAdmin.from('collab_review_lines').update(patch).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Synchronise l'état de révision sur le produit d'offre (fond bleu dans /admin/offer).
+  if ('review_status' in patch) {
+    const { data: line } = await supabaseAdmin
+      .from('collab_review_lines')
+      .select('offer_product_id')
+      .eq('id', id)
+      .single();
+    if (line?.offer_product_id) {
+      await supabaseAdmin
+        .from('offer_products')
+        .update({ review_state: patch.review_status === 'reviewed' ? 'reviewed' : null })
+        .eq('id', line.offer_product_id);
+    }
+  }
+
   await logCollabAction(actor, {
     action: patch.review_status === 'reviewed' ? 'review_line_done' : 'review_line_edit',
     target_type: 'collab_review_line',

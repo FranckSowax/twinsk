@@ -57,6 +57,8 @@ interface SearchResultRow {
   // Champs INTERNES (jamais exposés au client)
   supplier_shipping_price?: number | null;
   delivery_time?: string | null;
+  // Révision collaborateur : 'reviewed' = révisée, en attente de validation admin (ligne bleue).
+  review_state?: string | null;
 }
 
 interface RequestItemWithResults {
@@ -84,6 +86,8 @@ interface ResultsTableProps {
   onSendToCollab?: (result: SearchResultRow) => void | Promise<void>;
   /** Ids déjà envoyés (pour l'affichage « Envoyée ✓»). */
   sentCollabIds?: Set<string>;
+  /** Si fournie (contexte offre, admin), affiche « Valider » sur les lignes révisées (bleues). */
+  onValidateReview?: (result: SearchResultRow) => void | Promise<void>;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -124,6 +128,7 @@ export default function ResultsTable({
   onRefresh,
   onSendToCollab,
   sentCollabIds,
+  onValidateReview,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -503,11 +508,13 @@ export default function ResultsTable({
                         setActiveResult(result);
                       }}
                       className={`cursor-pointer transition-colors hover:bg-slate-100/50 dark:hover:bg-slate-700/30 ${
-                        result.client_selected === true
-                          ? 'bg-green-50/70 dark:bg-green-900/15'
-                          : result.selected
-                            ? 'bg-amber-50/50 dark:bg-amber-900/10'
-                            : 'bg-white dark:bg-slate-800'
+                        result.review_state === 'reviewed'
+                          ? 'bg-blue-50 dark:bg-blue-900/20'
+                          : result.client_selected === true
+                            ? 'bg-green-50/70 dark:bg-green-900/15'
+                            : result.selected
+                              ? 'bg-amber-50/50 dark:bg-amber-900/10'
+                              : 'bg-white dark:bg-slate-800'
                       } ${savingIds.has(result.id) ? 'opacity-70' : ''} ${
                         draggingResultId === result.id ? 'opacity-40' : ''
                       } ${movingIds.has(result.id) ? 'opacity-50' : ''}`}
@@ -755,6 +762,22 @@ export default function ResultsTable({
                       {/* Actions */}
                       <td className="px-2 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          {result.review_state === 'reviewed' && (
+                            onValidateReview ? (
+                              <button
+                                type="button"
+                                onClick={() => onValidateReview(result)}
+                                className="flex items-center gap-1 rounded-md bg-blue-500 px-1.5 py-1 text-[10px] font-semibold text-white hover:bg-blue-600"
+                                title={t('review.reviewed')}
+                              >
+                                <CheckCircle2 className="h-3 w-3" /> {t('review.validate')}
+                              </button>
+                            ) : (
+                              <span className="flex items-center gap-1 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700" title={t('review.reviewed')}>
+                                <CheckCircle2 className="h-3 w-3" /> {t('review.reviewed')}
+                              </span>
+                            )
+                          )}
                           {onSendToCollab && (
                             sentCollabIds?.has(result.id) ? (
                               <span className="flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700" title={t('action.sent')}>

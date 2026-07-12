@@ -81,6 +81,7 @@ interface OfferProduct {
   client_quantity: number | null;
   client_selected: boolean | null;
   client_variant_id: string | null;
+  review_state?: string | null;
 }
 
 interface OfferItemWithProducts {
@@ -140,6 +141,35 @@ export default function AdminOfferDetailPage() {
         } else {
           const j = await res.json().catch(() => ({}));
           alert(j.error || 'Erreur envoi');
+        }
+      } catch {
+        alert('Erreur réseau');
+      }
+    },
+    [uuid],
+  );
+
+  const validateReview = useCallback(
+    async (result: { id: string }) => {
+      try {
+        const res = await fetch(`/api/offers/${uuid}/validate-review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_id: result.id }),
+        });
+        if (res.ok) {
+          // Repasse la ligne en normal localement.
+          setItems((prev) =>
+            prev.map((item) => ({
+              ...item,
+              search_results: item.search_results.map((r) =>
+                r.id === result.id ? { ...r, review_state: null } : r,
+              ),
+            })),
+          );
+        } else {
+          const j = await res.json().catch(() => ({}));
+          alert(j.error || 'Erreur validation');
         }
       } catch {
         alert('Erreur réseau');
@@ -875,6 +905,7 @@ export default function AdminOfferDetailPage() {
             onRefresh={loadData}
             onSendToCollab={isAdminUser ? sendToCollab : undefined}
             sentCollabIds={sentCollabIds}
+            onValidateReview={isAdminUser ? validateReview : undefined}
             onMoveResult={async (productId, fromItemId, toItemId) => {
               // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
               const state = Flip.getState('[data-flip-id]', {
