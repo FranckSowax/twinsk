@@ -65,6 +65,13 @@ const PAY_LABEL: Record<string, { txt: string; cls: string }> = {
   pending: { txt: 'En attente', cls: 'bg-slate-100 text-slate-500' },
 };
 
+// Étape de la commande (workflow client).
+const STAGE_LABEL: Record<string, { txt: string; cls: string }> = {
+  cart: { txt: 'Panier', cls: 'bg-slate-100 text-slate-500' },
+  transport_selected: { txt: 'Transport choisi', cls: 'bg-indigo-100 text-indigo-700' },
+  paid: { txt: 'Payé', cls: 'bg-emerald-100 text-emerald-700' },
+};
+
 function fmt(n: number | null) {
   return n != null ? `${Math.round(n).toLocaleString('fr-FR')} FCFA` : '—';
 }
@@ -75,7 +82,7 @@ function fmtDate(s: string) {
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [onlyPending, setOnlyPending] = useState(true);
+  const [onlyPending, setOnlyPending] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -187,11 +194,18 @@ export default function AdminOrdersPage() {
                   <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] text-slate-400 dark:bg-slate-700">sans preuve</div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 dark:text-white">{o.client_name} <span className="text-xs font-normal text-slate-400">· {o.client_phone}</span></p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">
-                    {fmt(o.grand_total_fcfa || o.items_total_fcfa)}
-                    {o.transport_mode && <span className="text-xs text-slate-400"> · {o.transport_mode === 'air' ? 'aérien' : o.transport_mode === 'sea' ? 'maritime' : 'devis'}</span>}
-                    {o.payment_method && <span className="text-xs text-slate-400"> · {o.payment_method}</span>}
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    {o.client_name || <span className="italic text-slate-400">Panier (sans coordonnées)</span>}
+                    {o.client_phone && <span className="text-xs font-normal text-slate-400"> · {o.client_phone}</span>}
+                  </p>
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const st = STAGE_LABEL[o.status] || STAGE_LABEL.cart;
+                      return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.txt}</span>;
+                    })()}
+                    <span>{fmt(o.grand_total_fcfa || o.items_total_fcfa)}</span>
+                    {o.transport_mode && <span className="text-xs text-slate-400">· {o.transport_mode === 'air' ? 'aérien' : o.transport_mode === 'sea' ? 'maritime' : 'devis'}</span>}
+                    {o.payment_method && <span className="text-xs text-slate-400">· {o.payment_method}</span>}
                   </p>
                   <p className="text-[11px] text-slate-400">{fmtDate(o.created_at)}</p>
                 </div>
