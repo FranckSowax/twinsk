@@ -74,9 +74,11 @@ export async function PATCH(
     transportCost = pricing.seaCost;
     grandTotal = pricing.seaTotal;
   } else {
-    // 'quote' = customer asks for a custom quote (no auto pricing)
+    // 'quote' = devis sur mesure : pas de transport auto. Le total transport
+    // sera fixé par l'admin. On garde le total produits (non-null : la colonne
+    // grand_total_fcfa est NOT NULL) — le transport n'y est pas encore inclus.
     transportCost = null;
-    grandTotal = null;
+    grandTotal = pricing.itemsTotalFcfaRounded;
   }
 
   const { data: updated, error: updErr } = await supabaseAdmin
