@@ -18,7 +18,7 @@ import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { toMultiCurrency, roundXafUp, formatXAF } from '@/lib/utils/formatCurrency';
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
-import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale } from 'lucide-react';
+import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search } from 'lucide-react';
 
 const formatFCFA = (cny: number) => toMultiCurrency(cny).formatted.xaf;
 // Prix affiché sur une carte produit. Un produit publié a toujours un prix
@@ -98,6 +98,18 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
   >(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
+  // Lightbox variante : image en grand + nom + détails + description produit.
+  const [variantLightbox, setVariantLightbox] = useState<{
+    image: string;
+    name: string;
+    description: string | null;
+    price: number | null;
+    moq: number | null;
+    capacity: string | null;
+    weight: number | null;
+    volume: number | null;
+    dimensions: string | null;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -684,12 +696,32 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
                             <div className="mb-1 flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 font-semibold text-slate-900">
                                 {v.image_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={v.image_url}
-                                    alt={v.name}
-                                    className="h-10 w-10 flex-shrink-0 rounded-md object-cover ring-1 ring-emerald-200"
-                                  />
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setVariantLightbox({
+                                        image: v.image_url as string,
+                                        name: v.name,
+                                        description: activeProduct.description,
+                                        price: v.price ?? null,
+                                        moq: v.moq ?? null,
+                                        capacity: v.capacity ?? null,
+                                        weight: v.weight ?? null,
+                                        volume: v.volume ?? null,
+                                        dimensions: v.dimensions ?? null,
+                                      });
+                                    }}
+                                    className="group relative h-10 w-10 flex-shrink-0 cursor-zoom-in overflow-hidden rounded-md ring-1 ring-emerald-200"
+                                    title="Voir l'image"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={v.image_url} alt={v.name} className="h-full w-full object-cover" />
+                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/25">
+                                      <Search className="h-3.5 w-3.5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                    </span>
+                                  </span>
                                 ) : null}
                                 {active && <Check className="h-4 w-4 text-emerald-600" />}
                                 <span>{v.name}</span>
@@ -926,6 +958,63 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
           </motion.button>
         </div>
       </div>
+
+      {/* Lightbox variante : image + description (au-dessus du modal produit) */}
+      <AnimatePresence>
+        {variantLightbox && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setVariantLightbox(null)}
+            className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-900/80 p-0 backdrop-blur-sm sm:p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              onClick={(e) => e.stopPropagation()}
+              className="min-h-full w-full overflow-hidden bg-white shadow-2xl sm:my-8 sm:min-h-0 sm:max-w-lg sm:rounded-3xl"
+            >
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={variantLightbox.image}
+                  alt={variantLightbox.name}
+                  className="max-h-[60vh] w-full bg-slate-50 object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVariantLightbox(null)}
+                  className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="space-y-3 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="font-display text-lg font-bold text-slate-900">{variantLightbox.name}</h3>
+                  {variantLightbox.price != null && (
+                    <MultiCurrencyPrice amountCny={variantLightbox.price} variant="stacked" primary="XAF" />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                  {variantLightbox.moq != null && <span>MOQ : {variantLightbox.moq}</span>}
+                  {variantLightbox.capacity && <span>Capacité : {variantLightbox.capacity}</span>}
+                  {variantLightbox.weight != null && <span>Poids : {variantLightbox.weight} kg</span>}
+                  {variantLightbox.volume != null && <span>Vol : {variantLightbox.volume} m³</span>}
+                  {variantLightbox.dimensions && <span>Dim : {variantLightbox.dimensions}</span>}
+                </div>
+                {variantLightbox.description && (
+                  <p className="whitespace-pre-line border-t border-slate-100 pt-3 text-sm leading-relaxed text-slate-600">
+                    {variantLightbox.description}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
