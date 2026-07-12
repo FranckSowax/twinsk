@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
@@ -80,6 +80,10 @@ interface ResultsTableProps {
   onMoveResult?: (productId: string, fromItemId: string, toItemId: string) => Promise<void>;
   onUpdate: (resultId: string, fields: Partial<SearchResultRow>) => void;
   onRefresh: () => void;
+  /** Si fournie (contexte offre, admin), affiche le bouton « Envoyer aux collaborateurs » par ligne. */
+  onSendToCollab?: (result: SearchResultRow) => void | Promise<void>;
+  /** Ids déjà envoyés (pour l'affichage « Envoyée ✓»). */
+  sentCollabIds?: Set<string>;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -118,6 +122,8 @@ export default function ResultsTable({
   onMoveResult,
   onUpdate,
   onRefresh,
+  onSendToCollab,
+  sentCollabIds,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -749,6 +755,22 @@ export default function ResultsTable({
                       {/* Actions */}
                       <td className="px-2 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          {onSendToCollab && (
+                            sentCollabIds?.has(result.id) ? (
+                              <span className="flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700" title={t('action.sent')}>
+                                <CheckCircle2 className="h-3 w-3" />
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => onSendToCollab(result)}
+                                className="text-slate-400 hover:text-emerald-600"
+                                title={t('action.sendToCollab')}
+                              >
+                                <Send className="h-4 w-4" />
+                              </button>
+                            )
+                          )}
                           {result.source === 'manual' && (
                             <button
                               type="button"

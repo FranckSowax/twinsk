@@ -116,6 +116,37 @@ export default function AdminOfferDetailPage() {
   const broadcastFileRef = useRef<HTMLInputElement>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const coverFileRef = useRef<HTMLInputElement>(null);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [sentCollabIds, setSentCollabIds] = useState<Set<string>>(new Set());
+
+  // Rôle : le bouton « Envoyer aux collaborateurs » est réservé à l'admin.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setIsAdminUser(d?.role === 'admin'))
+      .catch(() => {});
+  }, []);
+
+  const sendToCollab = useCallback(
+    async (result: { id: string }) => {
+      try {
+        const res = await fetch('/api/collab-review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offer_id: uuid, product_id: result.id }),
+        });
+        if (res.ok) {
+          setSentCollabIds((prev) => new Set(prev).add(result.id));
+        } else {
+          const j = await res.json().catch(() => ({}));
+          alert(j.error || 'Erreur envoi');
+        }
+      } catch {
+        alert('Erreur réseau');
+      }
+    },
+    [uuid],
+  );
 
   const loadData = useCallback(async () => {
     const [oRes, rRes] = await Promise.all([
@@ -842,6 +873,8 @@ export default function AdminOfferDetailPage() {
             hideClientFeedback
             onUpdate={handleUpdateResult}
             onRefresh={loadData}
+            onSendToCollab={isAdminUser ? sendToCollab : undefined}
+            sentCollabIds={sentCollabIds}
             onMoveResult={async (productId, fromItemId, toItemId) => {
               // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
               const state = Flip.getState('[data-flip-id]', {

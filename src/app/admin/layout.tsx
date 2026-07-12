@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Languages,
   Users,
+  ClipboardCheck,
   ShoppingBag,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
@@ -31,6 +32,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin', key: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/admin/requests', key: 'nav.sourcing', icon: Package },
   { href: '/admin/offer', key: 'nav.offers', icon: Sparkles },
+  { href: '/admin/revisions', key: 'nav.revisions', icon: ClipboardCheck },
   { href: '/admin/commandes', key: 'nav.orders', icon: ShoppingBag },
   { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
   { href: '/admin/freight', key: 'nav.freight', icon: Ship },
@@ -89,7 +91,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       role === 'collab' &&
       pathname &&
       !pathname.startsWith('/admin/offer') &&
-      !pathname.startsWith('/admin/requests')
+      !pathname.startsWith('/admin/requests') &&
+      !pathname.startsWith('/admin/revisions')
     ) {
       router.replace('/admin/offer');
     }
@@ -180,7 +183,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   };
 
   // Menu selon le rôle : collaborateur = Sourcing + Offres uniquement.
-  const COLLAB_HREFS = new Set(['/admin/requests', '/admin/offer']);
+  const COLLAB_HREFS = new Set(['/admin/requests', '/admin/offer', '/admin/revisions']);
   const navItems =
     role === 'collab'
       ? NAV_ITEMS.filter((i) => COLLAB_HREFS.has(i.href))
