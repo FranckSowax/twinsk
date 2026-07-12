@@ -199,6 +199,34 @@ export default function AdminOfferDetailPage() {
     loadData();
   }, [loadData]);
 
+  const reorderCategories = useCallback(
+    async (orderedItemIds: string[]) => {
+      // Réordonne localement (optimiste).
+      setItems((prev) => {
+        const byId = new Map(prev.map((it) => [it.id, it]));
+        const next = orderedItemIds.map((id) => byId.get(id)).filter(Boolean) as typeof prev;
+        for (const it of prev) if (!orderedItemIds.includes(it.id)) next.push(it);
+        return next;
+      });
+      try {
+        const res = await fetch(`/api/offers/${uuid}/reorder-categories`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderedItemIds }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          alert(j.error || 'Erreur réordonnancement');
+          loadData();
+        }
+      } catch {
+        alert('Erreur réseau');
+        loadData();
+      }
+    },
+    [uuid, loadData],
+  );
+
   const handleUpdateResult = async (resultId: string, fields: Record<string, unknown>) => {
     setItems((prev) =>
       prev.map((item) => ({
@@ -906,6 +934,7 @@ export default function AdminOfferDetailPage() {
             onSendToCollab={isAdminUser ? sendToCollab : undefined}
             sentCollabIds={sentCollabIds}
             onValidateReview={isAdminUser ? validateReview : undefined}
+            onReorderCategories={reorderCategories}
             onMoveResult={async (productId, fromItemId, toItemId) => {
               // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
               const state = Flip.getState('[data-flip-id]', {

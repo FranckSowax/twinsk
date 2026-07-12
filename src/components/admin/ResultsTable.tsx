@@ -88,6 +88,8 @@ interface ResultsTableProps {
   sentCollabIds?: Set<string>;
   /** Si fournie (contexte offre, admin), affiche « Valider » sur les lignes révisées (bleues). */
   onValidateReview?: (result: SearchResultRow) => void | Promise<void>;
+  /** Si fournie, active le glisser-déposer pour réordonner les catégories (blocs). */
+  onReorderCategories?: (orderedItemIds: string[]) => void | Promise<void>;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -129,6 +131,7 @@ export default function ResultsTable({
   onSendToCollab,
   sentCollabIds,
   onValidateReview,
+  onReorderCategories,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -144,6 +147,21 @@ export default function ResultsTable({
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
   const dragEnabled = !!onMoveResult;
+  // Réordonnancement des catégories (blocs)
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
+  const categoryDragEnabled = !!onReorderCategories;
+
+  const handleReorderCategory = (targetItemId: string, draggedItemId: string) => {
+    if (!onReorderCategories || targetItemId === draggedItemId) return;
+    const ids = items.map((it) => it.id);
+    const from = ids.indexOf(draggedItemId);
+    const to = ids.indexOf(targetItemId);
+    if (from === -1 || to === -1) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, draggedItemId);
+    onReorderCategories(ids);
+  };
 
   const handleDropOnItem = async (toItemId: string, fromItemId: string, productId: string) => {
     if (!onMoveResult || toItemId === fromItemId) {
@@ -330,21 +348,45 @@ export default function ResultsTable({
             dragEnabled && dragOverItemId === item.id && draggingResultId
               ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900'
               : ''
-          }`}
+          } ${
+            categoryDragEnabled && dragOverCategoryId === item.id && draggingCategoryId && draggingCategoryId !== item.id
+              ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900'
+              : ''
+          } ${draggingCategoryId === item.id ? 'opacity-50' : ''}`}
           onDragOver={(e) => {
-            if (!dragEnabled || !draggingResultId) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (dragOverItemId !== item.id) setDragOverItemId(item.id);
+            if (dragEnabled && draggingResultId) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOverItemId !== item.id) setDragOverItemId(item.id);
+              return;
+            }
+            if (categoryDragEnabled && draggingCategoryId) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOverCategoryId !== item.id) setDragOverCategoryId(item.id);
+            }
           }}
           onDragLeave={(e) => {
-            if (!dragEnabled) return;
+            if (!dragEnabled && !categoryDragEnabled) return;
             // ne nettoie que si on quitte vraiment le conteneur
             const next = e.relatedTarget as Node | null;
             if (next && (e.currentTarget as HTMLElement).contains(next)) return;
             if (dragOverItemId === item.id) setDragOverItemId(null);
+            if (dragOverCategoryId === item.id) setDragOverCategoryId(null);
           }}
           onDrop={(e) => {
+            // Réordonnancement de catégorie
+            if (categoryDragEnabled) {
+              const cat = e.dataTransfer.getData('application/x-twinsk-category');
+              if (cat) {
+                e.preventDefault();
+                handleReorderCategory(item.id, cat);
+                setDraggingCategoryId(null);
+                setDragOverCategoryId(null);
+                return;
+              }
+            }
+            // Déplacement de produit entre catégories
             if (!dragEnabled) return;
             e.preventDefault();
             const payload = e.dataTransfer.getData('application/x-twinsk-product');
@@ -364,6 +406,24 @@ export default function ResultsTable({
         >
           {/* Client item header */}
           <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+            {categoryDragEnabled && (
+              <div
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/x-twinsk-category', item.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggingCategoryId(item.id);
+                }}
+                onDragEnd={() => {
+                  setDraggingCategoryId(null);
+                  setDragOverCategoryId(null);
+                }}
+                title="Glisser pour réordonner la catégorie"
+                className="flex h-10 w-6 flex-shrink-0 cursor-grab items-center justify-center rounded-md text-slate-300 hover:bg-slate-200 hover:text-slate-500 active:cursor-grabbing dark:hover:bg-slate-700"
+              >
+                <GripVertical className="h-5 w-5" />
+              </div>
+            )}
             <div
               className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl ${item.image_url ? 'cursor-zoom-in' : ''}`}
               onClick={() => item.image_url && setZoomImageUrl(item.image_url)}
