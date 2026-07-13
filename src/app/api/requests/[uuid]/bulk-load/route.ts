@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor } from '@/lib/collab';
+import { saveJsonImport } from '@/lib/json-imports';
 import { foldVideoUrl } from '@/lib/offer-ingest';
 import { normalizeLogistics } from '@/lib/logistics';
 
@@ -272,6 +273,15 @@ export async function POST(
         .update({ status: 'processing' })
         .eq('id', uuid);
     }
+
+    // Copie du JSON importé pour réutilisation ultérieure.
+    await saveJsonImport({
+      target_type: 'request',
+      target_id: uuid,
+      payload: body,
+      label: (body as { meta?: { name?: string } }).meta?.name || null,
+      product_count: totalProducts,
+    });
 
     return NextResponse.json({
       success: true,

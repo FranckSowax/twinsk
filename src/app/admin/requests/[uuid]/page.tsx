@@ -13,6 +13,7 @@ import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
+import JsonImportsButton from '@/components/admin/JsonImportsButton';
 import EditClientInfoModal from '@/components/admin/EditClientInfoModal';
 import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
 import { Coins, Pencil, MapPin } from 'lucide-react';
@@ -77,6 +78,7 @@ export default function AdminRequestDetailPage() {
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [proposalLinkCopied, setProposalLinkCopied] = useState(false);
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
   const [editInfoOpen, setEditInfoOpen] = useState(false);
@@ -105,6 +107,13 @@ export default function AdminRequestDetailPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setIsAdminUser(d?.role === 'admin'))
+      .catch(() => {});
+  }, []);
 
   const handleUpdateResult = async (resultId: string, fields: Record<string, unknown>) => {
     // Optimistic update
@@ -438,6 +447,7 @@ export default function AdminRequestDetailPage() {
           <FileJson className="h-5 w-5" />
           {t('action.importJson')}
         </motion.button>
+        <JsonImportsButton targetType="request" targetId={uuid} isAdmin={isAdminUser} />
       </div>
 
       {/* Progress bar */}

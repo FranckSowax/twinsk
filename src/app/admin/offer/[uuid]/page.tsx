@@ -29,6 +29,7 @@ import {
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
 import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
+import JsonImportsButton from '@/components/admin/JsonImportsButton';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -696,6 +697,8 @@ export default function AdminOfferDetailPage() {
             >
               <span>💱</span> Devise&nbsp;: <span className="font-display tabular-nums text-emerald-600">{offerCurrency}</span>
             </button>
+
+            <JsonImportsButton targetType="offer" targetId={uuid} isAdmin={isAdminUser} />
           </div>
         </div>
       </motion.div>

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { normalizeLogistics } from '@/lib/logistics';
 import { normalizeMeta, normalizeProductV31Fields, assessProductPricing } from '@/lib/offer-ingest';
 import { resolveActor, logCollabAction } from '@/lib/collab';
+import { saveJsonImport } from '@/lib/json-imports';
 
 interface InVariant {
   id?: string;
@@ -306,6 +307,15 @@ export async function POST(
     target_type: 'offer',
     target_id: uuid,
     description: `Import JSON : ${totalProducts} produit(s), ${report.length} catégorie(s)`,
+  });
+
+  // Copie du JSON importé pour réutilisation ultérieure.
+  await saveJsonImport({
+    target_type: 'offer',
+    target_id: uuid,
+    payload: body,
+    label: (body.meta as { name?: string } | undefined)?.name || null,
+    product_count: totalProducts,
   });
 
   return NextResponse.json({
