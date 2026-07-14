@@ -33,6 +33,7 @@ export async function POST(
     request_item_id, // re-used as offer_item_id
     title,
     description,
+    description_admin,
     price,
     image_url,
     extra_images,
@@ -105,6 +106,7 @@ export async function POST(
       title: title.trim(),
       title_original: null,
       description: description?.trim() || null,
+      description_admin: (description_admin as string | undefined)?.trim() || null,
       price: typeof price === 'number' ? price : parseFloat(price) || 0,
       image_url: image_url || '',
       main_image_url: image_url || null,

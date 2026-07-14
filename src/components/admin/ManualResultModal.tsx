@@ -29,6 +29,7 @@ export interface ExistingResult {
   id: string;
   title: string;
   description: string | null;
+  description_admin?: string | null;
   price: number | null; // null = prix à confirmer
   image_url: string;
   main_image_url: string | null;
@@ -100,6 +101,7 @@ export default function ManualResultModal({
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [descriptionAdmin, setDescriptionAdmin] = useState('');
   const [price, setPrice] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [extraImages, setExtraImages] = useState<string[]>([]);
@@ -127,6 +129,7 @@ export default function ManualResultModal({
     if (existingResult) {
       setTitle(existingResult.title || '');
       setDescription(existingResult.description || '');
+      setDescriptionAdmin(existingResult.description_admin || '');
       setPrice(
         existingResult.price != null && existingResult.price !== 0
           ? String(existingResult.price)
@@ -155,6 +158,7 @@ export default function ManualResultModal({
     } else {
       setTitle('');
       setDescription('');
+      setDescriptionAdmin('');
       setPrice('');
       setImageUrl('');
       setExtraImages([]);
@@ -298,6 +302,7 @@ export default function ManualResultModal({
                 id: existingResult.id,
                 title: title.trim(),
                 description: description.trim() || null,
+                description_admin: descriptionAdmin.trim() || null,
                 price:
                   price !== ''
                     ? Number(price)
@@ -332,6 +337,7 @@ export default function ManualResultModal({
             request_item_id: requestItemId,
             title,
             description,
+            description_admin: descriptionAdmin.trim() || null,
             price,
             image_url: imageUrl,
             extra_images: extraImages,
@@ -539,6 +545,20 @@ export default function ManualResultModal({
                     rows={2}
                     placeholder="Détails sur le produit..."
                     className={inputClass}
+                  />
+                </div>
+
+                {/* Description admin — interne, jamais visible par le client */}
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-600">
+                    Description admin · interne
+                  </label>
+                  <textarea
+                    value={descriptionAdmin}
+                    onChange={(e) => setDescriptionAdmin(e.target.value)}
+                    rows={2}
+                    placeholder="Notes internes / specs pour l'équipe (non visible par le client)…"
+                    className={`${inputClass} border-amber-200 focus:border-amber-400 focus:ring-amber-400`}
                   />
                 </div>
 

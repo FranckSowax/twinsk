@@ -15,6 +15,7 @@ interface SearchResultRow {
   title: string;
   title_original: string | null;
   description: string | null;
+  description_admin?: string | null; // interne — jamais montré au client
   price: number | null; // null = prix à confirmer
   image_url: string;
   main_image_url: string | null;
@@ -252,6 +253,16 @@ export default function ResultDetailModal({ result, onClose, onToggleSelect }: R
                     <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
                       <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
                       {result.description}
+                    </div>
+                  )}
+
+                  {/* Description admin (interne — jamais montrée au client) */}
+                  {result.description_admin && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                      <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-600">
+                        <Info className="h-3 w-3" /> Description admin · interne
+                      </p>
+                      <p className="whitespace-pre-line">{result.description_admin}</p>
                     </div>
                   )}
 

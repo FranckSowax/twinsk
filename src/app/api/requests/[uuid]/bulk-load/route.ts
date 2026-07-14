@@ -20,6 +20,7 @@ interface InProduct {
   title?: string;
   title_original?: string;
   description?: string;
+  description_admin?: string;
   price?: unknown;
   image_url?: string;
   extra_images?: unknown;
@@ -219,6 +220,7 @@ export async function POST(
           title,
           title_original: strOrNull(p.title_original),
           description: strOrNull(p.description),
+          description_admin: strOrNull(p.description_admin),
           price: numOrNull(p.price) ?? 0,
           image_url: mainImage,
           main_image_url: mainImage || null,

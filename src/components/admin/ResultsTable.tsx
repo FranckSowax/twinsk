@@ -57,6 +57,7 @@ interface SearchResultRow {
   // Champs INTERNES (jamais exposés au client)
   supplier_shipping_price?: number | null;
   delivery_time?: string | null;
+  description_admin?: string | null; // description interne (notes/specs)
   // Révision collaborateur : 'reviewed' = révisée, en attente de validation admin (ligne bleue).
   review_state?: string | null;
 }
