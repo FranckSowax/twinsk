@@ -14,6 +14,7 @@ import {
   Send,
 } from 'lucide-react';
 import { useAdminT } from '@/components/admin/LocaleProvider';
+import ShareFicheButton from '@/components/admin/ShareFicheButton';
 
 interface ReviewLine {
   id: string;
@@ -36,6 +37,7 @@ interface ReviewLine {
   admin_note: string | null;
   review_status: string;
   applied_at: string | null;
+  vendor_filled_at: string | null;
   created_at: string;
 }
 
@@ -281,6 +283,9 @@ function ReviewCard({
             {line.applied_at && (
               <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">{t('review.applied')}</span>
             )}
+            {line.vendor_filled_at && (
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">✅ 供应商已填 · Vendeur a répondu</span>
+            )}
           </div>
           <p className="mt-1 truncate font-semibold text-slate-900 dark:text-white" title={line.title || ''}>{line.title || '—'}</p>
           <p className="text-xs text-slate-400">
@@ -351,6 +356,9 @@ function ReviewCard({
           {busy === 'review' ? <Loader2 className="h-4 w-4 animate-spin" /> : reviewed ? <RotateCcw className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
           {reviewed ? t('review.reopen') : t('review.markReviewed')}
         </button>
+
+        {/* Partager la fiche vierge au vendeur (WeChat / WhatsApp) */}
+        <ShareFicheButton id={line.id} />
 
         {isAdmin && (
           <>
