@@ -32,6 +32,7 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
 import JsonImportsButton from '@/components/admin/JsonImportsButton';
 import AffiliateLinksButton from '@/components/admin/AffiliateLinksButton';
+import ExportOfferButton from '@/components/admin/ExportOfferButton';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -911,6 +912,7 @@ export default function AdminOfferDetailPage() {
           <PackagePlus className="h-5 w-5" />
           Importer d’une offre
         </motion.button>
+        <ExportOfferButton offerId={uuid} title={offer.title} />
         <Link
           href={`/offer/${uuid}`}
           target="_blank"
