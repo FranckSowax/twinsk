@@ -4,6 +4,7 @@ import { isAdmin } from '@/lib/collab';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { recomputeOrder } from '@/lib/admin-order';
+import { sendWhapiText } from '@/lib/whapi';
 
 // GET: détail complet d'une commande (admin) — pour le modal.
 export async function GET(
@@ -118,6 +119,37 @@ export async function PATCH(
 
   const { error } = await supabaseAdmin.from('offer_orders').update(patch).eq('id', orderId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Notification à l'affilié quand son paiement est validé (marque blanche).
+  if (patch.payment_status === 'paid') {
+    try {
+      const { data: o } = await supabaseAdmin
+        .from('offer_orders')
+        .select('client_name, grand_total_fcfa, items_total_fcfa, commission_fcfa, affiliate_id')
+        .eq('id', orderId)
+        .single();
+      if (o?.affiliate_id) {
+        const { data: aff } = await supabaseAdmin
+          .from('affiliates')
+          .select('shop_name, whatsapp_number')
+          .eq('id', o.affiliate_id)
+          .single();
+        if (aff?.whatsapp_number) {
+          const total = Number(o.grand_total_fcfa ?? o.items_total_fcfa) || 0;
+          const commission = Number(o.commission_fcfa) || 0;
+          await sendWhapiText(
+            `💰 Paiement validé — Boutique « ${aff.shop_name || 'Partenaire'} »\n` +
+              `Client : ${o.client_name || '—'}\n` +
+              `Total : ${Math.round(total).toLocaleString('fr-FR')} FCFA\n` +
+              (commission > 0 ? `Votre commission : ${Math.round(commission).toLocaleString('fr-FR')} FCFA` : ''),
+            `${aff.whatsapp_number.replace(/\D/g, '')}@s.whatsapp.net`,
+          );
+        }
+      }
+    } catch {
+      // best-effort
+    }
+  }
 
   const totals = needRecompute ? await recomputeOrder(orderId) : null;
   return NextResponse.json({ success: true, totals });

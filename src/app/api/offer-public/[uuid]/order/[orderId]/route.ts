@@ -79,7 +79,20 @@ export async function GET(
       subtotal_fcfa: l.subtotal_cny * CNY_TO_FCFA,
     })),
     pricing,
-    // Numéro Airtel Money Twinsk (env) affiché dans les instructions de paiement.
-    airtel_number: process.env.AIRTEL_MONEY_NUMBER || null,
+    // Numéro Airtel Money affiché dans les instructions de paiement :
+    // celui de l'affilié (marque blanche) si la vente lui est attribuée, sinon Twinsk (env).
+    airtel_number: await resolveAirtelNumber(order as { affiliate_id?: string | null }),
   });
+}
+
+async function resolveAirtelNumber(order: { affiliate_id?: string | null }): Promise<string | null> {
+  if (order.affiliate_id) {
+    const { data } = await supabaseAdmin
+      .from('affiliates')
+      .select('airtel_number')
+      .eq('id', order.affiliate_id)
+      .single();
+    if (data?.airtel_number) return data.airtel_number;
+  }
+  return process.env.AIRTEL_MONEY_NUMBER || null;
 }

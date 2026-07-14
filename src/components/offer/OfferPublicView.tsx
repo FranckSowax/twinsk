@@ -76,6 +76,10 @@ interface Props {
     currency?: CurrencyCode; // devise affichée (défaut XAF)
   };
   items: OfferItem[];
+  // Marque blanche : lien affilié (/b/[id]). ref = affiliate_offers.id, transmis
+  // à la création de commande pour attribuer la vente ; shopName remplace le
+  // branding du header.
+  affiliate?: { ref: string; shopName: string };
 }
 
 interface CartLine {
@@ -84,7 +88,7 @@ interface CartLine {
   quantity: number;
 }
 
-export default function OfferPublicView({ offerId, offer, items }: Props) {
+export default function OfferPublicView({ offerId, offer, items, affiliate }: Props) {
   const router = useRouter();
   // Devise affichée au client (défaut FCFA). Les autres devises restent en conversion (≈).
   const currency: CurrencyCode = offer.currency || 'XAF';
@@ -196,6 +200,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          affiliate_ref: affiliate?.ref,
           picks: cartLines.map((l) => ({
             product_id: l.productId,
             variant_id: l.variantId,
@@ -231,7 +236,7 @@ export default function OfferPublicView({ offerId, offer, items }: Props) {
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 text-white">
               <Sparkles className="h-4 w-4" />
             </div>
-            <p className="truncate text-sm font-bold text-slate-900">{offer.title}</p>
+            <p className="truncate text-sm font-bold text-slate-900">{affiliate?.shopName || offer.title}</p>
             {offer.theme && (
               <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
                 <Tag className="h-2.5 w-2.5" />

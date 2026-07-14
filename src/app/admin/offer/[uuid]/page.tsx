@@ -31,6 +31,7 @@ import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
 import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin/ProposalCurrencyModal';
 import JsonImportsButton from '@/components/admin/JsonImportsButton';
+import AffiliateLinksButton from '@/components/admin/AffiliateLinksButton';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -702,6 +703,8 @@ export default function AdminOfferDetailPage() {
             </button>
 
             <JsonImportsButton targetType="offer" targetId={uuid} isAdmin={isAdminUser} />
+
+            {isAdminUser && <AffiliateLinksButton offerId={uuid} />}
           </div>
         </div>
       </motion.div>

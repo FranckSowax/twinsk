@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
+import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 
 interface Pick {
   product_id: string;
@@ -27,6 +28,7 @@ export async function POST(
     client_phone?: string;
     client_email?: string;
     picks?: Pick[];
+    affiliate_ref?: string; // lien marque blanche (/b/[id]) — attribution de la vente
   };
 
   // Coordonnées désormais OPTIONNELLES à la création : elles sont saisies plus
@@ -102,8 +104,32 @@ export async function POST(
     (products as ProductRow[]).map((p) => [p.id, p])
   );
 
+  // Attribution marque blanche : valide le lien affilié (offre + actif) et
+  // récupère sa commission — appliquée SERVEUR (jamais confiée au client).
+  let affiliate: {
+    linkId: string;
+    affiliateId: string;
+    commission: number;
+  } | null = null;
+  if (typeof body.affiliate_ref === 'string' && body.affiliate_ref) {
+    const { data: aff } = await supabaseAdmin
+      .from('affiliate_offers')
+      .select('id, offer_id, commission_percent, active, affiliates(id, active)')
+      .eq('id', body.affiliate_ref)
+      .single();
+    const a = aff?.affiliates as unknown as { id: string; active: boolean } | null;
+    if (aff && aff.offer_id === uuid && aff.active !== false && a && a.active !== false) {
+      affiliate = {
+        linkId: aff.id,
+        affiliateId: a.id,
+        commission: Number(aff.commission_percent) || 0,
+      };
+    }
+  }
+
   // Build lines
   let itemsTotalCny = 0;
+  let commissionCny = 0;
   const lineRows: Record<string, unknown>[] = [];
   let anyBattery = false;
 
@@ -115,7 +141,12 @@ export async function POST(
       ? product.variants?.find((v) => v.id === pick.variant_id) || null
       : null;
     const baseUnit = variant && variant.price != null ? variant.price : product.price;
-    const unitWithMargin = baseUnit * (1 + (product.margin_percent || 0) / 100);
+    const unitBeforeCommission = baseUnit * (1 + (product.margin_percent || 0) / 100);
+    // Marque blanche : la commission de l'affilié est incluse dans le prix payé.
+    const unitWithMargin = affiliate
+      ? unitBeforeCommission * (1 + affiliate.commission / 100)
+      : unitBeforeCommission;
+    if (affiliate) commissionCny += (unitWithMargin - unitBeforeCommission) * qty;
     const subtotal = unitWithMargin * qty;
     itemsTotalCny += subtotal;
     if (product.has_battery) anyBattery = true;
@@ -152,6 +183,15 @@ export async function POST(
       items_total_cny: itemsTotalCny,
       has_battery: anyBattery,
       status: 'cart',
+      // Attribution marque blanche (colonnes ajoutées seulement si vente affiliée,
+      // pour ne pas casser les commandes normales avant la migration 35).
+      ...(affiliate
+        ? {
+            affiliate_offer_id: affiliate.linkId,
+            affiliate_id: affiliate.affiliateId,
+            commission_fcfa: Math.round(commissionCny * CNY_TO_FCFA),
+          }
+        : {}),
     })
     .select()
     .single();

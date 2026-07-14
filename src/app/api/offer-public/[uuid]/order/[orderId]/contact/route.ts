@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
+import { sendWhapiText } from '@/lib/whapi';
 
 // PATCH: le client renseigne ses coordonnées (après le choix du transport,
 // avant le paiement). Enregistre nom/téléphone/email sur la commande, puis crée
@@ -30,7 +31,7 @@ export async function PATCH(
   // Vérifie que la commande existe et appartient à l'offre.
   const { data: order } = await supabaseAdmin
     .from('offer_orders')
-    .select('id, offer_id, request_id')
+    .select('*')
     .eq('id', orderId)
     .eq('offer_id', uuid)
     .single();
@@ -74,6 +75,36 @@ export async function PATCH(
       clientPhone,
       clientEmail,
     });
+  }
+
+  // Notification à l'affilié (marque blanche) : nouvelle vente sur sa boutique.
+  const affiliateId = (order as { affiliate_id?: string | null }).affiliate_id;
+  if (affiliateId) {
+    try {
+      const { data: aff } = await supabaseAdmin
+        .from('affiliates')
+        .select('shop_name, whatsapp_number')
+        .eq('id', affiliateId)
+        .single();
+      if (aff?.whatsapp_number) {
+        const total = Number(
+          (order as { grand_total_fcfa?: number | null; items_total_fcfa?: number | null }).grand_total_fcfa ??
+            (order as { items_total_fcfa?: number | null }).items_total_fcfa,
+        );
+        const commission = Number((order as { commission_fcfa?: number | null }).commission_fcfa) || 0;
+        const linkId = (order as { affiliate_offer_id?: string | null }).affiliate_offer_id;
+        await sendWhapiText(
+          `🛒 Nouvelle commande — Boutique « ${aff.shop_name || 'Partenaire'} »\n` +
+            `Client : ${clientName} (${clientPhone})\n` +
+            (Number.isFinite(total) && total > 0 ? `Total : ${Math.round(total).toLocaleString('fr-FR')} FCFA\n` : '') +
+            (commission > 0 ? `Votre commission : ${Math.round(commission).toLocaleString('fr-FR')} FCFA\n` : '') +
+            (linkId ? `👉 ${request.nextUrl.origin}/partenaire/${linkId}` : ''),
+          `${aff.whatsapp_number.replace(/\D/g, '')}@s.whatsapp.net`,
+        );
+      }
+    } catch {
+      // best-effort — ne bloque jamais la commande
+    }
   }
 
   return NextResponse.json({ success: true });
