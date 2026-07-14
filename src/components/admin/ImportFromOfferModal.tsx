@@ -249,24 +249,26 @@ export default function ImportFromOfferModal({
             {sourceId && !loadingCats && (
               <div className="space-y-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
                 {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <label className="flex flex-1 items-center gap-2 text-xs font-medium text-slate-500">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-500">
                     Destination :
                     <select
                       value={targetItemId}
                       onChange={(e) => setTargetItemId(e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                      className="w-full min-w-0 truncate rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     >
                       <option value="">Nouvelle catégorie « Produits importés »</option>
                       {targetCategories.map((c) => (
-                        <option key={c.id} value={c.id}>{c.description || 'Catégorie'}</option>
+                        <option key={c.id} value={c.id}>
+                          {(c.description || 'Catégorie').slice(0, 60)}
+                        </option>
                       ))}
                     </select>
                   </label>
                   <button
                     onClick={submit}
                     disabled={submitting || picked.size === 0}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+                    className="flex flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
                   >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
                     Ajouter ({picked.size})
