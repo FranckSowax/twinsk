@@ -26,14 +26,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
   const body = await request.json().catch(() => ({}));
-  const { title, theme, description } = body as {
+  const { title, theme, description, offer_type } = body as {
     title?: string;
     theme?: string;
     description?: string;
+    offer_type?: string;
   };
 
   if (!title || !title.trim()) {
     return NextResponse.json({ error: 'Titre requis' }, { status: 400 });
+  }
+  if (offer_type !== undefined && offer_type !== 'b2c' && offer_type !== 'b2b') {
+    return NextResponse.json({ error: 'Type d’offre invalide' }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
@@ -43,6 +47,9 @@ export async function POST(request: NextRequest) {
       theme: theme?.trim() || null,
       description: description?.trim() || null,
       status: 'draft',
+      // b2c = défaut colonne ; on ne force la valeur que pour le B2B afin de
+      // rester compatible tant que la migration 36 n'est pas appliquée.
+      ...(offer_type === 'b2b' ? { offer_type: 'b2b' } : {}),
     })
     .select()
     .single();

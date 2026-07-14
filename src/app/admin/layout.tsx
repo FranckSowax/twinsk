@@ -22,6 +22,7 @@ import {
   Languages,
   Users,
   ClipboardCheck,
+  Briefcase,
   ShoppingBag,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
@@ -32,6 +33,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin', key: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/admin/requests', key: 'nav.sourcing', icon: Package },
   { href: '/admin/offer', key: 'nav.offers', icon: Sparkles },
+  { href: '/admin/offer-b2b', key: 'nav.offersB2B', icon: Briefcase },
   { href: '/admin/revisions', key: 'nav.revisions', icon: ClipboardCheck },
   { href: '/admin/commandes', key: 'nav.orders', icon: ShoppingBag },
   { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
@@ -183,7 +185,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   };
 
   // Menu selon le rôle : collaborateur = Sourcing + Offres uniquement.
-  const COLLAB_HREFS = new Set(['/admin/requests', '/admin/offer', '/admin/revisions']);
+  const COLLAB_HREFS = new Set(['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/revisions']);
   const navItems =
     role === 'collab'
       ? NAV_ITEMS.filter((i) => COLLAB_HREFS.has(i.href))
@@ -307,7 +309,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
               const active =
                 item.href === '/admin'
                   ? pathname === '/admin'
-                  : pathname?.startsWith(item.href);
+                  : item.href === '/admin/offer'
+                    ? // ne pas s'allumer sur /admin/offer-b2b (préfixe commun)
+                      pathname === '/admin/offer' || pathname?.startsWith('/admin/offer/')
+                    : pathname?.startsWith(item.href);
               return (
                 <Link
                   key={item.href}

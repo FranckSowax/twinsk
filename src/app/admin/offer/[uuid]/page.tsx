@@ -47,6 +47,7 @@ interface OfferRow {
   cover_image_url: string | null;
   created_at: string;
   offer_currency?: string | null;
+  offer_type?: string | null; // 'b2c' (défaut) | 'b2b'
 }
 
 interface OfferProduct {
@@ -404,9 +405,9 @@ export default function AdminOfferDetailPage() {
 
   return (
     <div className="space-y-8">
-      {/* Back */}
+      {/* Back — vers la liste B2B ou B2C selon le type de l'offre */}
       <Link
-        href="/admin/offer"
+        href={offer.offer_type === 'b2b' ? '/admin/offer-b2b' : '/admin/offer'}
         className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-amber-500"
       >
         <ArrowLeft className="h-4 w-4" />
