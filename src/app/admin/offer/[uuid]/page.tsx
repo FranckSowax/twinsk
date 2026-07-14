@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowUpRight,
+  PackagePlus,
   CheckCircle2,
   Copy,
   ExternalLink,
@@ -33,6 +34,7 @@ import JsonImportsButton from '@/components/admin/JsonImportsButton';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
+import ImportFromOfferModal from '@/components/admin/ImportFromOfferModal';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 
 interface OfferRow {
@@ -104,6 +106,7 @@ export default function AdminOfferDetailPage() {
   const [loading, setLoading] = useState(true);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [importOfferOpen, setImportOfferOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingTheme, setEditingTheme] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
@@ -893,6 +896,17 @@ export default function AdminOfferDetailPage() {
           <FileJson className="h-5 w-5" />
           {t('action.importJson')}
         </motion.button>
+        <motion.button
+          type="button"
+          onClick={() => setImportOfferOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-6 py-3 font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/10 dark:text-indigo-300"
+          title="Copier des produits depuis une autre offre"
+        >
+          <PackagePlus className="h-5 w-5" />
+          Importer d’une offre
+        </motion.button>
         <Link
           href={`/offer/${uuid}`}
           target="_blank"
@@ -909,6 +923,14 @@ export default function AdminOfferDetailPage() {
         basePath="/api/offers"
         onClose={() => setAddItemOpen(false)}
         onCreated={loadData}
+      />
+
+      <ImportFromOfferModal
+        open={importOfferOpen}
+        currentUuid={uuid}
+        targetCategories={items.map((it) => ({ id: it.id, description: it.description }))}
+        onClose={() => setImportOfferOpen(false)}
+        onImported={loadData}
       />
 
       <BulkImportModal
