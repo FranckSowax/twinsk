@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { sendWhapiText, DEFAULT_GROUP_ID } from '@/lib/whapi';
 
 // POST public (le VENDEUR remplit la fiche via le lien partagé — l'id UUID sert de jeton).
 // Met à jour les champs à compléter sur la ligne « à réviser » (collab_review_lines).
@@ -33,10 +34,35 @@ export async function POST(
   if ('delivery_time' in body) patch.delivery_time = str(body.delivery_time);
   if ('collab_notes' in body) patch.collab_notes = str(body.collab_notes);
 
-  const { error } = await supabaseAdmin
+  const { data: updated, error } = await supabaseAdmin
     .from('collab_review_lines')
     .update(patch)
-    .eq('id', id);
+    .eq('id', id)
+    .select('title, offer_title, weight, volume, dimensions, delivery_time, supplier_shipping_price, has_battery')
+    .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Notification WHAPI vers l'admin (best-effort — n'échoue jamais la soumission).
+  try {
+    const to = process.env.ADMIN_WHATSAPP_NUMBER
+      ? `${process.env.ADMIN_WHATSAPP_NUMBER.replace(/\D/g, '')}@s.whatsapp.net`
+      : DEFAULT_GROUP_ID;
+    const l = updated || {};
+    const na = (v: unknown, unit = '') => (v != null && v !== '' ? `${v}${unit}` : '—');
+    const msg =
+      `✅ 供应商已填写产品表 · Le vendeur a rempli la fiche\n` +
+      `产品/Produit : ${l.title || '—'}${l.offer_title ? ` (${l.offer_title})` : ''}\n` +
+      `重量/Poids : ${na(l.weight, ' kg')}\n` +
+      `体积/Volume : ${na(l.volume, ' m³')}\n` +
+      `纸箱/Carton : ${na(l.dimensions)}\n` +
+      `运费/Frais : ${na(l.supplier_shipping_price, ' CNY')}\n` +
+      `交货/Délai : ${na(l.delivery_time)}\n` +
+      `电池/Batterie : ${l.has_battery ? 'oui' : 'non'}\n` +
+      `👉 ${request.nextUrl.origin}/admin/revisions`;
+    await sendWhapiText(msg, to);
+  } catch {
+    // ignore
+  }
+
   return NextResponse.json({ success: true });
 }
