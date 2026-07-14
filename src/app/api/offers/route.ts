@@ -7,22 +7,6 @@ function isAdmin(request: NextRequest): boolean {
   return !!cookie && cookie.value === process.env.ADMIN_PASSWORD;
 }
 
-// DELETE: suppression en lot d'offres (admin only). Body: { ids: string[] }.
-// Le cascade DB retire catégories / produits / commandes liées.
-export async function DELETE(request: NextRequest) {
-  if (!isAdmin(request)) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  }
-  const body = (await request.json().catch(() => ({}))) as { ids?: string[] };
-  const ids = Array.isArray(body.ids) ? body.ids.filter((v) => typeof v === 'string') : [];
-  if (!ids.length) {
-    return NextResponse.json({ error: 'Aucune offre à supprimer' }, { status: 400 });
-  }
-  const { error } = await supabaseAdmin.from('offers').delete().in('id', ids);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, deleted: ids.length });
-}
-
 // GET: List all offers (admin OU collaborateur)
 export async function GET(request: NextRequest) {
   if (!(await resolveActor(request))) {

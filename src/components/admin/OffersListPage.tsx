@@ -44,17 +44,8 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
   const [title, setTitle] = useState('');
   const [theme, setTheme] = useState('');
   const [description, setDescription] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [purging, setPurging] = useState(false);
 
   const isB2B = type === 'b2b';
-
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => setIsAdmin(d?.role === 'admin'))
-      .catch(() => {});
-  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -96,30 +87,6 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
     }
   };
 
-  const purgeAll = async () => {
-    const ids = offers.map((o) => o.id);
-    if (!ids.length) return;
-    const label = isB2B ? 'B2B' : 'B2C';
-    if (!window.confirm(`⚠️ Supprimer les ${ids.length} offre(s) ${label} et TOUTES leurs données (catégories, produits, commandes) ?\n\nCette action est IRRÉVERSIBLE.`)) return;
-    if (!window.confirm(`Dernière confirmation : repartir sur une page ${label} vide ?`)) return;
-    setPurging(true);
-    try {
-      const res = await fetch('/api/offers', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Erreur suppression');
-        return;
-      }
-      setOffers([]);
-    } finally {
-      setPurging(false);
-    }
-  };
-
   const removeOffer = async (id: string) => {
     if (!window.confirm('Supprimer cette offre et toutes ses données ?')) return;
     const res = await fetch(`/api/offers/${id}`, { method: 'DELETE' });
@@ -153,34 +120,20 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
               : 'partagez le lien public dans vos groupes et réseaux sociaux pour générer des ventes.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && offers.length > 0 && (
-            <button
-              type="button"
-              onClick={purgeAll}
-              disabled={purging}
-              title="Supprimer toutes les offres de cet onglet et repartir sur une page vide"
-              className="flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/50 dark:bg-slate-800"
-            >
-              {purging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Tout supprimer
-            </button>
-          )}
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setCreateOpen(true)}
-            className={`flex items-center gap-2 rounded-xl bg-gradient-to-r px-5 py-2.5 text-sm font-semibold text-white shadow-lg ${
-              isB2B
-                ? 'from-blue-500 to-indigo-500 shadow-blue-500/25'
-                : 'from-emerald-500 to-green-500 shadow-emerald-500/25'
-            }`}
-          >
-            <Plus className="h-4 w-4" />
-            {isB2B ? 'Nouvelle offre B2B' : 'Nouvelle offre'}
-          </motion.button>
-        </div>
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setCreateOpen(true)}
+          className={`flex items-center gap-2 rounded-xl bg-gradient-to-r px-5 py-2.5 text-sm font-semibold text-white shadow-lg ${
+            isB2B
+              ? 'from-blue-500 to-indigo-500 shadow-blue-500/25'
+              : 'from-emerald-500 to-green-500 shadow-emerald-500/25'
+          }`}
+        >
+          <Plus className="h-4 w-4" />
+          {isB2B ? 'Nouvelle offre B2B' : 'Nouvelle offre'}
+        </motion.button>
       </div>
 
       {createOpen && (

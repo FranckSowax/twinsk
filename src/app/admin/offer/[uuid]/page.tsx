@@ -211,6 +211,25 @@ export default function AdminOfferDetailPage() {
     loadData();
   }, [loadData]);
 
+  const [clearing, setClearing] = useState(false);
+  const clearOffer = async () => {
+    if (!window.confirm('⚠️ Vider cette offre : supprimer TOUTES les lignes produits et catégories générées (y compris via JSON) ?\n\nL’offre (titre, thème, cover) est conservée. Action IRRÉVERSIBLE.')) return;
+    if (!window.confirm('Dernière confirmation : repartir sur une offre vide ?')) return;
+    setClearing(true);
+    try {
+      const res = await fetch(`/api/offers/${uuid}/clear`, { method: 'POST' });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.error || 'Erreur');
+        return;
+      }
+      setSentCollabIds(new Set());
+      loadData();
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const reorderCategories = useCallback(
     async (orderedItemIds: string[]) => {
       // Réordonne localement (optimiste).
@@ -913,6 +932,18 @@ export default function AdminOfferDetailPage() {
           Importer d’une offre
         </motion.button>
         <ExportOfferButton offerId={uuid} title={offer.title} />
+        {isAdminUser && (
+          <button
+            type="button"
+            onClick={clearOffer}
+            disabled={clearing}
+            title="Supprimer toutes les lignes produits et catégories (garde l'offre)"
+            className="flex items-center gap-2 rounded-xl border border-red-200 bg-white px-6 py-3 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/50 dark:bg-slate-800"
+          >
+            {clearing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+            Vider l’offre
+          </button>
+        )}
         <Link
           href={`/offer/${uuid}`}
           target="_blank"
