@@ -512,85 +512,57 @@ export default function AdminOfferDetailPage() {
               <img src={offer.cover_image_url!} alt="Cover" className="h-48 w-full object-cover sm:h-64" />
             )}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
-            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
-              <div>
-                {offer.theme && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/90 px-2.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
-                    <Tag className="h-3 w-3" />
-                    {offer.theme}
-                  </span>
-                )}
-                <p className="mt-1 font-display text-lg font-bold text-white drop-shadow sm:text-xl">
-                  {offer.title}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => coverFileRef.current?.click()}
-                  disabled={coverUploading}
-                  title={offer.cover_image_url ? 'Remplacer l’image' : 'Ajouter une image'}
-                  className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white disabled:opacity-60"
-                >
-                  {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
-                  Image
-                </button>
-                <button
-                  type="button"
-                  onClick={() => coverVideoFileRef.current?.click()}
-                  disabled={coverVideoUploading}
-                  title={offer.cover_video_url ? 'Remplacer la vidéo' : 'Ajouter une vidéo mp4'}
-                  className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white disabled:opacity-60"
-                >
-                  {coverVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
-                  Vidéo
-                </button>
-                {offer.cover_video_url && (
-                  <button
-                    type="button"
-                    onClick={removeCoverVideo}
-                    className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600"
-                    title="Retirer la vidéo"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Vidéo
-                  </button>
-                )}
-                {offer.cover_image_url && !offer.cover_video_url && (
-                  <button
-                    type="button"
-                    onClick={removeCover}
-                    className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600"
-                    title="Retirer l’image"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Image
-                  </button>
-                )}
-              </div>
+            <div className="absolute bottom-4 left-4">
+              {offer.theme && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/90 px-2.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
+                  <Tag className="h-3 w-3" />
+                  {offer.theme}
+                </span>
+              )}
+              <p className="mt-1 font-display text-lg font-bold text-white drop-shadow sm:text-xl">
+                {offer.title}
+              </p>
             </div>
           </div>
         ) : (
-          <div className="flex h-40 w-full items-center justify-center gap-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20">
-            <button
-              type="button"
-              onClick={() => coverFileRef.current?.click()}
-              disabled={coverUploading || coverVideoUploading}
-              className="flex flex-col items-center gap-1.5 rounded-xl px-5 py-3 text-emerald-700 hover:bg-white/60 disabled:opacity-60"
-            >
-              {coverUploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <ImageIcon className="h-7 w-7" />}
-              <span className="text-sm font-semibold">Image de couverture</span>
-            </button>
-            <div className="h-16 w-px bg-emerald-200" />
-            <button
-              type="button"
-              onClick={() => coverVideoFileRef.current?.click()}
-              disabled={coverUploading || coverVideoUploading}
-              className="flex flex-col items-center gap-1.5 rounded-xl px-5 py-3 text-emerald-700 hover:bg-white/60 disabled:opacity-60"
-            >
-              {coverVideoUploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <Film className="h-7 w-7" />}
-              <span className="text-sm font-semibold">Vidéo mp4 (50 Mo max)</span>
-            </button>
+          <div className="flex h-32 w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-50 text-sm font-medium text-slate-400 dark:from-slate-800 dark:to-slate-900">
+            Aucune cover — ajoutez une image ou une vidéo ci-dessous
           </div>
         )}
+
+        {/* Barre d'actions cover — TOUJOURS visible */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Cover :</span>
+          <button
+            type="button"
+            onClick={() => coverFileRef.current?.click()}
+            disabled={coverUploading}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+          >
+            {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+            {offer.cover_image_url ? 'Remplacer l’image' : 'Ajouter une image'}
+          </button>
+          <button
+            type="button"
+            onClick={() => coverVideoFileRef.current?.click()}
+            disabled={coverVideoUploading}
+            className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300"
+          >
+            {coverVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+            {offer.cover_video_url ? 'Remplacer la vidéo' : 'Ajouter une vidéo mp4'}
+          </button>
+          {offer.cover_video_url && (
+            <button type="button" onClick={removeCoverVideo} className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
+              <Trash2 className="h-3.5 w-3.5" /> Vidéo
+            </button>
+          )}
+          {offer.cover_image_url && (
+            <button type="button" onClick={removeCover} className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
+              <Trash2 className="h-3.5 w-3.5" /> Image
+            </button>
+          )}
+          <span className="ml-auto text-[11px] text-slate-400">mp4 · 50 Mo max · la vidéo prime sur l’image</span>
+        </div>
         <input
           ref={coverFileRef}
           type="file"
