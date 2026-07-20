@@ -22,9 +22,16 @@ export async function GET(
 
   const { data: items } = await supabaseAdmin
     .from('offer_items')
-    .select('id, image_url, description, position, offer_products(*)')
+    .select('id, image_url, description, position, phase_id, offer_products(*)')
     .eq('offer_id', uuid)
     .order('position');
+
+  // Phases (B2B) : id → titre, pour ré-exporter le champ `phase` par catégorie.
+  const { data: phaseRows } = await supabaseAdmin
+    .from('offer_phases')
+    .select('id, title')
+    .eq('offer_id', uuid);
+  const phaseTitleById = new Map(((phaseRows || []) as { id: string; title: string }[]).map((p) => [p.id, p.title]));
 
   const clean = <T,>(v: T): T | undefined => (v == null ? undefined : v);
   const arr = (v: unknown) => (Array.isArray(v) && v.length ? v : undefined);
@@ -61,6 +68,8 @@ export async function GET(
     return {
       description: it.description || '',
       image_url: clean(it.image_url),
+      // Phase (B2B) — réimportable telle quelle.
+      phase: it.phase_id ? clean(phaseTitleById.get(it.phase_id)) : undefined,
       products,
     };
   });

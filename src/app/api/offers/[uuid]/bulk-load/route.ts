@@ -51,11 +51,13 @@ interface InCategory {
   title?: string;
   description?: string;
   image_url?: string;
+  phase?: string; // B2B : titre de la phase regroupant cette catégorie (créée/réutilisée)
   products?: InProduct[];
 }
 interface InBody {
   categories?: InCategory[];
   meta?: unknown; // meta catalogue v3.1 (marche_cible, tri, mode, note, quality)
+  phase_id?: string; // phase cible imposée par l'UI (« Importer dans : … »)
 }
 
 function numOrNull(v: unknown): number | null {
@@ -177,6 +179,35 @@ export async function POST(
     if (metaErr) errors.push(`meta ignorée: ${metaErr.message}`);
   }
 
+  // Phases (B2B) : cache titre → id. Réutilise les phases existantes de l'offre,
+  // crée celles absentes (dans l'ordre d'apparition dans le JSON).
+  const phaseByTitle = new Map<string, string>();
+  let phaseMaxPos = -1;
+  {
+    const { data: existingPhases } = await supabaseAdmin
+      .from('offer_phases')
+      .select('id, title, position')
+      .eq('offer_id', uuid);
+    for (const p of (existingPhases || []) as { id: string; title: string; position: number }[]) {
+      phaseByTitle.set(p.title.trim().toLowerCase(), p.id);
+      if (p.position > phaseMaxPos) phaseMaxPos = p.position;
+    }
+  }
+  const getOrCreatePhase = async (title: string): Promise<string | null> => {
+    const key = title.trim().toLowerCase();
+    if (!key) return null;
+    const cached = phaseByTitle.get(key);
+    if (cached) return cached;
+    const { data, error } = await supabaseAdmin
+      .from('offer_phases')
+      .insert({ offer_id: uuid, title: title.trim(), position: ++phaseMaxPos })
+      .select('id')
+      .single();
+    if (error || !data) return null;
+    phaseByTitle.set(key, data.id);
+    return data.id;
+  };
+
   for (const cat of categories) {
     const catTitle = (cat.title || '').trim();
     if (!catTitle) {
@@ -187,6 +218,9 @@ export async function POST(
     const itemDesc = catDescription ? `${catTitle} — ${catDescription}` : catTitle;
     const itemImg = strOrNull(cat.image_url);
 
+    // Phase de la catégorie : `phase` (titre) prioritaire, sinon phase imposée par l'UI.
+    const catPhaseId = cat.phase ? await getOrCreatePhase(cat.phase) : phaseId;
+
     const { data: itemRow, error: itemErr } = await supabaseAdmin
       .from('offer_items')
       .insert({
@@ -195,8 +229,8 @@ export async function POST(
         description: itemDesc,
         processed: true,
         added_by: 'admin',
-        // Import directement dans une phase (B2B) si fourni.
-        ...(phaseId ? { phase_id: phaseId } : {}),
+        // Rattachement à une phase (B2B) si résolue.
+        ...(catPhaseId ? { phase_id: catPhaseId } : {}),
       })
       .select('id')
       .single();
