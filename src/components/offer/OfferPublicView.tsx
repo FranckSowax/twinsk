@@ -76,6 +76,7 @@ interface Props {
     cover_video_url?: string | null; // cover vidéo mp4 (prioritaire)
     note: string | null; // meta.note — chapô/contexte
     currency?: CurrencyCode; // devise affichée (défaut XAF)
+    offer_type?: 'b2c' | 'b2b'; // B2B → vue liste par défaut
   };
   items: OfferItem[];
   phases?: { id: string; title: string }[]; // phases B2B (regroupent des catégories)
@@ -107,7 +108,8 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     string | null
   >(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
+  // B2B : vue « liste » par défaut ; B2C : vue « grille ».
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(offer.offer_type === 'b2b' ? 'list' : 'grid');
   // Lightbox variante : image en grand + nom + détails + description produit.
   const [variantLightbox, setVariantLightbox] = useState<{
     image: string;

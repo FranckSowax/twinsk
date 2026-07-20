@@ -53,6 +53,7 @@ export interface PublicOfferData {
     cover_video_url: string | null; // cover vidéo mp4 (prioritaire sur l'image)
     note: string | null; // meta.note — chapô/contexte (safe côté client)
     currency: 'CNY' | 'USD' | 'EUR' | 'XAF'; // devise affichée (défaut XAF)
+    offer_type: 'b2c' | 'b2b'; // B2B → vue liste par défaut
   };
   phases: Array<{ id: string; title: string }>;
   items: Array<{
@@ -101,7 +102,7 @@ export interface PublicOfferData {
 export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | null> {
   const { data: offer, error: offerErr } = await supabaseAdmin
     .from('offers')
-    .select('id, title, theme, description, cover_image_url, cover_video_url, status, created_at, note, offer_currency')
+    .select('id, title, theme, description, cover_image_url, cover_video_url, status, created_at, note, offer_currency, offer_type')
     .eq('id', uuid)
     .single();
   if (offerErr || !offer) return null;
@@ -238,6 +239,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       cover_video_url: (offer as { cover_video_url?: string | null }).cover_video_url || null,
       note: sanitizeForPublic((offer as { note?: string | null }).note) || null,
       currency: ((offer as { offer_currency?: string }).offer_currency as 'CNY' | 'USD' | 'EUR' | 'XAF') || 'XAF',
+      offer_type: ((offer as { offer_type?: string }).offer_type as 'b2c' | 'b2b') || 'b2c',
     },
     phases,
     items: publicItems,
