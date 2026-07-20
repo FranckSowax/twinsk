@@ -269,6 +269,15 @@ export async function sendWhapiImage(
   return whapiPost('/messages/image', { to, media: mediaUrl, caption });
 }
 
+/** Envoie une vidéo (mp4, media = URL publique) avec légende optionnelle. */
+export async function sendWhapiVideo(
+  mediaUrl: string,
+  caption: string | undefined,
+  to: string = DEFAULT_GROUP_ID,
+): Promise<WhapiResult> {
+  return whapiPost('/messages/video', { to, media: mediaUrl, caption });
+}
+
 /** Envoie un message interactif avec un bouton URL (boutons WHAPI = « as-is », instables). */
 export async function sendWhapiButtonLink(args: {
   body: string;
@@ -304,14 +313,15 @@ export function buildOfferBody(args: {
 export interface BroadcastResult {
   ok: boolean;
   error?: string;
-  steps: { image?: WhapiResult; message: WhapiResult };
+  steps: { media?: WhapiResult; message: WhapiResult };
   /** true si le message final est passé par le fallback texte (bouton échoué). */
   buttonFallback?: boolean;
 }
 
 /**
- * Diffuse une offre dans le groupe : image (cover/upload) PUIS message + bouton URL.
- * Si le bouton échoue (instabilité WHAPI), repli sur un message texte avec le lien.
+ * Diffuse une offre dans le groupe : média (VIDÉO mp4 prioritaire, sinon image)
+ * PUIS message + bouton URL. Si le bouton échoue (instabilité WHAPI), repli sur
+ * un message texte avec le lien.
  */
 export async function broadcastOfferRich(args: {
   title: string;
@@ -319,15 +329,19 @@ export async function broadcastOfferRich(args: {
   description?: string | null;
   url: string;
   imageUrl?: string | null;
+  videoUrl?: string | null;
   to?: string;
 }): Promise<BroadcastResult> {
   const to = args.to ?? DEFAULT_GROUP_ID;
   const body = buildOfferBody(args);
 
-  // 1) Image d'abord (best-effort).
-  let image: WhapiResult | undefined;
-  if (args.imageUrl) {
-    image = await sendWhapiImage(args.imageUrl, undefined, to);
+  // 1) Média d'abord (best-effort) : vidéo prioritaire, sinon image.
+  let media: WhapiResult | undefined;
+  const hasMedia = !!(args.videoUrl || args.imageUrl);
+  if (args.videoUrl) {
+    media = await sendWhapiVideo(args.videoUrl, undefined, to);
+  } else if (args.imageUrl) {
+    media = await sendWhapiImage(args.imageUrl, undefined, to);
   }
 
   // 2) Message avec bouton URL, fallback texte + lien si échec.
@@ -338,12 +352,12 @@ export async function broadcastOfferRich(args: {
     message = await sendWhapiText(`${body}\n\n👉 ${args.url}`, to);
   }
 
-  const ok = message.ok && (args.imageUrl ? !!image?.ok : true);
+  const ok = message.ok && (hasMedia ? !!media?.ok : true);
   const error = !message.ok
     ? message.error
-    : args.imageUrl && !image?.ok
-      ? `Image non envoyée : ${image?.error}`
+    : hasMedia && !media?.ok
+      ? `Média non envoyé : ${media?.error}`
       : undefined;
 
-  return { ok, error, steps: { image, message }, buttonFallback };
+  return { ok, error, steps: { media, message }, buttonFallback };
 }

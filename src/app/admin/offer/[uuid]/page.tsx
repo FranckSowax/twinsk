@@ -26,7 +26,6 @@ import {
   Sparkles,
   Tag,
   Trash2,
-  Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
@@ -124,10 +123,14 @@ export default function AdminOfferDetailPage() {
   const [saving, setSaving] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
-  const [broadcastImageMode, setBroadcastImageMode] = useState<'cover' | 'upload'>('cover');
+  // Média diffusé dans le groupe : cover de l'offre, image uploadée, ou vidéo uploadée.
+  const [broadcastMedia, setBroadcastMedia] = useState<'cover' | 'image' | 'video'>('cover');
   const [broadcastUploadUrl, setBroadcastUploadUrl] = useState<string | null>(null);
+  const [broadcastVideoUrl, setBroadcastVideoUrl] = useState<string | null>(null);
   const [broadcastUploading, setBroadcastUploading] = useState(false);
+  const [broadcastVideoUploading, setBroadcastVideoUploading] = useState(false);
   const broadcastFileRef = useRef<HTMLInputElement>(null);
+  const broadcastVideoFileRef = useRef<HTMLInputElement>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const coverFileRef = useRef<HTMLInputElement>(null);
   const [coverVideoUploading, setCoverVideoUploading] = useState(false);
@@ -381,22 +384,46 @@ export default function AdminOfferDetailPage() {
         return;
       }
       setBroadcastUploadUrl(data.urls[0]);
-      setBroadcastImageMode('upload');
+      setBroadcastMedia('image');
     } finally {
       setBroadcastUploading(false);
     }
   };
 
+  const handleBroadcastVideoFile = async (file: File) => {
+    setBroadcastVideoUploading(true);
+    setBroadcastMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.urls?.[0]) {
+        setBroadcastMsg(`❌ ${data.error || 'Erreur upload vidéo'}`);
+        return;
+      }
+      setBroadcastVideoUrl(data.urls[0]);
+      setBroadcastMedia('video');
+    } finally {
+      setBroadcastVideoUploading(false);
+    }
+  };
+
   const broadcastToGroup = async () => {
-    const imageUrl =
-      broadcastImageMode === 'upload' ? broadcastUploadUrl : offer?.cover_image_url || null;
+    // Média choisi → corps envoyé à la route (vidéo prioritaire côté serveur).
+    const payload: { origin: string; imageUrl?: string | null; videoUrl?: string | null } = {
+      origin: window.location.origin,
+    };
+    if (broadcastMedia === 'image') payload.imageUrl = broadcastUploadUrl;
+    else if (broadcastMedia === 'video') payload.videoUrl = broadcastVideoUrl;
+    // 'cover' → rien : la route utilise la cover vidéo/image de l'offre.
     setBroadcasting(true);
     setBroadcastMsg(null);
     try {
       const res = await fetch(`/api/offers/${uuid}/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: window.location.origin, imageUrl }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -404,7 +431,7 @@ export default function AdminOfferDetailPage() {
         return;
       }
       const parts = ['✅ Diffusé dans le groupe WhatsApp'];
-      if (imageUrl && !data.imageSent) parts.push('(image non envoyée)');
+      if (data.mediaSent === false) parts.push('(média non envoyé)');
       if (data.buttonFallback) parts.push('(bouton indisponible → lien texte)');
       setBroadcastMsg(parts.join(' '));
     } catch {
@@ -857,24 +884,31 @@ export default function AdminOfferDetailPage() {
                 </Link>
               </div>
 
-              {/* Diffusion dans le groupe WhatsApp (via WHAPI) : image + message + bouton */}
+              {/* Diffusion dans le groupe WhatsApp (via WHAPI) : média (image/vidéo) + message + bouton */}
               {(() => {
-                const chosenImage =
-                  broadcastImageMode === 'upload' ? broadcastUploadUrl : offer.cover_image_url;
+                // Média affiché en aperçu selon le choix (cover = vidéo si dispo, sinon image).
+                const chosen: { type: 'video' | 'image'; url: string | null } =
+                  broadcastMedia === 'video'
+                    ? { type: 'video', url: broadcastVideoUrl }
+                    : broadcastMedia === 'image'
+                      ? { type: 'image', url: broadcastUploadUrl }
+                      : offer.cover_video_url
+                        ? { type: 'video', url: offer.cover_video_url }
+                        : { type: 'image', url: offer.cover_image_url };
                 return (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Diffusion WhatsApp — image + message
+                      Diffusion WhatsApp — média + message
                     </p>
 
-                    {/* Choix de l'image */}
+                    {/* Choix du média */}
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setBroadcastImageMode('cover')}
-                        disabled={!offer.cover_image_url}
+                        onClick={() => setBroadcastMedia('cover')}
+                        disabled={!offer.cover_image_url && !offer.cover_video_url}
                         className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          broadcastImageMode === 'cover'
+                          broadcastMedia === 'cover'
                             ? 'bg-emerald-500 text-white'
                             : 'border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300'
                         }`}
@@ -886,17 +920,26 @@ export default function AdminOfferDetailPage() {
                         onClick={() => broadcastFileRef.current?.click()}
                         disabled={broadcastUploading}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          broadcastImageMode === 'upload'
+                          broadcastMedia === 'image'
                             ? 'bg-emerald-500 text-white'
                             : 'border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300'
                         }`}
                       >
-                        {broadcastUploading ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Upload className="h-3.5 w-3.5" />
-                        )}
+                        {broadcastUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
                         {broadcastUploadUrl ? 'Changer l’image' : 'Uploader une image'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => broadcastVideoFileRef.current?.click()}
+                        disabled={broadcastVideoUploading}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          broadcastMedia === 'video'
+                            ? 'bg-emerald-500 text-white'
+                            : 'border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300'
+                        }`}
+                      >
+                        {broadcastVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+                        {broadcastVideoUrl ? 'Changer la vidéo' : 'Uploader une vidéo mp4'}
                       </button>
                       <input
                         ref={broadcastFileRef}
@@ -909,27 +952,40 @@ export default function AdminOfferDetailPage() {
                           e.target.value = '';
                         }}
                       />
+                      <input
+                        ref={broadcastVideoFileRef}
+                        type="file"
+                        accept="video/mp4"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleBroadcastVideoFile(f);
+                          e.target.value = '';
+                        }}
+                      />
                     </div>
 
-                    {/* Aperçu image + message */}
+                    {/* Aperçu média + message */}
                     <div className="mt-3 flex gap-3">
-                      {chosenImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={chosenImage}
-                          alt="Image de diffusion"
-                          className="h-16 w-16 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
-                        />
+                      {chosen.url ? (
+                        chosen.type === 'video' ? (
+                          <video src={chosen.url} className="h-16 w-16 flex-shrink-0 rounded-lg bg-black object-cover ring-1 ring-slate-200" muted playsInline />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={chosen.url} alt="Média de diffusion" className="h-16 w-16 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                        )
                       ) : (
                         <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] text-slate-400 dark:bg-slate-700">
-                          sans image
+                          sans média
                         </div>
                       )}
                       <div className="min-w-0 text-xs text-slate-500">
                         <p className="font-semibold text-slate-700 dark:text-slate-200">{offer.title}</p>
                         {offer.theme && <p className="italic">{offer.theme}</p>}
                         {offer.description && <p className="line-clamp-2">{offer.description}</p>}
-                        <p className="mt-1 text-emerald-600">＋ bouton « Voir l’offre » → lien public</p>
+                        <p className="mt-1 text-emerald-600">
+                          {chosen.type === 'video' && chosen.url ? '🎬 vidéo' : '🖼️ image'} ＋ bouton « Voir l’offre » → lien public
+                        </p>
                       </div>
                     </div>
 

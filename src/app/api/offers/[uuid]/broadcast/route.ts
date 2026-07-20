@@ -15,7 +15,7 @@ export async function POST(
   const { uuid } = await params;
   const { data: offer, error } = await supabaseAdmin
     .from('offers')
-    .select('id, title, theme, description, cover_image_url, status')
+    .select('id, title, theme, description, cover_image_url, cover_video_url, status')
     .eq('id', uuid)
     .single();
   if (error || !offer) {
@@ -31,11 +31,16 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     origin?: string;
     imageUrl?: string | null;
+    videoUrl?: string | null;
   };
   const origin = body.origin?.replace(/\/$/, '') || new URL(request.url).origin;
   const publicUrl = `${origin}/offer/${uuid}`;
-  // Image : celle fournie par l'admin (upload), sinon la cover de l'offre.
-  const imageUrl = body.imageUrl || offer.cover_image_url || null;
+
+  // Média à diffuser. Vidéo prioritaire :
+  //  - vidéo fournie par l'admin (upload), sinon la cover vidéo de l'offre ;
+  //  - sinon image fournie (upload), sinon la cover image de l'offre.
+  const videoUrl = body.videoUrl || (body.imageUrl ? null : offer.cover_video_url) || null;
+  const imageUrl = videoUrl ? null : body.imageUrl || offer.cover_image_url || null;
 
   const result = await broadcastOfferRich({
     title: offer.title,
@@ -43,6 +48,7 @@ export async function POST(
     description: offer.description,
     url: publicUrl,
     imageUrl,
+    videoUrl,
   });
 
   if (!result.ok) {
@@ -51,7 +57,7 @@ export async function POST(
   return NextResponse.json({
     success: true,
     url: publicUrl,
-    imageSent: !!imageUrl && !!result.steps.image?.ok,
+    mediaSent: !!(videoUrl || imageUrl) && !!result.steps.media?.ok,
     buttonFallback: !!result.buttonFallback,
   });
 }
