@@ -72,6 +72,7 @@ interface Props {
     theme: string | null;
     description: string | null;
     cover_image_url: string | null;
+    cover_video_url?: string | null; // cover vidéo mp4 (prioritaire)
     note: string | null; // meta.note — chapô/contexte
     currency?: CurrencyCode; // devise affichée (défaut XAF)
   };
@@ -297,9 +298,20 @@ export default function OfferPublicView({ offerId, offer, items, affiliate }: Pr
         )}
       </div>
 
-      {/* Cover (image seule, sans texte superposé) */}
+      {/* Cover : vidéo (mp4) prioritaire, sinon image, sinon dégradé */}
       <div className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
-        {offer.cover_image_url ? (
+        {offer.cover_video_url ? (
+          <video
+            src={offer.cover_video_url}
+            className="h-64 w-full bg-black object-cover sm:h-80"
+            muted
+            loop
+            autoPlay
+            playsInline
+            controls
+            poster={offer.cover_image_url || undefined}
+          />
+        ) : offer.cover_image_url ? (
           <SmartImage
             src={offer.cover_image_url}
             alt={offer.theme || offer.title}

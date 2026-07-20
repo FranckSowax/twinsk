@@ -19,6 +19,7 @@ import {
   ExternalLink,
   FileJson,
   ImageIcon,
+  Film,
   Loader2,
   Plus,
   Send,
@@ -46,6 +47,7 @@ interface OfferRow {
   description: string | null;
   status: 'draft' | 'published' | 'closed';
   cover_image_url: string | null;
+  cover_video_url: string | null;
   created_at: string;
   offer_currency?: string | null;
   offer_type?: string | null; // 'b2c' (défaut) | 'b2b'
@@ -126,6 +128,8 @@ export default function AdminOfferDetailPage() {
   const broadcastFileRef = useRef<HTMLInputElement>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const coverFileRef = useRef<HTMLInputElement>(null);
+  const [coverVideoUploading, setCoverVideoUploading] = useState(false);
+  const coverVideoFileRef = useRef<HTMLInputElement>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [sentCollabIds, setSentCollabIds] = useState<Set<string>>(new Set());
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
@@ -405,8 +409,31 @@ export default function AdminOfferDetailPage() {
 
   const removeCover = async () => {
     if (!offer?.cover_image_url) return;
-    if (!window.confirm('Retirer la cover de cette offre ?')) return;
+    if (!window.confirm('Retirer l’image de cover ?')) return;
     await patchOffer({ cover_image_url: null });
+  };
+
+  const handleCoverVideoFile = async (file: File) => {
+    setCoverVideoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.urls?.[0]) {
+        alert(data.error || 'Erreur upload vidéo');
+        return;
+      }
+      await patchOffer({ cover_video_url: data.urls[0] });
+    } finally {
+      setCoverVideoUploading(false);
+    }
+  };
+
+  const removeCoverVideo = async () => {
+    if (!offer?.cover_video_url) return;
+    if (!window.confirm('Retirer la vidéo de cover ?')) return;
+    await patchOffer({ cover_video_url: null });
   };
 
   if (loading) {
@@ -434,17 +461,25 @@ export default function AdminOfferDetailPage() {
         {t('offer.back')}
       </Link>
 
-      {/* Cover image uploader */}
+      {/* Cover : image ou vidéo (mp4) — la vidéo est prioritaire à l'affichage */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-        {offer.cover_image_url ? (
+        {offer.cover_video_url || offer.cover_image_url ? (
           <div className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={offer.cover_image_url}
-              alt="Cover"
-              className="h-48 w-full object-cover sm:h-64"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+            {offer.cover_video_url ? (
+              <video
+                src={offer.cover_video_url}
+                className="h-48 w-full bg-black object-cover sm:h-64"
+                muted
+                loop
+                autoPlay
+                playsInline
+                controls
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={offer.cover_image_url!} alt="Cover" className="h-48 w-full object-cover sm:h-64" />
+            )}
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
             <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
               <div>
                 {offer.theme && (
@@ -457,56 +492,72 @@ export default function AdminOfferDetailPage() {
                   {offer.title}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => coverFileRef.current?.click()}
                   disabled={coverUploading}
+                  title={offer.cover_image_url ? 'Remplacer l’image' : 'Ajouter une image'}
                   className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white disabled:opacity-60"
                 >
-                  {coverUploading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5" />
-                  )}
-                  Remplacer
+                  {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                  Image
                 </button>
                 <button
                   type="button"
-                  onClick={removeCover}
-                  disabled={coverUploading}
-                  className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600 disabled:opacity-60"
+                  onClick={() => coverVideoFileRef.current?.click()}
+                  disabled={coverVideoUploading}
+                  title={offer.cover_video_url ? 'Remplacer la vidéo' : 'Ajouter une vidéo mp4'}
+                  className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white disabled:opacity-60"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Retirer
+                  {coverVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+                  Vidéo
                 </button>
+                {offer.cover_video_url && (
+                  <button
+                    type="button"
+                    onClick={removeCoverVideo}
+                    className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600"
+                    title="Retirer la vidéo"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Vidéo
+                  </button>
+                )}
+                {offer.cover_image_url && !offer.cover_video_url && (
+                  <button
+                    type="button"
+                    onClick={removeCover}
+                    className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600"
+                    title="Retirer l’image"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Image
+                  </button>
+                )}
               </div>
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => coverFileRef.current?.click()}
-            disabled={coverUploading}
-            className="flex h-40 w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-700 transition-colors hover:from-emerald-100 hover:to-green-100 disabled:opacity-60 dark:from-emerald-900/20 dark:to-green-900/20"
-          >
-            {coverUploading ? (
-              <>
-                <Loader2 className="h-8 w-8 animate-spin" />
-                <span className="text-sm font-semibold">Envoi en cours…</span>
-              </>
-            ) : (
-              <>
-                <ImageIcon className="h-8 w-8" />
-                <span className="text-sm font-semibold">
-                  Ajouter une image de couverture
-                </span>
-                <span className="text-xs text-emerald-600/80">
-                  Sera affichée en haut de la page publique avec le thème
-                </span>
-              </>
-            )}
-          </button>
+          <div className="flex h-40 w-full items-center justify-center gap-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20">
+            <button
+              type="button"
+              onClick={() => coverFileRef.current?.click()}
+              disabled={coverUploading || coverVideoUploading}
+              className="flex flex-col items-center gap-1.5 rounded-xl px-5 py-3 text-emerald-700 hover:bg-white/60 disabled:opacity-60"
+            >
+              {coverUploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <ImageIcon className="h-7 w-7" />}
+              <span className="text-sm font-semibold">Image de couverture</span>
+            </button>
+            <div className="h-16 w-px bg-emerald-200" />
+            <button
+              type="button"
+              onClick={() => coverVideoFileRef.current?.click()}
+              disabled={coverUploading || coverVideoUploading}
+              className="flex flex-col items-center gap-1.5 rounded-xl px-5 py-3 text-emerald-700 hover:bg-white/60 disabled:opacity-60"
+            >
+              {coverVideoUploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <Film className="h-7 w-7" />}
+              <span className="text-sm font-semibold">Vidéo mp4 (50 Mo max)</span>
+            </button>
+          </div>
         )}
         <input
           ref={coverFileRef}
@@ -516,6 +567,17 @@ export default function AdminOfferDetailPage() {
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleCoverFile(f);
+            e.target.value = '';
+          }}
+        />
+        <input
+          ref={coverVideoFileRef}
+          type="file"
+          accept="video/mp4"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleCoverVideoFile(f);
             e.target.value = '';
           }}
         />

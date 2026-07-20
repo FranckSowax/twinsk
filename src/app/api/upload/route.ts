@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB (cover vidéo mp4)
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4'];
+const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,9 +27,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (file.size > MAX_FILE_SIZE) {
+      const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      if (file.size > maxSize) {
         return NextResponse.json(
-          { error: `Fichier trop volumineux: ${file.name} (max 10MB)` },
+          { error: `Fichier trop volumineux: ${file.name} (max ${isVideo ? '50MB' : '10MB'})` },
           { status: 400 }
         );
       }
