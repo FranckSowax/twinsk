@@ -17,6 +17,8 @@ interface BulkImportModalProps {
   basePath?: string;
   onClose: () => void;
   onImported: () => void;
+  /** Phase cible (B2B) : les catégories importées y sont rattachées. */
+  phaseId?: string | null;
 }
 
 interface PreviewStats {
@@ -66,6 +68,7 @@ export default function BulkImportModal({
   basePath = '/api/requests',
   onClose,
   onImported,
+  phaseId,
 }: BulkImportModalProps) {
   const [json, setJson] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -96,10 +99,19 @@ export default function BulkImportModal({
     }
     setSubmitting(true);
     try {
+      // Injecte la phase cible (B2B) dans le corps si fournie.
+      let body = json;
+      if (phaseId) {
+        try {
+          body = JSON.stringify({ ...JSON.parse(json), phase_id: phaseId });
+        } catch {
+          /* garde le json brut si non parsable */
+        }
+      }
       const res = await fetch(`${basePath}/${requestId}/bulk-load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: json,
+        body,
       });
       const data = (await res.json()) as BulkResponse;
       if (!res.ok || !data.success) {

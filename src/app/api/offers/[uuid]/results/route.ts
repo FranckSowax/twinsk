@@ -44,6 +44,7 @@ export async function GET(
     description: string | null;
     processed: boolean;
     added_by: string;
+    phase_id: string | null;
     offer_products: unknown[];
   };
   const mapped = (data as RawItem[]).map((it) => ({
@@ -52,6 +53,7 @@ export async function GET(
     description: it.description,
     processed: it.processed,
     added_by: it.added_by,
+    phase_id: it.phase_id ?? null,
     search_results: it.offer_products || [],
     item_notes: [],
   }));

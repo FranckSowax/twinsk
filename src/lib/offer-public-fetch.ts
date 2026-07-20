@@ -39,6 +39,7 @@ interface RawItem {
   image_url: string | null;
   description: string | null;
   position: number;
+  phase_id: string | null;
   offer_products: RawProduct[];
 }
 
@@ -53,10 +54,12 @@ export interface PublicOfferData {
     note: string | null; // meta.note — chapô/contexte (safe côté client)
     currency: 'CNY' | 'USD' | 'EUR' | 'XAF'; // devise affichée (défaut XAF)
   };
+  phases: Array<{ id: string; title: string }>;
   items: Array<{
     id: string;
     image_url: string | null;
     description: string | null;
+    phase_id: string | null;
     products: Array<{
       id: string;
       title: string;
@@ -106,10 +109,21 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
 
   const { data: items, error: itemsErr } = await supabaseAdmin
     .from('offer_items')
-    .select('id, image_url, description, position, offer_products(*)')
+    .select('id, image_url, description, position, phase_id, offer_products(*)')
     .eq('offer_id', uuid)
     .order('position');
   if (itemsErr) return null;
+
+  // Phases (B2B) — ordonnées. Le client verra ses catégories regroupées.
+  const { data: phaseRows } = await supabaseAdmin
+    .from('offer_phases')
+    .select('id, title, position')
+    .eq('offer_id', uuid)
+    .order('position');
+  const phases = ((phaseRows || []) as { id: string; title: string }[]).map((p) => ({
+    id: p.id,
+    title: sanitizeForPublic(p.title) || 'Phase',
+  }));
 
   const typedItems = (items || []) as unknown as RawItem[];
 
@@ -118,6 +132,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       id: item.id,
       image_url: item.image_url,
       description: sanitizeForPublic(item.description) || null,
+      phase_id: item.phase_id ?? null,
       products: (item.offer_products || [])
         .filter((p) => p.selected)
         .map((p) => {
@@ -224,6 +239,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       note: sanitizeForPublic((offer as { note?: string | null }).note) || null,
       currency: ((offer as { offer_currency?: string }).offer_currency as 'CNY' | 'USD' | 'EUR' | 'XAF') || 'XAF',
     },
+    phases,
     items: publicItems,
   };
 }

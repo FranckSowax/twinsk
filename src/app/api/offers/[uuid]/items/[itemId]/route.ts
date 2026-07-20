@@ -20,6 +20,7 @@ export async function PATCH(
   const patch: Record<string, unknown> = {};
   if ('image_url' in body) patch.image_url = body.image_url ?? null;
   if ('description' in body) patch.description = body.description ?? null;
+  if ('phase_id' in body) patch.phase_id = body.phase_id ?? null; // rattachement à une phase
 
   if (!Object.keys(patch).length) {
     return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 });

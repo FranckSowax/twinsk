@@ -110,6 +110,7 @@ export default async function WhiteLabelOfferPage({ params }: PageProps) {
         offerId={link.offer_id}
         offer={data.offer}
         items={items}
+        phases={data.phases}
         affiliate={{ ref: link.id, shopName }}
       />
     </div>

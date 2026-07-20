@@ -61,6 +61,7 @@ interface OfferItem {
   id: string;
   image_url: string | null;
   description: string | null;
+  phase_id?: string | null;
   products: OfferProduct[];
 }
 
@@ -77,6 +78,7 @@ interface Props {
     currency?: CurrencyCode; // devise affichée (défaut XAF)
   };
   items: OfferItem[];
+  phases?: { id: string; title: string }[]; // phases B2B (regroupent des catégories)
   // Marque blanche : lien affilié (/b/[id]). ref = affiliate_offers.id, transmis
   // à la création de commande pour attribuer la vente ; shopName remplace le
   // branding du header.
@@ -89,7 +91,7 @@ interface CartLine {
   quantity: number;
 }
 
-export default function OfferPublicView({ offerId, offer, items, affiliate }: Props) {
+export default function OfferPublicView({ offerId, offer, items, phases, affiliate }: Props) {
   const router = useRouter();
   // Devise affichée au client (défaut FCFA). Les autres devises restent en conversion (≈).
   const currency: CurrencyCode = offer.currency || 'XAF';
@@ -332,12 +334,29 @@ export default function OfferPublicView({ offerId, offer, items, affiliate }: Pr
         )}
       </div>
 
-      {/* Categories */}
+      {/* Categories (regroupées par phase pour les offres B2B) */}
       <div className="space-y-10">
-        {items.map((item) => {
-          const { short: catShort, rest: catRest } = splitCategoryTitle(item.description);
-          return (
-          <section key={item.id}>
+        {(() => {
+          const hasPhases = !!phases && phases.length > 0;
+          const rank = new Map((phases || []).map((p, i) => [p.id, i]));
+          const ordered = hasPhases
+            ? [...items].sort((a, b) => (rank.get(a.phase_id ?? '') ?? 9999) - (rank.get(b.phase_id ?? '') ?? 9999))
+            : items;
+          return ordered.map((item, idx) => {
+            const showPhase =
+              hasPhases && (idx === 0 || ordered[idx - 1].phase_id !== item.phase_id);
+            const phaseTitle = item.phase_id
+              ? phases?.find((p) => p.id === item.phase_id)?.title
+              : null;
+            const { short: catShort, rest: catRest } = splitCategoryTitle(item.description);
+            return (
+          <div key={item.id} className="space-y-4">
+            {showPhase && phaseTitle && (
+              <div className="rounded-2xl bg-slate-900 px-5 py-3 text-white">
+                <p className="font-display text-lg font-bold uppercase tracking-wide">{phaseTitle}</p>
+              </div>
+            )}
+          <section>
             <div className="mb-4">
               <h2 className="font-display text-xl font-bold text-slate-900">
                 {catShort || 'Produits'}
@@ -481,8 +500,10 @@ export default function OfferPublicView({ offerId, offer, items, affiliate }: Pr
               </div>
             )}
           </section>
-          );
-        })}
+          </div>
+            );
+          });
+        })()}
       </div>
 
       {/* Product modal */}

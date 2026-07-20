@@ -68,8 +68,14 @@ interface RequestItemWithResults {
   description: string | null;
   processed: boolean;
   added_by: 'client' | 'admin';
+  phase_id?: string | null; // phase de la catégorie (offres B2B)
   search_results: SearchResultRow[];
   item_notes?: NoteItem[];
+}
+
+interface OfferPhase {
+  id: string;
+  title: string;
 }
 
 interface ResultsTableProps {
@@ -91,6 +97,10 @@ interface ResultsTableProps {
   onValidateReview?: (result: SearchResultRow) => void | Promise<void>;
   /** Si fournie, active le glisser-déposer pour réordonner les catégories (blocs). */
   onReorderCategories?: (orderedItemIds: string[]) => void | Promise<void>;
+  /** Phases de l'offre (B2B) : affiche des bannières de phase + un sélecteur par catégorie. */
+  phases?: OfferPhase[];
+  /** Change la phase d'une catégorie. */
+  onSetItemPhase?: (itemId: string, phaseId: string | null) => void | Promise<void>;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -133,6 +143,8 @@ export default function ResultsTable({
   sentCollabIds,
   onValidateReview,
   onReorderCategories,
+  phases,
+  onSetItemPhase,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -372,7 +384,21 @@ export default function ResultsTable({
           </button>
         </div>
       )}
-      {items.map((item) => (
+      {items.map((item, itemIdx) => {
+        const showPhaseHeader =
+          !!phases &&
+          phases.length > 0 &&
+          (itemIdx === 0 || items[itemIdx - 1].phase_id !== item.phase_id);
+        const phaseTitle = item.phase_id
+          ? phases?.find((p) => p.id === item.phase_id)?.title || 'Phase'
+          : 'Sans phase';
+        return (
+        <div key={item.id} className="space-y-4">
+          {showPhaseHeader && (
+            <div className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 ${item.phase_id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+              <span className="text-sm font-bold uppercase tracking-wide">🏗️ {phaseTitle}</span>
+            </div>
+          )}
         <div
           key={item.id}
           className={`space-y-4 rounded-3xl transition-all ${
@@ -496,6 +522,21 @@ export default function ResultsTable({
               </div>
               {item.description && (
                 <p className="mt-1 text-sm text-slate-500">{item.description}</p>
+              )}
+              {phases && phases.length > 0 && onSetItemPhase && (
+                <label className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                  🏗️ Phase :
+                  <select
+                    value={item.phase_id || ''}
+                    onChange={(e) => onSetItemPhase(item.id, e.target.value || null)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="">Sans phase</option>
+                    {phases.map((ph) => (
+                      <option key={ph.id} value={ph.id}>{ph.title}</option>
+                    ))}
+                  </select>
+                </label>
               )}
               <button
                 type="button"
@@ -987,7 +1028,9 @@ export default function ResultsTable({
           );
           })()}
         </div>
-      ))}
+        </div>
+        );
+      })}
     </div>
     </>
   );

@@ -135,6 +135,10 @@ export async function POST(
   }
 
   const body = (await request.json()) as InBody;
+  // Phase cible (B2B) : les catégories importées y sont rattachées si fournie.
+  const phaseId = typeof (body as { phase_id?: unknown }).phase_id === 'string'
+    ? ((body as { phase_id?: string }).phase_id as string)
+    : null;
   const categories = Array.isArray(body.categories) ? body.categories : [];
   if (!categories.length) {
     return NextResponse.json({ error: 'Aucune catégorie' }, { status: 400 });
@@ -191,6 +195,8 @@ export async function POST(
         description: itemDesc,
         processed: true,
         added_by: 'admin',
+        // Import directement dans une phase (B2B) si fourni.
+        ...(phaseId ? { phase_id: phaseId } : {}),
       })
       .select('id')
       .single();

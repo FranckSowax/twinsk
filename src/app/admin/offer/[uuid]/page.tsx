@@ -34,6 +34,7 @@ import ProposalCurrencyModal, { type ProposalCurrency } from '@/components/admin
 import JsonImportsButton from '@/components/admin/JsonImportsButton';
 import AffiliateLinksButton from '@/components/admin/AffiliateLinksButton';
 import ExportOfferButton from '@/components/admin/ExportOfferButton';
+import OfferPhasesPanel, { type OfferPhase } from '@/components/admin/OfferPhasesPanel';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -95,6 +96,7 @@ interface OfferProduct {
 }
 
 interface OfferItemWithProducts {
+  phase_id?: string | null;
   id: string;
   image_url: string | null;
   description: string | null;
@@ -134,6 +136,27 @@ export default function AdminOfferDetailPage() {
   const [sentCollabIds, setSentCollabIds] = useState<Set<string>>(new Set());
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
   const [offerCurrency, setOfferCurrency] = useState<ProposalCurrency>('XAF');
+  const [phases, setPhases] = useState<OfferPhase[]>([]);
+  const [targetPhaseId, setTargetPhaseId] = useState<string>(''); // phase cible pour import / ajout
+
+  const loadPhases = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/offers/${uuid}/phases`);
+      const data = await res.json();
+      if (Array.isArray(data.phases)) setPhases(data.phases);
+    } catch {
+      // ignore
+    }
+  }, [uuid]);
+
+  const setItemPhase = async (itemId: string, phaseId: string | null) => {
+    setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, phase_id: phaseId } : it)));
+    await fetch(`/api/offers/${uuid}/items/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase_id: phaseId }),
+    }).catch(() => {});
+  };
 
   // Rôle : le bouton « Envoyer aux collaborateurs » est réservé à l'admin.
   useEffect(() => {
@@ -213,7 +236,8 @@ export default function AdminOfferDetailPage() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    loadPhases();
+  }, [loadData, loadPhases]);
 
   const [clearing, setClearing] = useState(false);
   const clearOffer = async () => {
@@ -449,6 +473,14 @@ export default function AdminOfferDetailPage() {
 
   const publicLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/offer/${uuid}`;
   const isPublished = offer.status === 'published';
+  const isB2B = offer.offer_type === 'b2b';
+  // Affichage groupé par phase (B2B) : trie les catégories par ordre de phase.
+  const phaseRank = new Map(phases.map((p, i) => [p.id, i]));
+  const displayItems = isB2B
+    ? [...items].sort(
+        (a, b) => (phaseRank.get(a.phase_id ?? '') ?? 9999) - (phaseRank.get(b.phase_id ?? '') ?? 9999),
+      )
+    : items;
 
   return (
     <div className="space-y-8">
@@ -972,6 +1004,21 @@ export default function AdminOfferDetailPage() {
           <Plus className="h-5 w-5" />
           {t('action.addCategory')}
         </motion.button>
+        {isB2B && phases.length > 0 && (
+          <label className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-3 text-xs font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-900/10 dark:text-indigo-300">
+            🏗️ Importer dans :
+            <select
+              value={targetPhaseId}
+              onChange={(e) => setTargetPhaseId(e.target.value)}
+              className="rounded-lg border border-indigo-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none dark:border-indigo-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              <option value="">Sans phase</option>
+              {phases.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <motion.button
           type="button"
           onClick={() => setBulkImportOpen(true)}
@@ -1038,6 +1085,7 @@ export default function AdminOfferDetailPage() {
         basePath="/api/offers"
         onClose={() => setBulkImportOpen(false)}
         onImported={loadData}
+        phaseId={offer.offer_type === 'b2b' ? targetPhaseId || null : null}
       />
 
       {items.length > 0 && (
@@ -1074,8 +1122,11 @@ export default function AdminOfferDetailPage() {
               </div>
             );
           })()}
+          {isB2B && (
+            <OfferPhasesPanel offerId={uuid} phases={phases} onChanged={loadPhases} />
+          )}
           <ResultsTable
-            items={items}
+            items={displayItems}
             requestId={uuid}
             basePath="/api/offers"
             manualCreateSuffix="manual-product"
@@ -1087,6 +1138,8 @@ export default function AdminOfferDetailPage() {
             sentCollabIds={sentCollabIds}
             onValidateReview={isAdminUser ? validateReview : undefined}
             onReorderCategories={reorderCategories}
+            phases={isB2B ? phases : undefined}
+            onSetItemPhase={isB2B ? setItemPhase : undefined}
             onMoveResult={async (productId, fromItemId, toItemId) => {
               // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
               const state = Flip.getState('[data-flip-id]', {

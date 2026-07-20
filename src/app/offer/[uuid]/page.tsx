@@ -40,7 +40,7 @@ export default async function OfferPublicPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <OfferPublicView offerId={uuid} offer={data.offer} items={data.items} />
+      <OfferPublicView offerId={uuid} offer={data.offer} items={data.items} phases={data.phases} />
     </div>
   );
 }

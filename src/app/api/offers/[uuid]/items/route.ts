@@ -14,7 +14,7 @@ export async function POST(
   }
   const { uuid } = await params;
   await logCollabAction(actor, { action: 'add_item', target_type: 'offer', target_id: uuid, description: 'Catégorie/article ajouté' });
-  const { items } = await request.json();
+  const { items, phase_id } = await request.json();
   if (!Array.isArray(items) || !items.length) {
     return NextResponse.json({ error: 'Aucun article fourni' }, { status: 400 });
   }
@@ -35,6 +35,7 @@ export async function POST(
       description: it.description || null,
       processed: true,
       added_by: 'admin',
+      ...(phase_id ? { phase_id } : {}),
     })
   );
   const { data, error } = await supabaseAdmin
