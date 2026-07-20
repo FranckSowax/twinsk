@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
@@ -152,6 +152,17 @@ export default function ResultsTable({
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
   const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
   const categoryDragEnabled = !!onReorderCategories;
+  // Repli des catégories (produits masqués) — facilite le glisser-déposer.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleCollapse = (itemId: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  const collapseAll = () => setCollapsed(new Set(items.map((it) => it.id)));
+  const expandAll = () => setCollapsed(new Set());
 
   const handleReorderCategory = (targetItemId: string, draggedItemId: string) => {
     if (!onReorderCategories || targetItemId === draggedItemId) return;
@@ -342,6 +353,25 @@ export default function ResultsTable({
       )}
     </AnimatePresence>
     <div className="space-y-8">
+      {items.length > 1 && (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={collapseAll}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+            title="Replier toutes les catégories (facilite le glisser-déposer)"
+          >
+            <ChevronRight className="h-3.5 w-3.5" /> Tout replier
+          </button>
+          <button
+            type="button"
+            onClick={expandAll}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+          >
+            <ChevronDown className="h-3.5 w-3.5" /> Tout déplier
+          </button>
+        </div>
+      )}
       {items.map((item) => (
         <div
           key={item.id}
@@ -467,9 +497,18 @@ export default function ResultsTable({
               {item.description && (
                 <p className="mt-1 text-sm text-slate-500">{item.description}</p>
               )}
-              <p className="mt-1 text-xs text-slate-400">
+              <button
+                type="button"
+                onClick={() => toggleCollapse(item.id)}
+                className="mt-1 flex items-center gap-1 rounded text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                title={collapsed.has(item.id) ? 'Déplier les produits' : 'Replier les produits'}
+              >
+                {collapsed.has(item.id) ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 {item.search_results.length} {t('item.resultsFound')}
-              </p>
+                {collapsed.has(item.id) && item.search_results.length > 0 && (
+                  <span className="text-slate-300">· repliés</span>
+                )}
+              </button>
             </div>
             <div className="flex flex-col items-end gap-2">
               <button
@@ -510,8 +549,8 @@ export default function ResultsTable({
             </div>
           </div>
 
-          {/* Results — split into products vs factories */}
-          {(() => {
+          {/* Results — split into products vs factories (masqués si catégorie repliée) */}
+          {!collapsed.has(item.id) && (() => {
             const products = item.search_results
               .filter((r) => r.source !== 'factory')
               // Classement par fiabilité fournisseur (réachat > ventes > note)
