@@ -11,7 +11,7 @@ import {
   Tag,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
@@ -110,6 +110,12 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   // B2B : vue « liste » par défaut ; B2C : vue « grille ».
   const [viewMode, setViewMode] = useState<'list' | 'grid'>(offer.offer_type === 'b2b' ? 'list' : 'grid');
+  // Sur smartphone, on force la vue « grille » (galerie horizontale par catégorie).
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches) {
+      setViewMode('grid');
+    }
+  }, []);
   // Lightbox variante : image en grand + nom + détails + description produit.
   const [variantLightbox, setVariantLightbox] = useState<{
     image: string;
@@ -373,7 +379,8 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
               </p>
             </div>
             {viewMode === 'grid' ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              // Mobile : galerie qui défile horizontalement (snap) · Desktop : grille.
+              <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
                 {item.products.map((p) => {
                   const lineCount = Object.values(cart).filter((l) => l.productId === p.id).length;
                   const hasVariants = !!p.variants && p.variants.length > 0;
@@ -385,7 +392,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                       whileHover={{ y: -2 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => openProduct(p)}
-                      className={`group relative flex flex-col overflow-hidden rounded-2xl border-2 bg-white text-left transition-all hover:border-emerald-400 ${
+                      className={`group relative flex w-[68%] flex-shrink-0 snap-start flex-col overflow-hidden rounded-2xl border-2 bg-white text-left transition-all hover:border-emerald-400 sm:w-auto sm:flex-shrink ${
                         lineCount > 0 ? 'border-emerald-500 shadow-lg shadow-emerald-500/10' : 'border-slate-200'
                       }`}
                     >
