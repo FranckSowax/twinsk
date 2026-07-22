@@ -43,7 +43,8 @@ interface OfferProduct {
   detail_images: string[];
   videos: string[];
   price: number | null; // prix produit exact (null = porté par paliers/variantes)
-  from_price: number; // prix d'affichage « à partir de » (toujours > 0)
+  from_price: number; // prix d'affichage « à partir de » (0 si « sur devis »)
+  on_quote?: boolean; // true → « Sur devis » (prix à 0)
   price_tiers: { min_qty: number; price: number }[] | null;
   variants_total: number | null;
   moq: number | null;
@@ -98,8 +99,10 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
   // Devise affichée au client (défaut FCFA). Les autres devises restent en conversion (≈).
   const currency: CurrencyCode = offer.currency || 'XAF';
   const fmtPrice = (cny: number) => formatInCurrency(cny, currency);
-  const cardPriceLabel = (p: { price: number | null; from_price: number }) =>
-    `À partir de ${fmtPrice(p.price != null ? p.price : p.from_price)}`;
+  const cardPriceLabel = (p: { price: number | null; from_price: number; on_quote?: boolean }) =>
+    p.on_quote || p.from_price <= 0
+      ? 'Sur devis'
+      : `À partir de ${fmtPrice(p.price != null ? p.price : p.from_price)}`;
   // Formate une valeur DÉJÀ dans la devise choisie (pour les totaux sommés).
   const fmtPrimaryValue = (v: number) =>
     currency === 'CNY' ? formatCNY(v) : currency === 'USD' ? formatUSD(v) : currency === 'EUR' ? formatEUR(v) : formatXAF(v);
@@ -589,6 +592,10 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   const variantPrice = variantOfActive(activeProduct, selectedVariantForActive)?.price;
                   // Prix exact (produit ou variante sélectionnée), sinon « à partir de »
                   const exact = variantPrice ?? activeProduct.price;
+                  // « Sur devis » : produit à 0 sans variante chiffrée sélectionnée.
+                  if ((activeProduct.on_quote || activeProduct.from_price <= 0) && exact == null) {
+                    return <span className="font-display text-2xl font-bold text-emerald-600">Sur devis</span>;
+                  }
                   if (exact != null) {
                     return <MultiCurrencyPrice amountCny={exact} variant="large" primary={currency} />;
                   }
@@ -921,11 +928,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
-                            <p className="text-xs text-slate-500">{fmtPrice(unit)} × {line.quantity}</p>
+                            <p className="text-xs text-slate-500">{unit > 0 ? `${fmtPrice(unit)} × ${line.quantity}` : `Sur devis × ${line.quantity}`}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <p className="text-sm font-bold text-emerald-600">
-                              {fmtPrice(unit * line.quantity)}
+                              {unit > 0 ? fmtPrice(unit * line.quantity) : 'Sur devis'}
                             </p>
                             <div className="flex items-center gap-1">
                               <button

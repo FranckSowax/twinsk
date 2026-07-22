@@ -74,7 +74,8 @@ export interface PublicOfferData {
       detail_images: string[];
       videos: string[];
       price: number | null; // prix produit exact (null = porté par paliers/variantes)
-      from_price: number; // prix d'affichage « à partir de » (toujours > 0, jamais inventé)
+      from_price: number; // prix d'affichage « à partir de » (0 si « sur devis »)
+      on_quote: boolean; // true → afficher « Sur devis » (prix à 0)
       price_tiers: { min_qty: number; price: number }[] | null;
       variants_total: number | null;
       moq: number | null;
@@ -200,10 +201,8 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
           for (const t of priceTiers || []) if (t.price > 0) candidates.push(t.price);
           for (const v of mappedVariants || []) if (v.price != null && v.price > 0) candidates.push(v.price);
           const fromPrice = candidates.length ? Math.min(...candidates) : 0;
-          if (fromPrice === 0) {
-            // Donnée à corriger en amont (re-scrape). Ne sera pas affiché au client.
-            console.warn(`[offer ${uuid}] produit sans prix exploitable filtré: ${p.id} "${p.title}"`);
-          }
+          // Prix à 0 (aucun prix positif) → publié « Sur devis » (choix admin).
+          const onQuote = fromPrice === 0;
 
           return {
             id: p.id,
@@ -217,8 +216,9 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             videos: Array.isArray(p.videos)
               ? p.videos.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
               : [],
-            price: priceWithMargin,
+            price: onQuote ? null : priceWithMargin,
             from_price: fromPrice,
+            on_quote: onQuote, // true → afficher « Sur devis » côté client
             price_tiers: priceTiers && priceTiers.length ? priceTiers : null,
             variants_total: typeof p.variants_total === 'number' ? p.variants_total : null,
             moq: p.moq,
@@ -232,10 +232,8 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             product_url: '',
             variants: mappedVariants,
           };
-        })
-        // Sécurité rétro-compat : ne jamais publier un produit sans prix exploitable
-        // (offres anciennes / prix forcé à 0). Il est filtré, pas affiché « sur devis ».
-        .filter((p) => p.from_price > 0),
+        }),
+      // Les produits « sur devis » (prix 0) sont conservés et publiés.
     }))
     .filter((item) => item.products.length > 0);
 
