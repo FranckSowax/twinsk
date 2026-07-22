@@ -27,6 +27,7 @@ interface RawProduct {
   info_manquante: string | null;
   margin_percent: number;
   selected: boolean;
+  position: number | null; // ordre manuel dans la catégorie
   // v3.1
   price_tiers: { min_qty?: number | null; price?: number | null }[] | null;
   detail_images: string[] | null;
@@ -136,6 +137,14 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       phase_id: item.phase_id ?? null,
       products: (item.offer_products || [])
         .filter((p) => p.selected)
+        // Ordre manuel (position) si défini ; sinon on garde l'ordre reçu.
+        .sort((a, b) => {
+          const pa = a.position, pb = b.position;
+          if (pa != null && pb != null) return pa - pb;
+          if (pa != null) return -1;
+          if (pb != null) return 1;
+          return 0;
+        })
         .map((p) => {
           const gallery: string[] = [];
           if (p.main_image_url) gallery.push(p.main_image_url);

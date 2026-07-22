@@ -60,6 +60,8 @@ interface SearchResultRow {
   description_admin?: string | null; // description interne (notes/specs)
   // Révision collaborateur : 'reviewed' = révisée, en attente de validation admin (ligne bleue).
   review_state?: string | null;
+  // Ordre manuel dans la catégorie (null = tri par fiabilité).
+  position?: number | null;
 }
 
 interface RequestItemWithResults {
@@ -101,6 +103,8 @@ interface ResultsTableProps {
   phases?: OfferPhase[];
   /** Change la phase d'une catégorie. */
   onSetItemPhase?: (itemId: string, phaseId: string | null) => void | Promise<void>;
+  /** Si fournie, active le glisser-déposer pour réordonner les produits DANS une catégorie. */
+  onReorderProducts?: (itemId: string, orderedProductIds: string[]) => void | Promise<void>;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -145,6 +149,7 @@ export default function ResultsTable({
   onReorderCategories,
   phases,
   onSetItemPhase,
+  onReorderProducts,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -160,6 +165,25 @@ export default function ResultsTable({
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
   const dragEnabled = !!onMoveResult;
+  const productReorderEnabled = !!onReorderProducts;
+  const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
+
+  // Réordonne un produit DANS sa catégorie (drop sur une autre ligne de la même catégorie).
+  const handleReorderProduct = (
+    itemId: string,
+    orderedIds: string[],
+    draggedId: string,
+    targetId: string,
+  ) => {
+    if (!onReorderProducts || draggedId === targetId) return;
+    const from = orderedIds.indexOf(draggedId);
+    const to = orderedIds.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    const next = [...orderedIds];
+    next.splice(from, 1);
+    next.splice(to, 0, draggedId);
+    onReorderProducts(itemId, next);
+  };
   // Réordonnancement des catégories (blocs)
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
   const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
@@ -594,8 +618,14 @@ export default function ResultsTable({
           {!collapsed.has(item.id) && (() => {
             const products = item.search_results
               .filter((r) => r.source !== 'factory')
-              // Classement par fiabilité fournisseur (réachat > ventes > note)
-              .sort((a, b) => trustScore(b) - trustScore(a));
+              // Ordre manuel (position) prioritaire ; à défaut, tri par fiabilité fournisseur.
+              .sort((a, b) => {
+                const pa = a.position, pb = b.position;
+                if (pa != null && pb != null) return pa - pb;
+                if (pa != null) return -1;
+                if (pb != null) return 1;
+                return trustScore(b) - trustScore(a);
+              });
             const factories = item.search_results.filter((r) => r.source === 'factory');
             return item.search_results.length > 0 ? (
               <div className="space-y-4">
@@ -627,9 +657,9 @@ export default function ResultsTable({
                       key={result.id}
                       layout
                       data-flip-id={`product-${result.id}`}
-                      draggable={dragEnabled}
+                      draggable={dragEnabled || productReorderEnabled}
                       onDragStart={(e) => {
-                        if (!dragEnabled) return;
+                        if (!dragEnabled && !productReorderEnabled) return;
                         const dt = (e as unknown as React.DragEvent).dataTransfer;
                         dt.setData(
                           'application/x-twinsk-product',
@@ -638,9 +668,36 @@ export default function ResultsTable({
                         dt.effectAllowed = 'move';
                         setDraggingResultId(result.id);
                       }}
+                      onDragOver={(e) => {
+                        // Réordonnancement intra-catégorie : survol d'une autre ligne.
+                        if (!productReorderEnabled || !draggingResultId || draggingResultId === result.id) return;
+                        // Uniquement si le produit tiré vient de CETTE catégorie ;
+                        // sinon on laisse le conteneur gérer le déplacement inter-catégories.
+                        const sameCat = item.search_results.some((r) => r.id === draggingResultId);
+                        if (!sameCat) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverProductId !== result.id) setDragOverProductId(result.id);
+                      }}
+                      onDrop={(e) => {
+                        if (!productReorderEnabled) return;
+                        const payload = e.dataTransfer.getData('application/x-twinsk-product');
+                        if (!payload) return;
+                        let parsed: { productId?: string; fromItemId?: string } = {};
+                        try { parsed = JSON.parse(payload); } catch { return; }
+                        // Uniquement si le produit vient de LA MÊME catégorie → réordonner.
+                        if (parsed.fromItemId === item.id && parsed.productId) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleReorderProduct(item.id, products.map((p) => p.id), parsed.productId, result.id);
+                        }
+                        setDragOverProductId(null);
+                      }}
                       onDragEnd={() => {
                         setDraggingResultId(null);
                         setDragOverItemId(null);
+                        setDragOverProductId(null);
                       }}
                       onClick={(e) => {
                         // Only open modal if click is not on an interactive control
@@ -658,7 +715,9 @@ export default function ResultsTable({
                               : 'bg-white dark:bg-slate-800'
                       } ${savingIds.has(result.id) ? 'opacity-70' : ''} ${
                         draggingResultId === result.id ? 'opacity-40' : ''
-                      } ${movingIds.has(result.id) ? 'opacity-50' : ''}`}
+                      } ${movingIds.has(result.id) ? 'opacity-50' : ''} ${
+                        dragOverProductId === result.id ? 'ring-2 ring-inset ring-indigo-400' : ''
+                      }`}
                     >
                       {/* Select */}
                       <td className="px-2 py-3">

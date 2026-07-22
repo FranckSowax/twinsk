@@ -92,6 +92,7 @@ interface OfferProduct {
   client_selected: boolean | null;
   client_variant_id: string | null;
   review_state?: string | null;
+  position?: number | null;
 }
 
 interface OfferItemWithProducts {
@@ -260,6 +261,36 @@ export default function AdminOfferDetailPage() {
       setClearing(false);
     }
   };
+
+  const reorderProducts = useCallback(
+    async (itemId: string, orderedProductIds: string[]) => {
+      // Optimiste : applique les nouvelles positions dans l'état (le tri de
+      // ResultsTable est position-aware).
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id !== itemId
+            ? it
+            : {
+                ...it,
+                search_results: it.search_results.map((r) => {
+                  const idx = orderedProductIds.indexOf(r.id);
+                  return idx === -1 ? r : { ...r, position: idx };
+                }),
+              },
+        ),
+      );
+      try {
+        await fetch(`/api/offers/${uuid}/results`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates: orderedProductIds.map((id, i) => ({ id, position: i })) }),
+        });
+      } catch {
+        loadData();
+      }
+    },
+    [uuid, loadData],
+  );
 
   const reorderCategories = useCallback(
     async (orderedItemIds: string[]) => {
@@ -1168,6 +1199,7 @@ export default function AdminOfferDetailPage() {
             onReorderCategories={reorderCategories}
             phases={isB2B ? phases : undefined}
             onSetItemPhase={isB2B ? setItemPhase : undefined}
+            onReorderProducts={reorderProducts}
             onMoveResult={async (productId, fromItemId, toItemId) => {
               // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
               const state = Flip.getState('[data-flip-id]', {
