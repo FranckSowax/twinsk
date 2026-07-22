@@ -39,7 +39,7 @@ export async function PATCH(
   const body = await request.json().catch(() => ({}));
 
   const patch: Record<string, unknown> = {};
-  const allowed = ['title', 'theme', 'description', 'status', 'slug', 'cover_image_url', 'cover_video_url', 'offer_currency'] as const;
+  const allowed = ['title', 'theme', 'description', 'status', 'slug', 'cover_image_url', 'cover_video_url', 'mobile_video_url', 'offer_currency'] as const;
   for (const key of allowed) {
     if (key in body) patch[key] = body[key as keyof typeof body];
   }

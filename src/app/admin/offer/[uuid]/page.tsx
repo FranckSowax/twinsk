@@ -48,6 +48,7 @@ interface OfferRow {
   status: 'draft' | 'published' | 'closed';
   cover_image_url: string | null;
   cover_video_url: string | null;
+  mobile_video_url: string | null;
   created_at: string;
   offer_currency?: string | null;
   offer_type?: string | null; // 'b2c' (défaut) | 'b2b'
@@ -136,6 +137,8 @@ export default function AdminOfferDetailPage() {
   const coverFileRef = useRef<HTMLInputElement>(null);
   const [coverVideoUploading, setCoverVideoUploading] = useState(false);
   const coverVideoFileRef = useRef<HTMLInputElement>(null);
+  const [mobileVideoUploading, setMobileVideoUploading] = useState(false);
+  const mobileVideoFileRef = useRef<HTMLInputElement>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [sentCollabIds, setSentCollabIds] = useState<Set<string>>(new Set());
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
@@ -518,6 +521,29 @@ export default function AdminOfferDetailPage() {
     await patchOffer({ cover_video_url: null });
   };
 
+  const handleMobileVideoFile = async (file: File) => {
+    setMobileVideoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.urls?.[0]) {
+        alert(data.error || 'Erreur upload vidéo mobile');
+        return;
+      }
+      await patchOffer({ mobile_video_url: data.urls[0] });
+    } finally {
+      setMobileVideoUploading(false);
+    }
+  };
+
+  const removeMobileVideo = async () => {
+    if (!offer?.mobile_video_url) return;
+    if (!window.confirm('Retirer la vidéo mobile 1:1 ?')) return;
+    await patchOffer({ mobile_video_url: null });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -619,7 +645,30 @@ export default function AdminOfferDetailPage() {
               <Trash2 className="h-3.5 w-3.5" /> Image
             </button>
           )}
-          <span className="ml-auto text-[11px] text-slate-400">mp4 · 50 Mo max · la vidéo prime sur l’image</span>
+
+          {/* Vidéo mobile carrée 1:1 (autoplay + boucle sur smartphone) */}
+          <span className="mx-1 h-4 w-px bg-slate-300 dark:bg-slate-600" />
+          <button
+            type="button"
+            onClick={() => mobileVideoFileRef.current?.click()}
+            disabled={mobileVideoUploading}
+            title="Vidéo carrée 1:1 affichée en tête sur mobile (autoplay + boucle)"
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-60 ${
+              offer.mobile_video_url
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200'
+            }`}
+          >
+            {mobileVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+            {offer.mobile_video_url ? 'Vidéo mobile 1:1 ✓' : 'Vidéo mobile 1:1'}
+          </button>
+          {offer.mobile_video_url && (
+            <button type="button" onClick={removeMobileVideo} className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
+              <Trash2 className="h-3.5 w-3.5" /> Mobile
+            </button>
+          )}
+
+          <span className="ml-auto text-[11px] text-slate-400">mp4 · 50 Mo max · cover : vidéo prime sur l’image</span>
         </div>
         <input
           ref={coverFileRef}
@@ -643,7 +692,29 @@ export default function AdminOfferDetailPage() {
             e.target.value = '';
           }}
         />
+        <input
+          ref={mobileVideoFileRef}
+          type="file"
+          accept="video/mp4"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleMobileVideoFile(f);
+            e.target.value = '';
+          }}
+        />
       </div>
+
+      {/* Aperçu vidéo mobile 1:1 (admin) */}
+      {offer.mobile_video_url && (
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+          <video src={offer.mobile_video_url} className="h-20 w-20 flex-shrink-0 rounded-xl bg-black object-cover" muted loop autoPlay playsInline />
+          <div className="text-xs text-slate-500">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">Vidéo mobile 1:1</p>
+            <p>Affichée en tête du lien public sur smartphone (autoplay + boucle), une fois l’offre publiée.</p>
+          </div>
+        </div>
+      )}
 
       {/* Header card */}
       <motion.div

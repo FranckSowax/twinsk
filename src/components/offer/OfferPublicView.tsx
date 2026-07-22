@@ -74,6 +74,7 @@ interface Props {
     description: string | null;
     cover_image_url: string | null;
     cover_video_url?: string | null; // cover vidéo mp4 (prioritaire)
+    mobile_video_url?: string | null; // vidéo carrée 1:1 en tête sur mobile
     note: string | null; // meta.note — chapô/contexte
     currency?: CurrencyCode; // devise affichée (défaut XAF)
     offer_type?: 'b2c' | 'b2b'; // B2B → vue liste par défaut
@@ -239,6 +240,20 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-6 pb-28 sm:px-6 sm:pt-10">
+      {/* Vidéo carrée 1:1 en tête — MOBILE uniquement (autoplay + boucle) */}
+      {offer.mobile_video_url && (
+        <div className="mb-6 overflow-hidden rounded-3xl bg-black sm:hidden">
+          <video
+            src={offer.mobile_video_url}
+            className="aspect-square w-full object-cover"
+            muted
+            loop
+            autoPlay
+            playsInline
+          />
+        </div>
+      )}
+
       {/* En-tête (non flottant) : titre + thème + bascule de vue */}
       <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6">
         {/* Ligne 1 : titre + thème + bascule de vue */}
