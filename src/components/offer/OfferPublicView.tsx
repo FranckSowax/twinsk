@@ -323,8 +323,9 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
         )}
       </div>
 
-      {/* Cover : vidéo (mp4) prioritaire, sinon image, sinon dégradé */}
-      <div className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
+      {/* Cover : vidéo (mp4) prioritaire, sinon image, sinon dégradé.
+          Masquée sur mobile si une vidéo 1:1 est présente (elle la remplace). */}
+      <div className={`relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900 ${offer.mobile_video_url ? 'hidden sm:block' : ''}`}>
         {offer.cover_video_url ? (
           <video
             src={offer.cover_video_url}
