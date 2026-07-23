@@ -28,6 +28,7 @@ interface RawProduct {
   margin_percent: number;
   selected: boolean;
   position: number | null; // ordre manuel dans la catégorie
+  in_cover_video: boolean | null; // « Vu dans la vidéo »
   // v3.1
   price_tiers: { min_qty?: number | null; price?: number | null }[] | null;
   detail_images: string[] | null;
@@ -76,6 +77,7 @@ export interface PublicOfferData {
       price: number | null; // prix produit exact (null = porté par paliers/variantes)
       from_price: number; // prix d'affichage « à partir de » (0 si « sur devis »)
       on_quote: boolean; // true → afficher « Sur devis » (prix à 0)
+      in_cover_video: boolean; // « Vu dans la vidéo » → badge rose fluo
       price_tiers: { min_qty: number; price: number }[] | null;
       variants_total: number | null;
       moq: number | null;
@@ -219,6 +221,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             price: onQuote ? null : priceWithMargin,
             from_price: fromPrice,
             on_quote: onQuote, // true → afficher « Sur devis » côté client
+            in_cover_video: !!p.in_cover_video,
             price_tiers: priceTiers && priceTiers.length ? priceTiers : null,
             variants_total: typeof p.variants_total === 'number' ? p.variants_total : null,
             moq: p.moq,

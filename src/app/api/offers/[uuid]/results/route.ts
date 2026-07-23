@@ -105,6 +105,7 @@ export async function PATCH(
       'delivery_time',
       'description_admin',
       'position',
+      'in_cover_video',
     ];
     const clean: Record<string, unknown> = {};
     for (const k of allowed) if (k in fields) { clean[k] = fields[k]; changedFields.add(k); }

@@ -45,6 +45,7 @@ interface OfferProduct {
   price: number | null; // prix produit exact (null = porté par paliers/variantes)
   from_price: number; // prix d'affichage « à partir de » (0 si « sur devis »)
   on_quote?: boolean; // true → « Sur devis » (prix à 0)
+  in_cover_video?: boolean; // « Vu dans la vidéo » → badge rose fluo
   price_tiers: { min_qty: number; price: number }[] | null;
   variants_total: number | null;
   moq: number | null;
@@ -433,6 +434,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                             {lineCount}
                           </span>
                         )}
+                        {p.in_cover_video && (
+                          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-[#ff1493] px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#ff1493]/50">
+                            ▶ Vu dans la vidéo
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-1 flex-col p-3">
                         <p
@@ -501,6 +507,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                                 <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-orange-700">
                                   <BatteryWarning className="h-2.5 w-2.5" />
                                   Batterie
+                                </span>
+                              )}
+                              {p.in_cover_video && (
+                                <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-[#ff1493] px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm shadow-[#ff1493]/50">
+                                  ▶ Vu dans la vidéo
                                 </span>
                               )}
                             </div>
@@ -580,6 +591,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
 
               <div className="space-y-5 p-5">
                 <div>
+                  {activeProduct.in_cover_video && (
+                    <span className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-[#ff1493] px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#ff1493]/50">
+                      ▶ Vu dans la vidéo
+                    </span>
+                  )}
                   <h2 className="font-display text-lg font-bold text-slate-900 sm:text-xl">
                     {activeProduct.title}
                   </h2>

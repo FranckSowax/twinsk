@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight, Video } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
@@ -62,6 +62,8 @@ interface SearchResultRow {
   review_state?: string | null;
   // Ordre manuel dans la catégorie (null = tri par fiabilité).
   position?: number | null;
+  // « Vu dans la vidéo » : présent dans la vidéo de cover → badge rose fluo côté client.
+  in_cover_video?: boolean | null;
 }
 
 interface RequestItemWithResults {
@@ -962,6 +964,19 @@ export default function ResultsTable({
                       {/* Actions */}
                       <td className="px-2 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          {/* « Vu dans la vidéo » — toggle (badge rose fluo côté client) */}
+                          <button
+                            type="button"
+                            onClick={() => onUpdate(result.id, { in_cover_video: !result.in_cover_video })}
+                            title={result.in_cover_video ? 'Retirer « Vu dans la vidéo »' : 'Marquer « Vu dans la vidéo »'}
+                            className={`flex items-center justify-center rounded-md transition-colors ${
+                              result.in_cover_video
+                                ? 'h-6 w-6 bg-[#ff1493] text-white shadow-sm shadow-[#ff1493]/40'
+                                : 'h-6 w-6 text-slate-300 hover:text-[#ff1493]'
+                            }`}
+                          >
+                            <Video className="h-3.5 w-3.5" />
+                          </button>
                           {result.review_state === 'reviewed' && (
                             onValidateReview ? (
                               <button
