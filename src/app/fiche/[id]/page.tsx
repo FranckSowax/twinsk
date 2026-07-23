@@ -81,6 +81,12 @@ export default async function FichePage({ params }: { params: Promise<{ id: stri
             delivery_time: line.delivery_time,
             collab_notes: line.collab_notes,
           }}
+          variants={variants.map((v) => ({
+            name: v.name || '',
+            weight: v.weight ?? null,
+            volume: v.volume ?? null,
+            dimensions: v.dimensions ?? null,
+          }))}
         />
 
         <p className="mt-4 text-center text-[11px] text-slate-400">

@@ -34,6 +34,33 @@ export async function POST(
   if ('delivery_time' in body) patch.delivery_time = str(body.delivery_time);
   if ('collab_notes' in body) patch.collab_notes = str(body.collab_notes);
 
+  // Variantes : fusionne poids/volume/dimensions fournis par le vendeur (par index).
+  if (Array.isArray(body.variants)) {
+    const { data: cur } = await supabaseAdmin
+      .from('collab_review_lines')
+      .select('variants')
+      .eq('id', id)
+      .single();
+    const existing = Array.isArray(cur?.variants) ? [...(cur!.variants as Record<string, unknown>[])] : [];
+    for (const vRaw of body.variants as unknown[]) {
+      const v = (vRaw || {}) as { index?: number; weight?: unknown; volume?: unknown; dimensions?: unknown };
+      const i = Number(v.index);
+      if (!Number.isInteger(i) || i < 0 || i >= existing.length) continue;
+      existing[i] = {
+        ...(existing[i] || {}),
+        weight: num(v.weight),
+        volume: num(v.volume),
+        dimensions: str(v.dimensions),
+      };
+    }
+    patch.variants = existing;
+    // Agrège le poids/volume max des variantes au niveau produit (repère pour l'admin).
+    const weights = existing.map((x) => Number((x as { weight?: unknown }).weight)).filter((n) => Number.isFinite(n) && n > 0);
+    const volumes = existing.map((x) => Number((x as { volume?: unknown }).volume)).filter((n) => Number.isFinite(n) && n > 0);
+    if (weights.length && patch.weight == null) patch.weight = Math.max(...weights);
+    if (volumes.length && patch.volume == null) patch.volume = Math.max(...volumes);
+  }
+
   const { data: updated, error } = await supabaseAdmin
     .from('collab_review_lines')
     .update(patch)

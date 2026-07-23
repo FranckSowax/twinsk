@@ -13,7 +13,7 @@ export async function POST(
 
   const { data: line } = await supabaseAdmin
     .from('collab_review_lines')
-    .select('offer_product_id, price, weight, volume, dimensions, supplier_shipping_price, delivery_time, has_battery, moq')
+    .select('offer_product_id, price, weight, volume, dimensions, supplier_shipping_price, delivery_time, has_battery, moq, variants')
     .eq('id', id)
     .single();
   if (!line) return NextResponse.json({ error: 'Ligne introuvable' }, { status: 404 });
@@ -25,6 +25,24 @@ export async function POST(
   const patch: Record<string, unknown> = {};
   for (const f of ['price', 'weight', 'volume', 'dimensions', 'supplier_shipping_price', 'delivery_time', 'has_battery', 'moq'] as const) {
     if (line[f] != null) patch[f] = line[f];
+  }
+  // Variantes : fusionne poids/volume/dimensions collectés (par index) dans le produit.
+  if (Array.isArray(line.variants)) {
+    const { data: prod } = await supabaseAdmin
+      .from('offer_products')
+      .select('variants')
+      .eq('id', line.offer_product_id)
+      .single();
+    const prodVariants = Array.isArray(prod?.variants) ? [...(prod!.variants as Record<string, unknown>[])] : [];
+    (line.variants as Record<string, unknown>[]).forEach((rv, i) => {
+      if (i >= prodVariants.length) return;
+      const upd: Record<string, unknown> = { ...(prodVariants[i] || {}) };
+      if (rv.weight != null) upd.weight = rv.weight;
+      if (rv.volume != null) upd.volume = rv.volume;
+      if (rv.dimensions != null && rv.dimensions !== '') upd.dimensions = rv.dimensions;
+      prodVariants[i] = upd;
+    });
+    patch.variants = prodVariants;
   }
   if (Object.keys(patch).length) {
     const { error } = await supabaseAdmin.from('offer_products').update(patch).eq('id', line.offer_product_id);

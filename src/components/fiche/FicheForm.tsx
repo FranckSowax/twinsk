@@ -13,10 +13,28 @@ interface Initial {
   collab_notes: string | null;
 }
 
+export interface FicheVariant {
+  name: string;
+  weight: number | null;
+  volume: number | null;
+  dimensions: string | null;
+}
+
 const inputCls =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400';
 
-export default function FicheForm({ id, initial }: { id: string; initial: Initial }) {
+export default function FicheForm({
+  id,
+  initial,
+  variants: initialVariants = [],
+}: {
+  id: string;
+  initial: Initial;
+  variants?: FicheVariant[];
+}) {
+  const hasVariants = initialVariants.length > 0;
+
+  // Champs produit-niveau (partagés : batterie, frais, délai, notes ; + poids/vol si pas de variantes).
   const [weight, setWeight] = useState(initial.weight != null ? String(initial.weight) : '');
   const [volume, setVolume] = useState(initial.volume != null ? String(initial.volume) : '');
   const [dimensions, setDimensions] = useState(initial.dimensions || '');
@@ -24,6 +42,18 @@ export default function FicheForm({ id, initial }: { id: string; initial: Initia
   const [shipping, setShipping] = useState(initial.supplier_shipping_price != null ? String(initial.supplier_shipping_price) : '');
   const [delivery, setDelivery] = useState(initial.delivery_time || '');
   const [notes, setNotes] = useState(initial.collab_notes || '');
+
+  // Champs par variante.
+  const [vars, setVars] = useState(
+    initialVariants.map((v) => ({
+      weight: v.weight != null ? String(v.weight) : '',
+      volume: v.volume != null ? String(v.volume) : '',
+      dimensions: v.dimensions || '',
+    })),
+  );
+  const setVar = (i: number, key: 'weight' | 'volume' | 'dimensions', value: string) =>
+    setVars((prev) => prev.map((v, idx) => (idx === i ? { ...v, [key]: value } : v)));
+
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
@@ -36,13 +66,22 @@ export default function FicheForm({ id, initial }: { id: string; initial: Initia
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          weight,
-          volume,
-          dimensions,
+          // Poids/volume/dimensions produit : uniquement s'il n'y a pas de variantes.
+          ...(hasVariants ? {} : { weight, volume, dimensions }),
           has_battery: battery,
           supplier_shipping_price: shipping,
           delivery_time: delivery,
           collab_notes: notes,
+          ...(hasVariants
+            ? {
+                variants: vars.map((v, index) => ({
+                  index,
+                  weight: v.weight,
+                  volume: v.volume,
+                  dimensions: v.dimensions,
+                })),
+              }
+            : {}),
         }),
       });
       if (!res.ok) {
@@ -75,22 +114,54 @@ export default function FicheForm({ id, initial }: { id: string; initial: Initia
     <div className="mt-4 space-y-4 rounded-3xl bg-white p-5 shadow-sm">
       <p className="text-sm font-bold text-slate-900">请填写 · À compléter</p>
 
-      <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">单件重量 (公斤) · Poids/pièce (kg)</span>
-        <input type="number" inputMode="decimal" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0.0" className={inputCls} />
-      </label>
+      {hasVariants ? (
+        // ── Par variante : poids / volume / dimensions ──
+        <div className="space-y-3">
+          <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+            本产品有多个规格，请为<strong>每个规格</strong>填写 · Ce produit a plusieurs variantes : remplissez <strong>chacune</strong>.
+          </p>
+          {initialVariants.map((v, i) => (
+            <div key={i} className="space-y-2 rounded-2xl border border-slate-200 p-3">
+              <p className="text-sm font-bold text-slate-800">
+                {i + 1}. {v.name || `规格 ${i + 1}`}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">重量 (公斤) · Poids (kg)</span>
+                  <input type="number" inputMode="decimal" step="any" value={vars[i]?.weight ?? ''} onChange={(e) => setVar(i, 'weight', e.target.value)} placeholder="0.0" className={inputCls} />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">体积 (m³) · Volume</span>
+                  <input type="number" inputMode="decimal" step="any" value={vars[i]?.volume ?? ''} onChange={(e) => setVar(i, 'volume', e.target.value)} placeholder="0.00" className={inputCls} />
+                </label>
+              </div>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">纸箱尺寸 (长×宽×高 cm) · Dimensions carton</span>
+                <input type="text" value={vars[i]?.dimensions ?? ''} onChange={(e) => setVar(i, 'dimensions', e.target.value)} placeholder="例如 / ex: 60×40×85" className={inputCls} />
+              </label>
+            </div>
+          ))}
+        </div>
+      ) : (
+        // ── Produit simple : poids / dimensions / volume ──
+        <>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">单件重量 (公斤) · Poids/pièce (kg)</span>
+            <input type="number" inputMode="decimal" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0.0" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">纸箱尺寸 (长×宽×高 cm) · Dimensions carton</span>
+            <input type="text" value={dimensions} onChange={(e) => setDimensions(e.target.value)} placeholder="例如 / ex: 60×40×85" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">单件体积 (立方米) · Volume/pièce (m³)</span>
+            <input type="number" inputMode="decimal" step="any" value={volume} onChange={(e) => setVolume(e.target.value)} placeholder="0.00" className={inputCls} />
+            <span className="mt-1 block text-[11px] text-slate-400">如不知道，请填纸箱尺寸即可 · Si inconnu, remplissez les dimensions du carton</span>
+          </label>
+        </>
+      )}
 
-      <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">纸箱尺寸 (长×宽×高 cm) · Dimensions carton</span>
-        <input type="text" value={dimensions} onChange={(e) => setDimensions(e.target.value)} placeholder="例如 / ex: 60×40×85" className={inputCls} />
-      </label>
-
-      <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">单件体积 (立方米) · Volume/pièce (m³)</span>
-        <input type="number" inputMode="decimal" step="any" value={volume} onChange={(e) => setVolume(e.target.value)} placeholder="0.00" className={inputCls} />
-        <span className="mt-1 block text-[11px] text-slate-400">如不知道，请填纸箱尺寸即可 · Si inconnu, remplissez les dimensions du carton</span>
-      </label>
-
+      {/* Champs communs */}
       <label className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5">
         <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-5 w-5 rounded" />
         <span className="text-sm font-semibold text-amber-800">含电池 · Contient une batterie</span>
