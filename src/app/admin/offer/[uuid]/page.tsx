@@ -339,6 +339,26 @@ export default function AdminOfferDetailPage() {
     });
   };
 
+  const deleteResult = async (result: { id: string }) => {
+    // Optimiste : retire le produit de sa catégorie.
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        search_results: item.search_results.filter((r) => r.id !== result.id),
+      })),
+    );
+    const res = await fetch(`/api/offers/${uuid}/results`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: result.id }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error || 'Erreur suppression');
+      loadData();
+    }
+  };
+
   const handleApplyGlobalMargin = async (margin: number) => {
     const updates: { id: string; margin_percent: number }[] = [];
     setItems((prev) =>
@@ -1271,6 +1291,7 @@ export default function AdminOfferDetailPage() {
             phases={isB2B ? phases : undefined}
             onSetItemPhase={isB2B ? setItemPhase : undefined}
             onReorderProducts={reorderProducts}
+            onDeleteResult={deleteResult}
             onMoveResult={async (productId, fromItemId, toItemId) => {
               // 1. Capture l'etat AVANT le changement (toutes les lignes produit).
               const state = Flip.getState('[data-flip-id]', {

@@ -107,6 +107,8 @@ interface ResultsTableProps {
   onSetItemPhase?: (itemId: string, phaseId: string | null) => void | Promise<void>;
   /** Si fournie, active le glisser-déposer pour réordonner les produits DANS une catégorie. */
   onReorderProducts?: (itemId: string, orderedProductIds: string[]) => void | Promise<void>;
+  /** Si fournie, affiche un bouton pour supprimer un produit de sa catégorie. */
+  onDeleteResult?: (result: SearchResultRow) => void | Promise<void>;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -152,6 +154,7 @@ export default function ResultsTable({
   phases,
   onSetItemPhase,
   onReorderProducts,
+  onDeleteResult,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -1031,6 +1034,29 @@ export default function ResultsTable({
                             >
                               <ExternalLink className="h-4 w-4" />
                             </a>
+                          )}
+                          {onDeleteResult && (
+                            <button
+                              type="button"
+                              disabled={deletingIds.has(result.id)}
+                              onClick={async () => {
+                                if (!window.confirm(`Supprimer « ${result.title} » de cette catégorie ?`)) return;
+                                setDeletingIds((prev) => new Set(prev).add(result.id));
+                                try {
+                                  await onDeleteResult(result);
+                                } finally {
+                                  setDeletingIds((prev) => {
+                                    const n = new Set(prev);
+                                    n.delete(result.id);
+                                    return n;
+                                  });
+                                }
+                              }}
+                              className="text-slate-400 hover:text-red-500 disabled:opacity-50"
+                              title="Supprimer ce produit de la catégorie"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           )}
                         </div>
                       </td>

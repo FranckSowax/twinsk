@@ -125,3 +125,42 @@ export async function PATCH(
   }
   return NextResponse.json({ success: true });
 }
+
+// DELETE: supprimer un produit d'une catégorie. Body: { id }
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ uuid: string }> },
+) {
+  const actor = await resolveActor(request);
+  if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const { uuid } = await params;
+  const body = (await request.json().catch(() => ({}))) as { id?: string };
+  if (!body.id) return NextResponse.json({ error: 'id requis' }, { status: 400 });
+
+  // Vérifie que le produit appartient bien à cette offre.
+  const { data: prod } = await supabaseAdmin
+    .from('offer_products')
+    .select('id, offer_item_id')
+    .eq('id', body.id)
+    .single();
+  if (!prod) return NextResponse.json({ error: 'Produit introuvable' }, { status: 404 });
+  const { data: item } = await supabaseAdmin
+    .from('offer_items')
+    .select('offer_id')
+    .eq('id', prod.offer_item_id)
+    .single();
+  if (!item || item.offer_id !== uuid) {
+    return NextResponse.json({ error: 'Produit hors de cette offre' }, { status: 403 });
+  }
+
+  const { error } = await supabaseAdmin.from('offer_products').delete().eq('id', body.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logCollabAction(actor, {
+    action: 'delete_product',
+    target_type: 'offer',
+    target_id: uuid,
+    description: 'Produit supprimé d’une catégorie',
+  });
+  return NextResponse.json({ success: true });
+}
