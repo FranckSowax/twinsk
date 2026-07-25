@@ -23,35 +23,47 @@ export async function GET(
   // sees up-to-date totals even if the order is recalled later.
   type LineRow = {
     id: string;
-    product_id: string;
+    product_id: string | null;
     variant_id: string | null;
     variant_name: string | null;
     unit_price_cny: number;
     quantity: number;
     subtotal_cny: number;
+    // Snapshot poids/volume/batterie (capte la variante à la commande, migration 30).
+    weight: number | null;
+    volume: number | null;
+    has_battery: boolean | null;
   };
   const lines = (order.offer_order_lines || []) as LineRow[];
 
-  // Load weights/volumes/battery from offer_products
-  const productIds = Array.from(new Set(lines.map((l) => l.product_id)));
-  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean };
-  const { data: prodRows } = await supabaseAdmin
-    .from('offer_products')
-    .select('id, weight, volume, has_battery')
-    .in('id', productIds);
+  // Poids/volume/batterie : priorité au snapshot de la LIGNE (variante), sinon
+  // repli sur le produit (anciennes commandes avant migration 30).
+  const productIds = Array.from(new Set(lines.map((l) => l.product_id).filter(Boolean))) as string[];
+  type Vari = { id?: string; weight?: number | null; volume?: number | null };
+  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean; variants: Vari[] | null };
+  const { data: prodRows } = productIds.length
+    ? await supabaseAdmin
+        .from('offer_products')
+        .select('id, weight, volume, has_battery, variants')
+        .in('id', productIds)
+    : { data: [] as WL[] };
   const prodMap = new Map<string, WL>(
     ((prodRows || []) as WL[]).map((p) => [p.id, p])
   );
 
   const pricing = computeOrderPricing(
     lines.map((l) => {
-      const meta = prodMap.get(l.product_id);
+      const meta = l.product_id ? prodMap.get(l.product_id) : undefined;
+      // Résolution poids/volume : snapshot ligne → variante du produit → produit.
+      const vari = l.variant_id && Array.isArray(meta?.variants)
+        ? meta!.variants.find((v) => v.id === l.variant_id)
+        : undefined;
       return {
         unit_price_cny: l.unit_price_cny,
         quantity: l.quantity,
-        weight: meta?.weight ?? null,
-        volume: meta?.volume ?? null,
-        has_battery: !!meta?.has_battery,
+        weight: l.weight ?? vari?.weight ?? meta?.weight ?? null,
+        volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
+        has_battery: l.has_battery ?? !!meta?.has_battery,
       };
     })
   );

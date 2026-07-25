@@ -26,31 +26,43 @@ export async function PATCH(
   }
 
   type LineRow = {
-    product_id: string;
+    product_id: string | null;
+    variant_id: string | null;
     quantity: number;
     unit_price_cny: number;
+    weight: number | null;
+    volume: number | null;
+    has_battery: boolean | null;
   };
   const { data: lines } = await supabaseAdmin
     .from('offer_order_lines')
-    .select('product_id, quantity, unit_price_cny')
+    .select('product_id, variant_id, quantity, unit_price_cny, weight, volume, has_battery')
     .eq('order_id', orderId);
 
-  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean };
-  const ids = Array.from(new Set((lines || []).map((l: LineRow) => l.product_id)));
+  // Poids/volume/batterie : snapshot LIGNE (variante) → variante produit → produit.
+  type Vari = { id?: string; weight?: number | null; volume?: number | null };
+  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean; variants: Vari[] | null };
+  const ids = Array.from(new Set((lines || []).map((l: LineRow) => l.product_id).filter(Boolean))) as string[];
   const { data: prods } = await supabaseAdmin
     .from('offer_products')
-    .select('id, weight, volume, has_battery')
+    .select('id, weight, volume, has_battery, variants')
     .in('id', ids.length ? ids : ['']);
   const pm = new Map<string, WL>(((prods || []) as WL[]).map((p) => [p.id, p]));
 
   const pricing = computeOrderPricing(
-    (lines || []).map((l: LineRow) => ({
-      unit_price_cny: l.unit_price_cny,
-      quantity: l.quantity,
-      weight: pm.get(l.product_id)?.weight ?? null,
-      volume: pm.get(l.product_id)?.volume ?? null,
-      has_battery: !!pm.get(l.product_id)?.has_battery,
-    }))
+    (lines || []).map((l: LineRow) => {
+      const meta = l.product_id ? pm.get(l.product_id) : undefined;
+      const vari = l.variant_id && Array.isArray(meta?.variants)
+        ? meta!.variants.find((v) => v.id === l.variant_id)
+        : undefined;
+      return {
+        unit_price_cny: l.unit_price_cny,
+        quantity: l.quantity,
+        weight: l.weight ?? vari?.weight ?? meta?.weight ?? null,
+        volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
+        has_battery: l.has_battery ?? !!meta?.has_battery,
+      };
+    })
   );
 
   let transportCost: number | null = null;

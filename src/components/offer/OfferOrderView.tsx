@@ -12,7 +12,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Smartphone, Upload, Clock } from 'lucide-react';
+import { Smartphone, Upload, Clock, Banknote } from 'lucide-react';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
@@ -85,7 +85,8 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   );
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'ebilling' | 'airtel' | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'ebilling' | 'airtel' | 'cash' | null>(null);
+  const [cashSubmitting, setCashSubmitting] = useState(false);
   const [airtelProofUrl, setAirtelProofUrl] = useState<string | null>(null);
   const [airtelUploading, setAirtelUploading] = useState(false);
   const [airtelSubmitting, setAirtelSubmitting] = useState(false);
@@ -206,6 +207,25 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
       await load();
     } finally {
       setAirtelSubmitting(false);
+    }
+  };
+
+  const submitCash = async () => {
+    setCashSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/offer-public/${offerId}/order/${orderId}/pay-cash`,
+        { method: 'POST' },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Erreur');
+        return;
+      }
+      await load();
+    } finally {
+      setCashSubmitting(false);
     }
   };
 
@@ -542,11 +562,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           </p>
 
           {/* Choix de la méthode */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setPaymentMethod('ebilling')}
-              className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${
+              className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
                 paymentMethod === 'ebilling' ? 'border-emerald-500 bg-white text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
               }`}
             >
@@ -555,13 +575,45 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <button
               type="button"
               onClick={() => setPaymentMethod('airtel')}
-              className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${
+              className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
                 paymentMethod === 'airtel' ? 'border-red-500 bg-white text-red-600' : 'border-slate-200 bg-white text-slate-600 hover:border-red-300'
               }`}
             >
-              <Smartphone className="h-4 w-4" /> Airtel Money
+              <Smartphone className="h-4 w-4" /> Airtel
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('cash')}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
+                paymentMethod === 'cash' ? 'border-amber-500 bg-white text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300'
+              }`}
+            >
+              <Banknote className="h-4 w-4" /> Cash
             </button>
           </div>
+
+          {/* Cash en agence */}
+          {paymentMethod === 'cash' && (
+            <div className="mt-4 space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+              <p className="text-sm text-slate-700">
+                💵 Réglez <b className="text-amber-700">{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b> en <b>espèces</b> directement à notre agence.
+                Votre commande est réservée ; elle sera validée à l’encaissement.
+              </p>
+              <p className="text-xs text-slate-500">
+                Passez en agence avec votre numéro de commande. Notre équipe vous contactera sur WhatsApp pour l’adresse et les horaires.
+              </p>
+              <motion.button
+                type="button"
+                onClick={submitCash}
+                disabled={cashSubmitting}
+                whileTap={{ scale: 0.99 }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/25 disabled:opacity-60"
+              >
+                {cashSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                Je paierai cash en agence
+              </motion.button>
+            </div>
+          )}
 
           {/* eBilling */}
           {paymentMethod === 'ebilling' && (
