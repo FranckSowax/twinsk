@@ -34,9 +34,12 @@ export async function PATCH(
     volume: number | null;
     has_battery: boolean | null;
   };
+  // `*` (et non une liste explicite) pour rester résilient si les colonnes snapshot
+  // weight/volume/has_battery (migration 30) manquent encore : elles deviennent alors
+  // `undefined` et le poids/volume est re-résolu depuis la variante ci-dessous.
   const { data: lines } = await supabaseAdmin
     .from('offer_order_lines')
-    .select('product_id, variant_id, quantity, unit_price_cny, weight, volume, has_battery')
+    .select('*')
     .eq('order_id', orderId);
 
   // Poids/volume/batterie : snapshot LIGNE (variante) → variante produit → produit.

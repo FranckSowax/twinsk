@@ -202,9 +202,29 @@ export async function POST(
     );
   }
 
-  // 2. Insert order lines
+  // 2. Insert order lines — résilient au schéma.
+  // Les colonnes snapshot poids/volume/batterie (migration 30) peuvent manquer en
+  // prod ; dans ce cas l'insert complet échoue. On réessaie alors SANS ces colonnes
+  // (le poids/volume est de toute façon re-résolu depuis la variante à l'affichage).
+  // Une commande DOIT toujours avoir ses lignes — sinon on annule tout (pas de
+  // commande fantôme à 0).
   const linesWithOrder = lineRows.map((l) => ({ ...l, order_id: orderRow.id }));
-  await supabaseAdmin.from('offer_order_lines').insert(linesWithOrder);
+  let linesErr = (await supabaseAdmin.from('offer_order_lines').insert(linesWithOrder)).error;
+  if (linesErr) {
+    const strip = new Set(['weight', 'volume', 'has_battery']);
+    const fallback = linesWithOrder.map((l) =>
+      Object.fromEntries(Object.entries(l).filter(([k]) => !strip.has(k)))
+    );
+    linesErr = (await supabaseAdmin.from('offer_order_lines').insert(fallback)).error;
+  }
+  if (linesErr) {
+    // Rollback : pas de commande sans lignes.
+    await supabaseAdmin.from('offer_orders').delete().eq('id', orderRow.id);
+    return NextResponse.json(
+      { error: linesErr.message || 'Erreur enregistrement des lignes' },
+      { status: 500 }
+    );
+  }
 
   // 3. Le miroir vers /admin/requests est créé plus tard, quand le client
   //    renseigne ses coordonnées (route .../contact). Cf. mirrorOrderToRequest.

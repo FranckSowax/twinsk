@@ -23,9 +23,11 @@ export async function GET(
     return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 });
   }
 
+  // `*` pour rester résilient si les colonnes snapshot weight/volume/has_battery
+  // (migration 30) manquent encore en prod (sinon le SELECT échoue).
   const { data: lineRows } = await supabaseAdmin
     .from('offer_order_lines')
-    .select('id, product_id, product_title, product_image, product_url, variant_name, quantity, unit_price_cny, subtotal_cny, weight, volume, has_battery')
+    .select('*')
     .eq('order_id', orderId);
 
   // Fallback : produits non encore snapshotés (anciennes commandes) → on récupère
