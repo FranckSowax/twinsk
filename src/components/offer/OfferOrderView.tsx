@@ -16,6 +16,7 @@ import { Smartphone, Upload, Clock, Banknote } from 'lucide-react';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
+import { orderNumber } from '@/lib/order-number';
 
 interface OrderLine {
   id: string;
@@ -301,9 +302,14 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <CheckCircle2 className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1">
-            <h1 className="font-display text-xl font-bold text-slate-900 sm:text-2xl">
-              Votre commande
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-xl font-bold text-slate-900 sm:text-2xl">
+                Votre commande
+              </h1>
+              <span className="inline-flex items-center rounded-full bg-slate-900 px-2.5 py-1 font-mono text-xs font-bold tracking-wide text-white">
+                {orderNumber(order.id)}
+              </span>
+            </div>
             <p className="mt-1 text-sm text-slate-500">
               {contactComplete ? (
                 <>Bonjour {order.client_name} — votre demande est enregistrée.</>
@@ -691,8 +697,26 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         </section>
       )}
 
+      {/* En attente : cash en agence */}
+      {paymentSubmitted && !paymentDone && order.payment_method === 'cash' && (
+        <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-center">
+          <Banknote className="mx-auto h-12 w-12 text-amber-500" />
+          <h2 className="mt-3 font-display text-xl font-bold text-amber-800">Commande réservée — paiement cash</h2>
+          <p className="mt-2 text-sm text-amber-700">
+            Rendez-vous à l’agence TWINSK la plus proche pour régler{' '}
+            <b>{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b> en espèces, <b>sous 48h</b>.
+          </p>
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-500 px-4 py-1.5 text-sm font-bold text-white">
+            Présentez : {orderNumber(order.id)}
+          </p>
+          <p className="mt-3 text-xs text-amber-700/80">
+            Les détails (adresse, horaires) vous ont été envoyés sur WhatsApp ({order.client_phone}).
+          </p>
+        </section>
+      )}
+
       {/* En attente de vérification (Airtel) */}
-      {paymentSubmitted && !paymentDone && (
+      {paymentSubmitted && !paymentDone && order.payment_method !== 'cash' && (
         <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-center">
           <Clock className="mx-auto h-12 w-12 text-amber-500" />
           <h2 className="mt-3 font-display text-xl font-bold text-amber-800">Paiement en cours de vérification</h2>

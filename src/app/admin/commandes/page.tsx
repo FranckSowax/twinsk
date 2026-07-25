@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode, Save, Trash2, Plus, Plane, Ship } from 'lucide-react';
+import { orderNumber } from '@/lib/order-number';
 
 interface Order {
   id: string;
@@ -210,7 +211,8 @@ export default function AdminOrdersPage() {
                   <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] text-slate-400 dark:bg-slate-700">sans preuve</div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 dark:text-white">
+                  <p className="flex flex-wrap items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
+                    <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-slate-700">{orderNumber(o.id)}</span>
                     {o.client_name || <span className="italic text-slate-400">Panier (sans coordonnées)</span>}
                     {o.client_phone && <span className="text-xs font-normal text-slate-400"> · {o.client_phone}</span>}
                   </p>
@@ -291,11 +293,12 @@ export default function AdminOrdersPage() {
                   <>
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900 dark:text-white">
+                        <h2 className="flex flex-wrap items-center gap-2 font-display text-lg font-bold text-slate-900 dark:text-white">
                           <Package className="h-5 w-5 text-emerald-500" /> Commande
+                          <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-xs text-white dark:bg-slate-700">{orderNumber(d.id)}</span>
                         </h2>
                         {d.offer_title && <p className="truncate text-sm text-slate-500">{d.offer_title}</p>}
-                        <p className="text-[11px] text-slate-400">#{d.id.slice(0, 8)} · {fmtDate(d.created_at)}</p>
+                        <p className="text-[11px] text-slate-400">{fmtDate(d.created_at)}</p>
                       </div>
                       <button onClick={() => setDetail(null)} className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
                         <X className="h-5 w-5" />
