@@ -53,16 +53,18 @@ const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'unpaid', label: 'Non payé' },
   { value: 'paid', label: 'Payée' },
   { value: 'shipped', label: 'Expédié' },
+  { value: 'at_agency', label: 'Reçu à l\'agence' },
   { value: 'delivered', label: 'Livrée' },
 ];
 const ORDER_STATUS_CLS: Record<string, string> = {
   unpaid: 'border-slate-300 text-slate-600',
   paid: 'border-emerald-300 text-emerald-700 bg-emerald-50',
   shipped: 'border-blue-300 text-blue-700 bg-blue-50',
+  at_agency: 'border-teal-300 text-teal-700 bg-teal-50',
   delivered: 'border-purple-300 text-purple-700 bg-purple-50',
 };
 // L'étiquette d'envoi est disponible dès que la commande est payée.
-const canLabel = (s: string) => s === 'paid' || s === 'shipped' || s === 'delivered';
+const canLabel = (s: string) => s === 'paid' || s === 'shipped' || s === 'at_agency' || s === 'delivered';
 
 const PAY_LABEL: Record<string, { txt: string; cls: string }> = {
   submitted: { txt: 'À vérifier', cls: 'bg-amber-100 text-amber-700' },
