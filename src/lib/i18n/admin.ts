@@ -20,6 +20,7 @@ export const DICT = {
     'nav.collaborators': 'Collaborateurs',
     'nav.orders': 'Commandes',
     'nav.revisions': 'À réviser',
+    'nav.agents': 'Agents Gabon',
     // Révisions collaborateurs
     'action.sendToCollab': 'Envoyer aux collaborateurs',
     'action.sent': 'Envoyée ✓',
@@ -142,6 +143,7 @@ export const DICT = {
     'nav.collaborators': '协作者',
     'nav.orders': '订单',
     'nav.revisions': '待审核',
+    'nav.agents': '加蓬代理',
     // 协作者审核
     'action.sendToCollab': '发送给协作者',
     'action.sent': '已发送 ✓',

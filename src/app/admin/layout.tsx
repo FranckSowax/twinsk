@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   Briefcase,
   ShoppingBag,
+  Smartphone,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
@@ -189,7 +190,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const navItems =
     role === 'collab'
       ? NAV_ITEMS.filter((i) => COLLAB_HREFS.has(i.href))
-      : [...NAV_ITEMS, { href: '/admin/collaborateurs', key: 'nav.collaborators' as TKey, icon: Users }];
+      : [
+          ...NAV_ITEMS,
+          { href: '/admin/collaborateurs', key: 'nav.collaborators' as TKey, icon: Users },
+          { href: '/admin/agents', key: 'nav.agents' as TKey, icon: Smartphone },
+        ];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
