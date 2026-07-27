@@ -18,10 +18,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const nextStatus = order.order_status === 'unpaid' || !order.order_status ? 'paid' : order.order_status;
   const amount = Number(order.grand_total_fcfa ?? order.items_total_fcfa) || 0;
-  await supabaseAdmin.from('offer_orders').update({
+  const { error: updErr } = await supabaseAdmin.from('offer_orders').update({
     payment_status: 'paid', payment_method: 'cash', order_status: nextStatus,
     cash_collected_by: agent.id, cash_collected_at: new Date().toISOString(),
   }).eq('id', id);
+  if (updErr) return NextResponse.json({ error: 'Échec mise à jour' }, { status: 500 });
 
   await logAgentAction(agent.id, id, 'collect_cash', { amount_fcfa: amount });
   await notifyClient(

@@ -14,7 +14,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (order.payment_status !== 'paid') return NextResponse.json({ error: 'Commande non payée' }, { status: 409 });
   const from = (order.order_status || 'unpaid') as AgentOrderStatus;
   if (!canAdvanceTo(from, 'shipped')) return NextResponse.json({ error: 'Transition invalide' }, { status: 409 });
-  await supabaseAdmin.from('offer_orders').update({ order_status: 'shipped' }).eq('id', id);
+  const { error: updErr } = await supabaseAdmin.from('offer_orders').update({ order_status: 'shipped' }).eq('id', id);
+  if (updErr) return NextResponse.json({ error: 'Échec mise à jour' }, { status: 500 });
   await logAgentAction(agent.id, id, 'ship', {});
   await notifyClient(order.client_phone, `📦 Votre commande ${orderNumber(id)} a été *expédiée*. Suivi à venir.`);
   return NextResponse.json({ success: true, order_status: 'shipped' });

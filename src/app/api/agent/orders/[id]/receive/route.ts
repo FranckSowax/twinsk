@@ -13,7 +13,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!order) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
   const from = (order.order_status || 'unpaid') as AgentOrderStatus;
   if (!canAdvanceTo(from, 'at_agency')) return NextResponse.json({ error: 'Transition invalide' }, { status: 409 });
-  await supabaseAdmin.from('offer_orders').update({ order_status: 'at_agency' }).eq('id', id);
+  const { error: updErr } = await supabaseAdmin.from('offer_orders').update({ order_status: 'at_agency' }).eq('id', id);
+  if (updErr) return NextResponse.json({ error: 'Échec mise à jour' }, { status: 500 });
   await logAgentAction(agent.id, id, 'receive', {});
   await notifyClient(
     order.client_phone,

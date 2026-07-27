@@ -6,9 +6,13 @@ import { toWhatsappChatId } from './order-number';
 export async function logAgentAction(
   agentId: string, orderId: string, action: string, meta?: Record<string, unknown>,
 ): Promise<void> {
-  await supabaseAdmin.from('agent_actions').insert({
-    agent_id: agentId, order_id: orderId, action, meta: meta ?? null,
-  });
+  try {
+    await supabaseAdmin.from('agent_actions').insert({
+      agent_id: agentId, order_id: orderId, action, meta: meta ?? null,
+    });
+  } catch {
+    // best-effort : un échec d'audit ne doit pas casser l'action
+  }
 }
 
 export async function notifyClient(

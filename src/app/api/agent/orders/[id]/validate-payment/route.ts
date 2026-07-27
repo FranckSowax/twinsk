@@ -17,9 +17,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (order.payment_status === 'paid') return NextResponse.json({ error: 'Déjà payée' }, { status: 409 });
 
   const nextStatus = order.order_status === 'unpaid' || !order.order_status ? 'paid' : order.order_status;
-  await supabaseAdmin.from('offer_orders').update({
+  const { error: updErr } = await supabaseAdmin.from('offer_orders').update({
     payment_status: 'paid', order_status: nextStatus,
   }).eq('id', id);
+  if (updErr) return NextResponse.json({ error: 'Échec mise à jour' }, { status: 500 });
 
   await logAgentAction(agent.id, id, 'validate_payment', {});
   await notifyClient(order.client_phone, `✅ Paiement validé — Commande ${orderNumber(id)}. Merci !`);
