@@ -37,14 +37,11 @@ export async function POST(request: NextRequest) {
 
   const chat = toWhatsappChatId(agent.phone);
   if (chat) {
-    try {
-      await sendWhapiText(
-        `🔐 *TWINSK — Espace agents*\nVotre code de connexion : *${code}*\nValable 10 minutes. Ne le partagez pas.`,
-        chat,
-      );
-    } catch {
-      // best-effort
-    }
+    // fire-and-forget : ne pas bloquer la réponse (évite un canal temporel d'énumération)
+    void sendWhapiText(
+      `🔐 *TWINSK — Espace agents*\nVotre code de connexion : *${code}*\nValable 10 minutes. Ne le partagez pas.`,
+      chat,
+    ).catch(() => {});
   }
   return generic;
 }

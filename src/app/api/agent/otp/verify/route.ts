@@ -30,7 +30,15 @@ export async function POST(request: NextRequest) {
     .single();
   if (!otp || !verifyOtpHash(code, otp.code_hash)) return fail();
 
-  await supabaseAdmin.from('agent_otps').update({ consumed_at: new Date().toISOString() }).eq('id', otp.id);
+  // Consommation atomique : n'aboutit que si l'OTP est encore non consommé (anti-rejeu concurrent).
+  const { data: consumed } = await supabaseAdmin
+    .from('agent_otps')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('id', otp.id)
+    .is('consumed_at', null)
+    .select('id')
+    .single();
+  if (!consumed) return fail();
 
   const res = NextResponse.json({ success: true, agent: { id: agent.id, name: agent.name } });
   res.cookies.set(AGENT_COOKIE, signAgentToken(agent.id), {
