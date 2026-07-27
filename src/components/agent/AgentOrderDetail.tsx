@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Banknote, CheckCircle2, Plane, PackageCheck, HandHeart, Tag } from 'lucide-react';
+import { ArrowLeft, Loader2, Banknote, CheckCircle2, Plane, PackageCheck, HandHeart } from 'lucide-react';
 
 type Line = { id: string; product_title?: string | null; variant_name?: string | null; quantity: number; subtotal_fcfa?: number };
 type Order = {
@@ -100,12 +100,6 @@ export default function AgentOrderDetail({ id, onBack }: { id: string; onBack: (
         {st === 'at_agency' && (
           <ActionBtn icon={<HandHeart className="h-5 w-5" />} label="Remettre au client" color="purple"
             busy={busy === 'deliver'} onClick={() => act('deliver')} />
-        )}
-        {paid && (
-          <a href={`/admin/commandes/${order.id}/etiquette`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 font-semibold text-white">
-            <Tag className="h-5 w-5" /> Etiquette d\'envoi
-          </a>
         )}
       </section>
 

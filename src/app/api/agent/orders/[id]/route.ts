@@ -11,7 +11,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: order } = await supabaseAdmin
     .from('offer_orders')
-    .select('*, offer_order_lines(*)')
+    .select(
+      'id, client_name, client_phone, grand_total_fcfa, items_total_fcfa, payment_method, payment_status, order_status, transport_mode, offer_order_lines(id, product_title, variant_name, quantity, subtotal_cny)'
+    )
     .eq('id', id)
     .single();
   if (!order) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
@@ -22,14 +24,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .eq('order_id', id)
     .order('created_at', { ascending: false });
 
-  type Line = { unit_price_cny?: number; subtotal_cny?: number; [k: string]: unknown };
+  type Line = { id: string; product_title?: string | null; variant_name?: string | null; quantity: number; subtotal_cny?: number };
   const lines = ((order.offer_order_lines || []) as Line[]).map((l) => ({
-    ...l,
+    id: l.id,
+    product_title: l.product_title,
+    variant_name: l.variant_name,
+    quantity: l.quantity,
     subtotal_fcfa: (Number(l.subtotal_cny) || 0) * CNY_TO_FCFA,
   }));
 
   return NextResponse.json({
-    order: { ...order, order_number: orderNumber(order.id), offer_order_lines: undefined },
+    order: {
+      id: order.id,
+      client_name: order.client_name,
+      client_phone: order.client_phone,
+      grand_total_fcfa: order.grand_total_fcfa,
+      items_total_fcfa: order.items_total_fcfa,
+      payment_method: order.payment_method,
+      payment_status: order.payment_status,
+      order_status: order.order_status,
+      transport_mode: order.transport_mode,
+      order_number: orderNumber(order.id),
+    },
     lines,
     actions: actions || [],
   });

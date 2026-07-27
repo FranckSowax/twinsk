@@ -21,14 +21,19 @@ export async function POST(request: NextRequest) {
 
   const { data: otp } = await supabaseAdmin
     .from('agent_otps')
-    .select('id, code_hash, expires_at, consumed_at')
+    .select('id, code_hash, expires_at, consumed_at, attempts')
     .eq('agent_id', agent.id)
     .is('consumed_at', null)
     .gte('expires_at', new Date().toISOString())
+    .lt('attempts', 5)
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
-  if (!otp || !verifyOtpHash(code, otp.code_hash)) return fail();
+  if (!otp) return fail();
+  if (!verifyOtpHash(code, otp.code_hash)) {
+    await supabaseAdmin.from('agent_otps').update({ attempts: (otp.attempts ?? 0) + 1 }).eq('id', otp.id);
+    return fail();
+  }
 
   // Consommation atomique : n'aboutit que si l'OTP est encore non consommé (anti-rejeu concurrent).
   const { data: consumed } = await supabaseAdmin

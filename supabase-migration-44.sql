@@ -19,9 +19,11 @@ CREATE TABLE IF NOT EXISTS agent_otps (
   code_hash text NOT NULL,
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
+  attempts int NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS agent_otps_agent_idx ON agent_otps (agent_id, created_at DESC);
+ALTER TABLE agent_otps ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS agent_actions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
