@@ -12,9 +12,22 @@ import {
   Save,
   RotateCcw,
   Send,
+  Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 import ShareFicheButton from '@/components/admin/ShareFicheButton';
+import { mergeVariantFills } from '@/lib/review-variants';
+
+interface ReviewVariant {
+  name?: string | null;
+  capacity?: string | null;
+  price?: number | null;
+  weight?: number | null;
+  volume?: number | null;
+  dimensions?: string | null;
+  image_url?: string | null;
+}
 
 interface ReviewLine {
   id: string;
@@ -33,6 +46,7 @@ interface ReviewLine {
   delivery_time: string | null;
   has_battery: boolean | null;
   moq: number | null;
+  variants: ReviewVariant[] | null;
   collab_notes: string | null;
   admin_note: string | null;
   review_status: string;
@@ -145,6 +159,9 @@ function ReviewCard({
   onRemoveLocal: (id: string) => void;
 }) {
   const reviewed = line.review_status === 'reviewed';
+  const variants = Array.isArray(line.variants) ? line.variants : [];
+  const hasVariants = variants.length > 0;
+
   const [draft, setDraft] = useState({
     price: line.price?.toString() ?? '',
     weight: line.weight?.toString() ?? '',
@@ -156,13 +173,27 @@ function ReviewCard({
     moq: line.moq?.toString() ?? '',
     collab_notes: line.collab_notes ?? '',
   });
+  // Champs à remplir PAR VARIANTE (poids/volume/dimensions).
+  const [vars, setVars] = useState(
+    variants.map((v) => ({
+      weight: v.weight != null ? String(v.weight) : '',
+      volume: v.volume != null ? String(v.volume) : '',
+      dimensions: v.dimensions ?? '',
+    })),
+  );
+  const [variantsOpen, setVariantsOpen] = useState(false);
+  const setVar = (i: number, k: 'weight' | 'volume' | 'dimensions', val: string) =>
+    setVars((prev) => prev.map((v, idx) => (idx === i ? { ...v, [k]: val } : v)));
+  const filledVariants = vars.filter((v) => v.weight.trim() || v.volume.trim() || v.dimensions.trim()).length;
+
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [busy, setBusy] = useState<'review' | 'apply' | 'delete' | null>(null);
 
   const set = (k: keyof typeof draft, v: string | boolean) => setDraft((d) => ({ ...d, [k]: v }));
 
-  const buildPayload = () => ({
+  // Champs produit (compatibles Partial<ReviewLine> pour la maj optimiste locale).
+  const buildFields = () => ({
     price: numOrNull(draft.price),
     weight: numOrNull(draft.weight),
     volume: numOrNull(draft.volume),
@@ -173,18 +204,37 @@ function ReviewCard({
     moq: draft.moq.trim() === '' ? null : Math.trunc(Number(draft.moq)) || null,
     collab_notes: draft.collab_notes.trim() || null,
   });
+  // Fills variantes envoyés à l'API (fusionnés par index côté serveur).
+  const variantFills = () =>
+    vars.map((v, index) => ({ index, weight: v.weight, volume: v.volume, dimensions: v.dimensions }));
+
+  // Envoie les champs produit + (si variantes) les fills variantes, et met à jour
+  // l'état local (produit + variantes fusionnées localement pour rester cohérent).
+  const persist = async (extra?: Record<string, unknown>) => {
+    const fields = buildFields();
+    const body: Record<string, unknown> = { ...fields, ...extra };
+    if (hasVariants) body.variants = variantFills();
+    const res = await fetch(`/api/collab-review/${line.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return false;
+    const localPatch: Partial<ReviewLine> = { ...fields, ...(extra as Partial<ReviewLine>) };
+    if (hasVariants) {
+      localPatch.variants = mergeVariantFills(
+        variants as unknown as Record<string, unknown>[],
+        variantFills(),
+      ) as unknown as ReviewVariant[];
+    }
+    onPatchLocal(line.id, localPatch);
+    return true;
+  };
 
   const save = async () => {
     setSaving(true);
     try {
-      const payload = buildPayload();
-      const res = await fetch(`/api/collab-review/${line.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        onPatchLocal(line.id, payload);
+      if (await persist()) {
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 1500);
       }
@@ -198,13 +248,7 @@ function ReviewCard({
     try {
       // Enregistre aussi les infos courantes en passant révisée.
       const next = reviewed ? 'pending' : 'reviewed';
-      const payload = { ...buildPayload(), review_status: next };
-      const res = await fetch(`/api/collab-review/${line.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) onPatchLocal(line.id, { ...payload });
+      await persist({ review_status: next });
     } finally {
       setBusy(null);
     }
@@ -312,20 +356,81 @@ function ReviewCard({
         </p>
       )}
 
-      {/* Champs à compléter */}
+      {/* Champs à compléter (produit).
+          Poids/volume/dimensions sont PAR VARIANTE quand le produit a des variantes. */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {numField(t('review.price'), 'price')}
         {numField(t('review.supplierShipping'), 'supplier_shipping_price')}
         {textField(t('review.deliveryTime'), 'delivery_time')}
-        {numField(t('review.weight'), 'weight')}
-        {numField(t('review.volume'), 'volume')}
-        {textField(t('review.dimensions'), 'dimensions')}
+        {!hasVariants && numField(t('review.weight'), 'weight')}
+        {!hasVariants && numField(t('review.volume'), 'volume')}
+        {!hasVariants && textField(t('review.dimensions'), 'dimensions')}
         {numField(t('review.moq'), 'moq', '1')}
         <label className="flex items-center gap-2 self-end pb-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
           <input type="checkbox" checked={draft.has_battery} onChange={(e) => set('has_battery', e.target.checked)} className="h-4 w-4 rounded" />
           {t('review.battery')}
         </label>
       </div>
+
+      {/* Variantes : dropdown déroulant, mêmes champs (poids/volume/dimensions) pour chacune */}
+      {hasVariants && (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={() => setVariantsOpen((o) => !o)}
+            className="flex w-full items-center gap-2 bg-slate-50 px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-900/60"
+          >
+            <Layers className="h-4 w-4 text-emerald-500" />
+            <span className="flex-1">
+              {variants.length} variante{variants.length > 1 ? 's' : ''}
+              <span className="ml-1.5 font-normal text-slate-400">— renseigner poids/volume/dimensions de chacune</span>
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${filledVariants === variants.length ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+              {filledVariants}/{variants.length}
+            </span>
+            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${variantsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {variantsOpen && (
+            <div className="space-y-2 p-3">
+              {variants.map((v, i) => {
+                const filled = !!(vars[i]?.weight.trim() || vars[i]?.volume.trim() || vars[i]?.dimensions.trim());
+                return (
+                  <div key={i} className={`rounded-xl border p-3 ${filled ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-900/10' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
+                    <div className="mb-2 flex items-center gap-2">
+                      {v.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={v.image_url} alt="" className="h-8 w-8 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                      )}
+                      <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        <span className="text-slate-400">{i + 1}.</span> {v.name || `Variante ${i + 1}`}
+                        {v.capacity ? <span className="ml-1 text-xs font-normal text-slate-400">· {v.capacity}</span> : null}
+                      </p>
+                      {filled && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500" />}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500">
+                        {t('review.weight')}
+                        <input type="number" step="any" value={vars[i]?.weight ?? ''} onChange={(e) => setVar(i, 'weight', e.target.value)} placeholder="kg"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+                      </label>
+                      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500">
+                        {t('review.volume')}
+                        <input type="number" step="any" value={vars[i]?.volume ?? ''} onChange={(e) => setVar(i, 'volume', e.target.value)} placeholder="m³"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+                      </label>
+                      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500">
+                        {t('review.dimensions')}
+                        <input type="text" value={vars[i]?.dimensions ?? ''} onChange={(e) => setVar(i, 'dimensions', e.target.value)} placeholder="L×l×h"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
       <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-slate-500">
         {t('review.notes')}
         <textarea

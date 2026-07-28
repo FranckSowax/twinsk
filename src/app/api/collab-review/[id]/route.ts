@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin, resolveActor, logCollabAction } from '@/lib/collab';
+import { mergeVariantFills, maxPositive, type VariantFill } from '@/lib/review-variants';
 
 const FILL_FIELDS = [
   'price',
@@ -28,6 +29,29 @@ export async function PATCH(
   const patch: Record<string, unknown> = {};
   for (const f of FILL_FIELDS) {
     if (f in body) patch[f] = body[f];
+  }
+
+  // Variantes : fusionne poids/volume/dimensions PAR VARIANTE (par index), comme la
+  // fiche vendeur. Nécessite de relire les variantes existantes pour préserver
+  // name/price/image des variantes.
+  if (Array.isArray(body.variants)) {
+    const { data: cur } = await supabaseAdmin
+      .from('collab_review_lines')
+      .select('variants')
+      .eq('id', id)
+      .single();
+    const existing = Array.isArray(cur?.variants) ? (cur!.variants as Record<string, unknown>[]) : [];
+    const merged = mergeVariantFills(existing, body.variants as VariantFill[]);
+    patch.variants = merged;
+    // Repère produit : max des variantes si le champ produit n'est pas fourni.
+    if (patch.weight == null) {
+      const w = maxPositive(merged, 'weight');
+      if (w != null) patch.weight = w;
+    }
+    if (patch.volume == null) {
+      const vol = maxPositive(merged, 'volume');
+      if (vol != null) patch.volume = vol;
+    }
   }
 
   if ('review_status' in body) {
