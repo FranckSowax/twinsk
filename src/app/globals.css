@@ -57,6 +57,15 @@ body {
   background: #555;
 }
 
+/* Masque la scrollbar (rangées d'onglets défilantes, etc.) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Smooth animations */
 * {
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
