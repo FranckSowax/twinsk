@@ -1,8 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode, Save, Trash2, Plus, Plane, Ship } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode, Save, Trash2, Plus, Plane, Ship, Search, ChevronRight, HandCoins, Banknote, BadgeAlert, HandHeart } from 'lucide-react';
 import { orderNumber } from '@/lib/order-number';
+import {
+  stageOf,
+  stageIdx,
+  StageChip,
+  IconTag,
+  PipelineStrip,
+  PAY_META,
+  PAY_FALLBACK,
+  TRANSPORT_META,
+  TRANSPORT_FALLBACK,
+} from '@/components/agent/agent-ui';
 
 interface Order {
   id: string;
@@ -18,6 +29,8 @@ interface Order {
   payment_method: string | null;
   payment_proof_url: string | null;
   created_at: string;
+  thumbnail?: string | null;
+  items_count?: number;
 }
 
 interface DetailLine {
@@ -72,13 +85,6 @@ const PAY_LABEL: Record<string, { txt: string; cls: string }> = {
   pending: { txt: 'En attente', cls: 'bg-slate-100 text-slate-500' },
 };
 
-// Étape de la commande (workflow client).
-const STAGE_LABEL: Record<string, { txt: string; cls: string }> = {
-  cart: { txt: 'Panier', cls: 'bg-slate-100 text-slate-500' },
-  transport_selected: { txt: 'Transport choisi', cls: 'bg-indigo-100 text-indigo-700' },
-  paid: { txt: 'Payé', cls: 'bg-emerald-100 text-emerald-700' },
-};
-
 function fmt(n: number | null) {
   return n != null ? `${Math.round(n).toLocaleString('fr-FR')} FCFA` : '—';
 }
@@ -86,10 +92,47 @@ function fmtDate(s: string) {
   return new Date(s).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+// Onglets de filtrage (la sidebar admin existe déjà — ici, des onglets).
+const TABS = [
+  { key: 'all', label: 'Toutes' },
+  { key: 'to_verify', label: 'À vérifier' },
+  { key: 'to_collect', label: 'À encaisser' },
+  { key: 'to_ship', label: 'À expédier' },
+  { key: 'shipped', label: 'Expédiées' },
+  { key: 'at_agency', label: 'À l’agence' },
+  { key: 'delivered', label: 'Livrées' },
+  { key: 'carts', label: 'Paniers' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
+
+const totalOf = (o: Order) => o.grand_total_fcfa ?? o.items_total_fcfa;
+
+function inTab(tab: TabKey, o: Order): boolean {
+  switch (tab) {
+    case 'to_verify':
+      return o.payment_status === 'submitted';
+    case 'to_collect':
+      return o.payment_status !== 'paid' && o.status !== 'cart';
+    case 'to_ship':
+      return o.payment_status === 'paid' && (o.order_status === 'paid' || !o.order_status);
+    case 'shipped':
+      return o.order_status === 'shipped';
+    case 'at_agency':
+      return o.order_status === 'at_agency';
+    case 'delivered':
+      return o.order_status === 'delivered';
+    case 'carts':
+      return o.status === 'cart';
+    default:
+      return true;
+  }
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [onlyPending, setOnlyPending] = useState(false);
+  const [tab, setTab] = useState<TabKey>('all');
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -97,13 +140,13 @@ export default function AdminOrdersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/orders${onlyPending ? '?pending=1' : ''}`);
+      const res = await fetch('/api/admin/orders');
       const data = await res.json();
       if (Array.isArray(data.orders)) setOrders(data.orders);
     } finally {
       setLoading(false);
     }
-  }, [onlyPending]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -167,110 +210,312 @@ export default function AdminOrdersPage() {
     load();
   };
 
+  const counts = useMemo(() => {
+    const c = {} as Record<TabKey, number>;
+    for (const t of TABS) c[t.key] = orders.filter((o) => inTab(t.key, o)).length;
+    return c;
+  }, [orders]);
+
+  const kpis = useMemo(() => {
+    const toVerify = orders.filter((o) => inTab('to_verify', o));
+    const toCollect = orders.filter((o) => inTab('to_collect', o));
+    const collected = orders.filter((o) => o.payment_status === 'paid');
+    const sum = (list: Order[]) => list.reduce((s, o) => s + (totalOf(o) || 0), 0);
+    return [
+      { label: 'À vérifier', value: String(toVerify.length), sub: 'preuves de paiement', icon: BadgeAlert, box: 'bg-red-50 text-red-600 ring-red-200' },
+      { label: 'À encaisser', value: String(toCollect.length), sub: fmt(sum(toCollect)), icon: HandCoins, box: 'bg-amber-50 text-amber-600 ring-amber-200' },
+      { label: 'Encaissé', value: fmt(sum(collected)), sub: `${collected.length} commande${collected.length > 1 ? 's' : ''}`, icon: Banknote, box: 'bg-emerald-50 text-emerald-600 ring-emerald-200', wide: true },
+      { label: 'Livrées', value: String(counts.delivered), sub: 'remises au client', icon: HandHeart, box: 'bg-violet-50 text-violet-600 ring-violet-200' },
+    ];
+  }, [orders, counts]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return orders
+      .filter((o) => inTab(tab, o))
+      .filter(
+        (o) =>
+          !q ||
+          orderNumber(o.id).toLowerCase().includes(q) ||
+          (o.client_name || '').toLowerCase().includes(q) ||
+          (o.client_phone || '').includes(q),
+      );
+  }, [orders, tab, query]);
+
+  // Cellules réutilisées par la table et les cartes.
+  const statusSelect = (o: Order, compact = false) => (
+    <select
+      value={o.order_status || 'unpaid'}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => { e.stopPropagation(); changeStatus(o.id, e.target.value); }}
+      disabled={busy === o.id}
+      className={`rounded-lg border bg-white px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 dark:bg-slate-800 ${compact ? 'w-full' : ''} ${ORDER_STATUS_CLS[o.order_status || 'unpaid']}`}
+    >
+      {ORDER_STATUS_OPTIONS.map((s) => (
+        <option key={s.value} value={s.value}>{s.label}</option>
+      ))}
+    </select>
+  );
+
+  const stageCell = (o: Order) =>
+    o.status === 'cart' ? (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Panier
+      </span>
+    ) : (
+      <StageChip stage={stageOf(o.payment_status, o.order_status)} />
+    );
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-6xl space-y-5">
+      {/* En-tête + recherche */}
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
           <ShoppingBag className="h-6 w-6" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Commandes</h1>
-          <p className="text-sm text-slate-500">Vérifiez les paiements Airtel Money et validez les commandes.</p>
+          <p className="text-sm text-slate-500">Paiements, logistique et suivi jusqu’à la remise client.</p>
         </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-          <input type="checkbox" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} className="h-4 w-4 rounded" />
-          À vérifier seulement
-        </label>
-        <button onClick={load} disabled={loading} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Rafraîchir
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="N°, client, téléphone…"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-emerald-400 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+          />
+        </div>
+        <button onClick={load} disabled={loading} title="Rafraîchir" className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center gap-2 py-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Chargement…</div>
-      ) : orders.length === 0 ? (
-        <p className="py-4 text-sm text-slate-400">Aucune commande{onlyPending ? ' à vérifier' : ''}.</p>
-      ) : (
-        <div className="space-y-3">
-          {orders.map((o) => {
-            const pay = PAY_LABEL[o.payment_status] || PAY_LABEL.pending;
-            return (
-              <div
-                key={o.id}
-                onClick={() => openDetail(o.id)}
-                className="flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/30 dark:border-slate-700 dark:bg-slate-800"
-              >
-                {o.payment_proof_url ? (
-                  <a onClick={(e) => e.stopPropagation()} href={o.payment_proof_url} target="_blank" rel="noopener noreferrer" className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg ring-1 ring-slate-200">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={o.payment_proof_url} alt="Preuve" className="h-full w-full object-cover" />
-                    <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 p-0.5 text-white"><ExternalLink className="h-3 w-3" /></span>
-                  </a>
-                ) : (
-                  <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] text-slate-400 dark:bg-slate-700">sans preuve</div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
-                    <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-slate-700">{orderNumber(o.id)}</span>
-                    {o.client_name || <span className="italic text-slate-400">Panier (sans coordonnées)</span>}
-                    {o.client_phone && <span className="text-xs font-normal text-slate-400"> · {o.client_phone}</span>}
-                  </p>
-                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
-                    {(() => {
-                      const st = STAGE_LABEL[o.status] || STAGE_LABEL.cart;
-                      return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.txt}</span>;
-                    })()}
-                    <span>{fmt(o.grand_total_fcfa || o.items_total_fcfa)}</span>
-                    {o.transport_mode && <span className="text-xs text-slate-400">· {o.transport_mode === 'air' ? 'aérien' : o.transport_mode === 'sea' ? 'maritime' : 'devis'}</span>}
-                    {o.payment_method && <span className="text-xs text-slate-400">· {o.payment_method}</span>}
-                  </p>
-                  <p className="text-[11px] text-slate-400">{fmtDate(o.created_at)}</p>
-                </div>
-                <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${pay.cls}`}>{pay.txt}</span>
-
-                {/* Statut de traitement — dropdown */}
-                <select
-                  value={o.order_status || 'unpaid'}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => { e.stopPropagation(); changeStatus(o.id, e.target.value); }}
-                  disabled={busy === o.id}
-                  className={`flex-shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 ${ORDER_STATUS_CLS[o.order_status || 'unpaid']}`}
-                >
-                  {ORDER_STATUS_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-
-                {/* Étiquette d'envoi (dès que payée) */}
-                {canLabel(o.order_status) && (
-                  <a
-                    href={`/admin/commandes/${o.id}/etiquette`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Étiquette d'envoi"
-                    className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
-                  >
-                    <QrCode className="h-3.5 w-3.5" /> Étiquette
-                  </a>
-                )}
-
-                {o.payment_status === 'submitted' && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); validate(o); }}
-                    disabled={busy === o.id}
-                    className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                  >
-                    {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider
-                  </button>
-                )}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {kpis.map((k) => {
+          const Icon = k.icon;
+          return (
+            <div key={k.label} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+              <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ring-1 ${k.box}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className={`font-bold leading-tight text-slate-900 dark:text-white ${k.wide ? 'text-sm sm:text-base' : 'text-xl'}`}>{k.value}</p>
+                <p className="truncate text-[11px] font-medium text-slate-500">
+                  {k.label} · <span className="text-slate-400">{k.sub}</span>
+                </p>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Onglets */}
+      <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+              tab === t.key
+                ? 'bg-slate-900 text-white dark:bg-emerald-500'
+                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-emerald-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600'
+            }`}
+          >
+            {t.label}
+            <span className={`rounded-full px-1.5 text-[11px] font-bold ${tab === t.key ? 'bg-white/20' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+              {counts[t.key]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Liste */}
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /> Chargement…</div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-14 text-center dark:border-slate-600 dark:bg-slate-800">
+          <Package className="mx-auto h-8 w-8 text-slate-300" />
+          <p className="mt-3 text-sm text-slate-500">{query ? 'Aucun résultat pour cette recherche.' : 'Aucune commande dans cet onglet.'}</p>
         </div>
+      ) : (
+        <>
+          {/* Table (desktop) */}
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block dark:border-slate-700 dark:bg-slate-800">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                    <th className="px-4 py-3">Commande</th>
+                    <th className="px-4 py-3">Client</th>
+                    <th className="px-4 py-3 text-right">Montant</th>
+                    <th className="px-4 py-3">Paiement</th>
+                    <th className="px-4 py-3">Transport</th>
+                    <th className="px-4 py-3">Statut</th>
+                    <th className="px-4 py-3">Traitement</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((o) => (
+                    <tr
+                      key={o.id}
+                      onClick={() => openDetail(o.id)}
+                      className="cursor-pointer border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {o.thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={o.thumbnail} alt="" className="h-11 w-11 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                          ) : (
+                            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 ring-1 ring-slate-200 dark:bg-slate-700">
+                              <Package className="h-5 w-5" />
+                            </span>
+                          )}
+                          <div>
+                            <p className="font-mono text-xs font-bold text-slate-900 dark:text-white">{orderNumber(o.id)}</p>
+                            <p className="text-[11px] text-slate-400">
+                              {o.items_count || 0} art. · {fmtDate(o.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-800 dark:text-slate-100">
+                          {o.client_name || <span className="italic text-slate-400">Sans coordonnées</span>}
+                        </p>
+                        <p className="text-[11px] text-slate-400">{o.client_phone || '—'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">{fmt(totalOf(o))}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <IconTag meta={(o.payment_method && PAY_META[o.payment_method]) || PAY_FALLBACK} />
+                          {o.payment_proof_url && (
+                            <a
+                              onClick={(e) => e.stopPropagation()}
+                              href={o.payment_proof_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Voir la preuve de paiement"
+                              className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-600 hover:bg-amber-100"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <IconTag meta={(o.transport_mode && TRANSPORT_META[o.transport_mode]) || TRANSPORT_FALLBACK} />
+                      </td>
+                      <td className="px-4 py-3">{stageCell(o)}</td>
+                      <td className="px-4 py-3">{statusSelect(o)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {o.payment_status === 'submitted' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); validate(o); }}
+                              disabled={busy === o.id}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"
+                            >
+                              {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider
+                            </button>
+                          )}
+                          {canLabel(o.order_status) && (
+                            <a
+                              href={`/admin/commandes/${o.id}/etiquette`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Étiquette d'envoi"
+                              className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                            >
+                              <QrCode className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                          <ChevronRight className="h-4 w-4 text-slate-300" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Cartes (mobile) */}
+          <ul className="space-y-3 md:hidden">
+            {visible.map((o) => (
+              <li key={o.id}>
+                <div onClick={() => openDetail(o.id)} className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex items-start gap-3">
+                    {o.thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={o.thumbnail} alt="" className="h-14 w-14 flex-shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
+                    ) : (
+                      <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 ring-1 ring-slate-200 dark:bg-slate-700">
+                        <Package className="h-6 w-6" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-mono text-xs font-bold text-slate-900 dark:text-white">{orderNumber(o.id)}</p>
+                        {stageCell(o)}
+                      </div>
+                      <p className="mt-0.5 truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {o.client_name || <span className="italic text-slate-400">Sans coordonnées</span>}
+                      </p>
+                      <p className="text-base font-bold text-slate-900 dark:text-white">{fmt(totalOf(o))}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <IconTag meta={(o.payment_method && PAY_META[o.payment_method]) || PAY_FALLBACK} showLabel={false} />
+                      <IconTag meta={(o.transport_mode && TRANSPORT_META[o.transport_mode]) || TRANSPORT_FALLBACK} showLabel={false} />
+                      {o.payment_proof_url && (
+                        <a
+                          onClick={(e) => e.stopPropagation()}
+                          href={o.payment_proof_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Preuve de paiement"
+                          className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-600"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
+                    {o.status !== 'cart' && <PipelineStrip done={stageIdx[stageOf(o.payment_status, o.order_status)]} />}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex-1">{statusSelect(o, true)}</div>
+                    {o.payment_status === 'submitted' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); validate(o); }}
+                        disabled={busy === o.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                      >
+                        {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider
+                      </button>
+                    )}
+                    {canLabel(o.order_status) && (
+                      <a
+                        href={`/admin/commandes/${o.id}/etiquette`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg border border-slate-200 p-2 text-slate-500 dark:border-slate-600 dark:text-slate-300"
+                        title="Étiquette d'envoi"
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {/* Modal détail commande */}
