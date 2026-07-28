@@ -20,7 +20,21 @@ export async function GET(request: NextRequest) {
   }
   const { data, error } = await query;
   if (error) return NextResponse.json({ lines: [], warning: error.message });
-  return NextResponse.json({ lines: data || [] });
+
+  // Enrichit les lignes sans titre chinois (créées avant la migration 45) depuis
+  // le produit d'offre lié, pour l'affichage en chinois. Best-effort.
+  const lines = (data || []) as Record<string, unknown>[];
+  const missing = lines.filter((l) => !l.title_original && l.offer_product_id);
+  if (missing.length) {
+    const ids = Array.from(new Set(missing.map((l) => l.offer_product_id as string)));
+    const { data: prods } = await supabaseAdmin
+      .from('offer_products')
+      .select('id, title_original')
+      .in('id', ids);
+    const map = new Map((prods || []).map((p) => [p.id as string, p.title_original as string | null]));
+    for (const l of missing) l.title_original = map.get(l.offer_product_id as string) ?? null;
+  }
+  return NextResponse.json({ lines });
 }
 
 // POST: copier une ligne produit d'offre vers la file « à réviser » (admin only).
@@ -39,7 +53,7 @@ export async function POST(request: NextRequest) {
   const { data: product } = await supabaseAdmin
     .from('offer_products')
     .select(
-      'id, title, image_url, main_image_url, product_url, seller, variants, price, weight, volume, dimensions, supplier_shipping_price, delivery_time, has_battery, moq',
+      'id, title, title_original, image_url, main_image_url, product_url, seller, variants, price, weight, volume, dimensions, supplier_shipping_price, delivery_time, has_battery, moq',
     )
     .eq('id', body.product_id)
     .single();
@@ -64,30 +78,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, id: existing.id, duplicate: true });
   }
 
-  const { data: inserted, error } = await supabaseAdmin
-    .from('collab_review_lines')
-    .insert({
-      offer_id: body.offer_id,
-      offer_product_id: product.id,
-      offer_title: offer?.title || null,
-      title: product.title,
-      image_url: product.main_image_url || product.image_url || null,
-      product_url: product.product_url || null,
-      seller: product.seller || null,
-      variants: product.variants || null,
-      price: product.price,
-      weight: product.weight,
-      volume: product.volume,
-      dimensions: product.dimensions,
-      supplier_shipping_price: product.supplier_shipping_price,
-      delivery_time: product.delivery_time,
-      has_battery: product.has_battery,
-      moq: product.moq,
-      admin_note: (body.admin_note || '').trim() || null,
-      review_status: 'pending',
-    })
-    .select('id')
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, id: inserted?.id });
+  const row: Record<string, unknown> = {
+    offer_id: body.offer_id,
+    offer_product_id: product.id,
+    offer_title: offer?.title || null,
+    title: product.title,
+    title_original: product.title_original || null,
+    image_url: product.main_image_url || product.image_url || null,
+    product_url: product.product_url || null,
+    seller: product.seller || null,
+    variants: product.variants || null,
+    price: product.price,
+    weight: product.weight,
+    volume: product.volume,
+    dimensions: product.dimensions,
+    supplier_shipping_price: product.supplier_shipping_price,
+    delivery_time: product.delivery_time,
+    has_battery: product.has_battery,
+    moq: product.moq,
+    admin_note: (body.admin_note || '').trim() || null,
+    review_status: 'pending',
+  };
+  let ins = await supabaseAdmin.from('collab_review_lines').insert(row).select('id').single();
+  // Résilient : si la colonne title_original manque encore (migration 45 non
+  // appliquée), on réessaie sans elle plutôt que d'échouer l'envoi en révision.
+  if (ins.error) {
+    const { title_original: _omit, ...fallback } = row;
+    void _omit;
+    ins = await supabaseAdmin.from('collab_review_lines').insert(fallback).select('id').single();
+  }
+  if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 500 });
+  return NextResponse.json({ success: true, id: ins.data?.id });
 }

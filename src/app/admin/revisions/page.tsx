@@ -35,6 +35,7 @@ interface ReviewLine {
   offer_product_id: string | null;
   offer_title: string | null;
   title: string | null;
+  title_original: string | null;
   image_url: string | null;
   product_url: string | null;
   seller: string | null;
@@ -58,7 +59,7 @@ interface ReviewLine {
 type TFn = (k: Parameters<ReturnType<typeof useAdminT>['t']>[0]) => string;
 
 export default function RevisionsPage() {
-  const { t } = useAdminT();
+  const { t, locale } = useAdminT();
   const [lines, setLines] = useState<ReviewLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [onlyPending, setOnlyPending] = useState(false);
@@ -129,6 +130,7 @@ export default function RevisionsPage() {
               line={l}
               isAdmin={isAdmin}
               t={t as TFn}
+              locale={locale}
               onPatchLocal={patchLocal}
               onRemoveLocal={removeLocal}
             />
@@ -149,12 +151,14 @@ function ReviewCard({
   line,
   isAdmin,
   t,
+  locale,
   onPatchLocal,
   onRemoveLocal,
 }: {
   line: ReviewLine;
   isAdmin: boolean;
   t: TFn;
+  locale: string;
   onPatchLocal: (id: string, fields: Partial<ReviewLine>) => void;
   onRemoveLocal: (id: string) => void;
 }) {
@@ -331,7 +335,25 @@ function ReviewCard({
               <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">✅ 供应商已填 · Vendeur a répondu</span>
             )}
           </div>
-          <p className="mt-1 truncate font-semibold text-slate-900 dark:text-white" title={line.title || ''}>{line.title || '—'}</p>
+          {(() => {
+            // En chinois, on affiche le titre original 1688 (celui que le fournisseur
+            // reconnaît). L'autre langue reste en sous-titre discret pour référence.
+            const zh = locale === 'zh';
+            const primary = zh ? line.title_original || line.title : line.title;
+            const secondary = zh ? (line.title_original ? line.title : null) : line.title_original;
+            return (
+              <>
+                <p className="mt-1 truncate font-semibold text-slate-900 dark:text-white" title={primary || ''}>
+                  {primary || '—'}
+                </p>
+                {secondary && (
+                  <p className="truncate text-xs text-slate-400" title={secondary}>
+                    {secondary}
+                  </p>
+                )}
+              </>
+            );
+          })()}
           <p className="text-xs text-slate-400">
             {t('review.offer')}: {line.offer_title || '—'}
             {line.seller ? ` · ${line.seller}` : ''}
