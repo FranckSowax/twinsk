@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import gsap from 'gsap';
 import { Flip } from 'gsap/Flip';
@@ -26,6 +26,8 @@ import {
   Sparkles,
   Tag,
   Trash2,
+  Scale,
+  Box,
 } from 'lucide-react';
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
@@ -104,6 +106,42 @@ interface OfferItemWithProducts {
   processed: boolean;
   added_by: 'client' | 'admin';
   search_results: OfferProduct[];
+}
+
+// Taux de remplissage poids/volume de l'offre. Un « emplacement » = une variante
+// (si le produit en a) sinon le produit lui-même. Complet = poids ET volume > 0.
+function computeFillStats(items: OfferItemWithProducts[]) {
+  const pos = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0;
+  };
+  let slots = 0;
+  let weightOk = 0;
+  let volumeOk = 0;
+  let bothOk = 0;
+  for (const it of items) {
+    for (const p of it.search_results || []) {
+      const variants = Array.isArray(p.variants) ? p.variants : [];
+      const units = variants.length
+        ? variants.map((v) => ({ w: pos(v.weight), vol: pos(v.volume) }))
+        : [{ w: pos(p.weight), vol: pos(p.volume) }];
+      for (const u of units) {
+        slots++;
+        if (u.w) weightOk++;
+        if (u.vol) volumeOk++;
+        if (u.w && u.vol) bothOk++;
+      }
+    }
+  }
+  const pctOf = (n: number) => (slots ? Math.round((n / slots) * 100) : 100);
+  return {
+    slots,
+    bothOk,
+    missing: slots - bothOk,
+    pct: pctOf(bothOk),
+    weightPct: pctOf(weightOk),
+    volumePct: pctOf(volumeOk),
+  };
 }
 
 export default function AdminOfferDetailPage() {
@@ -564,6 +602,8 @@ export default function AdminOfferDetailPage() {
     await patchOffer({ mobile_video_url: null });
   };
 
+  const fillStats = useMemo(() => computeFillStats(items), [items]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -944,6 +984,67 @@ export default function AdminOfferDetailPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Progression du remplissage poids / volume (par variante ou produit) */}
+      {fillStats.slots > 0 && (
+        <div
+          className={`rounded-2xl border p-5 ${
+            fillStats.pct === 100
+              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/15'
+              : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <div className="flex items-center gap-2">
+              <Scale className="h-4 w-4 text-slate-400" />
+              <Box className="h-4 w-4 text-slate-400" />
+              <h3 className="font-semibold text-slate-900 dark:text-white">Poids &amp; volume renseignés</h3>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`font-display text-2xl font-bold ${
+                  fillStats.pct === 100 ? 'text-emerald-600' : fillStats.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
+                }`}
+              >
+                {fillStats.pct}%
+              </span>
+              <span className="text-sm text-slate-500">
+                {fillStats.slots - fillStats.missing}/{fillStats.slots} complets
+              </span>
+            </div>
+          </div>
+
+          {/* Barre de progression */}
+          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+            <div
+              className={`h-full rounded-full transition-all ${
+                fillStats.pct === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-emerald-500'
+              }`}
+              style={{ width: `${fillStats.pct}%` }}
+            />
+          </div>
+
+          {/* Détail : poids / volume + reste à compléter */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5">
+              <Scale className="h-3.5 w-3.5 text-slate-400" /> Poids <b className="text-slate-700 dark:text-slate-200">{fillStats.weightPct}%</b>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Box className="h-3.5 w-3.5 text-slate-400" /> Volume <b className="text-slate-700 dark:text-slate-200">{fillStats.volumePct}%</b>
+            </span>
+            {fillStats.missing > 0 ? (
+              <span className="font-semibold text-amber-600">
+                {fillStats.missing} à compléter
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Tout est renseigné
+              </span>
+            )}
+            <span className="text-slate-400">· compté par variante</span>
+          </div>
+        </div>
+      )}
 
       {/* Modal choix de devise */}
       <ProposalCurrencyModal
