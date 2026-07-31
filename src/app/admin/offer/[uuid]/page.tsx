@@ -167,6 +167,7 @@ export default function AdminOfferDetailPage() {
   // Progression poids/volume : périmètre du calcul + filtre « incomplets ».
   const [fillScope, setFillScope] = useState<'selected' | 'all'>('selected');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [sendingBulk, setSendingBulk] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [importOfferOpen, setImportOfferOpen] = useState(false);
@@ -248,6 +249,38 @@ export default function AdminOfferDetailPage() {
     },
     [uuid],
   );
+
+  // Envoie d'un coup en révision tous les produits incomplets (poids/volume) du
+  // périmètre courant. Anti-doublon géré côté API (ligne « pending » réutilisée).
+  const sendAllIncomplete = useCallback(async () => {
+    const targets = items
+      .flatMap((it) => it.search_results)
+      .filter((p) => (fillScope === 'all' || p.selected) && !isProductComplete(p));
+    if (!targets.length) return;
+    if (!window.confirm(`Envoyer ${targets.length} produit(s) incomplet(s) en révision ?`)) return;
+    setSendingBulk(true);
+    let ok = 0;
+    try {
+      for (const p of targets) {
+        try {
+          const res = await fetch('/api/collab-review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offer_id: uuid, product_id: p.id }),
+          });
+          if (res.ok) {
+            ok++;
+            setSentCollabIds((prev) => new Set(prev).add(p.id));
+          }
+        } catch {
+          // continue
+        }
+      }
+    } finally {
+      setSendingBulk(false);
+      alert(`${ok}/${targets.length} produit(s) envoyé(s) en révision.`);
+    }
+  }, [items, fillScope, uuid]);
 
   const validateReview = useCallback(
     async (result: { id: string }) => {
@@ -623,6 +656,14 @@ export default function AdminOfferDetailPage() {
     () => computeFillStats(items, fillScope === 'selected'),
     [items, fillScope],
   );
+  // Nombre de PRODUITS incomplets du périmètre (≠ emplacements/variantes manquants).
+  const incompleteCount = useMemo(
+    () =>
+      items
+        .flatMap((it) => it.search_results)
+        .filter((p) => (fillScope === 'all' || p.selected) && !isProductComplete(p)).length,
+    [items, fillScope],
+  );
   // Quand plus rien n'est incomplet dans le périmètre, on lève le filtre pour ne
   // pas laisser une liste vide.
   useEffect(() => {
@@ -740,24 +781,38 @@ export default function AdminOfferDetailPage() {
           </span>
           <span className="text-slate-400">emplacements {fillScope === 'selected' ? 'sélectionnés' : 'de l’offre'} · compté par variante</span>
 
-          {fillStats.missing > 0 ? (
-            <button
-              type="button"
-              onClick={() => setShowIncompleteOnly((v) => !v)}
-              className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-                showIncompleteOnly
-                  ? 'bg-amber-500 text-white hover:bg-amber-600'
-                  : 'border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-300'
-              }`}
-            >
-              <Filter className="h-3.5 w-3.5" />
-              {showIncompleteOnly ? 'Afficher tout' : `${fillStats.missing} à compléter — filtrer`}
-            </button>
-          ) : (
-            <span className="ml-auto inline-flex items-center gap-1 font-semibold text-emerald-600">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Tout est renseigné
-            </span>
-          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {incompleteCount > 0 && isAdminUser && (
+              <button
+                type="button"
+                onClick={sendAllIncomplete}
+                disabled={sendingBulk}
+                title="Créer une ligne à réviser pour chaque produit incomplet"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-1.5 font-semibold text-white hover:bg-indigo-600 disabled:opacity-60"
+              >
+                {sendingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                Envoyer {incompleteCount} en révision
+              </button>
+            )}
+            {fillStats.missing > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowIncompleteOnly((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+                  showIncompleteOnly
+                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                    : 'border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-300'
+                }`}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {showIncompleteOnly ? 'Afficher tout' : `${fillStats.missing} à compléter — filtrer`}
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Tout est renseigné
+              </span>
+            )}
+          </div>
         </div>
       </div>
     ) : null;

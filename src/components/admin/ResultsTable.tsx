@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight, Video } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight, Video, Layers } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
@@ -137,6 +137,18 @@ function hasTrust(r: SearchResultRow): boolean {
   return r.repurchase_rate != null || r.sales != null || r.star_rate != null;
 }
 
+// Variantes renseignées (poids ET volume propres). total=0 → pas de variante.
+function variantFill(r: SearchResultRow): { filled: number; total: number } {
+  const vs = Array.isArray(r.variants) ? r.variants : [];
+  if (!vs.length) return { filled: 0, total: 0 };
+  const pos = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0;
+  };
+  const filled = vs.filter((v) => pos(v.weight) && pos(v.volume)).length;
+  return { filled, total: vs.length };
+}
+
 export default function ResultsTable({
   items,
   requestId,
@@ -204,6 +216,15 @@ export default function ResultsTable({
     });
   const collapseAll = () => setCollapsed(new Set(items.map((it) => it.id)));
   const expandAll = () => setCollapsed(new Set());
+  // Repli par PHASE (masque toutes les catégories de la phase).
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
+  const togglePhase = (key: string) =>
+    setCollapsedPhases((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const handleReorderCategory = (targetItemId: string, draggedItemId: string) => {
     if (!onReorderCategories || targetItemId === draggedItemId) return;
@@ -421,13 +442,29 @@ export default function ResultsTable({
         const phaseTitle = item.phase_id
           ? phases?.find((p) => p.id === item.phase_id)?.title || 'Phase'
           : 'Sans phase';
+        const phaseKey = item.phase_id || '__none__';
+        const phaseCollapsed = collapsedPhases.has(phaseKey);
+        // Nombre de catégories dans cette phase (pour le compteur du header).
+        const phaseCatCount = phases && phases.length > 0
+          ? items.filter((it) => (it.phase_id || '__none__') === phaseKey).length
+          : 0;
         return (
         <div key={item.id} className="space-y-4">
           {showPhaseHeader && (
-            <div className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 ${item.phase_id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+            <button
+              type="button"
+              onClick={() => togglePhase(phaseKey)}
+              title={phaseCollapsed ? 'Déplier la phase' : 'Replier la phase'}
+              className={`flex w-full items-center gap-2 rounded-2xl px-4 py-2.5 text-left transition-colors ${item.phase_id ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'}`}
+            >
+              {phaseCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               <span className="text-sm font-bold uppercase tracking-wide">🏗️ {phaseTitle}</span>
-            </div>
+              <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${item.phase_id ? 'bg-white/20' : 'bg-white/60 text-slate-500 dark:bg-slate-800/60 dark:text-slate-300'}`}>
+                {phaseCatCount} catégorie{phaseCatCount > 1 ? 's' : ''}
+              </span>
+            </button>
           )}
+        {!phaseCollapsed && (
         <div
           key={item.id}
           className={`space-y-4 rounded-3xl transition-all ${
@@ -785,18 +822,38 @@ export default function ResultsTable({
                               <span className="text-lg">🏭</span>
                             </div>
                           )}
-                          <div className="flex max-w-[220px] items-start gap-1">
-                            <p
-                              className="truncate text-sm font-medium text-slate-700 dark:text-slate-200"
-                              title={result.title_original || result.title}
-                            >
-                              {result.title}
-                            </p>
-                            {result.description && (
-                              <span title={result.description} className="flex-shrink-0">
-                                <Info className="h-3.5 w-3.5 text-slate-400 hover:text-amber-500" />
-                              </span>
-                            )}
+                          <div className="min-w-0">
+                            <div className="flex max-w-[220px] items-start gap-1">
+                              <p
+                                className="truncate text-sm font-medium text-slate-700 dark:text-slate-200"
+                                title={result.title_original || result.title}
+                              >
+                                {result.title}
+                              </p>
+                              {result.description && (
+                                <span title={result.description} className="flex-shrink-0">
+                                  <Info className="h-3.5 w-3.5 text-slate-400 hover:text-amber-500" />
+                                </span>
+                              )}
+                            </div>
+                            {/* Progression fine : variantes avec poids+volume renseignés */}
+                            {(() => {
+                              const vf = variantFill(result);
+                              if (vf.total === 0) return null;
+                              const done = vf.filled === vf.total;
+                              return (
+                                <span
+                                  title={`${vf.filled}/${vf.total} variantes avec poids et volume`}
+                                  className={`mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                    done
+                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                  }`}
+                                >
+                                  <Layers className="h-3 w-3" /> {vf.filled}/{vf.total}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -1128,6 +1185,7 @@ export default function ResultsTable({
           );
           })()}
         </div>
+        )}
         </div>
         );
       })}
