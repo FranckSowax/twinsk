@@ -116,15 +116,13 @@ const isPos = (v: unknown) => {
   return Number.isFinite(n) && n > 0;
 };
 function productSlots(p: OfferProduct): { w: boolean; vol: boolean }[] {
-  // Une variante sans poids/volume hérite de la valeur produit (comme au calcul
-  // du prix de commande) : on la considère donc remplie si la variante OU le
-  // produit porte la valeur. Cela reflète les poids/volumes mappés au sourcing.
-  const pw = isPos(p.weight);
-  const pv = isPos(p.volume);
+  // Strict par variante : chaque variante doit avoir SON propre poids ET volume
+  // (les tailles diffèrent, le poids produit unique ne suffit pas). Un produit
+  // sans variante est jugé sur son poids/volume produit.
   const variants = Array.isArray(p.variants) ? p.variants : [];
   return variants.length
-    ? variants.map((v) => ({ w: isPos(v.weight) || pw, vol: isPos(v.volume) || pv }))
-    : [{ w: pw, vol: pv }];
+    ? variants.map((v) => ({ w: isPos(v.weight), vol: isPos(v.volume) }))
+    : [{ w: isPos(p.weight), vol: isPos(p.volume) }];
 }
 // Produit « incomplet » = au moins un emplacement sans poids ou sans volume.
 function isProductComplete(p: OfferProduct): boolean {
