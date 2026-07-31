@@ -28,6 +28,7 @@ import {
   Trash2,
   Scale,
   Box,
+  Filter,
 } from 'lucide-react';
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
@@ -108,24 +109,34 @@ interface OfferItemWithProducts {
   search_results: OfferProduct[];
 }
 
-// Taux de remplissage poids/volume de l'offre. Un « emplacement » = une variante
-// (si le produit en a) sinon le produit lui-même. Complet = poids ET volume > 0.
-function computeFillStats(items: OfferItemWithProducts[]) {
-  const pos = (v: unknown) => {
-    const n = Number(v);
-    return Number.isFinite(n) && n > 0;
-  };
+// Un « emplacement » poids/volume = une variante (si le produit en a) sinon le
+// produit lui-même. Complet = poids ET volume > 0.
+const isPos = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0;
+};
+function productSlots(p: OfferProduct): { w: boolean; vol: boolean }[] {
+  const variants = Array.isArray(p.variants) ? p.variants : [];
+  return variants.length
+    ? variants.map((v) => ({ w: isPos(v.weight), vol: isPos(v.volume) }))
+    : [{ w: isPos(p.weight), vol: isPos(p.volume) }];
+}
+// Produit « incomplet » = au moins un emplacement sans poids ou sans volume.
+function isProductComplete(p: OfferProduct): boolean {
+  return productSlots(p).every((s) => s.w && s.vol);
+}
+
+// Taux de remplissage poids/volume. selectedOnly = ne compter que les produits
+// cochés (visibles sur l'offre publique).
+function computeFillStats(items: OfferItemWithProducts[], selectedOnly: boolean) {
   let slots = 0;
   let weightOk = 0;
   let volumeOk = 0;
   let bothOk = 0;
   for (const it of items) {
     for (const p of it.search_results || []) {
-      const variants = Array.isArray(p.variants) ? p.variants : [];
-      const units = variants.length
-        ? variants.map((v) => ({ w: pos(v.weight), vol: pos(v.volume) }))
-        : [{ w: pos(p.weight), vol: pos(p.volume) }];
-      for (const u of units) {
+      if (selectedOnly && !p.selected) continue;
+      for (const u of productSlots(p)) {
         slots++;
         if (u.w) weightOk++;
         if (u.vol) volumeOk++;
@@ -150,6 +161,9 @@ export default function AdminOfferDetailPage() {
   const [offer, setOffer] = useState<OfferRow | null>(null);
   const [items, setItems] = useState<OfferItemWithProducts[]>([]);
   const [loading, setLoading] = useState(true);
+  // Progression poids/volume : périmètre du calcul + filtre « incomplets ».
+  const [fillScope, setFillScope] = useState<'selected' | 'all'>('selected');
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [importOfferOpen, setImportOfferOpen] = useState(false);
@@ -602,7 +616,15 @@ export default function AdminOfferDetailPage() {
     await patchOffer({ mobile_video_url: null });
   };
 
-  const fillStats = useMemo(() => computeFillStats(items), [items]);
+  const fillStats = useMemo(
+    () => computeFillStats(items, fillScope === 'selected'),
+    [items, fillScope],
+  );
+  // Quand plus rien n'est incomplet dans le périmètre, on lève le filtre pour ne
+  // pas laisser une liste vide.
+  useEffect(() => {
+    if (showIncompleteOnly && fillStats.missing === 0) setShowIncompleteOnly(false);
+  }, [showIncompleteOnly, fillStats.missing]);
 
   if (loading) {
     return (
@@ -620,11 +642,23 @@ export default function AdminOfferDetailPage() {
   const isB2B = offer.offer_type === 'b2b';
   // Affichage groupé par phase (B2B) : trie les catégories par ordre de phase.
   const phaseRank = new Map(phases.map((p, i) => [p.id, i]));
-  const displayItems = isB2B
+  const sortedItems = isB2B
     ? [...items].sort(
         (a, b) => (phaseRank.get(a.phase_id ?? '') ?? 9999) - (phaseRank.get(b.phase_id ?? '') ?? 9999),
       )
     : items;
+  // Filtre « incomplets » (clic sur la barre) : ne garde que les produits du
+  // périmètre courant dont le poids/volume n'est pas entièrement renseigné.
+  const displayItems = showIncompleteOnly
+    ? sortedItems
+        .map((it) => ({
+          ...it,
+          search_results: it.search_results.filter(
+            (p) => (fillScope === 'all' || p.selected) && !isProductComplete(p),
+          ),
+        }))
+        .filter((it) => it.search_results.length > 0)
+    : sortedItems;
 
   return (
     <div className="space-y-8">
@@ -989,59 +1023,96 @@ export default function AdminOfferDetailPage() {
       {fillStats.slots > 0 && (
         <div
           className={`rounded-2xl border p-5 ${
-            fillStats.pct === 100
-              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/15'
-              : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
+            showIncompleteOnly
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/15'
+              : fillStats.pct === 100
+                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/15'
+                : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
           }`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex items-center gap-2">
               <Scale className="h-4 w-4 text-slate-400" />
               <Box className="h-4 w-4 text-slate-400" />
               <h3 className="font-semibold text-slate-900 dark:text-white">Poids &amp; volume renseignés</h3>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span
-                className={`font-display text-2xl font-bold ${
-                  fillStats.pct === 100 ? 'text-emerald-600' : fillStats.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
-                }`}
-              >
-                {fillStats.pct}%
-              </span>
-              <span className="text-sm text-slate-500">
-                {fillStats.slots - fillStats.missing}/{fillStats.slots} complets
-              </span>
+            <div className="flex items-center gap-3">
+              {/* Périmètre : sélectionnés / tous */}
+              <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold dark:border-slate-600 dark:bg-slate-700">
+                {(['selected', 'all'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setFillScope(s)}
+                    className={`rounded-md px-2.5 py-1 transition-colors ${
+                      fillScope === s ? 'bg-slate-900 text-white dark:bg-emerald-500' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {s === 'selected' ? 'Sélectionnés' : 'Tous'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`font-display text-2xl font-bold ${
+                    fillStats.pct === 100 ? 'text-emerald-600' : fillStats.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
+                  }`}
+                >
+                  {fillStats.pct}%
+                </span>
+                <span className="text-sm text-slate-500">
+                  {fillStats.slots - fillStats.missing}/{fillStats.slots}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Barre de progression */}
-          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+          {/* Barre de progression — cliquable pour filtrer les incomplets */}
+          <button
+            type="button"
+            onClick={() => fillStats.missing > 0 && setShowIncompleteOnly((v) => !v)}
+            disabled={fillStats.missing === 0}
+            title={fillStats.missing > 0 ? 'Cliquer pour n’afficher que les produits incomplets' : 'Tout est renseigné'}
+            className={`mt-3 block h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700 ${
+              fillStats.missing > 0 ? 'cursor-pointer ring-offset-2 hover:ring-2 hover:ring-amber-300' : 'cursor-default'
+            }`}
+          >
             <div
               className={`h-full rounded-full transition-all ${
                 fillStats.pct === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-emerald-500'
               }`}
               style={{ width: `${fillStats.pct}%` }}
             />
-          </div>
+          </button>
 
-          {/* Détail : poids / volume + reste à compléter */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
+          {/* Détail : poids / volume + filtre incomplets */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5">
               <Scale className="h-3.5 w-3.5 text-slate-400" /> Poids <b className="text-slate-700 dark:text-slate-200">{fillStats.weightPct}%</b>
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Box className="h-3.5 w-3.5 text-slate-400" /> Volume <b className="text-slate-700 dark:text-slate-200">{fillStats.volumePct}%</b>
             </span>
+            <span className="text-slate-400">emplacements {fillScope === 'selected' ? 'sélectionnés' : 'de l’offre'} · compté par variante</span>
+
             {fillStats.missing > 0 ? (
-              <span className="font-semibold text-amber-600">
-                {fillStats.missing} à compléter
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowIncompleteOnly((v) => !v)}
+                className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+                  showIncompleteOnly
+                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                    : 'border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-300'
+                }`}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {showIncompleteOnly ? 'Afficher tout' : `${fillStats.missing} à compléter — filtrer`}
+              </button>
             ) : (
-              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
+              <span className="ml-auto inline-flex items-center gap-1 font-semibold text-emerald-600">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Tout est renseigné
               </span>
             )}
-            <span className="text-slate-400">· compté par variante</span>
           </div>
         </div>
       )}
