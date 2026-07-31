@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Plus, Trash2, Save, ChevronUp, ChevronDown, Layers } from 'lucide-react';
+import { Loader2, Plus, Trash2, Save, ChevronUp, ChevronDown, ChevronRight, Layers } from 'lucide-react';
 
 export interface OfferPhase {
   id: string;
@@ -21,6 +21,7 @@ export default function OfferPhasesPanel({
   const [newTitle, setNewTitle] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState(true);
 
   const add = async () => {
     setBusy('add');
@@ -89,12 +90,25 @@ export default function OfferPhasesPanel({
 
   return (
     <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 dark:border-indigo-800 dark:bg-indigo-900/10">
-      <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={open ? 'Replier' : 'Déplier'}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        {open ? <ChevronDown className="h-4 w-4 text-indigo-600" /> : <ChevronRight className="h-4 w-4 text-indigo-600" />}
         <Layers className="h-5 w-5 text-indigo-600" />
         <h2 className="font-display text-lg font-bold text-slate-900 dark:text-white">Phases</h2>
-        <span className="text-xs text-slate-500">— regroupez vos catégories (ex : Phase 1 — Rénovation)</span>
-      </div>
+        {phases.length > 0 && (
+          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+            {phases.length}
+          </span>
+        )}
+        <span className="hidden text-xs text-slate-500 sm:inline">— regroupez vos catégories (ex : Phase 1 — Rénovation)</span>
+      </button>
 
+      {open && (
+        <>
       {phases.length > 0 && (
         <div className="space-y-2">
           {phases.map((p, idx) => {
@@ -137,6 +151,8 @@ export default function OfferPhasesPanel({
           {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter une phase
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 }
