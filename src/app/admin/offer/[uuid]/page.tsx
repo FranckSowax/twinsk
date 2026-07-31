@@ -116,10 +116,15 @@ const isPos = (v: unknown) => {
   return Number.isFinite(n) && n > 0;
 };
 function productSlots(p: OfferProduct): { w: boolean; vol: boolean }[] {
+  // Une variante sans poids/volume hérite de la valeur produit (comme au calcul
+  // du prix de commande) : on la considère donc remplie si la variante OU le
+  // produit porte la valeur. Cela reflète les poids/volumes mappés au sourcing.
+  const pw = isPos(p.weight);
+  const pv = isPos(p.volume);
   const variants = Array.isArray(p.variants) ? p.variants : [];
   return variants.length
-    ? variants.map((v) => ({ w: isPos(v.weight), vol: isPos(v.volume) }))
-    : [{ w: isPos(p.weight), vol: isPos(p.volume) }];
+    ? variants.map((v) => ({ w: isPos(v.weight) || pw, vol: isPos(v.volume) || pv }))
+    : [{ w: pw, vol: pv }];
 }
 // Produit « incomplet » = au moins un emplacement sans poids ou sans volume.
 function isProductComplete(p: OfferProduct): boolean {
@@ -660,6 +665,105 @@ export default function AdminOfferDetailPage() {
         .filter((it) => it.search_results.length > 0)
     : sortedItems;
 
+  // Carte de progression poids/volume (rendue juste au-dessus des phases/produits).
+  const fillProgressCard =
+    fillStats.slots > 0 ? (
+      <div
+        className={`rounded-2xl border p-5 ${
+          showIncompleteOnly
+            ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/15'
+            : fillStats.pct === 100
+              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/15'
+              : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2">
+            <Scale className="h-4 w-4 text-slate-400" />
+            <Box className="h-4 w-4 text-slate-400" />
+            <h3 className="font-semibold text-slate-900 dark:text-white">Poids &amp; volume renseignés</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Périmètre : sélectionnés / tous */}
+            <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold dark:border-slate-600 dark:bg-slate-700">
+              {(['selected', 'all'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFillScope(s)}
+                  className={`rounded-md px-2.5 py-1 transition-colors ${
+                    fillScope === s ? 'bg-slate-900 text-white dark:bg-emerald-500' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {s === 'selected' ? 'Sélectionnés' : 'Tous'}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`font-display text-2xl font-bold ${
+                  fillStats.pct === 100 ? 'text-emerald-600' : fillStats.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
+                }`}
+              >
+                {fillStats.pct}%
+              </span>
+              <span className="text-sm text-slate-500">
+                {fillStats.slots - fillStats.missing}/{fillStats.slots}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Barre de progression — cliquable pour filtrer les incomplets */}
+        <button
+          type="button"
+          onClick={() => fillStats.missing > 0 && setShowIncompleteOnly((v) => !v)}
+          disabled={fillStats.missing === 0}
+          title={fillStats.missing > 0 ? 'Cliquer pour n’afficher que les produits incomplets' : 'Tout est renseigné'}
+          className={`mt-3 block h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700 ${
+            fillStats.missing > 0 ? 'cursor-pointer ring-offset-2 hover:ring-2 hover:ring-amber-300' : 'cursor-default'
+          }`}
+        >
+          <div
+            className={`h-full rounded-full transition-all ${
+              fillStats.pct === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-emerald-500'
+            }`}
+            style={{ width: `${fillStats.pct}%` }}
+          />
+        </button>
+
+        {/* Détail : poids / volume + filtre incomplets */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1.5">
+            <Scale className="h-3.5 w-3.5 text-slate-400" /> Poids <b className="text-slate-700 dark:text-slate-200">{fillStats.weightPct}%</b>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Box className="h-3.5 w-3.5 text-slate-400" /> Volume <b className="text-slate-700 dark:text-slate-200">{fillStats.volumePct}%</b>
+          </span>
+          <span className="text-slate-400">emplacements {fillScope === 'selected' ? 'sélectionnés' : 'de l’offre'} · compté par variante</span>
+
+          {fillStats.missing > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowIncompleteOnly((v) => !v)}
+              className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+                showIncompleteOnly
+                  ? 'bg-amber-500 text-white hover:bg-amber-600'
+                  : 'border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-300'
+              }`}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              {showIncompleteOnly ? 'Afficher tout' : `${fillStats.missing} à compléter — filtrer`}
+            </button>
+          ) : (
+            <span className="ml-auto inline-flex items-center gap-1 font-semibold text-emerald-600">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Tout est renseigné
+            </span>
+          )}
+        </div>
+      </div>
+    ) : null;
+
   return (
     <div className="space-y-8">
       {/* Back — vers la liste B2B ou B2C selon le type de l'offre */}
@@ -1019,104 +1123,6 @@ export default function AdminOfferDetailPage() {
         </div>
       </motion.div>
 
-      {/* Progression du remplissage poids / volume (par variante ou produit) */}
-      {fillStats.slots > 0 && (
-        <div
-          className={`rounded-2xl border p-5 ${
-            showIncompleteOnly
-              ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/15'
-              : fillStats.pct === 100
-                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/15'
-                : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex items-center gap-2">
-              <Scale className="h-4 w-4 text-slate-400" />
-              <Box className="h-4 w-4 text-slate-400" />
-              <h3 className="font-semibold text-slate-900 dark:text-white">Poids &amp; volume renseignés</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Périmètre : sélectionnés / tous */}
-              <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold dark:border-slate-600 dark:bg-slate-700">
-                {(['selected', 'all'] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setFillScope(s)}
-                    className={`rounded-md px-2.5 py-1 transition-colors ${
-                      fillScope === s ? 'bg-slate-900 text-white dark:bg-emerald-500' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {s === 'selected' ? 'Sélectionnés' : 'Tous'}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={`font-display text-2xl font-bold ${
-                    fillStats.pct === 100 ? 'text-emerald-600' : fillStats.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
-                  }`}
-                >
-                  {fillStats.pct}%
-                </span>
-                <span className="text-sm text-slate-500">
-                  {fillStats.slots - fillStats.missing}/{fillStats.slots}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Barre de progression — cliquable pour filtrer les incomplets */}
-          <button
-            type="button"
-            onClick={() => fillStats.missing > 0 && setShowIncompleteOnly((v) => !v)}
-            disabled={fillStats.missing === 0}
-            title={fillStats.missing > 0 ? 'Cliquer pour n’afficher que les produits incomplets' : 'Tout est renseigné'}
-            className={`mt-3 block h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700 ${
-              fillStats.missing > 0 ? 'cursor-pointer ring-offset-2 hover:ring-2 hover:ring-amber-300' : 'cursor-default'
-            }`}
-          >
-            <div
-              className={`h-full rounded-full transition-all ${
-                fillStats.pct === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-emerald-500'
-              }`}
-              style={{ width: `${fillStats.pct}%` }}
-            />
-          </button>
-
-          {/* Détail : poids / volume + filtre incomplets */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <Scale className="h-3.5 w-3.5 text-slate-400" /> Poids <b className="text-slate-700 dark:text-slate-200">{fillStats.weightPct}%</b>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Box className="h-3.5 w-3.5 text-slate-400" /> Volume <b className="text-slate-700 dark:text-slate-200">{fillStats.volumePct}%</b>
-            </span>
-            <span className="text-slate-400">emplacements {fillScope === 'selected' ? 'sélectionnés' : 'de l’offre'} · compté par variante</span>
-
-            {fillStats.missing > 0 ? (
-              <button
-                type="button"
-                onClick={() => setShowIncompleteOnly((v) => !v)}
-                className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-                  showIncompleteOnly
-                    ? 'bg-amber-500 text-white hover:bg-amber-600'
-                    : 'border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-300'
-                }`}
-              >
-                <Filter className="h-3.5 w-3.5" />
-                {showIncompleteOnly ? 'Afficher tout' : `${fillStats.missing} à compléter — filtrer`}
-              </button>
-            ) : (
-              <span className="ml-auto inline-flex items-center gap-1 font-semibold text-emerald-600">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Tout est renseigné
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Modal choix de devise */}
       <ProposalCurrencyModal
         open={currencyModalOpen}
@@ -1409,6 +1415,9 @@ export default function AdminOfferDetailPage() {
         onImported={loadData}
         phaseId={offer.offer_type === 'b2b' ? targetPhaseId || null : null}
       />
+
+      {/* Progression poids/volume — juste au-dessus des phases/produits */}
+      {fillProgressCard}
 
       {items.length > 0 && (
         <>
