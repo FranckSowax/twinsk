@@ -11,6 +11,7 @@ import EditRequestItemModal from './EditRequestItemModal';
 import NotesThread, { type NoteItem } from '@/components/ui/NotesThread';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 import type { TKey } from '@/lib/i18n/admin';
+import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
 
 interface SearchResultRow {
   id: string;
@@ -37,12 +38,15 @@ interface SearchResultRow {
     volume?: number | null;
     dimensions?: string | null;
     capacity?: string | null;
+    price_type?: string | null;
   }[] | null;
   seller: string | null;
   product_url: string;
   selected: boolean;
   quantity: number;
   margin_percent: number;
+  price_type?: string | null; // "acompte" = acompte usine (pas un prix de vente)
+  price_note?: string | null;
   moq: number | null;
   weight: number | null;
   volume: number | null;
@@ -860,10 +864,15 @@ export default function ResultsTable({
 
                       {/* Price */}
                       <td className="px-2 py-3 text-sm font-medium text-slate-900 dark:text-white">
+                        {isAcompte(result.price_type) && (
+                          <span className="mb-1 inline-flex items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                            {ACOMPTE_BADGE}
+                          </span>
+                        )}
                         {result.price == null ? (
                           <span className="text-amber-600">{t('table.priceToConfirm')}</span>
                         ) : (
-                          formatCNY(result.price)
+                          <span className={isAcompte(result.price_type) ? 'block text-amber-600' : ''}>{formatCNY(result.price)}</span>
                         )}
                       </td>
 
@@ -1014,11 +1023,13 @@ export default function ResultsTable({
                         />
                       </td>
 
-                      {/* Final price */}
+                      {/* Final price — pas de prix×marge pour un acompte (sur devis) */}
                       <td className="px-2 py-3 text-right text-sm font-semibold text-amber-600 dark:text-amber-400">
-                        {result.price == null
-                          ? '—'
-                          : formatCNY(applyMargin(result.price, result.margin_percent) * result.quantity)}
+                        {isAcompte(result.price_type)
+                          ? <span className="text-[11px] uppercase">Sur devis</span>
+                          : result.price == null
+                            ? '—'
+                            : formatCNY(applyMargin(result.price, result.margin_percent) * result.quantity)}
                       </td>
 
                       {/* Actions */}

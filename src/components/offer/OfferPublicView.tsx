@@ -18,7 +18,8 @@ import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { roundXafUp, formatXAF, formatCNY, formatUSD, formatEUR, formatInCurrency, convertFromCny, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
-import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search } from 'lucide-react';
+import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText } from 'lucide-react';
+import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
 
 interface OfferVariant {
   id: string;
@@ -30,6 +31,8 @@ interface OfferVariant {
   volume: number | null;
   dimensions: string | null;
   capacity: string | null;
+  price_type?: string | null; // "acompte" (hérité du produit ou propre à la variante)
+  price_note?: string | null;
 }
 
 interface OfferProduct {
@@ -45,6 +48,8 @@ interface OfferProduct {
   price: number | null; // prix produit exact (null = porté par paliers/variantes)
   from_price: number; // prix d'affichage « à partir de » (0 si « sur devis »)
   on_quote?: boolean; // true → « Sur devis » (prix à 0)
+  price_type?: string | null; // "acompte" → montant = acompte usine, pas un prix de vente
+  price_note?: string | null; // note affichée sous le prix / en infobulle
   in_cover_video?: boolean; // « Vu dans la vidéo » → badge rose fluo
   price_tiers: { min_qty: number; price: number }[] | null;
   variants_total: number | null;
@@ -100,10 +105,18 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
   // Devise affichée au client (défaut FCFA). Les autres devises restent en conversion (≈).
   const currency: CurrencyCode = offer.currency || 'XAF';
   const fmtPrice = (cny: number) => formatInCurrency(cny, currency);
-  const cardPriceLabel = (p: { price: number | null; from_price: number; on_quote?: boolean }) =>
-    p.on_quote || p.from_price <= 0
+  // Acompte : montant présenté comme « Acompte usine » (jamais comme prix de vente).
+  const isAcompteLine = (p: OfferProduct, variant?: OfferVariant | null) =>
+    isAcompte(p.price_type) || isAcompte(variant?.price_type);
+  const cardPriceLabel = (p: { price: number | null; from_price: number; on_quote?: boolean; price_type?: string | null }) => {
+    if (isAcompte(p.price_type)) {
+      const amt = p.price != null ? p.price : p.from_price;
+      return amt > 0 ? `${ACOMPTE_LABEL} · ${fmtPrice(amt)}` : 'Sur devis';
+    }
+    return p.on_quote || p.from_price <= 0
       ? 'Sur devis'
       : `À partir de ${fmtPrice(p.price != null ? p.price : p.from_price)}`;
+  };
   // Formate une valeur DÉJÀ dans la devise choisie (pour les totaux sommés).
   const fmtPrimaryValue = (v: number) =>
     currency === 'CNY' ? formatCNY(v) : currency === 'USD' ? formatUSD(v) : currency === 'EUR' ? formatEUR(v) : formatXAF(v);
@@ -146,21 +159,28 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     let cny = 0;
     let count = 0;
     let primary = 0; // somme des sous-totaux de ligne arrondis (devise) → total == somme des lignes
+    let acompteCount = 0; // articles « acompte / sur devis » présents dans le panier
     for (const line of cartLines) {
       const p = allProducts.find((pp) => pp.id === line.productId);
       if (!p) continue;
       const variant = line.variantId
         ? p.variants?.find((v) => v.id === line.variantId)
         : null;
+      count += line.quantity;
+      // Ligne « acompte » (devis) : jamais de calcul prix × quantité ni de total.
+      if (isAcompteLine(p, variant)) {
+        acompteCount += line.quantity;
+        continue;
+      }
       // Prix unitaire : variante chiffrée, sinon prix produit, sinon « à partir de »
       const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
       const lineCny = unit * line.quantity;
       cny += lineCny;
       const v = convertFromCny(lineCny, currency);
       primary += currency === 'XAF' ? roundXafUp(v) : Math.round(v * 100) / 100;
-      count += line.quantity;
     }
-    return { cny, count, primary };
+    // allAcompte : le panier ne contient que des demandes de devis (aucun prix).
+    return { cny, count, primary, acompteCount, allAcompte: count > 0 && acompteCount === count };
   }, [cartLines, allProducts, currency]);
 
   const cartKey = (productId: string, variantId: string | null) =>
@@ -439,6 +459,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                             ▶ Vu dans la vidéo
                           </span>
                         )}
+                        {isAcompte(p.price_type) && (
+                          <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-amber-500/40">
+                            {ACOMPTE_BADGE}
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-1 flex-col p-3">
                         <p
@@ -453,7 +478,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                           </span>
                         )}
                         <div className="mt-2 flex items-baseline justify-between">
-                          <p className="text-base font-bold text-emerald-600">
+                          <p className={`text-base font-bold ${isAcompte(p.price_type) ? 'text-amber-600' : 'text-emerald-600'}`}>
                             {cardPriceLabel(p)}
                           </p>
                           {p.moq != null && (
@@ -514,6 +539,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                                   ▶ Vu dans la vidéo
                                 </span>
                               )}
+                              {isAcompte(p.price_type) && (
+                                <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm">
+                                  {ACOMPTE_BADGE}
+                                </span>
+                              )}
                             </div>
                             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
                               {hasVariants && (
@@ -524,7 +554,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                             </div>
                           </div>
                           <div className="flex-shrink-0 text-right">
-                            <p className="text-sm font-bold text-emerald-600">
+                            <p className={`text-sm font-bold ${isAcompte(p.price_type) ? 'text-amber-600' : 'text-emerald-600'}`}>
                               {cardPriceLabel(p)}
                             </p>
                             <p className="mt-0.5 text-[10px] text-emerald-600/70">
@@ -605,9 +635,35 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                 </div>
 
                 {(() => {
-                  const variantPrice = variantOfActive(activeProduct, selectedVariantForActive)?.price;
+                  const sel = variantOfActive(activeProduct, selectedVariantForActive);
+                  const variantPrice = sel?.price;
                   // Prix exact (produit ou variante sélectionnée), sinon « à partir de »
                   const exact = variantPrice ?? activeProduct.price;
+                  const acompte = isAcompteLine(activeProduct, sel);
+                  const note = sel?.price_note || activeProduct.price_note || null;
+                  // Acompte : montant présenté comme « Acompte usine », jamais comme prix de vente.
+                  if (acompte) {
+                    const amt = exact ?? activeProduct.from_price;
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-white">
+                            {ACOMPTE_BADGE}
+                          </span>
+                          <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">{ACOMPTE_LABEL}</span>
+                        </div>
+                        {amt != null && amt > 0 ? (
+                          <MultiCurrencyPrice amountCny={amt} variant="large" primary={currency} />
+                        ) : (
+                          <span className="font-display text-2xl font-bold text-amber-600">Sur devis</span>
+                        )}
+                        <p className="text-xs text-slate-500">
+                          Montant d’acompte usine — pas le prix de vente final.
+                          {note ? ` ${note}` : ''}
+                        </p>
+                      </div>
+                    );
+                  }
                   // « Sur devis » : produit à 0 sans variante chiffrée sélectionnée.
                   if ((activeProduct.on_quote || activeProduct.from_price <= 0) && exact == null) {
                     return <span className="font-display text-2xl font-bold text-emerald-600">Sur devis</span>;
@@ -625,8 +681,8 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   );
                 })()}
 
-                {/* Paliers de prix par quantité (v3.1) */}
-                {activeProduct.price_tiers && activeProduct.price_tiers.length > 0 && (
+                {/* Paliers de prix par quantité (v3.1) — sans objet pour un acompte */}
+                {!isAcompte(activeProduct.price_type) && activeProduct.price_tiers && activeProduct.price_tiers.length > 0 && (
                   <div className="overflow-hidden rounded-2xl border border-slate-200">
                     <p className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Prix par quantité
@@ -818,7 +874,14 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                                 <span>{v.name}</span>
                               </div>
                               {v.price != null && (
-                                <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} />
+                                <div className="flex flex-col items-end gap-0.5">
+                                  {isAcompteLine(activeProduct, v) && (
+                                    <span className="inline-flex items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                                      {ACOMPTE_BADGE}
+                                    </span>
+                                  )}
+                                  <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} />
+                                </div>
                               )}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -841,6 +904,12 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                     activeProduct.variants.length > 0 &&
                     !selectedVariantForActive;
                   const existing = inCart(activeProduct.id, selectedVariantForActive);
+                  // Acompte : le CTA d'achat devient « Demander un devis » (le produit
+                  // rejoint quand même le panier → coordonnées récoltées au checkout).
+                  const acompte = isAcompteLine(
+                    activeProduct,
+                    variantOfActive(activeProduct, selectedVariantForActive),
+                  );
                   return (
                     <motion.button
                       type="button"
@@ -851,13 +920,22 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                       className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-semibold transition-colors ${
                         needsVariant
                           ? 'cursor-not-allowed bg-slate-100 text-slate-400'
-                          : existing
-                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600'
-                            : 'border-2 border-emerald-400 bg-white text-emerald-700 hover:bg-emerald-50'
+                          : acompte
+                            ? existing
+                              ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600'
+                              : 'border-2 border-amber-400 bg-white text-amber-700 hover:bg-amber-50'
+                            : existing
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600'
+                              : 'border-2 border-emerald-400 bg-white text-emerald-700 hover:bg-emerald-50'
                       }`}
                     >
                       {needsVariant ? (
                         <>Choisissez d&apos;abord une variante</>
+                      ) : acompte ? (
+                        <>
+                          <FileText className="h-5 w-5" />
+                          {existing ? 'Ajouté — demander le devis' : 'Demander un devis'}
+                        </>
                       ) : existing ? (
                         <>
                           <Plus className="h-5 w-5" />
@@ -925,6 +1003,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                         ? p.variants?.find((v) => v.id === line.variantId)
                         : null;
                       const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
+                      const acompte = isAcompteLine(p, variant);
                       const key = cartKey(line.productId, line.variantId);
                       return (
                         <div
@@ -944,11 +1023,17 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                             {variant && (
                               <p className="text-xs text-emerald-600">{variant.name}</p>
                             )}
-                            <p className="text-xs text-slate-500">{unit > 0 ? `${fmtPrice(unit)} × ${line.quantity}` : `Sur devis × ${line.quantity}`}</p>
+                            <p className="text-xs text-slate-500">
+                              {acompte
+                                ? `${ACOMPTE_LABEL} × ${line.quantity}`
+                                : unit > 0
+                                  ? `${fmtPrice(unit)} × ${line.quantity}`
+                                  : `Sur devis × ${line.quantity}`}
+                            </p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
-                            <p className="text-sm font-bold text-emerald-600">
-                              {unit > 0 ? fmtPrice(unit * line.quantity) : 'Sur devis'}
+                            <p className={`text-sm font-bold ${acompte ? 'text-amber-600' : 'text-emerald-600'}`}>
+                              {acompte ? 'Sur devis' : unit > 0 ? fmtPrice(unit * line.quantity) : 'Sur devis'}
                             </p>
                             <div className="flex items-center gap-1">
                               <button
@@ -978,19 +1063,32 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   </div>
                 )}
 
-                {/* Total */}
+                {/* Total (les lignes acompte/devis n'entrent pas dans le total). */}
                 {cartLines.length > 0 && (
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                    <p className="text-sm font-semibold text-emerald-700">Total panier</p>
-                    <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={currency === 'XAF' ? total.primary : undefined} variant="stacked" primary={currency} />
+                    <p className="text-sm font-semibold text-emerald-700">
+                      {total.allAcompte ? 'Sur devis' : 'Total panier'}
+                    </p>
+                    {total.allAcompte ? (
+                      <span className="text-sm font-bold text-amber-600">Devis à établir</span>
+                    ) : (
+                      <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={currency === 'XAF' ? total.primary : undefined} variant="stacked" primary={currency} />
+                    )}
                   </div>
+                )}
+                {cartLines.length > 0 && total.acompteCount > 0 && !total.allAcompte && (
+                  <p className="rounded-xl bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-700">
+                    Dont {total.acompteCount} article{total.acompteCount > 1 ? 's' : ''} sur devis (acompte usine, non inclus dans le total).
+                  </p>
                 )}
 
                 {/* Les coordonnées sont demandées à l'étape suivante
                     (après le choix du transport, avant le paiement). */}
                 {cartLines.length > 0 && (
                   <p className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-                    Étape suivante : choix du transport, puis vos coordonnées et le paiement.
+                    {total.allAcompte
+                      ? 'Étape suivante : laissez vos coordonnées, notre équipe vous envoie le devis.'
+                      : 'Étape suivante : choix du transport, puis vos coordonnées et le paiement.'}
                   </p>
                 )}
 
@@ -1016,8 +1114,8 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   disabled={submitting || cartLines.length === 0}
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
                 >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Valider et choisir le transport
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : total.allAcompte ? <FileText className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                  {total.allAcompte ? 'Demander un devis' : 'Valider et choisir le transport'}
                 </motion.button>
               </div>
             </motion.div>
@@ -1041,7 +1139,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
               <span className="flex items-center gap-1.5">
                 <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
                 <span className="opacity-70">·</span>
-                <span className="tabular-nums">{fmtPrimaryValue(total.primary)}</span>
+                <span className="tabular-nums">{total.allAcompte ? 'Demander un devis' : fmtPrimaryValue(total.primary)}</span>
               </span>
             ) : (
               'Voir le panier'

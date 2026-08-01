@@ -12,11 +12,12 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Smartphone, Upload, Clock, Banknote } from 'lucide-react';
+import { Smartphone, Upload, Clock, Banknote, FileText } from 'lucide-react';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { orderNumber } from '@/lib/order-number';
+import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
 
 interface OrderLine {
   id: string;
@@ -30,6 +31,7 @@ interface OrderLine {
   quantity: number;
   subtotal_cny: number;
   subtotal_fcfa: number;
+  price_type?: string | null; // "acompte" → ligne sur devis (hors total)
 }
 
 interface Pricing {
@@ -278,15 +280,20 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   }
 
   const { order, lines, pricing, airtel_number } = data;
+  // Devis : lignes « acompte » (sur devis). Une commande 100% acompte = demande de
+  // devis (pas de transport ni de paiement — notre équipe établit le devis).
+  const hasAcompte = lines.some((l) => isAcompte(l.price_type));
+  const allAcompte = lines.length > 0 && lines.every((l) => isAcompte(l.price_type));
   const transportPicked = !!order.transport_mode;
   const paymentDone = paymentParam === 'mock-success' || order.payment_status === 'paid';
   const paymentSubmitted = order.payment_status === 'submitted';
   const grandTotalFcfa = roundXafUp(pricing.itemsTotalFcfaRounded + (order.transport_cost || 0));
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
-  // Formulaire coordonnées à afficher : transport choisi mais coordonnées manquantes.
-  const needContact = transportPicked && !contactComplete;
+  // Formulaire coordonnées à afficher : transport choisi (ou devis pur) mais coordonnées manquantes.
+  const needContact = (transportPicked || allAcompte) && !contactComplete;
   const canPay =
+    !allAcompte &&
     transportPicked &&
     order.transport_mode !== 'quote' &&
     contactComplete &&
@@ -357,13 +364,25 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                 {l.variant_name && (
                   <p className="text-xs text-emerald-600">{l.variant_name}</p>
                 )}
-                <p className="text-xs text-slate-500">
-                  {l.quantity} × {roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA
-                </p>
+                {isAcompte(l.price_type) ? (
+                  <p className="text-xs font-semibold text-amber-600">
+                    {ACOMPTE_LABEL} · {l.quantity} article{l.quantity > 1 ? 's' : ''} — sur devis
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    {l.quantity} × {roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA
+                  </p>
+                )}
               </div>
-              <p className="flex-shrink-0 text-sm font-bold text-emerald-600">
-                {roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
-              </p>
+              {isAcompte(l.price_type) ? (
+                <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold uppercase text-amber-700">
+                  {ACOMPTE_BADGE}
+                </span>
+              ) : (
+                <p className="flex-shrink-0 text-sm font-bold text-emerald-600">
+                  {roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -397,6 +416,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
       </section>
 
       {/* Transport selection */}
+      {!allAcompte && (
       <section className="mb-6 space-y-3 rounded-3xl border border-slate-200 bg-white p-6">
         <h2 className="font-semibold text-slate-900">Choisissez votre transport</h2>
 
@@ -512,6 +532,20 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           </div>
         )}
       </section>
+      )}
+
+      {/* Bandeau devis (acompte) : au-dessus des coordonnées si commande 100% devis */}
+      {allAcompte && (
+        <section className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6">
+          <h2 className="flex items-center gap-2 font-semibold text-amber-800">
+            <FileText className="h-5 w-5" /> Demande de devis
+          </h2>
+          <p className="mt-1 text-sm text-amber-700">
+            Ces articles sont proposés en <b>acompte usine</b> : le prix de vente final est établi sur devis.
+            Laissez vos coordonnées ci-dessous, notre équipe vous envoie le devis sur WhatsApp.
+          </p>
+        </section>
+      )}
 
       {/* Coordonnées client — après le transport, avant le paiement */}
       {needContact && (
@@ -711,6 +745,17 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           </p>
           <p className="mt-3 text-xs text-amber-700/80">
             Les détails (adresse, horaires) vous ont été envoyés sur WhatsApp ({order.client_phone}).
+          </p>
+        </section>
+      )}
+
+      {/* Demande de devis enregistrée (commande 100% acompte, coordonnées fournies) */}
+      {allAcompte && contactComplete && !paymentDone && (
+        <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-center">
+          <FileText className="mx-auto h-12 w-12 text-amber-500" />
+          <h2 className="mt-3 font-display text-xl font-bold text-amber-800">Demande de devis enregistrée</h2>
+          <p className="mt-2 text-sm text-amber-700">
+            Merci ! Notre équipe prépare votre devis et vous l’envoie sur WhatsApp ({order.client_phone}).
           </p>
         </section>
       )}

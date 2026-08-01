@@ -4,6 +4,7 @@
 
 import { supabaseAdmin } from './supabase/server';
 import { sanitizeForPublic } from './utils/shortenTitle';
+import { isAcompte, variantIsAcompte, PRICE_TYPE_ACOMPTE } from './acompte';
 
 interface RawProduct {
   id: string;
@@ -33,6 +34,8 @@ interface RawProduct {
   price_tiers: { min_qty?: number | null; price?: number | null }[] | null;
   detail_images: string[] | null;
   variants_total: number | null;
+  price_type: string | null; // "acompte" = acompte usine (pas un prix de vente)
+  price_note: string | null;
   // description_source : INTERNE — volontairement non lu ici (jamais exposé au client)
 }
 
@@ -77,6 +80,8 @@ export interface PublicOfferData {
       price: number | null; // prix produit exact (null = porté par paliers/variantes)
       from_price: number; // prix d'affichage « à partir de » (0 si « sur devis »)
       on_quote: boolean; // true → afficher « Sur devis » (prix à 0)
+      price_type: string | null; // "acompte" → montant = acompte usine, pas un prix de vente
+      price_note: string | null; // note affichée sous le prix / en infobulle
       in_cover_video: boolean; // « Vu dans la vidéo » → badge rose fluo
       price_tiers: { min_qty: number; price: number }[] | null;
       variants_total: number | null;
@@ -99,6 +104,8 @@ export interface PublicOfferData {
         volume: number | null;
         dimensions: string | null;
         capacity: string | null;
+        price_type: string | null; // acompte hérité du produit ou propre à la variante
+        price_note: string | null;
       }> | null;
     }>;
   }>;
@@ -179,17 +186,27 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
                     id?: string; name?: string; image_url?: string | null;
                     price?: number | null; moq?: number | null; weight?: number | null;
                     volume?: number | null; dimensions?: string | null; capacity?: string | null;
+                    price_type?: unknown; price_note?: unknown;
                   };
+                  // Héritage : la variante est acompte si le produit l'est.
+                  const vAcompte = variantIsAcompte(p.price_type, vo.price_type);
                   return {
                     id: vo.id || '',
                     name: sanitizeForPublic(vo.name),
-                    price: vo.price != null ? vo.price * (1 + margin / 100) : null,
+                    // Acompte : montant brut (pas de marge de revente).
+                    price:
+                      vo.price != null ? (vAcompte ? vo.price : vo.price * (1 + margin / 100)) : null,
                     moq: vo.moq ?? null,
                     weight: vo.weight ?? null,
                     volume: vo.volume ?? null,
                     dimensions: vo.dimensions ?? null,
                     capacity: vo.capacity ?? null,
                     image_url: (vo as { image_url?: string | null }).image_url ?? null,
+                    price_type: vAcompte ? PRICE_TYPE_ACOMPTE : null,
+                    price_note:
+                      typeof vo.price_note === 'string' && vo.price_note.trim()
+                        ? vo.price_note.trim()
+                        : null,
                   };
                 })
                 .filter((v) => v.name)
@@ -198,8 +215,11 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
           // Prix d'affichage « à partir de » : plus petit prix POSITIF réel disponible
           // (produit, palier ou variante). Sur 1688 le prix existe toujours ; une absence
           // totale = défaut de collecte → from_price = 0 → produit filtré ci-dessous.
+          // Acompte : le prix produit est un montant brut (pas de marge).
+          const productAcompte = isAcompte(p.price_type);
+          const productDisplayPrice = productAcompte ? p.price : priceWithMargin;
           const candidates: number[] = [];
-          if (priceWithMargin != null && priceWithMargin > 0) candidates.push(priceWithMargin);
+          if (productDisplayPrice != null && productDisplayPrice > 0) candidates.push(productDisplayPrice);
           for (const t of priceTiers || []) if (t.price > 0) candidates.push(t.price);
           for (const v of mappedVariants || []) if (v.price != null && v.price > 0) candidates.push(v.price);
           const fromPrice = candidates.length ? Math.min(...candidates) : 0;
@@ -218,9 +238,12 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             videos: Array.isArray(p.videos)
               ? p.videos.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
               : [],
-            price: onQuote ? null : priceWithMargin,
+            price: onQuote ? null : productDisplayPrice,
             from_price: fromPrice,
             on_quote: onQuote, // true → afficher « Sur devis » côté client
+            price_type: productAcompte ? PRICE_TYPE_ACOMPTE : null,
+            price_note:
+              typeof p.price_note === 'string' && p.price_note.trim() ? p.price_note.trim() : null,
             in_cover_video: !!p.in_cover_video,
             price_tiers: priceTiers && priceTiers.length ? priceTiers : null,
             variants_total: typeof p.variants_total === 'number' ? p.variants_total : null,

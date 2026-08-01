@@ -14,6 +14,8 @@ interface InVariant {
   volume?: unknown;
   dimensions?: unknown;
   capacity?: unknown;
+  price_type?: unknown;
+  price_note?: unknown;
 }
 interface InProduct {
   title?: string;
@@ -92,6 +94,9 @@ function normalizeVariants(input: InVariant[] | undefined): null | Record<string
       dimensions: strOrNull(v.dimensions),
       capacity: strOrNull(v.capacity),
       image_url: strOrNull((v as { image_url?: unknown }).image_url),
+      // v3.1 acompte (par variante) — omis (null) si absent
+      price_type: strOrNull(v.price_type),
+      price_note: strOrNull(v.price_note),
     }))
     .filter((v) => v.name.length > 0);
   return cleaned.length ? cleaned : null;
@@ -319,6 +324,8 @@ export async function POST(
         detail_images: v31.detail_images,
         variants_total: v31.variants_total,
         description_source: v31.description_source,
+        price_type: v31.price_type, // "acompte" = acompte usine (pas un prix de vente)
+        price_note: v31.price_note,
         // Champs internes (jamais exposés au client)
         supplier_shipping_price: numOrNull(p.supplier_shipping_price),
         delivery_time: strOrNull(p.delivery_time),
@@ -326,10 +333,18 @@ export async function POST(
     }
 
     if (rows.length) {
-      const { data: insertedRows, error: srErr } = await supabaseAdmin
-        .from('offer_products')
-        .insert(rows)
-        .select('id');
+      let ins = await supabaseAdmin.from('offer_products').insert(rows).select('id');
+      // Résilient : si les colonnes price_type/price_note manquent (migration 46
+      // pas encore appliquée), on réessaie sans elles plutôt que d'échouer l'import.
+      if (ins.error) {
+        const stripped = rows.map((r) => {
+          const { price_type: _pt, price_note: _pn, ...rest } = r as Record<string, unknown>;
+          void _pt; void _pn;
+          return rest;
+        });
+        ins = await supabaseAdmin.from('offer_products').insert(stripped).select('id');
+      }
+      const { data: insertedRows, error: srErr } = ins;
       if (srErr) {
         itemReport.errors.push(`offer_products: ${srErr.message}`);
         itemReport.productsFailed += rows.length;

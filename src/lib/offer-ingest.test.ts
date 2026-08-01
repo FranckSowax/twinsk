@@ -150,7 +150,19 @@ describe('normalizeProductV31Fields — intégration', () => {
       videos: null,
       variants_total: null,
       description_source: null,
+      price_type: null,
+      price_note: null,
     });
+  });
+  it('price_type / price_note : normalisés (trim, vide → null)', () => {
+    const out = normalizeProductV31Fields(
+      { price_type: 'acompte', price_note: '  50% à la commande ' },
+      { existingVideos: null, excludeImages: [] },
+    );
+    expect(out.price_type).toBe('acompte');
+    expect(out.price_note).toBe('50% à la commande');
+    const empty = normalizeProductV31Fields({ price_type: '' }, { existingVideos: null, excludeImages: [] });
+    expect(empty.price_type).toBeNull();
   });
   it('produit v3.1 complet : prix null + tiers + detail_images + video repliée + variants_total', () => {
     const out = normalizeProductV31Fields(

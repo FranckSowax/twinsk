@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
+import { isAcompte } from '@/lib/acompte';
 
 interface Pick {
   product_id: string;
@@ -59,12 +60,18 @@ export async function POST(
   if (!productIds.length) {
     return NextResponse.json({ error: 'Produits invalides' }, { status: 400 });
   }
-  const { data: products } = await supabaseAdmin
+  // price_type inclus dans le select ; fallback sans lui si la colonne manque
+  // (migration 46 pas encore appliquée) — l'import ne doit jamais casser la commande.
+  const baseCols =
+    'id, offer_item_id, title, description, price, image_url, main_image_url, extra_images, variants, seller, product_url, margin_percent, moq, weight, volume, dimensions, has_battery';
+  let prodRes: { data: unknown[] | null; error: unknown } = await supabaseAdmin
     .from('offer_products')
-    .select(
-      'id, offer_item_id, title, description, price, image_url, main_image_url, extra_images, variants, seller, product_url, margin_percent, moq, weight, volume, dimensions, has_battery'
-    )
+    .select(`${baseCols}, price_type`)
     .in('id', productIds);
+  if (prodRes.error) {
+    prodRes = await supabaseAdmin.from('offer_products').select(baseCols).in('id', productIds);
+  }
+  const products = prodRes.data as ProductRow[] | null;
 
   if (!products?.length) {
     return NextResponse.json({ error: 'Produits introuvables' }, { status: 400 });
@@ -89,6 +96,7 @@ export async function POST(
           volume?: number | null;
           dimensions?: string | null;
           capacity?: string | null;
+          price_type?: unknown;
         }[]
       | null;
     seller: string | null;
@@ -99,6 +107,7 @@ export async function POST(
     volume: number | null;
     dimensions: string | null;
     has_battery: boolean;
+    price_type?: unknown;
   };
   const productMap = new Map<string, ProductRow>(
     (products as ProductRow[]).map((p) => [p.id, p])
@@ -140,14 +149,17 @@ export async function POST(
     const variant = pick.variant_id
       ? product.variants?.find((v) => v.id === pick.variant_id) || null
       : null;
+    // Ligne « acompte » (devis) : le prix n'est PAS un prix de vente → jamais de
+    // calcul (prix × quantité, marge) ; contribue 0 au total, snapshot price_type.
+    const acompte = isAcompte(product.price_type) || isAcompte(variant?.price_type);
     const baseUnit = variant && variant.price != null ? variant.price : product.price;
-    const unitBeforeCommission = baseUnit * (1 + (product.margin_percent || 0) / 100);
+    const unitBeforeCommission = acompte ? 0 : baseUnit * (1 + (product.margin_percent || 0) / 100);
     // Marque blanche : la commission de l'affilié est incluse dans le prix payé.
     const unitWithMargin = affiliate
       ? unitBeforeCommission * (1 + affiliate.commission / 100)
       : unitBeforeCommission;
-    if (affiliate) commissionCny += (unitWithMargin - unitBeforeCommission) * qty;
-    const subtotal = unitWithMargin * qty;
+    if (affiliate && !acompte) commissionCny += (unitWithMargin - unitBeforeCommission) * qty;
+    const subtotal = acompte ? 0 : unitWithMargin * qty;
     itemsTotalCny += subtotal;
     if (product.has_battery) anyBattery = true;
     lineRows.push({
@@ -157,6 +169,7 @@ export async function POST(
       unit_price_cny: unitWithMargin,
       quantity: qty,
       subtotal_cny: subtotal,
+      price_type: acompte ? 'acompte' : null,
       // Snapshot produit (nom + image + URL 1688) — robuste à la suppression du produit.
       product_title: product.title,
       product_image: product.main_image_url || product.image_url || null,
@@ -211,7 +224,7 @@ export async function POST(
   const linesWithOrder = lineRows.map((l) => ({ ...l, order_id: orderRow.id }));
   let linesErr = (await supabaseAdmin.from('offer_order_lines').insert(linesWithOrder)).error;
   if (linesErr) {
-    const strip = new Set(['weight', 'volume', 'has_battery']);
+    const strip = new Set(['weight', 'volume', 'has_battery', 'price_type']);
     const fallback = linesWithOrder.map((l) =>
       Object.fromEntries(Object.entries(l).filter(([k]) => !strip.has(k)))
     );

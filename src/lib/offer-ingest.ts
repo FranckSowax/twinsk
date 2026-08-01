@@ -151,6 +151,8 @@ export interface ProductV31Fields {
   videos: string[] | null;
   variants_total: number | null;
   description_source: string | null;
+  price_type: string | null;
+  price_note: string | null;
 }
 
 /**
@@ -166,6 +168,8 @@ export function normalizeProductV31Fields(
     video_url?: unknown;
     variants_total?: unknown;
     description_source?: unknown;
+    price_type?: unknown;
+    price_note?: unknown;
   },
   ctx: { existingVideos: string[] | null; excludeImages: string[] },
 ): ProductV31Fields {
@@ -176,5 +180,7 @@ export function normalizeProductV31Fields(
     videos: foldVideoUrl(ctx.existingVideos, p.video_url),
     variants_total: normalizeVariantsTotal(p.variants_total),
     description_source: strOrNull(p.description_source),
+    price_type: strOrNull(p.price_type),
+    price_note: strOrNull(p.price_note),
   };
 }
