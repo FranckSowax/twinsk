@@ -48,6 +48,18 @@ describe('nettoyer — 7 cas réels', () => {
     expect(p.variants![0].weight_kg).toBe(60);
   });
 
+  it('3bis. variante commençant par un chiffre (« 60 kg … ») → poids lu (pas confondu avec le séparateur)', () => {
+    const { p } = clean({
+      title: 'Moteur',
+      price: 800,
+      product_url: 'https://detail.1688.com/offer/3b.html',
+      weight: 0.06,
+      variants: [{ name: '60 kg 3,5kW' }],
+    });
+    expect(p.variants![0].weight_kg).toBe(60);
+    expect(p.weight_kg).toBe(60);
+  });
+
   it('4. accessoire (cbm 0.0002, dims 20.3x9.3x1, 0.05 kg) → aucune anomalie', () => {
     const { r } = clean({
       title: 'Support silicone',

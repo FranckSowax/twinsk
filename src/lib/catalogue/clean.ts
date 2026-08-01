@@ -375,7 +375,9 @@ export function nettoyer(input: Catalogue): CleanResult {
 
       // --- B→E : produit puis variantes ---
       const pInfo = traiter(p, oid, 'produit', titre, journal);
-      const vInfos = variants.map((v) => traiter(v, oid, 'variante', `${titre} / ${v.name || ''}`, journal));
+      // Séparateur « · » (jamais « / ») : le garde-fou portée matche « /N », il ne doit
+      // pas confondre le séparateur titre/variante avec une notation « kg/台 ».
+      const vInfos = variants.map((v) => traiter(v, oid, 'variante', `${titre} · ${v.name || ''}`, journal));
 
       // --- Étape F : propagation entre niveaux ---
       let pw = pInfo.weight, pd = pInfo.dims, pv = pInfo.volume;
