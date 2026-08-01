@@ -29,6 +29,7 @@ import {
   Scale,
   Box,
   Filter,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
 import ResultsTable from '@/components/admin/ResultsTable';
@@ -40,6 +41,7 @@ import OfferPhasesPanel, { type OfferPhase } from '@/components/admin/OfferPhase
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
+import CatalogueImportModal from '@/components/admin/CatalogueImportModal';
 import ImportFromOfferModal from '@/components/admin/ImportFromOfferModal';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 
@@ -170,6 +172,7 @@ export default function AdminOfferDetailPage() {
   const [sendingBulk, setSendingBulk] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [catalogueImportOpen, setCatalogueImportOpen] = useState(false);
   const [importOfferOpen, setImportOfferOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingTheme, setEditingTheme] = useState(false);
@@ -1412,6 +1415,16 @@ export default function AdminOfferDetailPage() {
         </motion.button>
         <motion.button
           type="button"
+          onClick={() => setCatalogueImportOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2 rounded-xl border-2 border-emerald-500 bg-emerald-500 px-6 py-3 font-semibold text-white hover:bg-emerald-600"
+        >
+          <Wrench className="h-5 w-5" />
+          Importer & nettoyer
+        </motion.button>
+        <motion.button
+          type="button"
           onClick={() => setImportOfferOpen(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -1459,6 +1472,14 @@ export default function AdminOfferDetailPage() {
         onClose={() => setImportOfferOpen(false)}
         onImported={loadData}
       />
+
+      {catalogueImportOpen && (
+        <CatalogueImportModal
+          offerId={uuid}
+          onClose={() => setCatalogueImportOpen(false)}
+          onImported={loadData}
+        />
+      )}
 
       <BulkImportModal
         open={bulkImportOpen}
