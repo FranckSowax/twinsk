@@ -14,6 +14,8 @@ import {
   Download,
   Wrench,
   Send,
+  ClipboardCheck,
+  ExternalLink,
 } from 'lucide-react';
 
 interface JournalEntry {
@@ -43,8 +45,10 @@ interface SupplierRequest {
   titre: string;
   manque: string;
 }
+interface CatVariant { weight?: unknown; volume?: unknown }
+interface CatProduct { weight?: unknown; volume?: unknown; variants?: CatVariant[] }
 interface CleanResult {
-  catalogue: { categories?: unknown[] };
+  catalogue: { categories?: { products?: CatProduct[] }[] };
   journal: JournalEntry[];
   anomalies: Anomaly[];
   demandes: SupplierRequest[];
@@ -68,6 +72,19 @@ const DEMANDE_MSG = `您好，我们打算批量采购贵司这款产品，出�
 3. 每箱装几台 / 每台体积（CBM）
 4. 是否可以拆机发货（缩小体积）
 谢谢！`;
+
+// Fiche incomplète = au moins un emplacement (variante, sinon produit) sans poids OU volume.
+function countIncomplete(cat: CleanResult['catalogue']): number {
+  const pos = (v: unknown) => Number(v) > 0;
+  let n = 0;
+  for (const c of cat.categories || [])
+    for (const p of c.products || []) {
+      const vs = Array.isArray(p.variants) ? p.variants : [];
+      const inc = vs.length ? vs.some((v) => !pos(v.weight) || !pos(v.volume)) : !pos(p.weight) || !pos(p.volume);
+      if (inc) n++;
+    }
+  return n;
+}
 
 function download(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime });
@@ -114,6 +131,26 @@ export default function CatalogueImportModal({
   const [currencyOk, setCurrencyOk] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
+  const [sendingReview, setSendingReview] = useState(false);
+  const [reviewResult, setReviewResult] = useState<{ incomplets: number; created: number; skipped: number } | null>(null);
+
+  const incompleteCount = report ? countIncomplete(report.catalogue) : 0;
+
+  const sendReview = async () => {
+    setSendingReview(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/offers/${offerId}/send-incomplete-review`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Envoi en révision échoué');
+        return;
+      }
+      setReviewResult(data);
+    } finally {
+      setSendingReview(false);
+    }
+  };
 
   const hasDeviseBlock = !!report?.blocking.some((b) => b.code === 'devise_invalide');
 
@@ -211,10 +248,39 @@ export default function CatalogueImportModal({
           {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
           {done && (
-            <div className="rounded-2xl border border-green-300 bg-green-50 p-5 text-center dark:border-green-700 dark:bg-green-900/15">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-green-500" />
-              <p className="mt-2 font-semibold text-green-800 dark:text-green-300">Import confirmé.</p>
-              <button onClick={onClose} className="mt-3 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white">Fermer</button>
+            <div className="space-y-4 rounded-2xl border border-green-300 bg-green-50 p-5 text-center dark:border-green-700 dark:bg-green-900/15">
+              <div>
+                <CheckCircle2 className="mx-auto h-10 w-10 text-green-500" />
+                <p className="mt-2 font-semibold text-green-800 dark:text-green-300">Import confirmé.</p>
+              </div>
+
+              {/* Envoi en révision des fiches incomplètes (poids ou volume manquant) */}
+              {reviewResult ? (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/15 dark:text-blue-200">
+                  <ClipboardCheck className="mx-auto h-6 w-6 text-blue-500" />
+                  <p className="mt-1 font-semibold">
+                    {reviewResult.created} fiche(s) envoyée(s) en révision
+                    {reviewResult.skipped > 0 ? ` · ${reviewResult.skipped} déjà en attente` : ''}.
+                  </p>
+                  <p className="text-xs">Chaque fiche arrive avec ses variantes à remplir (poids / volume / dimensions).</p>
+                  <a href="/admin/revisions" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white">
+                    <ExternalLink className="h-3.5 w-3.5" /> Ouvrir les révisions
+                  </a>
+                </div>
+              ) : incompleteCount > 0 ? (
+                <button
+                  onClick={sendReview}
+                  disabled={sendingReview}
+                  className="mx-auto flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-60"
+                >
+                  {sendingReview ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+                  Envoyer {incompleteCount} fiche(s) incomplète(s) en révision
+                </button>
+              ) : (
+                <p className="text-xs text-green-700 dark:text-green-300">Aucune fiche incomplète — rien à envoyer en révision. 👍</p>
+              )}
+
+              <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300">Fermer</button>
             </div>
           )}
 
