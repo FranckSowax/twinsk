@@ -11,7 +11,7 @@ import {
   Tag,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
@@ -98,6 +98,42 @@ interface CartLine {
   productId: string;
   variantId: string | null;
   quantity: number;
+}
+
+// Description de catégorie repliée à 2 lignes avec « Voir plus » (mobile surtout).
+// Le bouton n'apparaît que si le texte déborde réellement du clamp.
+function CategoryDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    check();
+    // Re-mesure au redimensionnement (rotation mobile, resize desktop).
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  return (
+    <div className="max-w-3xl">
+      <p ref={ref} className={`mt-1 text-sm text-slate-500 ${expanded ? '' : 'line-clamp-2'}`}>
+        {text}
+      </p>
+      {(clamped || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-0.5 text-xs font-semibold text-emerald-600 hover:underline"
+        >
+          {expanded ? 'Voir moins' : 'Voir plus'}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function OfferPublicView({ offerId, offer, items, phases, affiliate }: Props) {
@@ -409,11 +445,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
               <h2 className="font-display text-xl font-bold text-slate-900">
                 {catShort || 'Produits'}
               </h2>
-              {catRest && (
-                <p className="mt-1 line-clamp-2 max-w-3xl text-sm text-slate-500">
-                  {catRest}
-                </p>
-              )}
+              {catRest && <CategoryDescription text={catRest} />}
               <p className="mt-1 text-xs text-slate-400">
                 {item.products.length} produit(s) disponible(s)
               </p>
