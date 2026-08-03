@@ -12,6 +12,9 @@ interface MultiCurrencyPriceProps {
   // Force la valeur FCFA affichée (déjà en FCFA) au lieu de la dériver de amountCny.
   // Utilisé pour que le total = somme des lignes arrondies (cohérence panier).
   xafOverrideFcfa?: number;
+  // N'afficher QUE la devise principale (masque les conversions ≈ en dessous).
+  // Utilisé sur l'offre publique : la devise est choisie par l'admin, on s'y tient.
+  only?: boolean;
 }
 
 const ORDER: Currency[] = ['CNY', 'USD', 'EUR', 'XAF'];
@@ -34,6 +37,7 @@ export default function MultiCurrencyPrice({
   primary = 'CNY',
   className = '',
   xafOverrideFcfa,
+  only = false,
 }: MultiCurrencyPriceProps) {
   const p = toMultiCurrency(amountCny);
   const formatted: Record<Currency, string> = {
@@ -44,7 +48,7 @@ export default function MultiCurrencyPrice({
   };
   const head = formatted[primary];
   const headColor = HEAD_COLOR[primary];
-  const secondaries = ORDER.filter((c) => c !== primary).map((c) => formatted[c]);
+  const secondaries = only ? [] : ORDER.filter((c) => c !== primary).map((c) => formatted[c]);
 
   if (variant === 'inline') {
     return (
@@ -64,11 +68,13 @@ export default function MultiCurrencyPrice({
     return (
       <div className={className}>
         <div className={`text-3xl font-bold ${headColor}`}>{head}</div>
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
-          {secondaries.map((s, i) => (
-            <span key={i}>≈ {s}</span>
-          ))}
-        </div>
+        {secondaries.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+            {secondaries.map((s, i) => (
+              <span key={i}>≈ {s}</span>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -77,11 +83,13 @@ export default function MultiCurrencyPrice({
   return (
     <div className={className}>
       <div className={`text-xl font-bold ${headColor}`}>{head}</div>
-      <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] font-medium text-slate-500">
-        {secondaries.map((s, i) => (
-          <span key={i}>{s}</span>
-        ))}
-      </div>
+      {secondaries.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] font-medium text-slate-500">
+          {secondaries.map((s, i) => (
+            <span key={i}>{s}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

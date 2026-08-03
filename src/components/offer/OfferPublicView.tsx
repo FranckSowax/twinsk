@@ -653,7 +653,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                           <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">{ACOMPTE_LABEL}</span>
                         </div>
                         {amt != null && amt > 0 ? (
-                          <MultiCurrencyPrice amountCny={amt} variant="large" primary={currency} />
+                          <MultiCurrencyPrice amountCny={amt} variant="large" primary={currency} only />
                         ) : (
                           <span className="font-display text-2xl font-bold text-amber-600">Sur devis</span>
                         )}
@@ -669,14 +669,14 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                     return <span className="font-display text-2xl font-bold text-emerald-600">Sur devis</span>;
                   }
                   if (exact != null) {
-                    return <MultiCurrencyPrice amountCny={exact} variant="large" primary={currency} />;
+                    return <MultiCurrencyPrice amountCny={exact} variant="large" primary={currency} only />;
                   }
                   return (
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                         À partir de
                       </span>
-                      <MultiCurrencyPrice amountCny={activeProduct.from_price} variant="large" primary={currency} />
+                      <MultiCurrencyPrice amountCny={activeProduct.from_price} variant="large" primary={currency} only />
                     </div>
                   );
                 })()}
@@ -880,7 +880,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                                       {ACOMPTE_BADGE}
                                     </span>
                                   )}
-                                  <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} />
+                                  <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} only />
                                 </div>
                               )}
                             </div>
@@ -1072,7 +1072,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                     {total.allAcompte ? (
                       <span className="text-sm font-bold text-amber-600">Devis à établir</span>
                     ) : (
-                      <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={currency === 'XAF' ? total.primary : undefined} variant="stacked" primary={currency} />
+                      <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={currency === "XAF" ? total.primary : undefined} variant="stacked" primary={currency} only />
                     )}
                   </div>
                 )}
@@ -1184,7 +1184,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="font-display text-lg font-bold text-slate-900">{variantLightbox.name}</h3>
                   {variantLightbox.price != null && (
-                    <MultiCurrencyPrice amountCny={variantLightbox.price} variant="stacked" primary={currency} />
+                    <MultiCurrencyPrice amountCny={variantLightbox.price} variant="stacked" primary={currency} only />
                   )}
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">

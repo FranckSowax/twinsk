@@ -388,7 +388,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         </div>
         <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
           <p className="text-sm font-semibold text-emerald-700">Sous-total produits</p>
-          <MultiCurrencyPrice amountCny={pricing.itemsTotalCny} xafOverrideFcfa={pricing.itemsTotalFcfaRounded} variant="stacked" primary="XAF" />
+          <MultiCurrencyPrice amountCny={pricing.itemsTotalCny} xafOverrideFcfa={pricing.itemsTotalFcfaRounded} variant="stacked" primary="XAF" only />
         </div>
         <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-slate-500">
           <p>
