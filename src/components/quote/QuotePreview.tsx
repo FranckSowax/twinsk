@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Download, Printer } from 'lucide-react';
 import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { computeQuoteTransport } from '@/lib/quote-transport';
+import { stripMarkdown } from '@/lib/utils/stripMarkdown';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
 interface QuoteVariantDisplay {
@@ -206,7 +207,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                       <p className="font-semibold text-slate-900 dark:text-white">{it.title}</p>
                       {it.description && (
                         <p className="mt-1 line-clamp-6 text-xs text-slate-600 dark:text-slate-400">
-                          {it.description}
+                          {stripMarkdown(it.description)}
                         </p>
                       )}
                       {variants.length > 0 && (

@@ -4,15 +4,23 @@ import {
   formatInCurrency,
 } from '@/lib/utils/formatCurrency';
 import type { QuoteTransportSummary } from '@/lib/quote-transport';
+import { ensureCjkFont } from '@/lib/pdf/fonts';
+import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
+
+// Nombre max de variantes non retenues listees dans la cellule produit.
+// Au-dela, la ligne devenait plus haute qu une page : react-pdf la renvoyait
+// en page 2 et laissait la page 1 vide sous l en-tete.
+const MAX_OPTION_ROWS = 8;
+const DESCRIPTION_MAX_CHARS = 400;
 
 const COMPANY_ADDRESS_LINE =
   'Twinsk Company Limited — Room 506, Tongyue Building, No. 7 Tongya East Street, Xicha Road, Baiyun District, Guangzhou — 广州市白云区西槎路同雅东街7号同粤大厦506 — 邓小姐 +86 13710816769 — contact@twinskcompanyltd.com';
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 40,
+    paddingTop: 32,
     paddingHorizontal: 40,
-    paddingBottom: 60,
+    paddingBottom: 48,
     fontSize: 10,
     fontFamily: 'Helvetica',
     color: '#1e293b',
@@ -23,12 +31,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 18,
+    marginBottom: 10,
   },
   logoBlock: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     borderWidth: 2,
     borderColor: '#0f172a',
     alignItems: 'center',
@@ -36,8 +44,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   logoImage: {
-    width: 120,
-    height: 120,
+    width: 92,
+    height: 92,
     objectFit: 'contain',
   },
   logoText: {
@@ -69,7 +77,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     paddingLeft: 30,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   clientName: {
     fontSize: 16,
@@ -99,7 +107,7 @@ const styles = StyleSheet.create({
 
   // Twinsk company info block
   twinskInfo: {
-    marginBottom: 18,
+    marginBottom: 12,
   },
   twinskInfoLine: {
     fontSize: 9,
@@ -193,6 +201,28 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
+  // Lignes de variantes : sans flex explicite, react-pdf ne retrecit pas le
+  // libelle et le prix venait se superposer au texte.
+  variantRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 1.5,
+  },
+  variantName: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    paddingRight: 6,
+    fontSize: 7.5,
+  },
+  variantPrice: {
+    flexGrow: 0,
+    flexShrink: 0,
+    width: 56,
+    textAlign: 'right',
+    fontSize: 7.5,
+  },
+
   // Cols widths
   colProduct: { width: '46%' },
   colQty: { width: '11%' },
@@ -205,8 +235,7 @@ const styles = StyleSheet.create({
   legalNote: {
     fontSize: 9,
     color: '#1e293b',
-    marginTop: 16,
-    marginBottom: 16,
+    marginTop: 12,
   },
 
   // Page footer (full address)
@@ -318,6 +347,8 @@ export default function QuotePDF({
   const grandTotalCny = itemsTotalCny + (finalTransportCny ?? 0);
   const hub = transport?.hub || 'LBV';
   const destLabel = transport?.destinationLabel || 'Gabon (Libreville)';
+  // Police embarquee pour les lignes contenant du chinois (adresse + footer).
+  const cjk = ensureCjkFont();
 
   return (
     <Document>
@@ -359,8 +390,12 @@ export default function QuotePDF({
           <Text style={styles.twinskInfoLine}>
             Xicha Road, Baiyun District, Guangzhou
           </Text>
-          <Text style={styles.twinskInfoLine}>广州市白云区西槎路同雅东街7号同粤大厦506</Text>
-          <Text style={styles.twinskInfoLine}>邓小姐 13710816769</Text>
+          <Text style={[styles.twinskInfoLine, { fontFamily: cjk }]}>
+            广州市白云区西槎路同雅东街7号同粤大厦506
+          </Text>
+          <Text style={[styles.twinskInfoLine, { fontFamily: cjk }]}>
+            邓小姐 13710816769
+          </Text>
         </View>
 
         {/* Products table */}
@@ -388,18 +423,21 @@ export default function QuotePDF({
             const variants = item.variants || [];
             const mainVariant = variants.find((v) => v.is_main) || null;
             const otherVariants = variants.filter((v) => !v.is_main);
+            const shownOptions = otherVariants.slice(0, MAX_OPTION_ROWS);
+            const hiddenOptions = otherVariants.length - shownOptions.length;
+            const description = item.description
+              ? truncateOnWord(stripMarkdown(item.description), DESCRIPTION_MAX_CHARS)
+              : '';
             return (
-              <View key={index} style={styles.tableRow} wrap={false}>
+              <View key={index} style={styles.tableRow}>
                 <View style={[styles.productCell, styles.colProduct]}>
                   {item.image_url ? (
                     <Image src={item.image_url} style={styles.productImage} />
                   ) : null}
                   <Text style={styles.productTitleBold}>{item.title}</Text>
-                  {item.description ? (
-                    <Text style={{ fontSize: 8, color: '#475569' }}>
-                      {item.description.length > 280
-                        ? item.description.slice(0, 280) + '…'
-                        : item.description}
+                  {description ? (
+                    <Text style={{ fontSize: 8, color: '#475569', lineHeight: 1.3 }}>
+                      {description}
                     </Text>
                   ) : null}
                   {variants.length > 0 ? (
@@ -412,42 +450,53 @@ export default function QuotePDF({
                       }}
                     >
                       {mainVariant ? (
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            marginBottom: 1,
-                          }}
-                        >
-                          <Text style={{ fontSize: 8, color: '#0f172a', fontFamily: 'Helvetica-Bold' }}>
+                        <View style={styles.variantRow}>
+                          <Text
+                            style={[
+                              styles.variantName,
+                              { color: '#0f172a', fontFamily: 'Helvetica-Bold' },
+                            ]}
+                          >
                             {mainVariant.name} (variante retenue)
                           </Text>
-                          <Text style={{ fontSize: 8, color: '#0f172a', fontFamily: 'Helvetica-Bold' }}>
+                          <Text
+                            style={[
+                              styles.variantPrice,
+                              { color: '#0f172a', fontFamily: 'Helvetica-Bold' },
+                            ]}
+                          >
                             {mainVariant.price != null
                               ? fmt(mainVariant.price * (1 + item.margin_percent / 100), currency)
                               : '—'}
                           </Text>
                         </View>
                       ) : null}
-                      {otherVariants.map((v) => (
-                        <View
-                          key={v.id || v.name}
-                          style={{
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            marginBottom: 1,
-                          }}
-                        >
-                          <Text style={{ fontSize: 8, color: '#94a3b8' }}>
+                      {shownOptions.map((v) => (
+                        <View key={v.id || v.name} style={styles.variantRow}>
+                          <Text style={[styles.variantName, { color: '#94a3b8' }]}>
                             {v.name} (option · non comptée)
                           </Text>
-                          <Text style={{ fontSize: 8, color: '#94a3b8' }}>
+                          <Text style={[styles.variantPrice, { color: '#94a3b8' }]}>
                             {v.price != null
                               ? fmt(v.price * (1 + item.margin_percent / 100), currency)
                               : '—'}
                           </Text>
                         </View>
                       ))}
+                      {hiddenOptions > 0 ? (
+                        <Text
+                          style={{
+                            fontSize: 7.5,
+                            color: '#94a3b8',
+                            fontFamily: 'Helvetica-Oblique',
+                            marginTop: 2,
+                          }}
+                        >
+                          + {hiddenOptions} autre{hiddenOptions > 1 ? 's' : ''} variante
+                          {hiddenOptions > 1 ? 's' : ''} disponible
+                          {hiddenOptions > 1 ? 's' : ''} sur demande
+                        </Text>
+                      ) : null}
                     </View>
                   ) : null}
                 </View>
@@ -594,20 +643,22 @@ export default function QuotePDF({
             </View>
           )}
 
-          {/* Black separator */}
-          <View style={styles.totalRowGrand} />
+          {/* Separateur noir + total : jamais separes par un saut de page */}
+          <View wrap={false}>
+            <View style={styles.totalRowGrand} />
 
-          {/* Total à payer */}
-          <View style={[styles.totalRowFinal, { borderBottomWidth: 0 }]} wrap={false}>
-            <Text style={[styles.totalLabelCell, styles.colProduct, { fontSize: 13 }]}>
-              Total à Payer
-            </Text>
-            <Text style={[styles.tableCell, styles.colQty]}> </Text>
-            <Text style={[styles.tableCell, styles.colArea]}> </Text>
-            <Text style={[styles.tableCell, styles.colUnit]}> </Text>
-            <Text style={[styles.totalValueCell, styles.colTotalLast, { fontSize: 13, color: '#0f172a' }]}>
-              {fmt(grandTotalCny, currency)}
-            </Text>
+            {/* Total à payer */}
+            <View style={[styles.totalRowFinal, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.totalLabelCell, styles.colProduct, { fontSize: 13 }]}>
+                Total à Payer
+              </Text>
+              <Text style={[styles.tableCell, styles.colQty]}> </Text>
+              <Text style={[styles.tableCell, styles.colArea]}> </Text>
+              <Text style={[styles.tableCell, styles.colUnit]}> </Text>
+              <Text style={[styles.totalValueCell, styles.colTotalLast, { fontSize: 13, color: '#0f172a' }]}>
+                {fmt(grandTotalCny, currency)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -620,7 +671,7 @@ export default function QuotePDF({
         </Text>
 
         {/* Footer */}
-        <Text style={styles.footer} fixed>
+        <Text style={[styles.footer, { fontFamily: cjk }]} fixed>
           {COMPANY_ADDRESS_LINE}
         </Text>
       </Page>
