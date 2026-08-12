@@ -10,8 +10,8 @@ import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
 // Nombre max de variantes non retenues listees dans la cellule produit.
 // Au-dela, la ligne devenait plus haute qu une page : react-pdf la renvoyait
 // en page 2 et laissait la page 1 vide sous l en-tete.
-const MAX_OPTION_ROWS = 8;
-const DESCRIPTION_MAX_CHARS = 400;
+const MAX_OPTION_ROWS = 6;
+const DESCRIPTION_MAX_CHARS = 340;
 
 const COMPANY_ADDRESS_LINE =
   'Twinsk Company Limited — Room 506, Tongyue Building, No. 7 Tongya East Street, Xicha Road, Baiyun District, Guangzhou — 广州市白云区西槎路同雅东街7号同粤大厦506 — 邓小姐 +86 13710816769 — contact@twinskcompanyltd.com';
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: 'Helvetica-Bold',
     color: '#0f172a',
-    padding: 8,
+    padding: 6,
     textAlign: 'center',
     borderRightWidth: 1,
     borderRightColor: '#cbd5e1',
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   tableCell: {
     fontSize: 9,
     color: '#1e293b',
-    padding: 8,
+    padding: 6,
     borderRightWidth: 1,
     borderRightColor: '#cbd5e1',
     textAlign: 'center',
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   productCell: {
     fontSize: 9,
     color: '#1e293b',
-    padding: 8,
+    padding: 6,
     borderRightWidth: 1,
     borderRightColor: '#cbd5e1',
     textAlign: 'left',
@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   productImage: {
-    width: 50,
-    height: 50,
+    width: 44,
+    height: 44,
     marginBottom: 4,
     objectFit: 'cover',
   },
@@ -643,8 +643,10 @@ export default function QuotePDF({
             </View>
           )}
 
-          {/* Separateur noir + total : jamais separes par un saut de page */}
-          <View wrap={false}>
+          {/* Separateur noir + total : jamais separes par un saut de page.
+              minPresenceAhead reserve la place de la note legale en dessous,
+              pour qu elle ne se retrouve jamais seule sur une page. */}
+          <View wrap={false} minPresenceAhead={34}>
             <View style={styles.totalRowGrand} />
 
             {/* Total à payer */}
