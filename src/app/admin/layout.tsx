@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  Factory,
   Package,
   Plus,
   LogOut,
@@ -42,6 +43,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin/leads', key: 'nav.services', icon: Inbox },
   { href: '/admin/youtube', key: 'nav.youtube', icon: Youtube },
   { href: '/admin/catalog', key: 'nav.catalog', icon: BookOpen },
+  { href: '/admin/sourcing', key: 'nav.supplierSourcing', icon: Factory },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

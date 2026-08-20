@@ -8,10 +8,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!isAdmin(request)) return unauthorized();
   const { id } = await params;
 
+  // Le cockpit s'ouvre sur une URL lisible : on accepte l'identifiant comme le slug.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const { data: project, error } = await supabaseAdmin
     .from('sourcing_projects')
     .select('*')
-    .eq('id', id)
+    .eq(isUuid ? 'id' : 'slug', id)
     .single();
   if (error || !project) return notFound('Projet');
 
@@ -19,19 +21,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     supabaseAdmin
       .from('sourcing_suppliers')
       .select('*, sourcing_quotes(*)')
-      .eq('project_id', id)
+      .eq('project_id', project.id)
       .order('position'),
-    supabaseAdmin.from('sourcing_conditions').select('*').eq('project_id', id).order('position'),
+    supabaseAdmin.from('sourcing_conditions').select('*').eq('project_id', project.id).order('position'),
     supabaseAdmin
       .from('sourcing_contact_log')
       .select('*')
-      .eq('project_id', id)
+      .eq('project_id', project.id)
       .order('happened_on', { ascending: false }),
-    supabaseAdmin.from('sourcing_images').select('*').eq('project_id', id).order('position'),
+    supabaseAdmin.from('sourcing_images').select('*').eq('project_id', project.id).order('position'),
     supabaseAdmin
       .from('sourcing_shares')
       .select('*')
-      .eq('project_id', id)
+      .eq('project_id', project.id)
       .order('created_at', { ascending: false }),
   ]);
 
