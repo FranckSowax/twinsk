@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cockpit de sourcing — Assiette 9″ 3 compartiments à couvercle twist-lock</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   PALETTE — rôles (data-viz validée : slots 1-2-3 catégoriels)
+   Pour changer de charte : ne toucher qu'à ce bloc.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --surface-1:#fcfcfb; --page:#f4f4f1; --card:#ffffff;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --brand:#1b3a5c;
+  --s1:#2a78d6;  /* marchandise */
+  --s2:#eb6834;  /* outillage amorti */
+  --s3:#1baf7a;  /* fret + droits + taxes */
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --good-ink:#006300;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:56px}
+html,body{margin:0;padding:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:14px; line-height:1.5; color:var(--ink); background:var(--page);
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
+
+/* ── Barre d'outils ─────────────────────────────────────────────── */
+.toolbar{
+  position:sticky; top:0; z-index:50; background:var(--brand); color:#fff;
+  padding:9px 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  box-shadow:0 1px 4px rgba(0,0,0,.18);
+}
+.toolbar .tt{font-weight:700;font-size:13px;margin-right:auto;letter-spacing:.2px}
+.btn{
+  font:inherit; font-size:12.5px; font-weight:600; padding:6px 12px; border-radius:4px;
+  border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.10); color:#fff; cursor:pointer;
+}
+.btn:hover{background:rgba(255,255,255,.22)}
+.btn.primary{background:#fff;color:var(--brand);border-color:#fff}
+.btn.primary:hover{background:#e8eef4}
+
+/* ── Structure ──────────────────────────────────────────────────── */
+h1{font-size:26px;line-height:1.15;margin:26px 0 6px;letter-spacing:-.4px}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--brand);color:var(--brand)}
+h3{font-size:14.5px;margin:20px 0 7px;color:var(--brand)}
+h4{font-size:13px;margin:14px 0 5px;color:var(--ink-2)}
+p{margin:0 0 8px}
+ul,ol{margin:0 0 10px;padding-left:19px} li{margin-bottom:3px}
+.lede{font-size:15px;color:var(--ink-2);margin-bottom:4px}
+.sec{background:var(--card);border:1px solid var(--ring);border-radius:6px;padding:18px 20px;margin-bottom:16px}
+.muted{color:var(--muted)} .small{font-size:12px;color:var(--ink-2)}
+.hint{font-size:11.5px;color:var(--muted);font-style:italic}
+
+/* ── Tableaux ───────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0 12px}
+th{background:var(--brand);color:#fff;text-align:left;padding:6px 8px;font-weight:600;vertical-align:bottom;font-size:11.5px}
+td{padding:5px 8px;border-bottom:1px solid var(--grid);vertical-align:top}
+tbody tr:nth-child(even) td{background:#f7f8fa}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tfoot td{font-weight:700;background:#eef1f4;border-top:2px solid var(--axis)}
+
+/* ── Champs de saisie ───────────────────────────────────────────── */
+input[type=text],input[type=number],input[type=date],select,textarea{
+  font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--axis);
+  border-radius:3px;background:#fff;color:var(--ink);width:100%;
+}
+input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--s1);outline-offset:-1px;border-color:var(--s1)}
+textarea{resize:vertical;min-height:56px;line-height:1.45}
+label.f{display:block;font-size:10.5px;font-weight:600;color:var(--ink-2);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.grid{display:grid;gap:9px 12px}
+.g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)} .g5{grid-template-columns:repeat(5,1fr)}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px}
+.chk input{width:auto}
+
+/* ── Fiches fournisseur ─────────────────────────────────────────── */
+.sup{border:1px solid var(--ring);border-radius:6px;margin-bottom:12px;background:var(--card);overflow:hidden}
+.sup>summary{
+  cursor:pointer;padding:10px 14px;background:#f2f4f7;font-weight:700;font-size:13.5px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;list-style:none;
+}
+.sup>summary::-webkit-details-marker{display:none}
+.sup>summary::before{content:"▸";color:var(--brand);font-size:12px}
+.sup[open]>summary::before{content:"▾"}
+.sup .body{padding:14px}
+.sup .id{font-size:11px;color:var(--muted);font-weight:400;flex-basis:100%}
+.flag{font-size:11px;font-weight:700;color:var(--ink-2);background:#e4e8ec;padding:1px 7px;border-radius:9px}
+
+/* ── Pastilles ──────────────────────────────────────────────────── */
+.tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:9px;
+  letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
+.tag.green{background:#dcefe1;color:#1e5730}
+.tag.amber{background:#fbeed2;color:#7d4e07}
+.tag.red{background:#f8ddd4;color:#8d2f11}
+.tag.grey{background:#e4e8ec;color:#46505b}
+
+/* ── Encadrés ───────────────────────────────────────────────────── */
+.box{border:1px solid var(--ring);border-left:3px solid var(--brand);background:#f6f8fa;
+  padding:10px 13px;margin:10px 0;border-radius:0 4px 4px 0}
+.box.warn{border-left-color:var(--crit);background:#fdf5f2}
+.box.ok{border-left-color:var(--good);background:#f3f9f4}
+.box .t{display:block;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.box p:last-child{margin-bottom:0}
+
+/* ── KPI ────────────────────────────────────────────────────────── */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0 6px}
+.kpi{background:var(--surface-1);border:1px solid var(--ring);border-radius:5px;padding:11px 12px}
+.kpi .n{font-size:25px;font-weight:700;color:var(--brand);line-height:1.05}
+.kpi .n .u{font-size:13px;font-weight:600;color:var(--ink-2)}
+.kpi .l{font-size:10.5px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;line-height:1.3}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* ── Graphiques ─────────────────────────────────────────────────── */
+.chart{background:var(--surface-1);border:1px solid var(--ring);border-radius:5px;padding:14px 14px 8px;margin:12px 0}
+.chart .ct{font-size:13px;font-weight:700;margin-bottom:2px}
+.chart .cs{font-size:11.5px;color:var(--ink-2);margin-bottom:10px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin:2px 0 8px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+svg{display:block;width:100%;height:auto;overflow:visible}
+#tip{position:fixed;z-index:99;pointer-events:none;background:#0b0b0b;color:#fff;font-size:11.5px;
+  padding:6px 9px;border-radius:4px;opacity:0;transition:opacity .1s;max-width:260px;line-height:1.4}
+
+/* ── Journal ────────────────────────────────────────────────────── */
+.logrow td{padding:3px 5px}
+.del{background:none;border:0;color:var(--crit);cursor:pointer;font-size:15px;line-height:1;padding:0 4px}
+
+/* ═══ IMPRESSION ═══════════════════════════════════════════════════ */
+@page{size:A4;margin:14mm 11mm}
+@media print{
+  body{background:#fff;font-size:9.2pt}
+  .wrap{max-width:none;padding:0}
+  .toolbar,.noprint{display:none !important}
+  .sec{border:0;padding:0;margin:0 0 10px;background:#fff;break-inside:auto}
+  h2{margin-top:16px;font-size:12.5pt;break-after:avoid}
+  h3{font-size:10.5pt;break-after:avoid}
+  .pb{break-before:page}
+  .sup{break-inside:auto;border:1px solid #ccd3da;margin-bottom:8px}
+  .sup>summary{background:#eef1f4;padding:6px 9px;font-size:10pt;break-after:avoid}
+  .sup .body{padding:9px}
+  .sup h4{break-after:avoid}
+  .grid{break-inside:avoid}
+  /* le format A4 tombe sous le point de rupture mobile : on rétablit les colonnes */
+  .g2{grid-template-columns:repeat(2,1fr)!important}
+  .g3{grid-template-columns:repeat(3,1fr)!important}
+  .g4{grid-template-columns:repeat(4,1fr)!important}
+  .g5{grid-template-columns:repeat(5,1fr)!important}
+  .kpis{grid-template-columns:repeat(5,1fr)!important}
+  label.f{font-size:6.6pt;letter-spacing:.2px}
+  table{font-size:7.6pt} th{padding:3px 4px;font-size:7pt} td{padding:3px 4px}
+  input[type=text],input[type=number],input[type=date],select{border:0;border-bottom:1px solid #c3c2b7;
+    border-radius:0;background:transparent;padding:1px 2px;font-size:7.8pt;
+    -webkit-appearance:none;appearance:none;min-height:12pt}
+  input[type=checkbox]{-webkit-appearance:auto;appearance:auto;width:9pt;height:9pt}
+  .chk{font-size:7.8pt}
+  textarea{border:1px solid #dde2e8;min-height:auto;font-size:7.8pt}
+  .kpis{grid-template-columns:repeat(5,1fr);gap:5px}
+  .kpi .n{font-size:15pt} .kpi{padding:6px 7px}
+  .chart{break-inside:avoid;border:1px solid #dde2e8}
+  .box{break-inside:avoid}
+  details{display:block}
+  a{color:inherit;text-decoration:none}
+}
+@media (max-width:820px){
+  .g3,.g4,.g5{grid-template-columns:repeat(2,1fr)}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar noprint">
+  <span class="tt">Cockpit de sourcing — Assiette 9″ twist-lock</span>
+  <button class="btn primary" onclick="printAll()">Imprimer / PDF</button>
+  <button class="btn" onclick="exportJSON()">Exporter les données</button>
+  <button class="btn" onclick="document.getElementById('imp').click()">Importer</button>
+  <input type="file" id="imp" accept=".json" style="display:none" onchange="importJSON(this)">
+  <button class="btn" onclick="openAll(true)">Tout déplier</button>
+  <button class="btn" onclick="openAll(false)">Tout replier</button>
+  <button class="btn" onclick="resetAll()">Réinitialiser</button>
+</div>
+
+<div class="wrap">
+
+<h1>Cockpit de sourcing</h1>
+<p class="lede">Assiette 9″ à 3 compartiments avec couvercle à verrouillage rotatif — suivi des consultations,
+grille de prix, coût débarqué et aide à la décision.</p>
+
+<div class="sec">
+  <div class="grid g4">
+    <div><label class="f">Projet</label><input type="text" data-k="meta.projet" value="Assiette 9″ 3 comp. twist-lock"></div>
+    <div><label class="f">Donneur d'ordre</label><input type="text" data-k="meta.client" value="Twinsk — groupe Sowax"></div>
+    <div><label class="f">Acheteur</label><input type="text" data-k="meta.acheteur" value=""></div>
+    <div><label class="f">Date de mise à jour</label><input type="date" data-k="meta.date"></div>
+  </div>
+  <p class="hint" style="margin-top:9px">Ce fichier est autonome : toutes les saisies restent dans la page.
+  Utilisez <b>Exporter les données</b> pour sauvegarder votre travail en JSON, et <b>Importer</b> pour le recharger
+  plus tard ou le transmettre à un collègue. Rien n'est envoyé sur Internet.</p>
+</div>
+
+<!-- ════════ 1. CAHIER DES CHARGES ════════ -->
+<h2>1. Cahier des charges</h2>
+<div class="sec">
+  <table>
+    <thead><tr><th style="width:26%">Caractéristique</th><th>Valeur</th><th style="width:26%">Tolérance / commentaire</th></tr></thead>
+    <tbody>
+      <tr><td>Diamètre hors tout</td><td><input type="text" data-k="cdc.diam" value="228,6 mm (9″)"></td><td><input type="text" data-k="cdc.diamTol" value="± 1,5 mm"></td></tr>
+      <tr><td>Profondeur assiette</td><td><input type="text" data-k="cdc.prof" value="25 mm (0,98″)"></td><td><input type="text" data-k="cdc.profTol" value="± 1 mm"></td></tr>
+      <tr><td>Compartimentage</td><td><input type="text" data-k="cdc.comp" value="3 compartiments — 1/2 + 1/4 + 1/4"></td><td><input type="text" data-k="cdc.compTol" value="Cloisons 114,3 / 111,1 mm"></td></tr>
+      <tr><td>Couvercle</td><td><input type="text" data-k="cdc.couv" value="PP transparent, hauteur 12 mm"></td><td><input type="text" data-k="cdc.couvTol" value="Étanchéité anti-fuite"></td></tr>
+      <tr><td><b>Mécanisme</b></td><td><input type="text" data-k="cdc.meca" value="Verrouillage rotatif horaire, déverrouillage antihoraire"></td><td><input type="text" data-k="cdc.mecaTol" value="Couple de serrage à définir"></td></tr>
+      <tr><td>Matière</td><td><input type="text" data-k="cdc.mat" value="PP contact alimentaire, sans BPA"></td><td><input type="text" data-k="cdc.matTol" value="Certificat compoundeur exigé"></td></tr>
+      <tr><td>Coloris</td><td><input type="text" data-k="cdc.col" value="Assiette bleu uni (Pantone à fournir) — couvercle transparent"></td><td><input type="text" data-k="cdc.colTol" value="ΔE ≤ 2 vs nuancier"></td></tr>
+      <tr><td>Usages</td><td><input type="text" data-k="cdc.usage" value="Micro-ondes, lave-vaisselle, empilable"></td><td><input type="text" data-k="cdc.usageTol" value="Essais sur pièces T1"></td></tr>
+      <tr><td>Conformités visées</td><td><input type="text" data-k="cdc.conf" value="FDA · LFGB · ISO 9001 usine · (UE) 10/2011 si vente UE"></td><td><input type="text" data-k="cdc.confTol" value="Certificats numérotés + datés"></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ════════ 2. CONSTAT ════════ -->
+<h2>2. Rappel du constat de marché</h2>
+<div class="sec">
+  <div class="box warn">
+    <span class="t">Le produit n'existe pas au catalogue</span>
+    <p>Sept requêtes en chinois sur les plateformes de gros et une recherche de preuve de demande sur la
+    plateforme grand public : <b>aucune assiette compartimentée en PP munie d'un couvercle à verrouillage
+    rotatif</b>. Les assiettes compartimentées <i>avec couvercle</i> sont en inox 304 ou en bambou ; les
+    assiettes <i>en PP</i> sont sans couvercle. En chinois, 旋盖 désigne le bouchon de flaconnage — la recherche
+    ne remonte que des bouchons de 18 à 89 mm.</p>
+    <p><b>Conséquence :</b> deux moules à financer, dont un couvercle en contre-dépouille (noyau dévisseur ou
+    coulisseaux). <b>C'est la faisabilité qui sélectionne, pas le prix.</b></p>
+  </div>
+  <div class="box ok">
+    <span class="t">Ce qui est positif</span>
+    <p>Le compartimentage 1/2 + 1/4 + 1/4 a une demande prouvée sur le marché chinois sous le nom de
+    <b>211减脂餐盘</b> (assiette de portion du régime 211) — best-seller à 9 000 ventes. Le concept est validé,
+    et <b>aucun concurrent direct n'existe dans le circuit d'import</b> : position de primo-arrivant.</p>
+  </div>
+  <div class="box">
+    <span class="t">Le biais à corriger en permanence</span>
+    <p>Sur le panel chinois, l'écart entre le marketing et les registres est systématique : Changrong annonce
+    101–200 employés et 20 000 m² pour <b>14 salariés assurés et 4 026 m² mesurés</b> ; Kelong annonce 120 employés
+    et 28 000 m² pour <b>16 salariés et 3 296 m²</b>. Ne jamais dimensionner une commande sur les chiffres affichés.</p>
+  </div>
+</div>
+
+<!-- ════════ 3. PARAMÈTRES ════════ -->
+<h2 class="pb">3. Paramètres de calcul</h2>
+<div class="sec">
+  <p class="small">Ces paramètres alimentent tous les calculs de coût débarqué. Modifiez-les pour tester des
+  scénarios — les tableaux et graphiques se recalculent instantanément.</p>
+  <h4>Commande et logistique</h4>
+  <div class="grid g5">
+    <div><label class="f">Quantité (sets)</label><input type="number" id="p_qty" value="5000" min="1"></div>
+    <div><label class="f">Fret €/m³ (LCL)</label><input type="number" id="p_freight" value="180" step="5"></div>
+    <div><label class="f">Assurance % CAF</label><input type="number" id="p_ins" value="0.4" step="0.1"></div>
+    <div><label class="f">Droits de douane %</label><input type="number" id="p_duty" value="20" step="1"></div>
+    <div><label class="f">TVA %</label><input type="number" id="p_vat" value="18" step="1"></div>
+  </div>
+  <p class="hint">Droits et TVA préremplis sur la base d'un import de vaisselle plastique en zone CEMAC —
+  <b>à confirmer auprès de votre transitaire</b> selon la position tarifaire retenue. Le fret LCL est facturé au
+  plus élevé du volume (m³) ou du poids (tonne) : le calcul applique automatiquement cette règle.</p>
+
+  <h4>Taux de change vers l'euro</h4>
+  <div class="grid g4">
+    <div><label class="f">1 USD =</label><input type="number" id="fx_USD" value="0.92" step="0.001"></div>
+    <div><label class="f">1 CNY =</label><input type="number" id="fx_CNY" value="0.128" step="0.001"></div>
+    <div><label class="f">1 THB =</label><input type="number" id="fx_THB" value="0.026" step="0.001"></div>
+    <div><label class="f">1 VND =</label><input type="number" id="fx_VND" value="0.000036" step="0.000001"></div>
+    <div><label class="f">1 INR =</label><input type="number" id="fx_INR" value="0.0105" step="0.0001"></div>
+    <div><label class="f">1 MYR =</label><input type="number" id="fx_MYR" value="0.20" step="0.001"></div>
+    <div><label class="f">1 TWD =</label><input type="number" id="fx_TWD" value="0.029" step="0.001"></div>
+    <div><label class="f">1 EUR =</label><input type="number" id="fx_EUR" value="1" step="0.001" readonly></div>
+  </div>
+  <p class="hint">Taux indicatifs — <b>à actualiser le jour de l'analyse des devis</b>. Un écart de change de 5 %
+  déplace le classement quand deux offres sont à moins de 5 % l'une de l'autre.</p>
+
+  <h4>Pondération du scoring (total à 100)</h4>
+  <div class="grid g3">
+    <div><label class="f">Faisabilité twist-lock</label><input type="number" id="w_twist" value="30" min="0" max="100"></div>
+    <div><label class="f">Conformité vérifiable</label><input type="number" id="w_conf" value="20" min="0" max="100"></div>
+    <div><label class="f">Solidité / contrepartie</label><input type="number" id="w_solid" value="15" min="0" max="100"></div>
+    <div><label class="f">Coût débarqué</label><input type="number" id="w_cost" value="15" min="0" max="100"></div>
+    <div><label class="f">Compatibilité MOQ</label><input type="number" id="w_moq" value="10" min="0" max="100"></div>
+    <div><label class="f">Délai total</label><input type="number" id="w_lead" value="10" min="0" max="100"></div>
+  </div>
+  <p class="hint" id="wsum">Somme des poids : 100</p>
+  <div class="box"><p><b>Pourquoi le prix ne pèse que 15 %.</b> Le produit n'existe pas : un devis bas sur une
+  faisabilité non démontrée n'a aucune valeur. Le poids dominant va à la preuve technique, puis à la conformité —
+  les deux postes qui coûtent le plus cher à rattraper après production. Ajustez les poids si votre arbitrage diffère.</p></div>
+</div>
+
+<!-- ════════ 4. FICHES FOURNISSEURS ════════ -->
+<h2 class="pb">4. Consultation fournisseurs — saisie des réponses</h2>
+<p class="small">Une fiche par société. Le bandeau rappelle le verdict de due diligence ; le corps recueille les
+réponses au dossier de consultation. <b>Chaque saisie recalcule immédiatement les sections 5 à 7.</b></p>
+<div id="suppliers"></div>
+
+<!-- ════════ 5. GRILLE DE PRIX ════════ -->
+<h2 class="pb">5. Grille de prix et coût débarqué</h2>
+<div class="sec">
+  <p class="small">Calcul pour la quantité saisie au § 3, en euros. Le coût débarqué inclut la marchandise,
+  l'outillage amorti sur la commande, le fret, l'assurance, les droits et la TVA.</p>
+  <div style="overflow-x:auto"><table id="tPrix">
+    <thead><tr>
+      <th style="width:16%">Fournisseur</th><th class="num">Prix set<br>(devise)</th><th class="num">Prix set<br>€</th>
+      <th class="num">Outillage<br>€</th><th class="num">Amort.<br>€/set</th><th class="num">Volume<br>m³</th>
+      <th class="num">Poids<br>kg</th><th class="num">Fret+ass.<br>€</th><th class="num">Droits+TVA<br>€</th>
+      <th class="num">Total débarqué<br>€</th><th class="num">€/set<br>débarqué</th><th class="num">Écart<br>vs mini</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="hint">Un fournisseur n'apparaît que si un prix set et un colisage ont été saisis. « — » signale une
+  donnée manquante : relancez le fournisseur, ne l'estimez pas.</p>
+</div>
+
+<div class="sec">
+  <h3>Paliers de quantité</h3>
+  <p class="small">Prix FOB par set aux trois paliers demandés dans le dossier de consultation. C'est l'écart entre
+  les paliers qui révèle la vraie structure de coût et le poids de l'amortissement d'outillage.</p>
+  <div style="overflow-x:auto"><table id="tPaliers">
+    <thead><tr><th style="width:22%">Fournisseur</th><th class="num">5 000 sets</th><th class="num">10 000 sets</th>
+      <th class="num">20 000 sets</th><th class="num">Dégressivité 5k→20k</th><th>Lecture</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</div>
+
+<!-- ════════ 6. COMPARATIF ════════ -->
+<h2 class="pb">6. Tableau comparatif et scoring</h2>
+<div class="sec">
+  <div style="overflow-x:auto"><table id="tComp">
+    <thead><tr>
+      <th style="width:15%">Fournisseur</th><th>Pays</th><th>Voie</th><th>Statut</th>
+      <th class="num">Twist-lock</th><th class="num">Conformité</th><th class="num">Solidité</th>
+      <th class="num">Coût</th><th class="num">MOQ</th><th class="num">Délai</th>
+      <th class="num">Score /100</th><th>Rang</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="hint">Chaque colonne de critère est notée sur 100 puis pondérée. Twist-lock, conformité et MOQ sont
+  déduits des réponses saisies ; solidité vient de la due diligence (modifiable dans la fiche) ; coût et délai sont
+  normalisés entre le meilleur et le moins bon des répondants.</p>
+</div>
+
+<!-- ════════ 7. KPI ════════ -->
+<h2 class="pb">7. Tableau de bord</h2>
+<div class="sec">
+  <div class="kpis" id="kpis"></div>
+
+  <div class="chart">
+    <div class="ct">Coût débarqué par set</div>
+    <div class="cs">Décomposition en euros — trié du moins cher au plus cher. Seuls les fournisseurs ayant remis un prix et un colisage apparaissent.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>Marchandise</span>
+      <span><i style="background:var(--s2)"></i>Outillage amorti</span>
+      <span><i style="background:var(--s3)"></i>Fret, assurance, droits et TVA</span>
+    </div>
+    <div id="chartCost"></div>
+  </div>
+
+  <div class="chart">
+    <div class="ct">Score pondéré</div>
+    <div class="cs">Note sur 100 selon les pondérations du § 3. Les fournisseurs écartés sont exclus.</div>
+    <div id="chartScore"></div>
+  </div>
+
+  <div class="chart">
+    <div class="ct">Positionnement — fiabilité contre coût</div>
+    <div class="cs">Le quadrant en bas à droite est la cible : fiable et peu cher. Chaque point porte le nom du fournisseur.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>Voie A — OEM clé en main</span>
+      <span><i style="background:var(--s2)"></i>Voie B — Outillage seul</span>
+    </div>
+    <div id="chartScatter"></div>
+  </div>
+</div>
+
+<!-- ════════ 8. JOURNAL ════════ -->
+<h2 class="pb">8. Journal de contact</h2>
+<div class="sec">
+  <table id="tLog">
+    <thead><tr><th style="width:10%">Date</th><th style="width:16%">Fournisseur</th><th style="width:10%">Canal</th>
+      <th style="width:16%">Interlocuteur</th><th>Objet / résultat</th><th style="width:5%" class="noprint"></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button class="btn noprint" style="background:var(--brand)" onclick="addLog()">+ Ajouter une ligne</button>
+</div>
+
+<!-- ════════ 9. DÉCISION ════════ -->
+<h2 class="pb">9. Décision et prochaines étapes</h2>
+<div class="sec">
+  <h3>9.1 Les huit conditions suspensives avant tout acompte d'outillage</h3>
+  <table id="tCond">
+    <thead><tr><th style="width:4%">#</th><th style="width:30%">Condition</th><th style="width:8%">Levée</th>
+      <th style="width:12%">Date</th><th>Preuve reçue / commentaire</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h3>9.2 Décision de sortie</h3>
+  <div class="box"><p><b>La question qui tranche :</b> au moins un fournisseur a-t-il démontré, preuves à l'appui,
+  qu'il sait produire un couvercle à verrouillage rotatif de 229 mm en PP alimentaire ?</p></div>
+  <div class="grid g2">
+    <div><label class="f">Réponse</label>
+      <select data-k="dec.rep">
+        <option value="">— en attente —</option>
+        <option>Oui — au moins un fournisseur a fourni des preuves</option>
+        <option>Non — passer au bureau d'études indépendant</option>
+        <option>Non — basculer sur couvercle à clips périphériques</option>
+      </select></div>
+    <div><label class="f">Fournisseur retenu</label><input type="text" data-k="dec.retenu"></div>
+    <div><label class="f">Fournisseur de secours</label><input type="text" data-k="dec.secours"></div>
+    <div><label class="f">Date de décision</label><input type="date" data-k="dec.date"></div>
+  </div>
+  <div style="margin-top:10px"><label class="f">Motivation de la décision</label>
+    <textarea data-k="dec.motif" rows="4" placeholder="Ce qui a emporté la décision, et ce qui a été écarté — à conserver pour la traçabilité du dossier achats."></textarea></div>
+  <div style="margin-top:10px"><label class="f">Actions et échéances</label>
+    <textarea data-k="dec.actions" rows="4" placeholder="Qui fait quoi, pour quand."></textarea></div>
+</div>
+
+<p class="small muted" style="margin-top:20px;border-top:1px solid var(--grid);padding-top:9px">
+Cockpit de sourcing Twinsk / Sowax — document de travail. Les verdicts de due diligence proviennent des registres
+d'entreprises et des bases douanières consultés en août 2026 et peuvent évoluer. Aucune donnée n'est extrapolée :
+les champs vides signalent une information non obtenue, jamais une estimation.
+</p>
+
+</div>
+<div id="tip"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   DONNÉES DE DÉPART — issues de la due diligence.
+   Pour ajouter / retirer un fournisseur : éditer ce tableau.
+     voie   : 'A' = OEM clé en main · 'B' = outillage + injection
+     verdict: 'green' | 'amber' | 'grey' | 'red'
+     solid  : note de solidité /100 (risque de contrepartie)
+     moq    : MOQ connu au dossier (null si inconnu)
+     cur    : devise de cotation attendue
+   ═══════════════════════════════════════════════════════════════════ */
+const SUP = [
+ {id:'eelian', n:'Ee-Lian Enterprise (M)', p:'MY', voie:'A', verdict:'amber', vl:'Réserves',
+  ent:'SSM 199301028474 (283212-H) · Bukit Minyak, Penang · filiale à 100 % de SWS Capital Berhad (Bursa 7186)',
+  cur:'MYR', solid:45, moq:3000,
+  plus:'Seul du panel à réunir les deux briques : assiettes 3–4 compartiments 9″ en PP sans BPA ET twist-lock existant (sur boîtes de conservation). MOQ couleur/logo documenté à 3 000 unités — le seul OEM compatible sans dérogation. Transparence par cotation du groupe. Export réel confirmé (Volza, HS 3924 incluant « dining plates »).',
+  moins:'Groupe parent en pertes trois exercices (−RM 6,6 / −3,5 / −13,3 M), CA divisé par 2,5 depuis 2022, entrepôt de Batu Kawan vendu à perte en avril 2026 pour rembourser un prêt bancaire. ISO 9001:2008 toujours affichée alors que la norme est retirée depuis 2018. « FDA-qualified » non documenté. Contracter avec 283212-H, pas la société sœur.'},
+
+ {id:'picnic', n:'Picnic Plast Industrial', p:'TH', voie:'A', verdict:'green', vl:'Fiable',
+  ent:'DBD 0145539000594 · Bang Sai, Ayutthaya · capital 240 M THB · site officiel picnic.co.th',
+  cur:'THB', solid:85, moq:null,
+  plus:'~700 employés, 120 machines, classe « Large » au registre (CA > 500 M THB). Export prouvé par deux bases : 243 expéditions US (ImportYeti, dernière le 21/07/2026) et 1 074 expéditions / 38 acheteurs (Volza). Clients EU revendiqués Lidl, Metro, Siplec, Dunnes, Morrisons. Référence CLIP PAC Touch 177DV en 3 compartiments 1 100 ml. Aucun litige ni sanction.',
+  moins:'Audits Walmart/Target/Tesco/Disney, BRC/IoP, BSCI, Sedex uniquement autodéclarés. ⚠ Le domaine picnicplast.com n\'existe pas — risque d\'usurpation, n\'accepter que picnic.co.th. Homonyme sans lien : PICNIC Corporation Pcl (fraude SET 2004). Twist-lock absent de la gamme ; 5 000 sets marginal à leur échelle.'},
+
+ {id:'alltime', n:'All Time Plastics', p:'IN', voie:'A', verdict:'green', vl:'Fiable',
+  ent:'CIN L25209MH2001PLC131139 · cotée NSE ALLTIME / BSE 544479 depuis le 14/08/2025 · usines Daman, Silvassa, Manekpur',
+  cur:'USD', solid:95, moq:null,
+  plus:'Transparence maximale du panel : société cotée, prospectus IPO vérifié SEBI, toutes les affirmations corroborées. 901 expéditions US (ImportGenius), partenaire IKEA Supply AG, n° fournisseur IKEA 22092, relation de 27 ans. 140 presses dont 70 % tout-électriques japonaises, 690 permanents + 1 589 contractuels, équipe moules interne de 16 concepteurs, moulage sur mesure proposé. ISO 9001/14001/45001/50001, SEDEX-SMETA P4, amfori BSCI, AEO-T2.',
+  moins:'5 000 sets est marginal (33 000 t/an) — risque de refus ou de MOQ très supérieur. BRCGS absent de la liste. Concentration IKEA à 59,29 % du CA, top 4 à 78,4 %, pas de contrats long terme. Cours retombé sous le prix d\'IPO, résultat S1 FY26 en recul de 33,5 %. Aucune référence « assiette compartimentée » publique.'},
+
+ {id:'duytan', n:'Duy Tan Plastics', p:'VN', voie:'A', verdict:'green', vl:'Fiable',
+  ent:'MST 0306151768 · 298 Hồ Học Lãm, HCMC · détenue à 100 % par SCG Packaging depuis juin 2025',
+  cur:'USD', solid:95, moq:null,
+  plus:'Risque de contrepartie quasi nul : adossée à un groupe régional coté, rachat des 30 % restants en juin 2025 pour 108,6 M USD. CA 2024 de 207 M USD, 5 usines, ~2 000 salariés, export vers 60+ pays (Unilever, Nestlé, Castrol, Sanofi). Fabrication de moules en interne confirmée via filiale dédiée. Plateaux-repas PP 3 compartiments déjà au catalogue. ISCC PLUS attribuée par Bureau Veritas.',
+  moins:'Matsu Lock = couvercle à clips avec joint silicone, PAS un twist-lock — le nom induit en erreur. 5 000 sets très petit pour eux. BRC et ISO revendiqués mais non vérifiables. ⚠ Contracter impérativement avec le MST 0306151768 : les entités « TNHH Nhựa Duy Tân » et « Duy Tân Recycling » ne sont pas l\'entité SCGP.'},
+
+ {id:'changya', n:'Ningbo Changya New Materials', p:'CN/VN', voie:'A', verdict:'amber', vl:'Réserves',
+  ent:'USCC 913302110582792518 · fondée le 14/01/2013 · filiale Vietnam code fiscal 3901260168, Tây Ninh, 65 000 m²',
+  cur:'USD', solid:55, moq:null,
+  plus:'La meilleure correspondance produit du panel : référence YSG 3 Compartments Round 1000 ml, Ø 220 × 55 mm, 49,5 g, PP sans BPA — écart de 8,6 mm seulement sur le diamètre. Finances auditées KPMG publiées au dossier IPO (CA 813 M RMB en 2023, export 95,8 à 98,25 %). Clients finaux KFC, Burger King, Panda Express, Metro, Tim Hortons. Double implantation Chine + Vietnam.',
+  moins:'IPO retirée le 22/06/2024 après deux cycles de questions du régulateur. Gouvernance signalée dans le dossier : plus de 100 M RMB de prêts détournés via des tiers, prêts à parties liées, dette de garantie de 8,73 M RMB non soldée, cotisations sociales sous-versées. 443 assurés sociaux contre « plus de 2 000 employés » revendiqués. BRC / ISO 22000 / BSCI non vérifiables. Twist-lock non confirmé, et 5 000 sets très inférieur à leurs volumes.'},
+
+ {id:'laiwell', n:'Laiwell / Hos Win Enterprise', p:'TW', voie:'A', verdict:'amber', vl:'Réserves',
+  ent:'統一編號 22407518 · Dacun, Changhua, Taïwan · S.A. depuis 1987 · capital NT$ 415 M libéré',
+  cur:'TWD', solid:60, moq:null,
+  plus:'Le dossier de conformité le plus solide : ISO 22000:2018 SGS n° TW13/10088, ISO 9001:2015 SGS/UKAS renouvelé 07/2024, ISO 45001:2018 ARES n° ARES/TW/12409023S renouvelé 03/2025 — numéros publiés avec invitation à vérifier. Enregistrement alimentaire officiel N-122407518-00000-0. Rapport Intertek TWNC01379305 (07/2025). Gamme bento PP 1 à 5 compartiments, référence LW883 en 8″ 3 comp. Fabrication de moules déclarée en interne.',
+  moins:'Redressement de NT$ 125,1 M en 2022 (éco-redevances recyclage), soldé par échéancier sous exécution forcée — explication écrite à exiger. Incendie d\'usine 2018, non-conformité d\'étiquetage 2015. 12 jugements civils, note employés 2,2/5. Aucun dossier douanier au nom de Hos Win / Laiwell Taïwan : les connaissements US viennent du bras chinois Jiangsu Shangfu — site de production à confirmer. Couvercles à clips, pas de twist-lock.'},
+
+ {id:'sharemay', n:'Shantou Sharemay Plastic Mould', p:'CN', voie:'A', verdict:'amber', vl:'Réserves',
+  ent:'USCC 91440500694704407K · fondée le 31/08/2009 · rep. légal 吕思佳 · Shantou, Guangdong',
+  cur:'CNY', solid:60, moq:null,
+  plus:'143 brevets vérifiés au registre national et 25 marques ; les 49 jugements sont presque tous en demande, dans des actions anti-contrefaçon de ses propres designs — une société qui défend ses dessins protégera les vôtres. Permis de production alimentaire QS confirmé, entreprise haute technologie 2021, notation crédit AAA. Export prouvé avec marchés principaux France et Brésil. Atelier de moules intégré. Aucune anomalie ni plainte.',
+  moins:'43 assurés en 2025 contre « 100–200 » affichés ; « 216 designs brevetés » gonflé d\'environ 1,5×. « Depuis 1982 » renvoie à l\'atelier familial, pas à la personne morale (2009). ⚠ 6 sanctions administratives affichées sans détail accessible — à lever par rapport payant. OEM Lock&Lock / Disney / Thermos et audits BSCI / Sedex / ISO 9001 autodéclarés sans corroboration.'},
+
+ {id:'nhibinh', n:'Nhi Binh Plastic', p:'VN', voie:'A', verdict:'amber', vl:'Réserves',
+  ent:'MST 0308936553 · Hóc Môn, HCMC · site réel nibiplastic.com · créée le 29/05/2009',
+  cur:'USD', solid:65, moq:500,
+  plus:'Le MOQ le plus bas du panel, documenté : bento OEM PP 3 grilles à 3 USD, MOQ 500, recoupé sur 7 fiches. Vrai transformateur : ~180 employés, plus de 50 presses de 75 à 600 T, 2 usines, importe ses granulés. Moules en interne corroborés par 4+ sources dont un audit avec fraiseuse CNC photographiée. 230 connaissements US de 2012 à 2026. Aucun litige ni sanction.',
+  moins:'⚠ Aucune preuve publique de conformité contact alimentaire UE — ni (UE) 10/2011, ni LFGB, ni tests de migration. C\'est le point le plus faible pour une assiette PP. Export UE marginal (~3 %), cœur d\'export = jouets pour animaux. Activité principale enregistrée = commerce de gros. ISO 9001 et BSCI sans numéros vérifiables. L\'audit DEWIN émane d\'une plateforme de sourcing, pas d\'un certificateur.'},
+
+ {id:'changrong', n:'Jieyang Changrong Industrial', p:'CN', voie:'B', verdict:'amber', vl:'Réserves',
+  ent:'USCC 91445200684451944G · rep. légal 黄惠荣 · créée le 17/02/2009 · capital 5 M RMB libéré · Jieyang',
+  cur:'CNY', solid:55, moq:null,
+  plus:'Casier parfaitement vierge : 0 manquement, 0 jugement, 0 sanction, 0 anomalie. Export réel le plus large du panel mouliste : 364 expéditions, 23 acheteurs, certificat EAC russe, connaissement US. Marchés déclarés incluant Afrique, Europe de l\'Ouest et Amérique du Nord — le seul du panel chinois à cocher les trois. Réachat 90 %, crédit AA, brevets de dessins déposés. Vend déjà un moule d\'assiette 3 compartiments monobloc.',
+  moins:'Effectifs et surface très gonflés : 14 salariés assurés contre « 101–200 » ; inspection 2024 : ~20 ouvriers vus, 4 026 m² mesurés contre 20 000 à 30 000 annoncés. Aucune preuve publique de couvercle verrouillable — cœur réel démontré = petit électroménager et caisses pliables. Le réachat de 90 % est calculé sur 13 à 15 clients. Trois dates de création contradictoires. Un « risque propre » non détaillé à lever.'},
+
+ {id:'kelong', n:'Taizhou Huangyan Kelong', p:'CN', voie:'B', verdict:'amber', vl:'Réserves',
+  ent:'USCC 91331003MA2AMMDX2D · SARL de 罗健 · créée le 18/04/2018 · capital 2 M RMB · Huangyan, Taizhou',
+  cur:'CNY', solid:45, moq:null,
+  plus:'Casier vierge. Export US attesté : ~10 connaissements, 3 clients dont Pacific Injection Molding (Tacoma) — un injecteur américain, donc techniquement exigeant. Compétence twist-lock la plus plausible du panel chinois : catalogue de moules de bouchons filetés (螺纹盖模具). Implanté à Huangyan, capitale du moule plastique. Le réachat de 0 % est structurel au métier de mouliste, pas un signal négatif.',
+  moins:'Marketing plagié mot pour mot de SINO Mould et JMT Mould : « 28 000 m² / 120 employés / 100+ brevets » contre 16 salariés assurés et ~3 296 m² réels. Réduction de capital de 5 M à 2 M RMB en octobre 2024. Trois audiences dont un litige de contrat d\'ouvrage en 2024 — exactement le type de contrat d\'un moule. Contradiction entre registres sur les sanctions administratives. ISO 9001 déclaré mais 0 certificat en base. Piste à confirmer : le gérant est aussi administrateur de 浙江景隆特模塑 — l\'équipement lourd revendiqué est-il chez eux ou chez ce tiers ?'},
+
+ {id:'jiangsu', n:'Guangdong Jiangsu Hardware & Plastic', p:'CN', voie:'B', verdict:'grey', vl:'DD à faire',
+  ent:'Créée le 06/11/2020 · capital 5 M RMB · Sanshui, Foshan · non couverte par la DD en registres',
+  cur:'CNY', solid:60, moq:null,
+  plus:'La seule société identifiée qui produit en série une fermeture rotative : bouchon large ouverture Ø 89 mm à filetage 89 dents en PP, 3 finitions, 14 g, ~99 000 pièces en stock par référence. Un filetage sur 360° impose un moule à noyau dévisseur — exactement la difficulté du couvercle. Activité réelle la plus forte du panel chinois : 132 commandes payées sur 30 jours, 0 % de retour qualité, 0 % de litige. 7 513 m², 51 à 100 personnes, export 7 à 10 M CNY, marché mondial.',
+  moins:'Écart d\'échelle : Ø 89 contre Ø 229, facteur 2,6 — le noyau dévisseur d\'un couvercle de 229 mm est une pièce d\'un tout autre poids. Univers métier = flaconnage cosmétique, pas contact alimentaire : le dossier FDA/LFGB et la traçabilité résine ne sont pas leur quotidien. Trois ans d\'ancienneté. ⚠ Aucune vérification en registre officiel — à traiter avant tout engagement. Positionnement recommandé : sous-traitance du seul moule de couvercle, ou contre-expertise sur les devis d\'outillage.'},
+
+ {id:'fengruosheng', n:'Shanghai Fengruosheng Technology', p:'CN', voie:'B', verdict:'grey', vl:'DD à faire',
+  ent:'Créée le 30/09/2016 · capital 28 M RMB · Fengjing, Jinshan, Shanghai · non couverte par la DD en registres',
+  cur:'CNY', solid:65, moq:null,
+  plus:'Le seul du panel chinois avec une certification qualité vérifiable : ISO 9001 n° HJC7802512QMS087R0S valable jusqu\'au 14/12/2028, plus un enregistrement de rejets valide jusqu\'en 2030. Capital de 28 M RMB — 5,6 fois celui de Changrong, le seul mouliste capable d\'absorber sans tension deux moules. Sous-traite déjà pour Samsung Corée et des donneurs d\'ordre italiens, européens et américains. 5 000 m², 30+ presses dont 20+ Haitian jusqu\'à 5 000 g, atelier de moules complet, salle blanche en construction. 98 % de réponses sous 3 minutes.',
+  moins:'Trois ans d\'ancienneté et 18 % de réachat seulement, contre 60 à 90 % ailleurs. Le champ d\'application de l\'offre ne mentionne ni vaisselle ni alimentaire — c\'est le dossier société qui cite les articles ménagers. À vérifier : ont-ils déjà produit du contact alimentaire certifié, et avec quel compoundeur PP ? Activité plateforme moyenne. ⚠ Aucune vérification en registre officiel.'},
+
+ {id:'xinchengxin', n:'Huizhou Xinchengxin Mould', p:'CN', voie:'B', verdict:'red', vl:'Écarté',
+  ent:'USCC 91441303586362059A · rep. légal 肖云瑞 · créée le 02/12/2011 · capital 100 000 RMB · adresse villageoise',
+  cur:'CNY', solid:5, moq:null, excluded:true,
+  plus:'Les meilleures métriques de plateforme du panel : 9 ans, 100 % d\'avis positifs, 90 % de réachat, grade AA, 100 commandes payées sur 30 jours, 97 % de réponses sous 3 minutes, 0 % de retour qualité. Positionnement vaisselle plastique hôtellerie et camping, exactement le besoin.',
+  moins:'ÉCARTÉ. Inscrite au registre des anomalies d\'exploitation le 10/07/2026 (2e inscription). Exécution forcée clôturée faute d\'actifs saisissables, plus un jugement de février 2024. Zéro salarié assuré au rapport 2024 contre « 60+ techniciens ». Sa propre boutique déclare ne pas prendre les commandes export. Capital de 100 000 RMB. Il faudrait verser un acompte d\'outillage à une société qui a déjà subi une exécution forcée sans rien à saisir : aucun montage de paiement ne compense ce cumul.'}
+];
+
+const COND = [
+ ['Rapport de crédit payant complet','Lève les contradictions Kelong (sanctions), Changrong (risque propre), Sharemay (6 sanctions non détaillées). Quelques dizaines d\'euros.'],
+ ['Vérification des certificats à la source','Base CNCA pour l\'ISO chinois, SGS et ARES pour Laiwell, répertoire BRCGS pour les OEM. Un certificat sans numéro n\'est pas un certificat.'],
+ ['Audit d\'usine ou visite vidéo en direct','SGS / BV / TÜV, 300 à 800 USD. Non négociable vu l\'écart marketing/registres de facteur 5 à 10.'],
+ ['Preuve technique du twist-lock','Photos et vidéos d\'un moule à dévissage ou de bouchons filetés produits, plus une référence client joignable. Pour Kelong : demander le contact Pacific Injection Molding.'],
+ ['Identité de l\'entité contractante','Numéro d\'immatriculation sur le contrat ET sur le compte bancaire. Jamais de compte personnel. Duy Tan = MST 0306151768 ; Ee-Lian = 283212-H.'],
+ ['Paiement à jalons, acompte ≤ 30 %','Jalons : conception validée → acier reçu → T1 accepté → T2 et expédition. Trade Assurance ou L/C si disponible.'],
+ ['Clause de propriété du moule','Propriété écrite, numéros de série des blocs, interdiction de production pour des tiers, conditions de transfert.'],
+ ['Conformité alimentaire écrite au contrat','Tests de migration GB 4806 et/ou (UE) 10/2011 sur les pièces T1, pas sur la matière brute. Préciser à la charge de qui.']
+];
+
+const TWIST = [
+ ['','— non répondu —',0],
+ ['refus','Refusé / non faisable',0],
+ ['etude','À étudier, sans engagement',30],
+ ['oui_decl','Oui, déclaré sans preuve',55],
+ ['oui_photo','Oui, avec photos de moule',80],
+ ['oui_ref','Oui, photos + référence client joignable',100]
+];
+const STATUTS = ['À contacter','Contacté','Relancé','A répondu','A refusé','Écarté'];
+const CUR = ['EUR','USD','CNY','THB','VND','INR','MYR','TWD'];
+
+/* ── Construction des fiches ─────────────────────────────────────── */
+function supHTML(s){
+  const t = TWIST.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  const st = STATUTS.map(l=>`<option${l==='Écarté'&&s.excluded?' selected':''}>${l}</option>`).join('');
+  const cu = CUR.map(c=>`<option${c===s.cur?' selected':''}>${c}</option>`).join('');
+  return `<details class="sup" id="sup_${s.id}"${s.verdict==='red'?'':' open'}>
+   <summary>
+     <span>${s.n}</span>
+     <span class="flag">${s.p}</span>
+     <span class="flag">Voie ${s.voie}</span>
+     <span class="tag ${s.verdict}">${s.vl}</span>
+     <span class="id">${s.ent}</span>
+   </summary>
+   <div class="body">
+     <div class="grid g2" style="margin-bottom:12px">
+       <div><h4 style="margin-top:0;color:var(--good-ink)">Arguments favorables</h4><p class="small">${s.plus}</p></div>
+       <div><h4 style="margin-top:0;color:#8d2f11">Points négatifs</h4><p class="small">${s.moins}</p></div>
+     </div>
+
+     <h4>Contact</h4>
+     <div class="grid g5">
+       <div><label class="f">Statut</label><select data-s="${s.id}" data-f="statut">${st}</select></div>
+       <div><label class="f">Interlocuteur</label><input type="text" data-s="${s.id}" data-f="interlo"></div>
+       <div><label class="f">Canal</label><input type="text" data-s="${s.id}" data-f="canal" placeholder="e-mail, WeChat, plateforme"></div>
+       <div><label class="f">Date d'envoi</label><input type="date" data-s="${s.id}" data-f="dEnvoi"></div>
+       <div><label class="f">Date de réponse</label><input type="date" data-s="${s.id}" data-f="dRep"></div>
+     </div>
+
+     <h4>Faisabilité technique — la question qui trie</h4>
+     <div class="grid g2">
+       <div><label class="f">Moule à noyau dévisseur / coulisseaux &gt; 150 mm déjà réalisé ?</label>
+         <select data-s="${s.id}" data-f="twist">${t}</select></div>
+       <div><label class="f">Preuve reçue (nature, référence)</label><input type="text" data-s="${s.id}" data-f="twistPreuve"></div>
+     </div>
+     <div style="margin-top:8px"><label class="f">Retour de revue de conception (DFM)</label>
+       <textarea data-s="${s.id}" data-f="dfm" rows="2" placeholder="Remarques du fournisseur sur le plan : épaisseurs, dépouilles, faisabilité du verrouillage, nombre d'empreintes proposé…"></textarea></div>
+
+     <h4>Prix et outillage</h4>
+     <div class="grid g5">
+       <div><label class="f">Devise</label><select data-s="${s.id}" data-f="cur">${cu}</select></div>
+       <div><label class="f">Prix set — 5 000</label><input type="number" step="0.01" data-s="${s.id}" data-f="p5"></div>
+       <div><label class="f">Prix set — 10 000</label><input type="number" step="0.01" data-s="${s.id}" data-f="p10"></div>
+       <div><label class="f">Prix set — 20 000</label><input type="number" step="0.01" data-s="${s.id}" data-f="p20"></div>
+       <div><label class="f">MOQ imposé (sets)</label><input type="number" data-s="${s.id}" data-f="moq"${s.moq?` value="${s.moq}"`:''}></div>
+       <div><label class="f">Moule assiette</label><input type="number" step="1" data-s="${s.id}" data-f="mA"></div>
+       <div><label class="f">Moule couvercle</label><input type="number" step="1" data-s="${s.id}" data-f="mC"></div>
+       <div><label class="f">Empreintes (A / C)</label><input type="text" data-s="${s.id}" data-f="cav"></div>
+       <div><label class="f">Durée de vie (cycles)</label><input type="number" data-s="${s.id}" data-f="vie"></div>
+       <div><label class="f">Propriété du moule</label><select data-s="${s.id}" data-f="prop">
+         <option value="">—</option><option>Acheteur</option><option>Usine</option><option>Partagée</option></select></div>
+     </div>
+
+     <h4>Délais et échantillon</h4>
+     <div class="grid g4">
+       <div><label class="f">Coût échantillon</label><input type="number" step="0.01" data-s="${s.id}" data-f="echCout"></div>
+       <div><label class="f">Délai échantillon (j)</label><input type="number" data-s="${s.id}" data-f="echDelai"></div>
+       <div><label class="f">Délai outillage T1 (j)</label><input type="number" data-s="${s.id}" data-f="dT1"></div>
+       <div><label class="f">Délai production (j)</label><input type="number" data-s="${s.id}" data-f="dProd"></div>
+     </div>
+
+     <h4>Colisage et expédition</h4>
+     <div class="grid g5">
+       <div><label class="f">Sets / carton</label><input type="number" data-s="${s.id}" data-f="setsCart"></div>
+       <div><label class="f">Volume carton m³</label><input type="number" step="0.0001" data-s="${s.id}" data-f="volCart"></div>
+       <div><label class="f">Poids carton kg</label><input type="number" step="0.1" data-s="${s.id}" data-f="poidsCart"></div>
+       <div><label class="f">Port de départ</label><input type="text" data-s="${s.id}" data-f="port"></div>
+       <div><label class="f">Incoterm</label><input type="text" data-s="${s.id}" data-f="incoterm" value="FOB"></div>
+     </div>
+
+     <h4>Conformité — cocher ce qui a été REÇU (pas déclaré)</h4>
+     <div class="grid g4">
+       <label class="chk"><input type="checkbox" data-s="${s.id}" data-f="cFDA"> FDA / food-grade US</label>
+       <label class="chk"><input type="checkbox" data-s="${s.id}" data-f="cLFGB"> LFGB</label>
+       <label class="chk"><input type="checkbox" data-s="${s.id}" data-f="cISO"> ISO 9001 numéroté + daté</label>
+       <label class="chk"><input type="checkbox" data-s="${s.id}" data-f="cMig"> Rapport de migration</label>
+     </div>
+
+     <h4>Évaluation</h4>
+     <div class="grid g3">
+       <div><label class="f">Solidité / risque contrepartie (0-100)</label>
+         <input type="number" min="0" max="100" data-s="${s.id}" data-f="solid" value="${s.solid}"></div>
+       <div><label class="f">Conditions de paiement obtenues</label><input type="text" data-s="${s.id}" data-f="paiement" placeholder="ex. 30 % acompte / 70 % contre B/L"></div>
+       <div><label class="f">Inclure dans le classement</label><select data-s="${s.id}" data-f="incl">
+         <option value="1"${s.excluded?'':' selected'}>Oui</option><option value="0"${s.excluded?' selected':''}>Non</option></select></div>
+     </div>
+     <div style="margin-top:8px"><label class="f">Notes libres</label>
+       <textarea data-s="${s.id}" data-f="notes" rows="2"></textarea></div>
+   </div>
+  </details>`;
+}
+document.getElementById('suppliers').innerHTML = SUP.map(supHTML).join('');
+
+/* Conditions suspensives */
+document.querySelector('#tCond tbody').innerHTML = COND.map((c,i)=>`<tr>
+  <td class="num">${i+1}</td><td><b>${c[0]}</b><div class="small">${c[1]}</div></td>
+  <td><select data-k="cond.${i}.ok"><option value="">—</option><option>Oui</option><option>Non</option><option>N/A</option></select></td>
+  <td><input type="date" data-k="cond.${i}.date"></td>
+  <td><input type="text" data-k="cond.${i}.note"></td></tr>`).join('');
+
+/* ═══ Utilitaires ═══ */
+const $ = q=>document.querySelector(q), $$ = q=>[...document.querySelectorAll(q)];
+const num = v => { const n = parseFloat(String(v).replace(',','.')); return isFinite(n)?n:null; };
+const eur = v => v==null ? '—' : v.toLocaleString('fr-FR',{minimumFractionDigits:v<10?2:0,maximumFractionDigits:v<10?2:0});
+const pct = v => v==null ? '—' : v.toFixed(0)+' %';
+
+function fxRate(c){ const el=document.getElementById('fx_'+c); return el?num(el.value)||0:1; }
+function P(){ return {
+  qty:num($('#p_qty').value)||5000, freight:num($('#p_freight').value)||0,
+  ins:(num($('#p_ins').value)||0)/100, duty:(num($('#p_duty').value)||0)/100, vat:(num($('#p_vat').value)||0)/100,
+  w:{twist:num($('#w_twist').value)||0, conf:num($('#w_conf').value)||0, solid:num($('#w_solid').value)||0,
+     cost:num($('#w_cost').value)||0, moq:num($('#w_moq').value)||0, lead:num($('#w_lead').value)||0}
+};}
+function F(id,f){ const e=document.querySelector(`[data-s="${id}"][data-f="${f}"]`); if(!e) return null;
+  return e.type==='checkbox'?e.checked:e.value; }
+
+/* ═══ Calcul par fournisseur ═══ */
+function compute(){
+  const p = P();
+  const rows = SUP.map(s=>{
+    const cur = F(s.id,'cur')||s.cur, fx = fxRate(cur);
+    const p5 = num(F(s.id,'p5')), p10 = num(F(s.id,'p10')), p20 = num(F(s.id,'p20'));
+    const mA = num(F(s.id,'mA'))||0, mC = num(F(s.id,'mC'))||0;
+    const setsCart = num(F(s.id,'setsCart')), volCart = num(F(s.id,'volCart')), poidsCart = num(F(s.id,'poidsCart'));
+    const r = { s, cur, statut:F(s.id,'statut'), incl:F(s.id,'incl')==='1',
+      p5, p10, p20, p5e: p5!=null?p5*fx:null,
+      tool: (mA+mC)*fx || null,
+      moq: num(F(s.id,'moq')),
+      twist: (TWIST.find(t=>t[0]===F(s.id,'twist'))||TWIST[0])[2],
+      conf: ['cFDA','cLFGB','cISO','cMig'].reduce((a,k)=>a+(F(s.id,k)?25:0),0),
+      solid: num(F(s.id,'solid')) ?? s.solid,
+      lead: (num(F(s.id,'dT1'))||0)+(num(F(s.id,'dProd'))||0)+(num(F(s.id,'echDelai'))||0) || null,
+      repondu: !!F(s.id,'dRep')
+    };
+    if(r.p5e!=null && setsCart && volCart!=null){
+      const cartons = Math.ceil(p.qty/setsCart);
+      r.vol = cartons*volCart;
+      r.poids = poidsCart!=null ? cartons*poidsCart : null;
+      const taxable = Math.max(r.vol, (r.poids||0)/1000);
+      r.goods = r.p5e*p.qty;
+      r.fret = taxable*p.freight;
+      r.assur = (r.goods+r.fret)*p.ins;
+      const caf = r.goods+r.fret+r.assur;
+      r.droits = caf*p.duty;
+      r.taxes = (caf+r.droits)*p.vat;
+      r.fretTot = r.fret+r.assur;
+      r.taxTot = r.droits+r.taxes;
+      r.total = caf+r.droits+r.taxes+(r.tool||0);
+      r.perSet = r.total/p.qty;
+      r.amort = (r.tool||0)/p.qty;
+      r.logiSet = (r.fretTot+r.taxTot)/p.qty;
+    }
+    return r;
+  });
+
+  /* normalisation coût & délai sur les répondants inclus */
+  const act = rows.filter(r=>r.incl);
+  const costs = act.filter(r=>r.perSet!=null).map(r=>r.perSet);
+  const leads = act.filter(r=>r.lead!=null).map(r=>r.lead);
+  const norm=(v,arr)=>{ if(v==null||!arr.length) return null; const mn=Math.min(...arr),mx=Math.max(...arr);
+    return mx===mn?100:100*(mx-v)/(mx-mn); };
+
+  rows.forEach(r=>{
+    r.nCost = norm(r.perSet,costs);
+    r.nLead = norm(r.lead,leads);
+    r.nMoq = r.moq==null ? null : (r.moq<=p.qty?100 : r.moq<=p.qty*2?60 : r.moq<=p.qty*4?25 : 0);
+    /* Un fournisseur n'est noté que s'il a réellement répondu quelque chose.
+       Sans donnée, un score de 0 sur la faisabilité serait un jugement, pas une mesure. */
+    const aDesDonnees = r.repondu || r.twist>0 || r.p5!=null || r.conf>0;
+    const refuse = r.statut==='A refusé';
+    r.scorable = r.incl && aDesDonnees && !refuse;
+    if(!r.scorable){ r.score=null; r.covered=0; r.attente = refuse?'a refusé':'en attente de réponse'; return; }
+    const parts=[[r.twist,p.w.twist],[r.conf,p.w.conf],[r.solid,p.w.solid],
+                 [r.nCost,p.w.cost],[r.nMoq,p.w.moq],[r.nLead,p.w.lead]];
+    let sw=0, sv=0;
+    parts.forEach(([v,w])=>{ if(v!=null&&w>0){ sw+=w; sv+=v*w; } });
+    r.score = sw>0 ? (sv/sw) : null;
+    r.covered = sw;
+  });
+  return {p, rows};
+}
+
+/* ═══ Rendu ═══ */
+function render(){
+  const {p, rows} = compute();
+  const act = rows.filter(r=>r.incl);
+
+  /* somme des poids */
+  const ws = Object.values(p.w).reduce((a,b)=>a+b,0);
+  $('#wsum').innerHTML = `Somme des poids : <b style="color:${ws===100?'var(--good-ink)':'#8d2f11'}">${ws}</b>${ws!==100?' — ajustez pour revenir à 100 (le score reste correct, il est renormalisé)':''}`;
+
+  /* 5. grille de prix */
+  const withCost = act.filter(r=>r.perSet!=null).sort((a,b)=>a.perSet-b.perSet);
+  const best = withCost.length?withCost[0].perSet:null;
+  $('#tPrix tbody').innerHTML = act.length===0 ? `<tr><td colspan="12" class="muted">Aucun fournisseur actif.</td></tr>`
+   : act.sort((a,b)=>(a.perSet??1e9)-(b.perSet??1e9)).map(r=>`<tr>
+      <td><b>${r.s.n}</b></td>
+      <td class="num">${r.p5!=null?r.p5.toLocaleString('fr-FR')+' '+r.cur:'—'}</td>
+      <td class="num">${r.p5e!=null?eur(r.p5e):'—'}</td>
+      <td class="num">${r.tool?eur(r.tool):'—'}</td>
+      <td class="num">${r.amort!=null?eur(r.amort):'—'}</td>
+      <td class="num">${r.vol!=null?r.vol.toFixed(2):'—'}</td>
+      <td class="num">${r.poids!=null?Math.round(r.poids).toLocaleString('fr-FR'):'—'}</td>
+      <td class="num">${r.fretTot!=null?eur(r.fretTot):'—'}</td>
+      <td class="num">${r.taxTot!=null?eur(r.taxTot):'—'}</td>
+      <td class="num"><b>${r.total!=null?eur(r.total):'—'}</b></td>
+      <td class="num"><b>${r.perSet!=null?eur(r.perSet):'—'}</b></td>
+      <td class="num">${r.perSet!=null&&best?(r.perSet===best?'<span style="color:var(--good-ink);font-weight:700">mini</span>':'+'+((r.perSet/best-1)*100).toFixed(0)+' %'):'—'}</td>
+    </tr>`).join('');
+
+  /* paliers */
+  $('#tPaliers tbody').innerHTML = act.filter(r=>r.p5!=null).map(r=>{
+    const deg = (r.p5!=null&&r.p20!=null)?(1-r.p20/r.p5)*100:null;
+    let lect='—';
+    if(deg!=null) lect = deg<5?'Dégressivité faible : outillage probablement déjà amorti ou inclus ailleurs.'
+      : deg<20?'Dégressivité normale.'
+      : 'Forte dégressivité : une part importante du prix à 5 000 est de l\'amortissement d\'outillage — à négocier.';
+    return `<tr><td><b>${r.s.n}</b></td>
+      <td class="num">${r.p5.toLocaleString('fr-FR')} ${r.cur}</td>
+      <td class="num">${r.p10!=null?r.p10.toLocaleString('fr-FR')+' '+r.cur:'—'}</td>
+      <td class="num">${r.p20!=null?r.p20.toLocaleString('fr-FR')+' '+r.cur:'—'}</td>
+      <td class="num">${deg!=null?'−'+deg.toFixed(0)+' %':'—'}</td>
+      <td class="small">${lect}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="muted">Aucun prix saisi.</td></tr>`;
+
+  /* 6. comparatif */
+  const ranked = act.filter(r=>r.score!=null).sort((a,b)=>b.score-a.score);
+  const rank = new Map(ranked.map((r,i)=>[r.s.id,i+1]));
+  const cell = v => v==null?'<span class="muted">—</span>':Math.round(v);
+  const stTag = st => st==='A répondu'?'green' : st==='A refusé'||st==='Écarté'?'red'
+                    : st==='Contacté'||st==='Relancé'?'amber' : 'grey';
+  const ordered = [...rows].sort((a,b)=>{
+    const sa=a.score==null?-1:a.score, sb=b.score==null?-1:b.score;
+    if(sb!==sa) return sb-sa; return a.s.n.localeCompare(b.s.n); });
+  $('#tComp tbody').innerHTML = ordered.map(r=>`<tr${r.incl?'':' style="opacity:.5"'}>
+      <td><b>${r.s.n}</b></td><td>${r.s.p}</td><td>${r.s.voie}</td>
+      <td><span class="tag ${stTag(r.statut)}">${r.statut||'—'}</span></td>
+      <td class="num">${r.scorable?cell(r.twist):'<span class="muted">—</span>'}</td>
+      <td class="num">${r.scorable?cell(r.conf):'<span class="muted">—</span>'}</td>
+      <td class="num">${cell(r.solid)}</td>
+      <td class="num">${cell(r.nCost)}</td><td class="num">${cell(r.nMoq)}</td><td class="num">${cell(r.nLead)}</td>
+      <td class="num"><b>${r.score!=null?Math.round(r.score):'—'}</b></td>
+      <td>${rank.get(r.s.id)?'#'+rank.get(r.s.id):`<span class="muted small">${r.attente||'—'}</span>`}</td>
+    </tr>`).join('');
+
+  /* 7. KPI */
+  const consultes = act.filter(r=>r.statut&&r.statut!=='À contacter').length;
+  const repondus = act.filter(r=>r.repondu).length;
+  const faisables = act.filter(r=>r.twist>=80).length;
+  const spread = withCost.length>1 ? (withCost[withCost.length-1].perSet/withCost[0].perSet-1)*100 : null;
+  $('#kpis').innerHTML = `
+   <div class="kpi"><div class="n">${consultes}<span class="u"> / ${act.length}</span></div>
+     <div class="l">Fournisseurs consultés</div><div class="sub">sur ${act.length} actifs au panel</div></div>
+   <div class="kpi"><div class="n">${consultes?Math.round(100*repondus/consultes):0}<span class="u"> %</span></div>
+     <div class="l">Taux de réponse</div><div class="sub">${repondus} réponse${repondus>1?'s':''} reçue${repondus>1?'s':''}</div></div>
+   <div class="kpi"><div class="n" style="color:${faisables?'var(--good-ink)':'#8d2f11'}">${faisables}</div>
+     <div class="l">Twist-lock prouvé</div><div class="sub">preuve fournie, pas déclaration</div></div>
+   <div class="kpi"><div class="n">${best!=null?eur(best):'—'}<span class="u"> €</span></div>
+     <div class="l">Meilleur coût débarqué</div><div class="sub">par set, tout compris</div></div>
+   <div class="kpi"><div class="n">${spread!=null?'+'+spread.toFixed(0):'—'}<span class="u"> %</span></div>
+     <div class="l">Écart min → max</div><div class="sub">${withCost.length} offre${withCost.length>1?'s':''} chiffrée${withCost.length>1?'s':''}</div></div>`;
+
+  drawCost(withCost); drawScore(ranked); drawScatter(act);
+}
+
+/* ═══ Graphiques (SVG inline) ═══ */
+const TIP = $('#tip');
+function tipOn(e,html){ TIP.innerHTML=html; TIP.style.opacity=1;
+  TIP.style.left=Math.min(e.clientX+14, innerWidth-280)+'px'; TIP.style.top=(e.clientY+14)+'px'; }
+function tipOff(){ TIP.style.opacity=0; }
+function esc(s){ return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+const EMPTY = t=>`<div class="small muted" style="padding:22px 4px">${t}</div>`;
+
+function drawCost(rows){
+  const el=$('#chartCost');
+  if(!rows.length) return el.innerHTML=EMPTY('Aucun coût calculable : saisissez un prix set et un colisage (sets par carton, volume) pour au moins un fournisseur.');
+  const W=900, LM=190, RM=70, rowH=26, H=rows.length*rowH+34;
+  const max=Math.max(...rows.map(r=>r.perSet))*1.02;
+  const x=v=>LM+(W-LM-RM)*v/max;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  // grille
+  for(let i=0;i<=4;i++){ const v=max*i/4;
+    s+=`<line x1="${x(v)}" y1="10" x2="${x(v)}" y2="${H-24}" stroke="var(--grid)" stroke-width="1"/>`;
+    s+=`<text x="${x(v)}" y="${H-10}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${eur(v)} €</text>`; }
+  rows.forEach((r,i)=>{
+    const y=14+i*rowH, h=13;
+    const seg=[['Marchandise',r.p5e,'var(--s1)'],['Outillage amorti',r.amort,'var(--s2)'],['Fret, assurance, droits, TVA',r.logiSet,'var(--s3)']];
+    let acc=0;
+    s+=`<text x="${LM-9}" y="${y+10}" font-size="11" fill="var(--ink)" text-anchor="end">${esc(r.s.n.slice(0,26))}</text>`;
+    seg.forEach(([lab,v,c])=>{ if(!v) return;
+      const x0=x(acc), x1=x(acc+v);
+      s+=`<rect x="${x0}" y="${y}" width="${Math.max(1,x1-x0-2)}" height="${h}" rx="2" fill="${c}"
+            data-tip="${esc(r.s.n)}&lt;br&gt;${lab} : &lt;b&gt;${eur(v)} €/set&lt;/b&gt;&lt;br&gt;Total débarqué : ${eur(r.perSet)} €/set"/>`;
+      acc+=v; });
+    s+=`<text x="${x(r.perSet)+7}" y="${y+10}" font-size="11" font-weight="700" fill="var(--ink)">${eur(r.perSet)} €</text>`;
+  });
+  s+='</svg>'; el.innerHTML=s; wire(el);
+}
+
+function drawScore(rows){
+  const el=$('#chartScore');
+  if(!rows.length) return el.innerHTML=EMPTY('Aucun score calculable : renseignez au moins un critère (faisabilité, conformité, prix…) pour un fournisseur actif.');
+  const W=900, LM=190, RM=60, rowH=24, H=rows.length*rowH+30;
+  const x=v=>LM+(W-LM-RM)*v/100;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  for(let i=0;i<=5;i++){ const v=i*20;
+    s+=`<line x1="${x(v)}" y1="8" x2="${x(v)}" y2="${H-22}" stroke="var(--grid)"/>`;
+    s+=`<text x="${x(v)}" y="${H-8}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${v}</text>`; }
+  rows.forEach((r,i)=>{
+    const y=12+i*rowH;
+    s+=`<text x="${LM-9}" y="${y+10}" font-size="11" fill="var(--ink)" text-anchor="end">${esc(r.s.n.slice(0,26))}</text>`;
+    s+=`<rect x="${LM}" y="${y}" width="${Math.max(1,x(r.score)-LM-2)}" height="13" rx="2" fill="var(--s1)"
+         data-tip="${esc(r.s.n)}&lt;br&gt;Score pondéré : &lt;b&gt;${Math.round(r.score)}/100&lt;/b&gt;&lt;br&gt;Critères couverts : ${r.covered} pts de pondération sur 100"/>`;
+    s+=`<text x="${x(r.score)+7}" y="${y+10}" font-size="11" font-weight="700" fill="var(--ink)">${Math.round(r.score)}</text>`;
+  });
+  s+='</svg>'; el.innerHTML=s; wire(el);
+}
+
+function drawScatter(rows){
+  const el=$('#chartScatter');
+  const pts = rows.filter(r=>r.perSet!=null && r.score!=null);
+  if(pts.length<1) return el.innerHTML=EMPTY('Le positionnement s\'affiche dès qu\'un fournisseur a un coût débarqué ET un score calculables.');
+  const W=900,H=340,L=58,R=24,T=14,B=42;
+  const xs=pts.map(p=>p.score), ys=pts.map(p=>p.perSet);
+  const xmin=Math.min(0,Math.min(...xs)-5), xmax=100;
+  const ymin=Math.max(0,Math.min(...ys)*0.9), ymax=Math.max(...ys)*1.1 || 1;
+  const X=v=>L+(W-L-R)*(v-xmin)/(xmax-xmin||1), Y=v=>T+(H-T-B)*(1-(v-ymin)/(ymax-ymin||1));
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  for(let i=0;i<=4;i++){ const v=ymin+(ymax-ymin)*i/4;
+    s+=`<line x1="${L}" y1="${Y(v)}" x2="${W-R}" y2="${Y(v)}" stroke="var(--grid)"/>`;
+    s+=`<text x="${L-8}" y="${Y(v)+4}" font-size="10.5" fill="var(--muted)" text-anchor="end">${eur(v)} €</text>`; }
+  for(let v=0;v<=100;v+=20){
+    s+=`<line x1="${X(v)}" y1="${T}" x2="${X(v)}" y2="${H-B}" stroke="var(--grid)"/>`;
+    s+=`<text x="${X(v)}" y="${H-B+16}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${v}</text>`; }
+  s+=`<text x="${(L+W-R)/2}" y="${H-8}" font-size="11" fill="var(--ink-2)" text-anchor="middle">Score pondéré /100 →</text>`;
+  s+=`<text x="14" y="${(T+H-B)/2}" font-size="11" fill="var(--ink-2)" text-anchor="middle" transform="rotate(-90 14 ${(T+H-B)/2})">← Coût débarqué €/set</text>`;
+  pts.forEach(p=>{
+    const c = p.s.voie==='A'?'var(--s1)':'var(--s2)';
+    s+=`<circle cx="${X(p.score)}" cy="${Y(p.perSet)}" r="6.5" fill="${c}" stroke="var(--surface-1)" stroke-width="2"
+         data-tip="${esc(p.s.n)}&lt;br&gt;Score : &lt;b&gt;${Math.round(p.score)}/100&lt;/b&gt;&lt;br&gt;Coût débarqué : &lt;b&gt;${eur(p.perSet)} €/set&lt;/b&gt;&lt;br&gt;Voie ${p.s.voie}"/>`;
+    s+=`<text x="${X(p.score)+10}" y="${Y(p.perSet)+4}" font-size="10.5" fill="var(--ink)">${esc(p.s.n.slice(0,20))}</text>`;
+  });
+  s+='</svg>'; el.innerHTML=s; wire(el);
+}
+function wire(el){ el.querySelectorAll('[data-tip]').forEach(n=>{
+  n.addEventListener('mousemove',e=>tipOn(e,n.getAttribute('data-tip')));
+  n.addEventListener('mouseleave',tipOff); }); }
+
+/* ═══ Journal ═══ */
+function addLog(v={}){
+  const tb=$('#tLog tbody');
+  const opts=SUP.map(s=>`<option${s.n===v.f?' selected':''}>${s.n}</option>`).join('');
+  const tr=document.createElement('tr'); tr.className='logrow';
+  tr.innerHTML=`<td><input type="date" data-log="d" value="${v.d||''}"></td>
+    <td><select data-log="f"><option value="">—</option>${opts}</select></td>
+    <td><input type="text" data-log="c" value="${v.c||''}"></td>
+    <td><input type="text" data-log="i" value="${v.i||''}"></td>
+    <td><input type="text" data-log="o" value="${v.o||''}"></td>
+    <td class="noprint"><button class="del" onclick="this.closest('tr').remove()" title="Supprimer">×</button></td>`;
+  tb.appendChild(tr);
+}
+addLog();
+
+/* ═══ Import / export ═══ */
+function collect(){
+  const d={fields:{},sup:{},log:[]};
+  $$('[data-k]').forEach(e=>d.fields[e.dataset.k]= e.type==='checkbox'?e.checked:e.value);
+  $$('#suppliers [data-s]').forEach(e=>{
+    d.sup[e.dataset.s]=d.sup[e.dataset.s]||{};
+    d.sup[e.dataset.s][e.dataset.f]= e.type==='checkbox'?e.checked:e.value; });
+  ['p_qty','p_freight','p_ins','p_duty','p_vat','w_twist','w_conf','w_solid','w_cost','w_moq','w_lead',
+   'fx_USD','fx_CNY','fx_THB','fx_VND','fx_INR','fx_MYR','fx_TWD'].forEach(id=>d.fields['#'+id]=$('#'+id).value);
+  $$('#tLog tbody tr').forEach(tr=>{ const o={};
+    tr.querySelectorAll('[data-log]').forEach(e=>o[e.dataset.log]=e.value);
+    if(Object.values(o).some(x=>x)) d.log.push(o); });
+  return d;
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(collect(),null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='cockpit_sourcing_assiette_'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importJSON(inp){
+  const f=inp.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const d=JSON.parse(rd.result);
+    Object.entries(d.fields||{}).forEach(([k,v])=>{
+      const e = k.startsWith('#') ? $(k) : document.querySelector(`[data-k="${k}"]`);
+      if(!e) return; if(e.type==='checkbox') e.checked=!!v; else e.value=v; });
+    Object.entries(d.sup||{}).forEach(([id,o])=>Object.entries(o).forEach(([f2,v])=>{
+      const e=document.querySelector(`[data-s="${id}"][data-f="${f2}"]`);
+      if(!e) return; if(e.type==='checkbox') e.checked=!!v; else e.value=v; }));
+    $('#tLog tbody').innerHTML=''; (d.log||[]).forEach(addLog); if(!(d.log||[]).length) addLog();
+    render(); alert('Données importées.');
+  }catch(err){ alert('Fichier illisible : '+err.message); } };
+  rd.readAsText(f); inp.value='';
+}
+function resetAll(){
+  if(!confirm('Effacer toutes les saisies ? Pensez à exporter avant.')) return;
+  $$('#suppliers input, #suppliers select, #suppliers textarea').forEach(e=>{
+    if(e.type==='checkbox') e.checked=false;
+    else if(e.dataset.f==='solid'){ const s=SUP.find(x=>x.id===e.dataset.s); e.value=s?s.solid:''; }
+    else if(e.dataset.f==='cur'){ const s=SUP.find(x=>x.id===e.dataset.s); e.value=s?s.cur:'EUR'; }
+    else if(e.dataset.f==='incl'){ const s=SUP.find(x=>x.id===e.dataset.s); e.value=s&&s.excluded?'0':'1'; }
+    else if(e.dataset.f==='statut'){ const s=SUP.find(x=>x.id===e.dataset.s); e.value=s&&s.excluded?'Écarté':'À contacter'; }
+    else if(e.dataset.f==='moq'){ const s=SUP.find(x=>x.id===e.dataset.s); e.value=s&&s.moq?s.moq:''; }
+    else if(e.dataset.f==='incoterm'){ e.value='FOB'; }
+    else e.value='';
+  });
+  $$('#tCond input, #tCond select').forEach(e=>e.value='');
+  $('#tLog tbody').innerHTML=''; addLog(); render();
+}
+function openAll(o){ $$('details.sup').forEach(d=>d.open=o); }
+function printAll(){ const st=$$('details.sup').map(d=>d.open); openAll(true);
+  window.addEventListener('afterprint',function h(){ $$('details.sup').forEach((d,i)=>d.open=st[i]);
+    window.removeEventListener('afterprint',h); }, {once:true});
+  setTimeout(()=>window.print(),120); }
+
+/* ═══ Init ═══ */
+document.addEventListener('input', e=>{ if(e.target.closest('.wrap')) render(); });
+document.addEventListener('change', e=>{ if(e.target.closest('.wrap')) render(); });
+$('[data-k="meta.date"]').value = new Date().toISOString().slice(0,10);
+render();
+</script>
+</body>
+</html>
