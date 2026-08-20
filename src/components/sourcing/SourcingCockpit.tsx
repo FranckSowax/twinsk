@@ -18,11 +18,13 @@ import type {
   SourcingImage,
   SourcingParams,
   SourcingProject,
+  SourcingShare,
   SourcingWeights,
 } from '@/lib/sourcing/types';
 import { Comparison, Dashboard, PriceGrid } from './analysis';
 import { SupplierCard, type SupplierEntry } from './SupplierCard';
 import { useAutosave } from './useAutosave';
+import { ShareLinks } from './ShareLinks';
 import { Annexes, ContactLog, Decision } from './workflow';
 import { Field, NumberInput, SaveIndicator, Section, Select, TextArea, TextInput } from './ui';
 
@@ -55,6 +57,7 @@ const NAV = [
   { id: 'journal', label: '8. Journal de contact' },
   { id: 'decision', label: '9. Décision et conditions' },
   { id: 'annexes', label: '10. Annexes visuelles' },
+  { id: 'partage', label: 'Liens de partage' },
 ];
 
 interface CockpitData {
@@ -63,6 +66,7 @@ interface CockpitData {
   conditions: SourcingCondition[];
   log: SourcingContactLogEntry[];
   images: Array<SourcingImage & { url?: string }>;
+  shares: SourcingShare[];
 }
 
 export function SourcingCockpit({ slug }: { slug: string }) {
@@ -91,6 +95,7 @@ export function SourcingCockpit({ slug }: { slug: string }) {
         conditions: json.conditions ?? [],
         log: json.log ?? [],
         images: json.images ?? [],
+        shares: json.shares ?? [],
       });
     })();
     return () => {
@@ -500,6 +505,11 @@ export function SourcingCockpit({ slug }: { slug: string }) {
           images={data.images}
           suppliers={suppliers}
           onChange={(images) => setData((d) => (d ? { ...d, images } : d))}
+        />
+        <ShareLinks
+          projectId={project.id}
+          shares={data.shares}
+          onChange={(shares) => setData((d) => (d ? { ...d, shares } : d))}
         />
       </div>
     </div>
