@@ -11,7 +11,9 @@ import {
   type MarketBlock,
   type SpecRow,
 } from '@/lib/sourcing/defaults';
+import { computeProject } from '@/lib/sourcing/compute';
 import type { SourcingParams, SourcingProject, SourcingWeights } from '@/lib/sourcing/types';
+import { Comparison, Dashboard, PriceGrid } from './analysis';
 import { SupplierCard, type SupplierEntry } from './SupplierCard';
 import { useAutosave } from './useAutosave';
 import { Field, NumberInput, SaveIndicator, Section, Select, TextArea, TextInput } from './ui';
@@ -39,6 +41,9 @@ const NAV = [
   { id: 'constat-marche', label: '2. Constat de marché' },
   { id: 'parametres', label: '3. Paramètres de calcul' },
   { id: 'consultation', label: '4. Consultation fournisseurs' },
+  { id: 'grille-prix', label: '5. Grille de prix' },
+  { id: 'comparatif', label: '6. Comparatif et scoring' },
+  { id: 'tableau-de-bord', label: '7. Tableau de bord' },
 ];
 
 interface CockpitData {
@@ -125,6 +130,20 @@ export function SourcingCockpit({ slug }: { slug: string }) {
   const market = useMemo<MarketBlock[]>(
     () => (data?.project.market_finding as { blocks?: MarketBlock[] } | undefined)?.blocks ?? [],
     [data?.project.market_finding],
+  );
+
+  /**
+   * Recalcul à chaque frappe : les grilles et graphiques suivent la saisie sans
+   * attendre l'aller-retour serveur. Un seul moteur, celui des tests de parité.
+   */
+  const result = useMemo(
+    () =>
+      computeProject({
+        params,
+        weights,
+        entries: (data?.suppliers ?? []).map((s) => ({ supplier: s, quote: s.quote })),
+      }),
+    [params, weights, data?.suppliers],
   );
 
   if (error) return <p className="p-6 text-sm text-ink-soft">{error}</p>;
@@ -436,6 +455,11 @@ export function SourcingCockpit({ slug }: { slug: string }) {
             </div>
           )}
         </Section>
+
+        {/* ── 5 à 7 : analyse. Tout est dérivé de la saisie ci-dessus. ── */}
+        <PriceGrid result={result} />
+        <Comparison result={result} />
+        <Dashboard result={result} />
       </div>
     </div>
   );
