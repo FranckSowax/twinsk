@@ -42,7 +42,7 @@ Besoin (mot-clé FR / URL image)
 ### API de sourcing (RapidAPI — 1688 datahub)
 ```
 Host   : 1688-datahub.p.rapidapi.com
-Header : x-rapidapi-key: 04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3
+Header : x-rapidapi-key: VOTRE_CLE_RAPIDAPI
          x-rapidapi-host: 1688-datahub.p.rapidapi.com
 ```
 > ⚠️ Le sandbox bloque souvent l'appel direct : exécuter les `fetch` **via Chrome MCP** (`javascript_tool`)
@@ -92,7 +92,7 @@ depuis un onglet `1688.com`. Schéma d'appel :
 
 ```javascript
 (async () => {
-  const KEY = '04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3', HOST = '1688-datahub.p.rapidapi.com';
+  const KEY = 'VOTRE_CLE_RAPIDAPI', HOST = '1688-datahub.p.rapidapi.com';
   const H = { 'x-rapidapi-key': KEY, 'x-rapidapi-host': HOST };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const proxyImg = (u = '') => 'https://images.weserv.nl/?url=' +

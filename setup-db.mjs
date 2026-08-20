@@ -1,8 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Les identifiants viennent de l'environnement — jamais du dépôt.
+// La clé service_role contourne toutes les RLS : elle ne doit exister que dans .env.local.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error('Renseignez NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY avant de lancer ce script.');
+  process.exit(1);
+}
+
+
 const supabase = createClient(
-  'https://qaemzzpyrmoopfkiciki.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhZW16enB5cm1vb3Bma2ljaWtpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ5ODgwOSwiZXhwIjoyMDkxMDc0ODA5fQ.oi57C-ewm3N4-AActYJ3H9uzk6fZjM_SPz_3_pmPmhw'
+  SUPABASE_URL,
+  SERVICE_ROLE_KEY
 );
 
 // Create storage bucket
@@ -25,12 +35,12 @@ async function setupStorage() {
 
 // Run SQL via the Supabase SQL API
 async function runSQL(sql, label) {
-  const res = await fetch('https://qaemzzpyrmoopfkiciki.supabase.co/rest/v1/rpc', {
+  const res = await fetch('${SUPABASE_URL}/rest/v1/rpc', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhZW16enB5cm1vb3Bma2ljaWtpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ5ODgwOSwiZXhwIjoyMDkxMDc0ODA5fQ.oi57C-ewm3N4-AActYJ3H9uzk6fZjM_SPz_3_pmPmhw',
-      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhZW16enB5cm1vb3Bma2ljaWtpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ5ODgwOSwiZXhwIjoyMDkxMDc0ODA5fQ.oi57C-ewm3N4-AActYJ3H9uzk6fZjM_SPz_3_pmPmhw',
+      'apikey': SERVICE_ROLE_KEY,
+      'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
     },
     body: JSON.stringify({ query: sql }),
   });

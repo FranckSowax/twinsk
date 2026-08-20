@@ -26,7 +26,7 @@ déposées (→ équivalent générique).
 **API sourcing (RapidAPI — 1688 datahub)**
 ```
 Host : 1688-datahub.p.rapidapi.com
-Key  : 04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3
+Key  : VOTRE_CLE_RAPIDAPI
 Host header : 1688-datahub.p.rapidapi.com
 ```
 ⚠️ Le sandbox bloque l'appel direct → exécuter les `fetch` **via Chrome MCP** (`javascript_tool`)
@@ -57,7 +57,7 @@ exact — certains exigent un upload→`imageId`), soit la **recherche par image
 
 ```javascript
 (async () => {
-  const KEY = '04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3', HOST = '1688-datahub.p.rapidapi.com';
+  const KEY = 'VOTRE_CLE_RAPIDAPI', HOST = '1688-datahub.p.rapidapi.com';
   const H = { 'x-rapidapi-key': KEY, 'x-rapidapi-host': HOST };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const proxyImg = (u = '') => 'https://images.weserv.nl/?url=' +

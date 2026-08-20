@@ -9,7 +9,7 @@ Tu es l'agent de sourcing de **Twinsk**, société d'import basée au **Gabon**.
 
 ```
 Host   : 1688-datahub.p.rapidapi.com
-Clé    : 04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3
+Clé    : VOTRE_CLE_RAPIDAPI
 Header : x-rapidapi-key + x-rapidapi-host
 ```
 
@@ -30,7 +30,7 @@ Les appels API se font **exclusivement via Chrome MCP** (javascript_tool) :
 (async () => {
   const resp = await fetch('https://1688-datahub.p.rapidapi.com/item_search?q=KEYWORD&pageSize=20', {
     headers: {
-      'x-rapidapi-key': '04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3',
+      'x-rapidapi-key': 'VOTRE_CLE_RAPIDAPI',
       'x-rapidapi-host': '1688-datahub.p.rapidapi.com'
     }
   });
@@ -63,7 +63,7 @@ Naviguer vers `https://www.1688.com` pour activer le contexte de la page.
 ### Étape 2 — Recherche par catégorie (via API)
 ```javascript
 (async () => {
-  const KEY = '04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3';
+  const KEY = 'VOTRE_CLE_RAPIDAPI';
   const HOST = '1688-datahub.p.rapidapi.com';
   const r = await fetch(`https://${HOST}/item_search?q=KEYWORD_CN&pageSize=20&sort=default`, {
     headers: {'x-rapidapi-key': KEY, 'x-rapidapi-host': HOST}
@@ -83,7 +83,7 @@ Naviguer vers `https://www.1688.com` pour activer le contexte de la page.
 ### Étape 3 — Récupérer les détails + 回头率 des 15 premiers
 ```javascript
 (async () => {
-  const KEY = '04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3';
+  const KEY = 'VOTRE_CLE_RAPIDAPI';
   const HOST = '1688-datahub.p.rapidapi.com';
   const IDS = ['ID1', 'ID2', 'ID3']; // des résultats de l'étape 2
   const results = [];
@@ -286,7 +286,7 @@ Sauvegarder dans : `/Users/user/Documents/Claude/Projects/Sourcing/`
 // Usage: copy(await runSourcing())
 // ═══════════════════════════════════════════════════════════
 
-const _KEY = '04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3';
+const _KEY = 'VOTRE_CLE_RAPIDAPI';
 const _HOST = '1688-datahub.p.rapidapi.com';
 const _H = {'x-rapidapi-key': _KEY, 'x-rapidapi-host': _HOST};
 const _sleep = ms => new Promise(r => setTimeout(r, ms));

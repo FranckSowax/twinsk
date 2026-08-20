@@ -54,7 +54,7 @@ TWINSK_BASE_URL=https://twinsk-production.up.railway.app
 TWINSK_ADMIN_PASSWORD=<demande à l'utilisateur — utilisé comme cookie admin_token>
 
 # 1688 API (RapidAPI)
-RAPIDAPI_1688_KEY=04d57354bbmsh6e992a9737d53eep1bd99ajsn7c54bef342f3
+RAPIDAPI_1688_KEY=VOTRE_CLE_RAPIDAPI
 RAPIDAPI_1688_HOST=1688-datahub.p.rapidapi.com
 
 # Optionnel — archivage local des JSON générés
