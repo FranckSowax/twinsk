@@ -12,10 +12,18 @@ import {
   type SpecRow,
 } from '@/lib/sourcing/defaults';
 import { computeProject } from '@/lib/sourcing/compute';
-import type { SourcingParams, SourcingProject, SourcingWeights } from '@/lib/sourcing/types';
+import type {
+  SourcingCondition,
+  SourcingContactLogEntry,
+  SourcingImage,
+  SourcingParams,
+  SourcingProject,
+  SourcingWeights,
+} from '@/lib/sourcing/types';
 import { Comparison, Dashboard, PriceGrid } from './analysis';
 import { SupplierCard, type SupplierEntry } from './SupplierCard';
 import { useAutosave } from './useAutosave';
+import { Annexes, ContactLog, Decision } from './workflow';
 import { Field, NumberInput, SaveIndicator, Section, Select, TextArea, TextInput } from './ui';
 
 const PROJECT_STATUS = [
@@ -44,11 +52,17 @@ const NAV = [
   { id: 'grille-prix', label: '5. Grille de prix' },
   { id: 'comparatif', label: '6. Comparatif et scoring' },
   { id: 'tableau-de-bord', label: '7. Tableau de bord' },
+  { id: 'journal', label: '8. Journal de contact' },
+  { id: 'decision', label: '9. Décision et conditions' },
+  { id: 'annexes', label: '10. Annexes visuelles' },
 ];
 
 interface CockpitData {
   project: SourcingProject;
   suppliers: SupplierEntry[];
+  conditions: SourcingCondition[];
+  log: SourcingContactLogEntry[];
+  images: Array<SourcingImage & { url?: string }>;
 }
 
 export function SourcingCockpit({ slug }: { slug: string }) {
@@ -71,7 +85,13 @@ export function SourcingCockpit({ slug }: { slug: string }) {
         return;
       }
       const json = await res.json();
-      setData({ project: json.project, suppliers: json.suppliers ?? [] });
+      setData({
+        project: json.project,
+        suppliers: json.suppliers ?? [],
+        conditions: json.conditions ?? [],
+        log: json.log ?? [],
+        images: json.images ?? [],
+      });
     })();
     return () => {
       cancelled = true;
@@ -460,6 +480,27 @@ export function SourcingCockpit({ slug }: { slug: string }) {
         <PriceGrid result={result} />
         <Comparison result={result} />
         <Dashboard result={result} />
+
+        {/* ── 8 à 10 : suivi, décision, pièces justificatives ── */}
+        <ContactLog
+          projectId={project.id}
+          entries={data.log}
+          suppliers={suppliers}
+          onChange={(log) => setData((d) => (d ? { ...d, log } : d))}
+        />
+        <Decision
+          project={project}
+          conditions={data.conditions}
+          suppliers={suppliers}
+          onProjectChange={setProject}
+          onConditionsChange={(conditions) => setData((d) => (d ? { ...d, conditions } : d))}
+        />
+        <Annexes
+          projectId={project.id}
+          images={data.images}
+          suppliers={suppliers}
+          onChange={(images) => setData((d) => (d ? { ...d, images } : d))}
+        />
       </div>
     </div>
   );

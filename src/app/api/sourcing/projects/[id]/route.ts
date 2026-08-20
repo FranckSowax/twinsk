@@ -51,7 +51,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }),
     conditions: conditions.data || [],
     log: log.data || [],
-    images: images.data || [],
+    // L'URL publique est dérivée du storage_key ici : le client n'a pas à
+    // reconstruire un chemin de stockage à la main.
+    images: (images.data || []).map((img) => ({
+      ...img,
+      url: supabaseAdmin.storage.from('request-images').getPublicUrl(img.storage_key).data
+        .publicUrl,
+    })),
     shares: shares.data || [],
   });
 }
