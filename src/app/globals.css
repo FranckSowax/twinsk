@@ -117,3 +117,106 @@ body {
   background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.06) 1px, transparent 0);
   background-size: 28px 28px;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Impression du cockpit de sourcing — sortie A4 sans intervention.
+   Portée par .sourcing-print, posée sur le conteneur du cockpit, pour
+   ne rien changer à l'impression du reste du site.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm;
+  }
+
+  .sourcing-print {
+    /* Le A4 tombe sous le point de rupture mobile de Tailwind : sans cela, les
+       grilles de saisie s'empileraient en une seule colonne à l'impression. */
+    font-size: 9.5pt;
+    color: #0b0b0b;
+  }
+
+  .sourcing-print .grid {
+    display: grid !important;
+  }
+  .sourcing-print .grid.sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .sourcing-print .grid.lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .sourcing-print .grid.lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .sourcing-print .grid.lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .sourcing-print .grid.lg\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+  .sourcing-print .grid.lg\:grid-cols-8 { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; }
+
+  /* Les tableaux larges doivent tenir dans la page, pas défiler. */
+  .sourcing-print .overflow-x-auto { overflow: visible !important; }
+  .sourcing-print table { width: 100% !important; min-width: 0 !important; font-size: 8.5pt; }
+
+  /* Champs de saisie rendus en texte souligné : on lit une valeur, pas un widget. */
+  .sourcing-print input[type='text'],
+  .sourcing-print input[type='date'],
+  .sourcing-print input[type='number'],
+  .sourcing-print input[type='url'],
+  .sourcing-print textarea,
+  .sourcing-print select {
+    border: 0 !important;
+    border-bottom: 1px solid #c3c2b7 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+    color: #0b0b0b;
+  }
+  .sourcing-print textarea {
+    resize: none !important;
+    overflow: visible !important;
+  }
+
+  /* Cases à cocher rendues comme de vraies cases. */
+  .sourcing-print input[type='checkbox'] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 9pt;
+    height: 9pt;
+    border: 1px solid #52514e !important;
+    border-radius: 1pt;
+    background: #fff;
+  }
+  .sourcing-print input[type='checkbox']:checked::after {
+    content: '×';
+    display: block;
+    line-height: 8pt;
+    text-align: center;
+    font-size: 9pt;
+    color: #0b0b0b;
+  }
+
+  /* Rien ne se coupe en plein milieu. */
+  .sourcing-print section,
+  .sourcing-print figure,
+  .sourcing-print tr,
+  .sourcing-print .break-inside-avoid {
+    break-inside: avoid;
+  }
+  .sourcing-print h2,
+  .sourcing-print h3 {
+    break-after: avoid;
+  }
+
+  .sourcing-print svg {
+    max-width: 100% !important;
+    height: auto;
+  }
+
+  /* En-tête et pied de page. La pagination vient de @page ; le reste est posé
+     par le composant avec .sourcing-print-header / .sourcing-print-footer. */
+  .sourcing-print-only {
+    display: block !important;
+  }
+}
+
+.sourcing-print-only {
+  display: none;
+}

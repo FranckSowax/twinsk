@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Plus, Printer, Trash2, Upload } from 'lucide-react';
 import {
   CURRENCIES,
   DEFAULT_PARAMS,
@@ -74,6 +74,9 @@ export function SourcingCockpit({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [active, setActive] = useState('projet');
+  const [importing, setImporting] = useState(false);
+  const [importReport, setImportReport] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +125,14 @@ export function SourcingCockpit({ slug }: { slug: string }) {
     },
     [save],
   );
+
+  // Le format A4 doit montrer les fiches ouvertes : on les déplie avant impression.
+  useEffect(() => {
+    if (!data) return;
+    const expand = () => setOpenIds(new Set(data.suppliers.map((s) => s.id)));
+    window.addEventListener('beforeprint', expand);
+    return () => window.removeEventListener('beforeprint', expand);
+  }, [data]);
 
   // Surligne dans le sommaire la section à l'écran.
   useEffect(() => {
@@ -195,8 +206,70 @@ export function SourcingCockpit({ slug }: { slug: string }) {
   const toggleAll = (open: boolean) =>
     setOpenIds(open ? new Set(suppliers.map((s) => s.id)) : new Set());
 
+  /**
+   * Import d'un JSON du cockpit autonome. Le fichier ne porte pas l'identité des
+   * fournisseurs : les clés sans correspondant au panel sont signalées, pas créées.
+   */
+  const runImport = async (file: File | null) => {
+    if (!file) return;
+    setImporting(true);
+    setImportReport(null);
+    try {
+      const parsed = JSON.parse(await file.text());
+      const res = await fetch(`/api/sourcing/projects/${project.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setImportReport(body?.error ?? 'Import impossible.');
+        return;
+      }
+      const r = (await res.json()) as {
+        suppliers_updated: string[];
+        suppliers_skipped: string[];
+        conditions_updated: number;
+        log_added: number;
+      };
+      const parts = [
+        `${r.suppliers_updated.length} fournisseur${r.suppliers_updated.length > 1 ? 's' : ''} mis à jour`,
+        `${r.conditions_updated} condition${r.conditions_updated > 1 ? 's' : ''}`,
+        `${r.log_added} ligne${r.log_added > 1 ? 's' : ''} de journal`,
+      ];
+      if (r.suppliers_skipped.length) {
+        parts.push(`sans correspondance au panel : ${r.suppliers_skipped.join(', ')}`);
+      }
+      setImportReport(parts.join(' · '));
+      // Le projet est rechargé pour refléter l'état réellement enregistré.
+      const fresh = await fetch(`/api/sourcing/projects/${encodeURIComponent(slug)}`);
+      if (fresh.ok) {
+        const json = await fresh.json();
+        setData({
+          project: json.project,
+          suppliers: json.suppliers ?? [],
+          conditions: json.conditions ?? [],
+          log: json.log ?? [],
+          images: json.images ?? [],
+          shares: json.shares ?? [],
+        });
+      }
+    } catch {
+      setImportReport('Fichier illisible : ce n’est pas un export de cockpit valide.');
+    } finally {
+      setImporting(false);
+      if (importRef.current) importRef.current.value = '';
+    }
+  };
+
   return (
-    <div className="flex gap-8">
+    <div className="sourcing-print flex gap-8">
+      {/* En-tête et pied de page visibles à l'impression seulement. */}
+      <div className="sourcing-print-only mb-4 border-b border-line pb-2 text-xs text-ink-soft">
+        <b className="text-ink">{project.title}</b>
+        {project.client && <> — {project.client}</>} · Document de travail confidentiel
+      </div>
+
       {/* ── Sommaire latéral collant ── */}
       <nav className="sticky top-4 hidden h-fit w-52 shrink-0 lg:block print:hidden">
         <ul className="space-y-0.5 border-l border-line">
@@ -232,7 +305,37 @@ export function SourcingCockpit({ slug }: { slug: string }) {
               })}
             </>
           }
-          actions={<SaveIndicator state={save.state} onRetry={save.retry} />}
+          actions={
+            <>
+              <SaveIndicator state={save.state} onRetry={save.retry} />
+              <input
+                ref={importRef}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => runImport(e.target.files?.[0] ?? null)}
+              />
+              <button
+                onClick={() => importRef.current?.click()}
+                disabled={importing}
+                className="inline-flex items-center gap-1.5 rounded border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-mist disabled:opacity-60 print:hidden"
+              >
+                <Upload className="size-3.5" /> {importing ? 'Import…' : 'Importer'}
+              </button>
+              <a
+                href={`/api/sourcing/projects/${project.id}/export`}
+                className="inline-flex items-center gap-1.5 rounded border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-mist print:hidden"
+              >
+                <Download className="size-3.5" /> Exporter
+              </a>
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 rounded border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-mist print:hidden"
+              >
+                <Printer className="size-3.5" /> Imprimer
+              </button>
+            </>
+          }
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Titre">
@@ -253,6 +356,11 @@ export function SourcingCockpit({ slug }: { slug: string }) {
               />
             </Field>
           </div>
+          {importReport && (
+            <p className="mt-3 rounded border border-line bg-mist px-3 py-2 text-xs text-ink print:hidden">
+              {importReport}
+            </p>
+          )}
         </Section>
 
         {/* ── 1. Cahier des charges ── */}
@@ -511,6 +619,12 @@ export function SourcingCockpit({ slug }: { slug: string }) {
           shares={data.shares}
           onChange={(shares) => setData((d) => (d ? { ...d, shares } : d))}
         />
+
+        <p className="sourcing-print-only mt-4 border-t border-line pt-2 text-[8pt] leading-relaxed text-ink-soft">
+          Cockpit de sourcing Twinsk / Sowax — document de travail. Aucune donnée n’est
+          extrapolée : les champs vides signalent une information non obtenue, jamais une
+          estimation.
+        </p>
       </div>
     </div>
   );
