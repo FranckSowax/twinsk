@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "seed:sourcing": "npx tsx scripts/seed-sourcing-assiette.ts",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest"
