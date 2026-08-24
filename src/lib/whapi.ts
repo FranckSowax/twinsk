@@ -243,6 +243,44 @@ export async function addGroupParticipants(
   };
 }
 
+/**
+ * Crée un groupe WhatsApp (POST /groups). WhatsApp exige au moins 1 participant
+ * en plus du numéro connecté (format <numéro>@s.whatsapp.net).
+ * Retourne l'id du groupe créé (…@g.us).
+ */
+export async function createWhapiGroup(
+  subject: string,
+  phones: string[],
+): Promise<{ ok: boolean; groupId?: string; error?: string }> {
+  if (!WHAPI_TOKEN) return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
+  const participants = Array.from(
+    new Set(phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8)),
+  ).map((n) => `${n}@s.whatsapp.net`);
+  if (!participants.length) {
+    return { ok: false, error: 'Au moins un numéro (format international) est requis pour créer un groupe' };
+  }
+  try {
+    const res = await fetch(`${WHAPI_BASE}/groups`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WHAPI_TOKEN}` },
+      body: JSON.stringify({ subject: subject.trim(), participants: participants.slice(0, ADD_BATCH_SIZE) }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { group_id?: string; id?: string; error?: unknown };
+    if (!res.ok) {
+      return { ok: false, error: `Whapi ${res.status}: ${JSON.stringify(data.error ?? data).slice(0, 200)}` };
+    }
+    const groupId = data.group_id || data.id;
+    if (!groupId) return { ok: false, error: 'Groupe créé mais id introuvable dans la réponse' };
+    // Le reste des participants est ajouté par lots conformes anti-spam.
+    if (participants.length > ADD_BATCH_SIZE) {
+      await addGroupParticipants(phones.slice(ADD_BATCH_SIZE), groupId);
+    }
+    return { ok: true, groupId };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+}
+
 /** Configure l'URL de webhook WHAPI (PATCH /settings) pour recevoir les événements. */
 export async function setWhapiWebhook(
   url: string,
