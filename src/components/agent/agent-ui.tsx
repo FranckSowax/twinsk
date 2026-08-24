@@ -58,12 +58,12 @@ export const STAGE_META: Record<StageKey, { label: string; chip: string; dot: st
   delivered: { label: 'Remise', chip: 'bg-violet-50 text-violet-700 ring-violet-200', dot: 'bg-violet-500' },
 };
 
-export function StageChip({ stage }: { stage: StageKey }) {
+export function StageChip({ stage, label }: { stage: StageKey; label?: string }) {
   const m = STAGE_META[stage];
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${m.chip}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
-      {m.label}
+      {label ?? m.label}
     </span>
   );
 }

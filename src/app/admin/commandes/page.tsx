@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode, Save, Trash2, Plus, Plane, Ship, Search, ChevronRight, HandCoins, Banknote, BadgeAlert, HandHeart } from 'lucide-react';
 import { orderNumber } from '@/lib/order-number';
+import { useAdminT } from '@/components/admin/LocaleProvider';
+import type { TKey } from '@/lib/i18n/admin';
 import {
   stageOf,
   stageIdx,
@@ -60,14 +62,18 @@ interface OrderDetail {
   lines: DetailLine[];
 }
 
-const TRANSPORT_LABEL: Record<string, string> = { air: 'Aérien', sea: 'Maritime', quote: 'Devis' };
+const TRANSPORT_KEY: Record<string, TKey> = {
+  air: 'orders.transport.air',
+  sea: 'orders.transport.sea',
+  quote: 'orders.transport.quote',
+};
 
-const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'unpaid', label: 'Non payé' },
-  { value: 'paid', label: 'Payée' },
-  { value: 'shipped', label: 'Expédié' },
-  { value: 'at_agency', label: 'Reçu à l\'agence' },
-  { value: 'delivered', label: 'Livrée' },
+const ORDER_STATUS_OPTIONS: { value: string; key: TKey }[] = [
+  { value: 'unpaid', key: 'orders.status.unpaid' },
+  { value: 'paid', key: 'orders.status.paid' },
+  { value: 'shipped', key: 'orders.status.shipped' },
+  { value: 'at_agency', key: 'orders.status.at_agency' },
+  { value: 'delivered', key: 'orders.status.delivered' },
 ];
 const ORDER_STATUS_CLS: Record<string, string> = {
   unpaid: 'border-slate-300 text-slate-600',
@@ -79,10 +85,10 @@ const ORDER_STATUS_CLS: Record<string, string> = {
 // L'étiquette d'envoi est disponible dès que la commande est payée.
 const canLabel = (s: string) => s === 'paid' || s === 'shipped' || s === 'at_agency' || s === 'delivered';
 
-const PAY_LABEL: Record<string, { txt: string; cls: string }> = {
-  submitted: { txt: 'À vérifier', cls: 'bg-amber-100 text-amber-700' },
-  paid: { txt: 'Validé', cls: 'bg-emerald-100 text-emerald-700' },
-  pending: { txt: 'En attente', cls: 'bg-slate-100 text-slate-500' },
+const PAY_LABEL: Record<string, { key: TKey; cls: string }> = {
+  submitted: { key: 'orders.pay.submitted', cls: 'bg-amber-100 text-amber-700' },
+  paid: { key: 'orders.pay.paid', cls: 'bg-emerald-100 text-emerald-700' },
+  pending: { key: 'orders.pay.pending', cls: 'bg-slate-100 text-slate-500' },
 };
 
 function fmt(n: number | null) {
@@ -94,15 +100,15 @@ function fmtDate(s: string) {
 
 // Onglets de filtrage (la sidebar admin existe déjà — ici, des onglets).
 const TABS = [
-  { key: 'all', label: 'Toutes' },
-  { key: 'to_verify', label: 'À vérifier' },
-  { key: 'to_collect', label: 'À encaisser' },
-  { key: 'to_ship', label: 'À expédier' },
-  { key: 'shipped', label: 'Expédiées' },
-  { key: 'at_agency', label: 'À l’agence' },
-  { key: 'delivered', label: 'Livrées' },
-  { key: 'carts', label: 'Paniers' },
-] as const;
+  { key: 'all', labelKey: 'orders.tab.all' },
+  { key: 'to_verify', labelKey: 'orders.tab.to_verify' },
+  { key: 'to_collect', labelKey: 'orders.tab.to_collect' },
+  { key: 'to_ship', labelKey: 'orders.tab.to_ship' },
+  { key: 'shipped', labelKey: 'orders.tab.shipped' },
+  { key: 'at_agency', labelKey: 'orders.tab.at_agency' },
+  { key: 'delivered', labelKey: 'orders.tab.delivered' },
+  { key: 'carts', labelKey: 'orders.tab.carts' },
+] as const satisfies readonly { key: string; labelKey: TKey }[];
 type TabKey = (typeof TABS)[number]['key'];
 
 const totalOf = (o: Order) => o.grand_total_fcfa ?? o.items_total_fcfa;
@@ -129,6 +135,7 @@ function inTab(tab: TabKey, o: Order): boolean {
 }
 
 export default function AdminOrdersPage() {
+  const { t } = useAdminT();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>('all');
@@ -153,7 +160,7 @@ export default function AdminOrdersPage() {
   }, [load]);
 
   const validate = async (o: Order) => {
-    if (!window.confirm(`Valider le paiement de ${o.client_name} (${fmt(o.grand_total_fcfa || o.items_total_fcfa)}) ?`)) return;
+    if (!window.confirm(`${t('orders.confirmValidate')} ${o.client_name} (${fmt(o.grand_total_fcfa || o.items_total_fcfa)}) ?`)) return;
     setBusy(o.id);
     try {
       await fetch(`/api/admin/orders/${o.id}`, {
@@ -212,7 +219,7 @@ export default function AdminOrdersPage() {
 
   const counts = useMemo(() => {
     const c = {} as Record<TabKey, number>;
-    for (const t of TABS) c[t.key] = orders.filter((o) => inTab(t.key, o)).length;
+    for (const tb of TABS) c[tb.key] = orders.filter((o) => inTab(tb.key, o)).length;
     return c;
   }, [orders]);
 
@@ -222,12 +229,12 @@ export default function AdminOrdersPage() {
     const collected = orders.filter((o) => o.payment_status === 'paid');
     const sum = (list: Order[]) => list.reduce((s, o) => s + (totalOf(o) || 0), 0);
     return [
-      { label: 'À vérifier', value: String(toVerify.length), sub: 'preuves de paiement', icon: BadgeAlert, box: 'bg-red-50 text-red-600 ring-red-200' },
-      { label: 'À encaisser', value: String(toCollect.length), sub: fmt(sum(toCollect)), icon: HandCoins, box: 'bg-amber-50 text-amber-600 ring-amber-200' },
-      { label: 'Encaissé', value: fmt(sum(collected)), sub: `${collected.length} commande${collected.length > 1 ? 's' : ''}`, icon: Banknote, box: 'bg-emerald-50 text-emerald-600 ring-emerald-200', wide: true },
-      { label: 'Livrées', value: String(counts.delivered), sub: 'remises au client', icon: HandHeart, box: 'bg-violet-50 text-violet-600 ring-violet-200' },
+      { label: t('orders.kpi.toVerify'), value: String(toVerify.length), sub: t('orders.kpi.toVerifySub'), icon: BadgeAlert, box: 'bg-red-50 text-red-600 ring-red-200' },
+      { label: t('orders.kpi.toCollect'), value: String(toCollect.length), sub: fmt(sum(toCollect)), icon: HandCoins, box: 'bg-amber-50 text-amber-600 ring-amber-200' },
+      { label: t('orders.kpi.collected'), value: fmt(sum(collected)), sub: `${collected.length} ${t('orders.kpi.ordersCount')}`, icon: Banknote, box: 'bg-emerald-50 text-emerald-600 ring-emerald-200', wide: true },
+      { label: t('orders.kpi.delivered'), value: String(counts.delivered), sub: t('orders.kpi.deliveredSub'), icon: HandHeart, box: 'bg-violet-50 text-violet-600 ring-violet-200' },
     ];
-  }, [orders, counts]);
+  }, [orders, counts, t]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -242,6 +249,21 @@ export default function AdminOrdersPage() {
       );
   }, [orders, tab, query]);
 
+  // Métas paiement / transport avec libellés localisés (les données restent intactes).
+  const payMetaOf = (method: string | null) => {
+    const base = (method && PAY_META[method]) || PAY_FALLBACK;
+    if (method === 'cash') return { ...base, label: t('orders.pay.cash') };
+    if (!method || !PAY_META[method]) return { ...base, label: t('orders.pay.notChosen') };
+    return base; // Airtel Money / eBilling : noms propres, pas de traduction
+  };
+  const transportMetaOf = (mode: string | null) => {
+    const base = (mode && TRANSPORT_META[mode]) || TRANSPORT_FALLBACK;
+    if (mode === 'air') return { ...base, label: t('orders.transport.air') };
+    if (mode === 'sea') return { ...base, label: t('orders.transport.sea') };
+    if (mode === 'quote') return { ...base, label: t('orders.transport.quoteFull') };
+    return { ...base, label: t('orders.pay.notChosen') };
+  };
+
   // Cellules réutilisées par la table et les cartes.
   const statusSelect = (o: Order, compact = false) => (
     <select
@@ -252,19 +274,22 @@ export default function AdminOrdersPage() {
       className={`rounded-lg border bg-white px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 dark:bg-slate-800 ${compact ? 'w-full' : ''} ${ORDER_STATUS_CLS[o.order_status || 'unpaid']}`}
     >
       {ORDER_STATUS_OPTIONS.map((s) => (
-        <option key={s.value} value={s.value}>{s.label}</option>
+        <option key={s.value} value={s.value}>{t(s.key)}</option>
       ))}
     </select>
   );
 
-  const stageCell = (o: Order) =>
-    o.status === 'cart' ? (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Panier
-      </span>
-    ) : (
-      <StageChip stage={stageOf(o.payment_status, o.order_status)} />
-    );
+  const stageCell = (o: Order) => {
+    if (o.status === 'cart') {
+      return (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> {t('orders.cart')}
+        </span>
+      );
+    }
+    const stage = stageOf(o.payment_status, o.order_status);
+    return <StageChip stage={stage} label={t(`orders.stage.${stage}` as TKey)} />;
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -274,19 +299,19 @@ export default function AdminOrdersPage() {
           <ShoppingBag className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Commandes</h1>
-          <p className="text-sm text-slate-500">Paiements, logistique et suivi jusqu’à la remise client.</p>
+          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">{t('orders.title')}</h1>
+          <p className="text-sm text-slate-500">{t('orders.subtitle')}</p>
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="N°, client, téléphone…"
+            placeholder={t('orders.searchPlaceholder')}
             className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-emerald-400 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-white"
           />
         </div>
-        <button onClick={load} disabled={loading} title="Rafraîchir" className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+        <button onClick={load} disabled={loading} title={t('orders.refresh')} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -313,19 +338,19 @@ export default function AdminOrdersPage() {
 
       {/* Onglets */}
       <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {TABS.map((t) => (
+        {TABS.map((tb) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={tb.key}
+            onClick={() => setTab(tb.key)}
             className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
-              tab === t.key
+              tab === tb.key
                 ? 'bg-slate-900 text-white dark:bg-emerald-500'
                 : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-emerald-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600'
             }`}
           >
-            {t.label}
-            <span className={`rounded-full px-1.5 text-[11px] font-bold ${tab === t.key ? 'bg-white/20' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
-              {counts[t.key]}
+            {t(tb.labelKey)}
+            <span className={`rounded-full px-1.5 text-[11px] font-bold ${tab === tb.key ? 'bg-white/20' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+              {counts[tb.key]}
             </span>
           </button>
         ))}
@@ -333,11 +358,11 @@ export default function AdminOrdersPage() {
 
       {/* Liste */}
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /> Chargement…</div>
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /> {t('common.loading')}</div>
       ) : visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-14 text-center dark:border-slate-600 dark:bg-slate-800">
           <Package className="mx-auto h-8 w-8 text-slate-300" />
-          <p className="mt-3 text-sm text-slate-500">{query ? 'Aucun résultat pour cette recherche.' : 'Aucune commande dans cet onglet.'}</p>
+          <p className="mt-3 text-sm text-slate-500">{query ? t('orders.emptySearch') : t('orders.emptyTab')}</p>
         </div>
       ) : (
         <>
@@ -347,14 +372,14 @@ export default function AdminOrdersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-                    <th className="px-4 py-3">Commande</th>
-                    <th className="px-4 py-3">Client</th>
-                    <th className="px-4 py-3 text-right">Montant</th>
-                    <th className="px-4 py-3">Paiement</th>
-                    <th className="px-4 py-3">Transport</th>
-                    <th className="px-4 py-3">Statut</th>
-                    <th className="px-4 py-3">Traitement</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-4 py-3">{t('orders.th.order')}</th>
+                    <th className="px-4 py-3">{t('orders.th.client')}</th>
+                    <th className="px-4 py-3 text-right">{t('orders.th.amount')}</th>
+                    <th className="px-4 py-3">{t('orders.th.payment')}</th>
+                    <th className="px-4 py-3">{t('orders.th.transport')}</th>
+                    <th className="px-4 py-3">{t('orders.th.status')}</th>
+                    <th className="px-4 py-3">{t('orders.th.processing')}</th>
+                    <th className="px-4 py-3 text-right">{t('orders.th.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -377,28 +402,28 @@ export default function AdminOrdersPage() {
                           <div>
                             <p className="font-mono text-xs font-bold text-slate-900 dark:text-white">{orderNumber(o.id)}</p>
                             <p className="text-[11px] text-slate-400">
-                              {o.items_count || 0} art. · {fmtDate(o.created_at)}
+                              {o.items_count || 0} {t('orders.items')} · {fmtDate(o.created_at)}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-800 dark:text-slate-100">
-                          {o.client_name || <span className="italic text-slate-400">Sans coordonnées</span>}
+                          {o.client_name || <span className="italic text-slate-400">{t('orders.noContact')}</span>}
                         </p>
                         <p className="text-[11px] text-slate-400">{o.client_phone || '—'}</p>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">{fmt(totalOf(o))}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <IconTag meta={(o.payment_method && PAY_META[o.payment_method]) || PAY_FALLBACK} />
+                          <IconTag meta={payMetaOf(o.payment_method)} />
                           {o.payment_proof_url && (
                             <a
                               onClick={(e) => e.stopPropagation()}
                               href={o.payment_proof_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Voir la preuve de paiement"
+                              title={t('orders.viewProof')}
                               className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-600 hover:bg-amber-100"
                             >
                               <ExternalLink className="h-3.5 w-3.5" />
@@ -407,7 +432,7 @@ export default function AdminOrdersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <IconTag meta={(o.transport_mode && TRANSPORT_META[o.transport_mode]) || TRANSPORT_FALLBACK} />
+                        <IconTag meta={transportMetaOf(o.transport_mode)} />
                       </td>
                       <td className="px-4 py-3">{stageCell(o)}</td>
                       <td className="px-4 py-3">{statusSelect(o)}</td>
@@ -419,7 +444,7 @@ export default function AdminOrdersPage() {
                               disabled={busy === o.id}
                               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"
                             >
-                              {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider
+                              {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} {t('orders.validate')}
                             </button>
                           )}
                           {canLabel(o.order_status) && (
@@ -428,7 +453,7 @@ export default function AdminOrdersPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              title="Étiquette d'envoi"
+                              title={t('orders.label')}
                               className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                             >
                               <QrCode className="h-3.5 w-3.5" />
@@ -464,22 +489,22 @@ export default function AdminOrdersPage() {
                         {stageCell(o)}
                       </div>
                       <p className="mt-0.5 truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                        {o.client_name || <span className="italic text-slate-400">Sans coordonnées</span>}
+                        {o.client_name || <span className="italic text-slate-400">{t('orders.noContact')}</span>}
                       </p>
                       <p className="text-base font-bold text-slate-900 dark:text-white">{fmt(totalOf(o))}</p>
                     </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
                     <div className="flex items-center gap-2">
-                      <IconTag meta={(o.payment_method && PAY_META[o.payment_method]) || PAY_FALLBACK} showLabel={false} />
-                      <IconTag meta={(o.transport_mode && TRANSPORT_META[o.transport_mode]) || TRANSPORT_FALLBACK} showLabel={false} />
+                      <IconTag meta={payMetaOf(o.payment_method)} showLabel={false} />
+                      <IconTag meta={transportMetaOf(o.transport_mode)} showLabel={false} />
                       {o.payment_proof_url && (
                         <a
                           onClick={(e) => e.stopPropagation()}
                           href={o.payment_proof_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Preuve de paiement"
+                          title={t('orders.proof')}
                           className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-600"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -496,7 +521,7 @@ export default function AdminOrdersPage() {
                         disabled={busy === o.id}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
                       >
-                        {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider
+                        {busy === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} {t('orders.validate')}
                       </button>
                     )}
                     {canLabel(o.order_status) && (
@@ -505,7 +530,7 @@ export default function AdminOrdersPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-lg border border-slate-200 p-2 text-slate-500 dark:border-slate-600 dark:text-slate-300"
-                        title="Étiquette d'envoi"
+                        title={t('orders.label')}
                       >
                         <QrCode className="h-4 w-4" />
                       </a>
@@ -530,7 +555,7 @@ export default function AdminOrdersPage() {
           >
             {detailLoading || !detail ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
-                <Loader2 className="h-5 w-5 animate-spin" /> Chargement…
+                <Loader2 className="h-5 w-5 animate-spin" /> {t('common.loading')}
               </div>
             ) : (
               (() => {
@@ -541,7 +566,7 @@ export default function AdminOrdersPage() {
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2 className="flex flex-wrap items-center gap-2 font-display text-lg font-bold text-slate-900 dark:text-white">
-                          <Package className="h-5 w-5 text-emerald-500" /> Commande
+                          <Package className="h-5 w-5 text-emerald-500" /> {t('orders.modal.title')}
                           <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-xs text-white dark:bg-slate-700">{orderNumber(d.id)}</span>
                         </h2>
                         {d.offer_title && <p className="truncate text-sm text-slate-500">{d.offer_title}</p>}
@@ -553,9 +578,9 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="mb-4 flex flex-wrap gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${pay.cls}`}>{pay.txt}</span>
-                      {d.payment_method && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{d.payment_method}</span>}
-                      {d.transport_mode && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{TRANSPORT_LABEL[d.transport_mode] || d.transport_mode}</span>}
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${pay.cls}`}>{t(pay.key)}</span>
+                      {d.payment_method && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{d.payment_method === 'cash' ? t('orders.pay.cash') : d.payment_method}</span>}
+                      {d.transport_mode && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{TRANSPORT_KEY[d.transport_mode] ? t(TRANSPORT_KEY[d.transport_mode]) : d.transport_mode}</span>}
                     </div>
 
                     {/* Client (éditable) */}
@@ -566,9 +591,9 @@ export default function AdminOrdersPage() {
 
                     {/* Lignes (éditables) */}
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Produits</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('orders.modal.products')}</p>
                       {(d.total_weight == null || d.total_volume == null) && (
-                        <span className="text-[11px] font-medium text-amber-600">⚠️ Poids/volume manquants — total transport indisponible</span>
+                        <span className="text-[11px] font-medium text-amber-600">{t('orders.modal.missingWV')}</span>
                       )}
                     </div>
                     <div className="mb-3 space-y-2">
@@ -582,20 +607,20 @@ export default function AdminOrdersPage() {
 
                     {/* Totaux */}
                     <div className="mb-4 mt-4 space-y-1.5 rounded-2xl bg-slate-900 p-4 text-sm text-white">
-                      <div className="flex justify-between text-slate-300"><span>Sous-total produits</span><span>{fmt(d.items_total_fcfa)}</span></div>
+                      <div className="flex justify-between text-slate-300"><span>{t('orders.modal.subtotal')}</span><span>{fmt(d.items_total_fcfa)}</span></div>
                       <div className="flex justify-between text-slate-400 text-xs">
-                        <span>Poids : {d.total_weight != null ? `${d.total_weight} kg` : '—'} · Volume : {d.total_volume != null ? `${d.total_volume} m³` : '—'}</span>
+                        <span>{t('orders.modal.weight')} : {d.total_weight != null ? `${d.total_weight} kg` : '—'} · {t('orders.modal.volume')} : {d.total_volume != null ? `${d.total_volume} m³` : '—'}</span>
                       </div>
                       {d.transport_mode && d.transport_mode !== 'quote' && (
-                        <div className="flex justify-between text-slate-300"><span>Transport ({TRANSPORT_LABEL[d.transport_mode]})</span><span>{fmt(d.transport_cost)}</span></div>
+                        <div className="flex justify-between text-slate-300"><span>{t('orders.modal.transport')} ({t(TRANSPORT_KEY[d.transport_mode])})</span><span>{fmt(d.transport_cost)}</span></div>
                       )}
-                      <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold"><span>Total</span><span className="text-emerald-400">{fmt(d.grand_total_fcfa || d.items_total_fcfa)}</span></div>
+                      <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold"><span>{t('orders.modal.total')}</span><span className="text-emerald-400">{fmt(d.grand_total_fcfa || d.items_total_fcfa)}</span></div>
                     </div>
 
                     {/* Preuve de paiement Airtel */}
                     {d.payment_proof_url && (
                       <div className="mb-4">
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Preuve de paiement</p>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">{t('orders.proof')}</p>
                         <a href={d.payment_proof_url} target="_blank" rel="noopener noreferrer" className="inline-block overflow-hidden rounded-xl ring-1 ring-slate-200">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={d.payment_proof_url} alt="Preuve" className="max-h-64 w-auto object-contain" />
@@ -603,12 +628,12 @@ export default function AdminOrdersPage() {
                       </div>
                     )}
                     {d.ebilling_reference && (
-                      <p className="mb-4 text-xs text-slate-500">Réf. eBilling : <span className="font-mono">{d.ebilling_reference}</span></p>
+                      <p className="mb-4 text-xs text-slate-500">{t('orders.modal.ebillingRef')} <span className="font-mono">{d.ebilling_reference}</span></p>
                     )}
 
                     {/* Statut de traitement */}
                     <div className="mb-4 flex items-center gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Statut</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('orders.modal.status')}</span>
                       <select
                         value={d.order_status || 'unpaid'}
                         onChange={(e) => changeStatus(d.id, e.target.value)}
@@ -616,7 +641,7 @@ export default function AdminOrdersPage() {
                         className={`rounded-lg border px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 ${ORDER_STATUS_CLS[d.order_status || 'unpaid']}`}
                       >
                         {ORDER_STATUS_OPTIONS.map((s) => (
-                          <option key={s.value} value={s.value}>{s.label}</option>
+                          <option key={s.value} value={s.value}>{t(s.key)}</option>
                         ))}
                       </select>
                     </div>
@@ -629,7 +654,7 @@ export default function AdminOrdersPage() {
                           disabled={busy === d.id}
                           className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                         >
-                          {busy === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Valider le paiement
+                          {busy === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {t('orders.validatePayment')}
                         </button>
                       )}
                       {canLabel(d.order_status) && (
@@ -639,7 +664,7 @@ export default function AdminOrdersPage() {
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 rounded-xl border border-slate-900 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                         >
-                          <QrCode className="h-4 w-4" /> Étiquette d’envoi
+                          <QrCode className="h-4 w-4" /> {t('orders.label')}
                         </a>
                       )}
                       <a
@@ -648,7 +673,7 @@ export default function AdminOrdersPage() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
                       >
-                        <ExternalLink className="h-4 w-4" /> Page client
+                        <ExternalLink className="h-4 w-4" /> {t('orders.clientPage')}
                       </a>
                     </div>
                   </>
@@ -676,6 +701,7 @@ function ClientEditor({
   order: OrderDetail['order'];
   onSaved: () => void;
 }) {
+  const { t } = useAdminT();
   const [name, setName] = useState(order.client_name || '');
   const [phone, setPhone] = useState(order.client_phone || '');
   const [email, setEmail] = useState(order.client_email || '');
@@ -701,11 +727,11 @@ function ClientEditor({
 
   return (
     <div className="mb-4 space-y-2 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Coordonnées client</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('orders.modal.clientInfo')}</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <input className={inputCls} placeholder="Nom complet" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className={inputCls} placeholder="Téléphone / WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <input className={inputCls} placeholder="Email (optionnel)" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className={inputCls} placeholder={t('orders.modal.namePh')} value={name} onChange={(e) => setName(e.target.value)} />
+        <input className={inputCls} placeholder={t('orders.modal.phonePh')} value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input className={inputCls} placeholder={t('orders.modal.emailPh')} value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
       {dirty && (
         <button
@@ -713,7 +739,7 @@ function ClientEditor({
           disabled={saving}
           className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
         >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Enregistrer les coordonnées
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} {t('orders.modal.saveContact')}
         </button>
       )}
     </div>
@@ -727,6 +753,7 @@ function TransportSelector({
   order: OrderDetail['order'];
   onSaved: () => void;
 }) {
+  const { t } = useAdminT();
   const [busy, setBusy] = useState(false);
   const set = async (mode: string) => {
     setBusy(true);
@@ -756,11 +783,11 @@ function TransportSelector({
   );
   return (
     <div className="mb-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mode de transport</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{t('orders.modal.transportMode')}</p>
       <div className="flex flex-wrap gap-2">
-        {opt('air', 'Aérien', Plane)}
-        {opt('sea', 'Maritime', Ship)}
-        {opt('quote', 'Devis', CreditCard)}
+        {opt('air', t('orders.transport.air'), Plane)}
+        {opt('sea', t('orders.transport.sea'), Ship)}
+        {opt('quote', t('orders.transport.quote'), CreditCard)}
       </div>
     </div>
   );
@@ -775,6 +802,7 @@ function LineEditor({
   line: DetailLine;
   onSaved: () => void;
 }) {
+  const { t } = useAdminT();
   const [qty, setQty] = useState(String(line.quantity));
   const [priceCny, setPriceCny] = useState(line.unit_price_cny != null ? String(line.unit_price_cny) : '');
   const [weight, setWeight] = useState(line.weight != null ? String(line.weight) : '');
@@ -813,7 +841,7 @@ function LineEditor({
   };
 
   const remove = async () => {
-    if (!window.confirm('Retirer ce produit de la commande ?')) return;
+    if (!window.confirm(t('orders.line.confirmRemove'))) return;
     setDel(true);
     try {
       await fetch(`/api/admin/orders/${orderId}/lines/${line.id}`, { method: 'DELETE' });
@@ -837,37 +865,37 @@ function LineEditor({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{line.product_title || 'Produit'}</p>
+          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{line.product_title || t('orders.line.product')}</p>
           {line.variant_name && <p className="text-xs text-emerald-600">{line.variant_name}</p>}
         </div>
         {line.product_url && (
-          <a href={line.product_url} target="_blank" rel="noopener noreferrer" title="Payer le fournisseur sur 1688" className="flex flex-shrink-0 items-center gap-1 rounded-lg bg-orange-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-orange-600">
-            <CreditCard className="h-3 w-3" /> Payer
+          <a href={line.product_url} target="_blank" rel="noopener noreferrer" title={t('orders.line.payTitle')} className="flex flex-shrink-0 items-center gap-1 rounded-lg bg-orange-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-orange-600">
+            <CreditCard className="h-3 w-3" /> {t('orders.line.pay')}
           </a>
         )}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <label className="text-[10px] font-medium text-slate-500">Qté
+        <label className="text-[10px] font-medium text-slate-500">{t('orders.line.qty')}
           <input className={inputCls} type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
         </label>
-        <label className="text-[10px] font-medium text-slate-500">Prix (CNY)
+        <label className="text-[10px] font-medium text-slate-500">{t('orders.line.price')}
           <input className={inputCls} type="number" step="any" value={priceCny} onChange={(e) => setPriceCny(e.target.value)} />
         </label>
-        <label className={`text-[10px] font-medium ${weight.trim() === '' ? 'text-amber-600' : 'text-slate-500'}`}>Poids (kg)
+        <label className={`text-[10px] font-medium ${weight.trim() === '' ? 'text-amber-600' : 'text-slate-500'}`}>{t('orders.line.weight')}
           <input className={inputCls} type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} />
         </label>
-        <label className={`text-[10px] font-medium ${volume.trim() === '' ? 'text-amber-600' : 'text-slate-500'}`}>Volume (m³)
+        <label className={`text-[10px] font-medium ${volume.trim() === '' ? 'text-amber-600' : 'text-slate-500'}`}>{t('orders.line.volume')}
           <input className={inputCls} type="number" step="any" value={volume} onChange={(e) => setVolume(e.target.value)} />
         </label>
       </div>
       <div className="mt-2 flex items-center justify-between">
         <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-          <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-3.5 w-3.5 rounded" /> Batterie
+          <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-3.5 w-3.5 rounded" /> {t('orders.line.battery')}
         </label>
         <div className="flex items-center gap-2">
           {dirty && (
             <button onClick={save} disabled={saving} className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60">
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Enregistrer
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} {t('orders.line.save')}
             </button>
           )}
           <button onClick={remove} disabled={del} className="flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60">
@@ -880,6 +908,7 @@ function LineEditor({
 }
 
 function AddLineForm({ orderId, onSaved }: { orderId: string; onSaved: () => void }) {
+  const { t } = useAdminT();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [priceCny, setPriceCny] = useState('');
@@ -918,36 +947,36 @@ function AddLineForm({ orderId, onSaved }: { orderId: string; onSaved: () => voi
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300">
-        <Plus className="h-3.5 w-3.5" /> Ajouter un produit
+        <Plus className="h-3.5 w-3.5" /> {t('orders.add.button')}
       </button>
     );
   }
 
   return (
     <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-800 dark:bg-emerald-900/10">
-      <input className={inputCls} placeholder="Nom du produit *" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <input className={inputCls} placeholder={t('orders.add.namePh')} value={title} onChange={(e) => setTitle(e.target.value)} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <label className="text-[10px] font-medium text-slate-500">Prix (CNY)
+        <label className="text-[10px] font-medium text-slate-500">{t('orders.line.price')}
           <input className={inputCls} type="number" step="any" value={priceCny} onChange={(e) => setPriceCny(e.target.value)} />
         </label>
-        <label className="text-[10px] font-medium text-slate-500">Qté
+        <label className="text-[10px] font-medium text-slate-500">{t('orders.line.qty')}
           <input className={inputCls} type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
         </label>
-        <label className="text-[10px] font-medium text-slate-500">Poids (kg)
+        <label className="text-[10px] font-medium text-slate-500">{t('orders.line.weight')}
           <input className={inputCls} type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} />
         </label>
-        <label className="text-[10px] font-medium text-slate-500">Volume (m³)
+        <label className="text-[10px] font-medium text-slate-500">{t('orders.line.volume')}
           <input className={inputCls} type="number" step="any" value={volume} onChange={(e) => setVolume(e.target.value)} />
         </label>
       </div>
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-          <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-3.5 w-3.5 rounded" /> Batterie
+          <input type="checkbox" checked={battery} onChange={(e) => setBattery(e.target.checked)} className="h-3.5 w-3.5 rounded" /> {t('orders.line.battery')}
         </label>
         <div className="flex items-center gap-2">
-          <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-600">Annuler</button>
+          <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-600">{t('orders.add.cancel')}</button>
           <button onClick={add} disabled={saving || !title.trim()} className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60">
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Ajouter
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} {t('orders.add.submit')}
           </button>
         </div>
       </div>
