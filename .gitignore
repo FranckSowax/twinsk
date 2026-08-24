@@ -48,3 +48,6 @@ next-env.d.ts
 .mcp.json
 .devin/
 TWINSK LOGO.jpg
+
+# Claude Code - permissions locales
+.claude/settings.local.json

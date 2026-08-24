@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
+  Archive,
   ArrowUpRight,
   Eye,
   Loader2,
@@ -26,6 +27,7 @@ interface OfferRow {
   cover_image_url: string | null;
   created_at: string;
   offer_type?: string | null; // 'b2c' (défaut) | 'b2b'
+  archived_at?: string | null; // non null = aux archives (/admin/archives)
   offer_items: { count: number }[];
   offer_orders: { count: number }[];
 }
@@ -54,8 +56,10 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
       const data = await res.json();
       if (Array.isArray(data)) {
         // Filtre côté client : robuste avant/après la migration 36 (offer_type
-        // absent = b2c historique).
-        setOffers(data.filter((o: OfferRow) => (o.offer_type ?? 'b2c') === type));
+        // absent = b2c historique). Les offres archivées vivent sur /admin/archives.
+        setOffers(
+          data.filter((o: OfferRow) => (o.offer_type ?? 'b2c') === type && !o.archived_at),
+        );
       }
     } finally {
       setLoading(false);
@@ -85,6 +89,21 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
     } finally {
       setCreating(false);
     }
+  };
+
+  const archiveOffer = async (o: OfferRow) => {
+    if (!window.confirm(`Envoyer « ${o.title} » aux archives ? (récupérable depuis la page Archives)`)) return;
+    const res = await fetch(`/api/offers/${o.id}/archive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: true }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Erreur lors de l’archivage');
+      return;
+    }
+    setOffers((prev) => prev.filter((x) => x.id !== o.id));
   };
 
   const removeOffer = async (id: string) => {
@@ -282,6 +301,16 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
                             >
                               <ArrowUpRight className="h-4 w-4" />
                             </Link>
+                          )}
+                          {isB2B && (o.status === 'published' || o.status === 'closed') && (
+                            <button
+                              type="button"
+                              onClick={() => archiveOffer(o)}
+                              className="rounded-lg p-1.5 text-indigo-500 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+                              title="Envoyer aux archives"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </button>
                           )}
                           <button
                             type="button"

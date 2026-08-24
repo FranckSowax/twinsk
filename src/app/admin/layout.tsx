@@ -26,6 +26,7 @@ import {
   Briefcase,
   ShoppingBag,
   Smartphone,
+  Archive,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
@@ -42,6 +43,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin/requests', key: 'nav.sourcing', icon: Package },
   { href: '/admin/offer', key: 'nav.offers', icon: Sparkles },
   { href: '/admin/offer-b2b', key: 'nav.offersB2B', icon: Briefcase },
+  { href: '/admin/archives', key: 'nav.archives', icon: Archive },
   { href: '/admin/revisions', key: 'nav.revisions', icon: ClipboardCheck },
   { href: '/admin/commandes', key: 'nav.orders', icon: ShoppingBag },
   { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
