@@ -12,15 +12,25 @@ import {
   History,
   RefreshCw,
 } from 'lucide-react';
+import {
+  COLLAB_ROLES,
+  COLLAB_ROLE_LABEL,
+  type CollabRole,
+  type CollabLocale,
+} from '@/lib/collab-roles';
 
 interface Collab {
   id: string;
   username: string;
   name: string;
+  role: CollabRole;
+  default_locale: CollabLocale;
   active: boolean;
   created_at: string;
   last_login_at: string | null;
 }
+
+const LOCALE_LABEL: Record<CollabLocale, string> = { fr: 'Français', zh: '中文' };
 interface Action {
   id: string;
   collaborator_name: string | null;
@@ -37,6 +47,16 @@ const ACTION_LABEL: Record<string, string> = {
   add_item: 'Ajout catégorie',
   move_product: 'Déplacement produit',
   bulk_import: 'Import JSON',
+  update_order: 'Mise à jour commande',
+  add_order_line: 'Ajout ligne commande',
+  update_order_line: 'Modification ligne commande',
+  delete_order_line: 'Suppression ligne commande',
+};
+
+const ROLE_BADGE: Record<CollabRole, string> = {
+  production: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  commandes: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  sourcing: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
 };
 
 function fmtDate(s: string) {
@@ -48,7 +68,13 @@ export default function AdminCollaboratorsPage() {
   const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', username: '', password: '' });
+  const [form, setForm] = useState({
+    name: '',
+    username: '',
+    password: '',
+    role: 'production' as CollabRole,
+    default_locale: 'fr' as CollabLocale,
+  });
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -87,11 +113,29 @@ export default function AdminCollaboratorsPage() {
         return;
       }
       setMsg('✅ Collaborateur créé');
-      setForm({ name: '', username: '', password: '' });
+      setForm({ name: '', username: '', password: '', role: 'production', default_locale: 'fr' });
       load();
     } finally {
       setCreating(false);
     }
+  };
+
+  const changeRole = async (c: Collab, role: CollabRole) => {
+    await fetch(`/api/collaborators/${c.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    load();
+  };
+
+  const changeLocale = async (c: Collab, default_locale: CollabLocale) => {
+    await fetch(`/api/collaborators/${c.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ default_locale }),
+    });
+    load();
   };
 
   const toggleActive = async (c: Collab) => {
@@ -128,7 +172,7 @@ export default function AdminCollaboratorsPage() {
         </div>
         <div>
           <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Collaborateurs</h1>
-          <p className="text-sm text-slate-500">Comptes à accès restreint (Sourcing + Offres) et journal d’audit.</p>
+          <p className="text-sm text-slate-500">Comptes à accès restreint par rôle (Production, Commandes, Sourcing B2B) et journal d’audit.</p>
         </div>
       </div>
 
@@ -149,6 +193,21 @@ export default function AdminCollaboratorsPage() {
           <div className="flex-1 min-w-[140px]">
             <label className="mb-1 block text-xs font-semibold text-slate-500">Mot de passe</label>
             <input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={4} placeholder="min. 4 caractères" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Rôle</label>
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as CollabRole })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+              {COLLAB_ROLES.map((r) => (
+                <option key={r} value={r}>{COLLAB_ROLE_LABEL[r]}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[120px]">
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Langue par défaut</label>
+            <select value={form.default_locale} onChange={(e) => setForm({ ...form, default_locale: e.target.value as CollabLocale })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+              <option value="fr">Français</option>
+              <option value="zh">中文</option>
+            </select>
           </div>
           <motion.button type="submit" disabled={creating} whileTap={{ scale: 0.98 }} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Créer
@@ -172,7 +231,7 @@ export default function AdminCollaboratorsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase text-slate-400">
-                  <th className="py-2">Nom</th><th>Identifiant</th><th>Statut</th><th>Dernière connexion</th><th></th>
+                  <th className="py-2">Nom</th><th>Identifiant</th><th>Rôle</th><th>Langue</th><th>Statut</th><th>Dernière connexion</th><th></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -180,6 +239,30 @@ export default function AdminCollaboratorsPage() {
                   <tr key={c.id}>
                     <td className="py-2 font-semibold text-slate-900 dark:text-white">{c.name}</td>
                     <td className="text-slate-500">{c.username}</td>
+                    <td>
+                      <select
+                        value={c.role || 'production'}
+                        onChange={(e) => changeRole(c, e.target.value as CollabRole)}
+                        title="Changer le rôle"
+                        className={`rounded-full border-0 px-2 py-0.5 text-xs font-semibold ${ROLE_BADGE[c.role || 'production']}`}
+                      >
+                        {COLLAB_ROLES.map((r) => (
+                          <option key={r} value={r}>{COLLAB_ROLE_LABEL[r]}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        value={c.default_locale || 'fr'}
+                        onChange={(e) => changeLocale(c, e.target.value as CollabLocale)}
+                        title="Langue par défaut de l'interface"
+                        className="rounded-full border-0 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                      >
+                        {(['fr', 'zh'] as CollabLocale[]).map((l) => (
+                          <option key={l} value={l}>{LOCALE_LABEL[l]}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                         {c.active ? 'Actif' : 'Désactivé'}
@@ -216,7 +299,11 @@ export default function AdminCollaboratorsPage() {
                 <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
                   {ACTION_LABEL[a.action] || a.action}
                 </span>
-                {a.target_type && <span className="text-xs text-slate-400">{a.target_type === 'offer' ? 'offre' : 'requête'}</span>}
+                {a.target_type && (
+                  <span className="text-xs text-slate-400">
+                    {a.target_type === 'offer' ? 'offre' : a.target_type === 'order' ? 'commande' : 'requête'}
+                  </span>
+                )}
                 <span className="text-slate-600 dark:text-slate-300">{a.description}</span>
                 <span className="ml-auto text-xs text-slate-400">{fmtDate(a.created_at)}</span>
               </li>

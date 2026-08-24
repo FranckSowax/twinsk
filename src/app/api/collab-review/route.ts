@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin, resolveActor } from '@/lib/collab';
 
-// GET: liste des lignes à réviser (admin + collaborateur). ?status=pending|reviewed
+// GET: liste des lignes à réviser (admin + collaborateur production/commandes).
+// ?status=pending|reviewed
 export async function GET(request: NextRequest) {
-  const actor = await resolveActor(request);
+  const actor = await resolveActor(request, ['production', 'commandes']);
   if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
   let query = supabaseAdmin

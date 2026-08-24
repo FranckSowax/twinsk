@@ -7,6 +7,7 @@
 import crypto from 'crypto';
 import type { NextRequest } from 'next/server';
 import { supabaseAdmin } from './supabase/server';
+import type { CollabRole, CollabLocale } from './collab-roles';
 
 const SECRET = process.env.ADMIN_PASSWORD || 'twinsk-dev-secret';
 
@@ -50,6 +51,8 @@ export interface Collaborator {
   id: string;
   username: string;
   name: string;
+  role: CollabRole;
+  defaultLocale: CollabLocale;
 }
 
 export function isAdmin(request: NextRequest): boolean {
@@ -61,24 +64,40 @@ export function isAdmin(request: NextRequest): boolean {
 export async function getCollaborator(request: NextRequest): Promise<Collaborator | null> {
   const id = parseCollabToken(request.cookies.get('collab_token')?.value);
   if (!id) return null;
+  // select('*') : reste compatible tant que la migration 48 (colonne role) n'est pas appliquée.
   const { data } = await supabaseAdmin
     .from('collaborators')
-    .select('id, username, name, active')
+    .select('*')
     .eq('id', id)
     .single();
   if (!data || !data.active) return null;
-  return { id: data.id, username: data.username, name: data.name };
+  return {
+    id: data.id,
+    username: data.username,
+    name: data.name,
+    role: (data.role as CollabRole) || 'production',
+    defaultLocale: data.default_locale === 'zh' ? 'zh' : 'fr',
+  };
 }
 
 export type Actor =
   | { role: 'admin' }
   | { role: 'collab'; collaborator: Collaborator };
 
-/** Autorise admin OU collaborateur actif. null = non autorisé. */
-export async function resolveActor(request: NextRequest): Promise<Actor | null> {
+/**
+ * Autorise admin OU collaborateur actif dont le rôle figure dans `roles`.
+ * Défaut : production + sourcing (routes offres/requêtes). Le rôle "commandes"
+ * n'a accès qu'aux routes /api/admin/orders (qui passent ['commandes']).
+ * null = non autorisé.
+ */
+export async function resolveActor(
+  request: NextRequest,
+  roles: CollabRole[] = ['production', 'sourcing'],
+): Promise<Actor | null> {
   if (isAdmin(request)) return { role: 'admin' };
   const collab = await getCollaborator(request);
-  return collab ? { role: 'collab', collaborator: collab } : null;
+  if (!collab || !roles.includes(collab.role)) return null;
+  return { role: 'collab', collaborator: collab };
 }
 
 /** Journalise une action — uniquement pour les collaborateurs (best-effort). */

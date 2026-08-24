@@ -30,6 +30,12 @@ import {
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
 import type { TKey } from '@/lib/i18n/admin';
+import {
+  COLLAB_ROLE_HOME,
+  COLLAB_ROLE_NAV,
+  collabCanAccessPath,
+  type CollabRole,
+} from '@/lib/collab-roles';
 
 const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin', key: 'nav.dashboard', icon: LayoutDashboard },
@@ -57,6 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const { t, locale, setLocale } = useAdminT();
   const [role, setRole] = useState<'admin' | 'collab' | null>(null);
+  const [collabRole, setCollabRole] = useState<CollabRole>('production');
   const [checking, setChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -71,14 +78,21 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         setRole(null);
         return;
       }
-      const d = (await res.json()) as { role: 'admin' | 'collab' | null };
+      const d = (await res.json()) as {
+        role: 'admin' | 'collab' | null;
+        collabRole?: CollabRole;
+        defaultLocale?: 'fr' | 'zh';
+      };
       setRole(d.role);
-      // Collaborateur : interface en chinois par défaut (sauf préférence déjà choisie)
+      setCollabRole(d.collabRole || 'production');
+      // Collaborateur : langue par défaut définie sur son compte (fr sauf choix
+      // contraire à la création), sauf préférence déjà enregistrée sur l'appareil.
       if (d.role === 'collab') {
+        const loc = d.defaultLocale === 'zh' ? 'zh' : 'fr';
         try {
-          if (!localStorage.getItem('twinsk_admin_locale')) setLocale('zh');
+          if (!localStorage.getItem('twinsk_admin_locale')) setLocale(loc);
         } catch {
-          setLocale('zh');
+          setLocale(loc);
         }
       }
     } finally {
@@ -90,18 +104,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     loadRole();
   }, [loadRole]);
 
-  // Collaborateur : accès limité à /admin/offer et /admin/requests → redirection sinon.
+  // Collaborateur : accès limité aux pages de son rôle → redirection sinon.
   useEffect(() => {
-    if (
-      role === 'collab' &&
-      pathname &&
-      !pathname.startsWith('/admin/offer') &&
-      !pathname.startsWith('/admin/requests') &&
-      !pathname.startsWith('/admin/revisions')
-    ) {
-      router.replace('/admin/offer');
+    if (role === 'collab' && pathname && !collabCanAccessPath(collabRole, pathname)) {
+      router.replace(COLLAB_ROLE_HOME[collabRole]);
     }
-  }, [role, pathname, router]);
+  }, [role, collabRole, pathname, router]);
 
   // Close menus on route change
   useEffect(() => {
@@ -187,11 +195,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     setRole(null);
   };
 
-  // Menu selon le rôle : collaborateur = Sourcing + Offres uniquement.
-  const COLLAB_HREFS = new Set(['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/revisions']);
+  // Menu selon le rôle du collaborateur (production / commandes / sourcing).
+  const collabHrefs = new Set(COLLAB_ROLE_NAV[collabRole]);
   const navItems =
     role === 'collab'
-      ? NAV_ITEMS.filter((i) => COLLAB_HREFS.has(i.href))
+      ? NAV_ITEMS.filter((i) => collabHrefs.has(i.href))
       : [
           ...NAV_ITEMS,
           { href: '/admin/collaborateurs', key: 'nav.collaborators' as TKey, icon: Users },
@@ -309,8 +317,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
           )}
 
-          {/* Navigation */}
-          <nav className="flex-1 space-y-1">
+          {/* Navigation — scrollable pour que tous les éléments restent atteignables */}
+          <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active =

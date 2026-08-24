@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { isAdmin } from '@/lib/collab';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 import { recomputeOrder } from '@/lib/admin-order';
 
-// PATCH: éditer une ligne de commande (admin) — quantité, prix, poids, volume, batterie.
+// PATCH: éditer une ligne de commande (admin ou collaborateur "commandes") —
+// quantité, prix, poids, volume, batterie.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string; lineId: string }> },
 ) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const actor = await resolveActor(request, ['commandes']);
+  if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { orderId, lineId } = await params;
   const body = (await request.json().catch(() => ({}))) as {
     product_title?: string;
@@ -50,16 +52,24 @@ export async function PATCH(
     .eq('order_id', orderId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  await logCollabAction(actor, {
+    action: 'update_order_line',
+    target_type: 'order',
+    target_id: orderId,
+    description: `Ligne modifiée : ${Object.keys(patch).join(', ')}`,
+  });
+
   const totals = await recomputeOrder(orderId);
   return NextResponse.json({ success: true, totals });
 }
 
-// DELETE: retirer une ligne de commande (admin).
+// DELETE: retirer une ligne de commande (admin ou collaborateur "commandes").
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string; lineId: string }> },
 ) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const actor = await resolveActor(request, ['commandes']);
+  if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { orderId, lineId } = await params;
   const { error } = await supabaseAdmin
     .from('offer_order_lines')
@@ -67,6 +77,13 @@ export async function DELETE(
     .eq('id', lineId)
     .eq('order_id', orderId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logCollabAction(actor, {
+    action: 'delete_order_line',
+    target_type: 'order',
+    target_id: orderId,
+    description: 'Ligne supprimée',
+  });
 
   const totals = await recomputeOrder(orderId);
   return NextResponse.json({ success: true, totals });

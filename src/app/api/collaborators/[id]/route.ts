@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin, hashPassword } from '@/lib/collab';
+import { COLLAB_ROLES, type CollabRole } from '@/lib/collab-roles';
 
-// PATCH: activer/désactiver, renommer ou changer le mot de passe (admin only).
+// PATCH: activer/désactiver, renommer, changer le mot de passe ou le rôle (admin only).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -13,12 +14,20 @@ export async function PATCH(
     active?: boolean;
     name?: string;
     password?: string;
+    role?: string;
+    default_locale?: string;
   };
   const patch: Record<string, unknown> = {};
   if (typeof body.active === 'boolean') patch.active = body.active;
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.password === 'string' && body.password.length >= 4) {
     patch.password_hash = hashPassword(body.password);
+  }
+  if (typeof body.role === 'string' && COLLAB_ROLES.includes(body.role as CollabRole)) {
+    patch.role = body.role;
+  }
+  if (body.default_locale === 'fr' || body.default_locale === 'zh') {
+    patch.default_locale = body.default_locale;
   }
   if (!Object.keys(patch).length) {
     return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 });

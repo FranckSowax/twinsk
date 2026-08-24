@@ -16,12 +16,12 @@ const FILL_FIELDS = [
   'admin_note',
 ] as const;
 
-// PATCH: compléter les infos et/ou marquer révisée (admin + collaborateur).
+// PATCH: compléter les infos et/ou marquer révisée (admin + collaborateur production/commandes).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const actor = await resolveActor(request);
+  const actor = await resolveActor(request, ['production', 'commandes']);
   if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;

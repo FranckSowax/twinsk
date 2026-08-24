@@ -8,7 +8,13 @@ export async function GET(request: NextRequest) {
   }
   const collab = await getCollaborator(request);
   if (collab) {
-    return NextResponse.json({ role: 'collab', name: collab.name, username: collab.username });
+    return NextResponse.json({
+      role: 'collab',
+      name: collab.name,
+      username: collab.username,
+      collabRole: collab.role,
+      defaultLocale: collab.defaultLocale,
+    });
   }
   return NextResponse.json({ role: null }, { status: 401 });
 }

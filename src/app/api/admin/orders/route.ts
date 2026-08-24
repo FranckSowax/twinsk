@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { isAdmin } from '@/lib/collab';
+import { resolveActor } from '@/lib/collab';
 
-// GET: liste des commandes /offer (admin). ?pending=1 = uniquement à vérifier.
+// GET: liste des commandes /offer (admin ou collaborateur rôle "commandes").
+// ?pending=1 = uniquement à vérifier.
 export async function GET(request: NextRequest) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (!(await resolveActor(request, ['commandes']))) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
   let query = supabaseAdmin
     .from('offer_orders')
     .select(

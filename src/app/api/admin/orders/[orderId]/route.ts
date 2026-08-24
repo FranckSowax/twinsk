@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { isAdmin } from '@/lib/collab';
+import { resolveActor, logCollabAction } from '@/lib/collab';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { recomputeOrder } from '@/lib/admin-order';
 import { sendWhapiText } from '@/lib/whapi';
 
-// GET: détail complet d'une commande (admin) — pour le modal.
+// GET: détail complet d'une commande (admin ou collaborateur "commandes") — pour le modal.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> },
 ) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (!(await resolveActor(request, ['commandes']))) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
   const { orderId } = await params;
 
   const { data: order, error } = await supabaseAdmin
@@ -60,7 +62,8 @@ export async function GET(
   });
 }
 
-// PATCH: éditer une commande (admin) — paiement, statut, infos client, transport.
+// PATCH: éditer une commande (admin ou collaborateur "commandes") — paiement,
+// statut, infos client, transport.
 // Body: { payment_status?, order_status?, client_name?, client_phone?,
 //         client_email?, transport_mode? ('air'|'sea'|'quote') }
 const ORDER_STATUSES = ['unpaid', 'paid', 'shipped', 'delivered'] as const;
@@ -70,7 +73,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> },
 ) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const actor = await resolveActor(request, ['commandes']);
+  if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { orderId } = await params;
   const body = (await request.json().catch(() => ({}))) as {
     payment_status?: string;
@@ -121,6 +125,13 @@ export async function PATCH(
 
   const { error } = await supabaseAdmin.from('offer_orders').update(patch).eq('id', orderId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logCollabAction(actor, {
+    action: 'update_order',
+    target_type: 'order',
+    target_id: orderId,
+    description: `Champs modifiés : ${Object.keys(patch).join(', ')}`,
+  });
 
   // Notification à l'affilié quand son paiement est validé (marque blanche).
   if (patch.payment_status === 'paid') {
