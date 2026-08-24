@@ -32,7 +32,12 @@ export async function POST(
     origin?: string;
     imageUrl?: string | null;
     videoUrl?: string | null;
+    to?: string;
   };
+  const to = (body.to || '').trim();
+  if (to && !to.endsWith('@g.us')) {
+    return NextResponse.json({ error: 'Destination invalide (id de groupe attendu)' }, { status: 400 });
+  }
   const origin = body.origin?.replace(/\/$/, '') || new URL(request.url).origin;
   const publicUrl = `${origin}/offer/${uuid}`;
 
@@ -49,6 +54,7 @@ export async function POST(
     url: publicUrl,
     imageUrl,
     videoUrl,
+    to: to || undefined,
   });
 
   if (!result.ok) {

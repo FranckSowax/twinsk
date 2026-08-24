@@ -2,6 +2,24 @@
 // (Aucun import serveur ici : le module est utilisé par la page /admin/playbook
 // pour les aperçus ET par les routes API pour l'envoi.)
 
+// Sous-groupes structurels de la communauté Oh My Group (architecture du playbook).
+// 'annonces' est créé automatiquement par WhatsApp avec la communauté ;
+// les autres se créent/lient depuis l'onglet WhatsApp → Communauté.
+export type CommunitySlotKey = 'annonces' | 'offers' | 'b2b' | 'salon';
+
+export const COMMUNITY_SLOTS: {
+  key: CommunitySlotKey;
+  emoji: string;
+  name: string;
+  desc: string;
+  auto?: boolean; // créé par WhatsApp (non créable via l'app)
+}[] = [
+  { key: 'annonces', emoji: '📣', name: 'Annonces', desc: 'Touche TOUS les membres — temps forts uniquement (2-3/semaine max)', auto: true },
+  { key: 'offers', emoji: '🛍️', name: 'Les Offres Oh My', desc: 'Listings B2C : chaque publication + récap du vendredi' },
+  { key: 'b2b', emoji: '🏢', name: 'Espace Pro B2B', desc: 'Restaurateurs, boutiques, revendeurs — offres B2B uniquement' },
+  { key: 'salon', emoji: '💬', name: 'Le Salon Oh My', desc: 'Discussion libre, demandes produits, sondages' },
+];
+
 export type DepartureKind = 'air' | 'sea';
 export type DepartureStatus = 'open' | 'cutoff' | 'loaded' | 'transit' | 'arrived' | 'closed';
 

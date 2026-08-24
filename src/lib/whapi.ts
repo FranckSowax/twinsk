@@ -243,6 +243,95 @@ export async function addGroupParticipants(
   };
 }
 
+// ----------------------------------------------------------------------------
+// Communautés (Oh My Group) — endpoints /communities de WHAPI
+// ----------------------------------------------------------------------------
+
+export interface WhapiCommunity {
+  id: string;
+  name: string;
+  participantsCount: number;
+}
+
+/** Liste les communautés du numéro connecté (GET /communities). */
+export async function listWhapiCommunities(): Promise<{ ok: boolean; communities?: WhapiCommunity[]; error?: string }> {
+  const r = await whapiGet<{ groups?: RawGroup[] }>('/communities?count=50');
+  if (!r.ok) return { ok: false, error: r.error };
+  const raw = Array.isArray(r.data?.groups) ? r.data!.groups! : [];
+  return {
+    ok: true,
+    communities: raw.map((g) => ({
+      id: g.id || '',
+      name: g.name || g.subject || '(sans nom)',
+      participantsCount: g.size ?? (Array.isArray(g.participants) ? g.participants.length : 0),
+    })),
+  };
+}
+
+export interface CommunitySubgroup {
+  id: string;
+  title: string;
+  inviteCode: string | null;
+}
+
+/**
+ * Sous-groupes d'une communauté (GET /communities/{id}/subgroups).
+ * `announce` = le groupe Annonces (seul canal qui touche TOUS les membres).
+ */
+export async function getCommunitySubgroups(
+  communityId: string,
+): Promise<{ ok: boolean; announce?: CommunitySubgroup | null; groups?: CommunitySubgroup[]; error?: string }> {
+  interface RawSub { id?: string; title?: string; inviteCode?: string; invite_code?: string }
+  const r = await whapiGet<{ announceGroupInfo?: RawSub; otherGroups?: RawSub[] }>(
+    `/communities/${encodeURIComponent(communityId)}/subgroups`,
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const toSub = (s: RawSub | undefined | null): CommunitySubgroup | null =>
+    s && s.id ? { id: s.id, title: s.title || '(sans nom)', inviteCode: s.inviteCode || s.invite_code || null } : null;
+  return {
+    ok: true,
+    announce: toSub(r.data?.announceGroupInfo),
+    groups: (r.data?.otherGroups || []).map((s) => toSub(s)).filter((s): s is CommunitySubgroup => !!s),
+  };
+}
+
+/**
+ * Crée un sous-groupe DANS la communauté (POST /communities/{id}).
+ * WhatsApp exige au moins 1 participant (format international sans +).
+ */
+export async function createGroupInCommunity(
+  communityId: string,
+  subject: string,
+  phones: string[],
+): Promise<{ ok: boolean; groupId?: string; error?: string }> {
+  if (!WHAPI_TOKEN) return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
+  const participants = Array.from(
+    new Set(phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8)),
+  ).map((n) => `${n}@s.whatsapp.net`);
+  if (!participants.length) {
+    return { ok: false, error: 'Au moins un numéro (format international) est requis pour créer un groupe' };
+  }
+  try {
+    const res = await fetch(`${WHAPI_BASE}/communities/${encodeURIComponent(communityId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WHAPI_TOKEN}` },
+      body: JSON.stringify({ subject: subject.trim(), participants: participants.slice(0, ADD_BATCH_SIZE) }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { id?: string; group_id?: string; error?: unknown };
+    if (!res.ok) {
+      return { ok: false, error: `Whapi ${res.status}: ${JSON.stringify(data.error ?? data).slice(0, 200)}` };
+    }
+    const groupId = data.id || data.group_id;
+    if (!groupId) return { ok: false, error: 'Sous-groupe créé mais id introuvable dans la réponse' };
+    if (participants.length > ADD_BATCH_SIZE) {
+      await addGroupParticipants(phones.slice(ADD_BATCH_SIZE), groupId);
+    }
+    return { ok: true, groupId };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+}
+
 /**
  * Crée un groupe WhatsApp (POST /groups). WhatsApp exige au moins 1 participant
  * en plus du numéro connecté (format <numéro>@s.whatsapp.net).

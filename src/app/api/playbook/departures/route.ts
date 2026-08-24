@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor, logCollabAction } from '@/lib/collab';
-import { createWhapiGroup, getGroupInviteLink, sendWhapiText } from '@/lib/whapi';
+import {
+  createGroupInCommunity,
+  createWhapiGroup,
+  getGroupInviteLink,
+  sendWhapiText,
+} from '@/lib/whapi';
 import { buildOpeningMessage, type DepartureKind } from '@/lib/playbook';
 
 // GET: liste des départs (admin ou collaborateur "commandes").
@@ -46,7 +51,17 @@ export async function POST(request: NextRequest) {
   let groupWarning: string | undefined;
 
   if (body.create_group) {
-    const created = await createWhapiGroup(label, body.phones || []);
+    // Si la communauté Oh My Group est liée, le groupe départ est créé DEDANS
+    // (sous-groupe) — sinon groupe WhatsApp classique.
+    const { data: cfg } = await supabaseAdmin
+      .from('wa_settings')
+      .select('value')
+      .eq('key', 'community')
+      .single();
+    const communityId = (cfg?.value as { community_id?: string } | null)?.community_id;
+    const created = communityId
+      ? await createGroupInCommunity(communityId, label, body.phones || [])
+      : await createWhapiGroup(label, body.phones || []);
     if (!created.ok) {
       return NextResponse.json({ error: `Création du groupe WhatsApp impossible : ${created.error}` }, { status: 502 });
     }

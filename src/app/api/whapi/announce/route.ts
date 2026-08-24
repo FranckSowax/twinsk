@@ -10,12 +10,17 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     message?: string;
     imageUrl?: string | null;
+    to?: string;
   };
   const message = (body.message || '').trim();
   if (!message && !body.imageUrl) {
     return NextResponse.json({ error: 'Message ou image requis' }, { status: 400 });
   }
-  const res = await broadcastAnnouncement(message, body.imageUrl || null);
+  const to = (body.to || '').trim();
+  if (to && !to.endsWith('@g.us')) {
+    return NextResponse.json({ error: 'Destination invalide (id de groupe attendu)' }, { status: 400 });
+  }
+  const res = await broadcastAnnouncement(message, body.imageUrl || null, to || undefined);
   if (!res.ok) return NextResponse.json({ error: res.error || 'Échec de l’envoi' }, { status: 502 });
   return NextResponse.json({ success: true });
 }
