@@ -16,7 +16,7 @@ export const COMMUNITY_SLOTS: {
 }[] = [
   { key: 'annonces', emoji: '📣', name: 'Annonces', desc: 'Touche TOUS les membres — temps forts uniquement (2-3/semaine max)', auto: true },
   { key: 'offers', emoji: '🛍️', name: 'Les Offres Oh My', desc: 'Listings B2C : chaque publication + récap du vendredi' },
-  { key: 'b2b', emoji: '🏢', name: 'Espace Pro B2B', desc: 'Restaurateurs, boutiques, revendeurs — offres B2B uniquement' },
+  { key: 'b2b', emoji: '🧰', name: 'Packs Clé en Main Oh My', desc: 'Listings B2B diffusés avec bouton vers le listing — packs pros (pizzeria, resto…) et particuliers (chambre enfant…)' },
   { key: 'salon', emoji: '💬', name: 'Le Salon Oh My', desc: 'Discussion libre, demandes produits, sondages' },
 ];
 

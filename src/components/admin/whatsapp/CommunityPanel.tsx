@@ -10,7 +10,10 @@ import {
   Copy,
   Link2,
   Loader2,
+  Pin,
   Plus,
+  Settings2,
+  ShieldCheck,
   UserPlus,
   Users,
 } from 'lucide-react';
@@ -19,6 +22,144 @@ import type { CommunityState, GroupRow } from './types';
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
+
+const SETTING_LABELS: { key: string; label: string }[] = [
+  { key: 'send_messages', label: 'Qui peut écrire' },
+  { key: 'edit_group_info', label: 'Qui modifie les infos' },
+  { key: 'approve_participants', label: 'Entrée sur validation' },
+  { key: 'add_participants', label: 'Qui peut inviter' },
+];
+
+/** Gestion complète d'un groupe : nom, description, permissions, admins, épingle. */
+function GroupManager({ groupId }: { groupId: string }) {
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [adminPhone, setAdminPhone] = useState('');
+  const [pinText, setPinText] = useState('');
+  const [pinTime, setPinTime] = useState<'day' | 'week' | 'month'>('month');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const call = async (action: string, extra: Record<string, unknown>, busyKey: string, okMsg: string) => {
+    setBusy(busyKey);
+    setStatus(null);
+    try {
+      const res = await fetch('/api/whapi/group/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: groupId, action, ...extra }),
+      });
+      const d = await res.json();
+      setStatus(res.ok ? (d.warning ? `⚠️ ${d.warning}` : `✅ ${okMsg}`) : `❌ ${d.error || 'Échec'}`);
+      return res.ok;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mt-3 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+      {/* Nom + description */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <label className="text-[10px] font-medium text-slate-500">Renommer (laisser vide = inchangé)
+          <input className={inputCls} placeholder="Nouveau nom du groupe" value={subject} onChange={(e) => setSubject(e.target.value)} />
+        </label>
+        <label className="text-[10px] font-medium text-slate-500">Nouvelle description (remplace l’actuelle)
+          <textarea className={inputCls} rows={2} placeholder="Description du groupe" value={description} onChange={(e) => setDescription(e.target.value)} />
+        </label>
+      </div>
+      <button
+        onClick={async () => {
+          const ok = await call(
+            'info',
+            { subject: subject || undefined, description: description || undefined },
+            'info',
+            'Infos mises à jour',
+          );
+          if (ok) { setSubject(''); setDescription(''); }
+        }}
+        disabled={busy === 'info' || (!subject.trim() && !description.trim())}
+        className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50 dark:bg-emerald-600"
+      >
+        {busy === 'info' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Settings2 className="h-3 w-3" />}
+        Enregistrer nom / description
+      </button>
+
+      {/* Permissions */}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {SETTING_LABELS.map((s) => (
+          <div key={s.key} className="text-[10px] font-medium text-slate-500">
+            {s.label}
+            <div className="mt-1 flex gap-1">
+              {(['admins', 'anyone'] as const).map((policy) => (
+                <button
+                  key={policy}
+                  onClick={() => call('setting', { setting: s.key, policy }, `${s.key}-${policy}`, `${s.label} → ${policy === 'admins' ? 'admins' : 'tous'}`)}
+                  disabled={busy === `${s.key}-${policy}`}
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300"
+                >
+                  {busy === `${s.key}-${policy}` ? '…' : policy === 'admins' ? 'Admins' : 'Tous'}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Promouvoir un admin */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className={`${inputCls} max-w-[220px]`}
+          placeholder="Promouvoir admin : 241XXXXXXXX"
+          value={adminPhone}
+          onChange={(e) => setAdminPhone(e.target.value)}
+        />
+        <button
+          onClick={async () => {
+            const ok = await call('promote', { phones: adminPhone.split(/[\s,;]+/).filter(Boolean) }, 'promote', 'Admin promu');
+            if (ok) setAdminPhone('');
+          }}
+          disabled={busy === 'promote' || !adminPhone.trim()}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300"
+        >
+          {busy === 'promote' ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+          Promouvoir
+        </button>
+      </div>
+
+      {/* Envoyer + épingler */}
+      <div className="space-y-2">
+        <textarea
+          className={`${inputCls} font-mono text-xs`}
+          rows={3}
+          placeholder="Message à envoyer puis épingler (règles, catalogue…) — *gras*, _italique_"
+          value={pinText}
+          onChange={(e) => setPinText(e.target.value)}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={pinTime} onChange={(e) => setPinTime(e.target.value as typeof pinTime)} className={`${inputCls} w-auto`}>
+            <option value="month">Épingle 30 jours</option>
+            <option value="week">Épingle 7 jours</option>
+            <option value="day">Épingle 24 h</option>
+          </select>
+          <button
+            onClick={async () => {
+              const ok = await call('pin', { message: pinText, time: pinTime }, 'pin', 'Message envoyé et épinglé');
+              if (ok) setPinText('');
+            }}
+            disabled={busy === 'pin' || !pinText.trim()}
+            className="flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {busy === 'pin' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pin className="h-3 w-3" />}
+            Envoyer + épingler
+          </button>
+        </div>
+      </div>
+
+      {status && <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{status}</p>}
+    </div>
+  );
+}
 
 export default function CommunityPanel({
   community,
@@ -36,6 +177,7 @@ export default function CommunityPanel({
   const [linkChoice, setLinkChoice] = useState<Record<string, string>>({});
   const [createPhones, setCreatePhones] = useState<Record<string, string>>({});
   const [creatingSlot, setCreatingSlot] = useState<string | null>(null);
+  const [managing, setManaging] = useState<string | null>(null);
   // Membres
   const [memberGroup, setMemberGroup] = useState('');
   const [phones, setPhones] = useState('');
@@ -186,6 +328,17 @@ export default function CommunityPanel({
                         {copied === slot.key ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                       </button>
                     )}
+                    <button
+                      onClick={() => setManaging((m) => (m === gid ? null : gid))}
+                      title="Gérer le groupe (nom, description, permissions, épingles)"
+                      className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${
+                        managing === gid
+                          ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                          : 'border-slate-200 text-slate-600 hover:border-emerald-300 dark:border-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      <Settings2 className="h-3.5 w-3.5" /> Gérer
+                    </button>
                     {!slot.auto && (
                       <button
                         onClick={() => post({ slot: slot.key, group_id: '' }, `unlink-${slot.key}`)}
@@ -254,6 +407,7 @@ export default function CommunityPanel({
                   </div>
                 )}
               </div>
+              {gid && managing === gid && <GroupManager groupId={gid} />}
             </div>
           );
         })}
@@ -267,13 +421,25 @@ export default function CommunityPanel({
           </summary>
           <ul className="mt-2 space-y-1">
             {freeSubgroups.map((s) => (
-              <li key={s.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
-                <span>{s.title}</span>
-                {s.inviteCode && (
-                  <button onClick={() => copyText(`https://chat.whatsapp.com/${s.inviteCode}`, s.id)} className="text-slate-400 hover:text-emerald-500">
-                    {copied === s.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                )}
+              <li key={s.id} className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
+                <div className="flex items-center justify-between gap-2">
+                  <span>{s.title}</span>
+                  <span className="flex items-center gap-1.5">
+                    {s.inviteCode && (
+                      <button onClick={() => copyText(`https://chat.whatsapp.com/${s.inviteCode}`, s.id)} className="text-slate-400 hover:text-emerald-500">
+                        {copied === s.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setManaging((m) => (m === s.id ? null : s.id))}
+                      title="Gérer le groupe"
+                      className={managing === s.id ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </div>
+                {managing === s.id && <GroupManager groupId={s.id} />}
               </li>
             ))}
           </ul>

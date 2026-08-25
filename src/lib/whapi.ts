@@ -24,7 +24,7 @@ export interface WhapiResult {
 
 /** Appel bas-niveau à un endpoint WHAPI (gère token + erreurs). */
 async function whapiRequest(
-  method: 'POST' | 'PATCH',
+  method: 'POST' | 'PATCH' | 'PUT',
   path: string,
   payload: Record<string, unknown>,
 ): Promise<WhapiResult> {
@@ -375,6 +375,71 @@ export async function createWhapiGroup(
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 200) };
   }
+}
+
+// ----------------------------------------------------------------------------
+// Administration de groupe (nom, description, permissions, admins, épingles)
+// ----------------------------------------------------------------------------
+
+/** Met à jour nom et/ou description d'un groupe (PUT /groups/{id}). */
+export async function updateWhapiGroupInfo(
+  id: string,
+  info: { subject?: string; description?: string },
+): Promise<WhapiResult> {
+  const payload: Record<string, unknown> = {};
+  if (info.subject?.trim()) payload.subject = info.subject.trim();
+  if (info.description !== undefined) payload.description = info.description;
+  if (!Object.keys(payload).length) return { ok: false, error: 'Rien à mettre à jour' };
+  return whapiRequest('PUT', `/groups/${encodeURIComponent(id)}`, payload);
+}
+
+export type GroupSettingKey =
+  | 'send_messages'
+  | 'edit_group_info'
+  | 'approve_participants'
+  | 'add_participants';
+export type GroupSettingPolicy = 'anyone' | 'admins';
+
+/** Règle une permission de groupe (PATCH /groups/{id} {setting, policy}). */
+export async function setWhapiGroupSetting(
+  id: string,
+  setting: GroupSettingKey,
+  policy: GroupSettingPolicy,
+): Promise<WhapiResult> {
+  return whapiRequest('PATCH', `/groups/${encodeURIComponent(id)}`, { setting, policy });
+}
+
+/** Promeut des numéros comme admins du groupe (PATCH /groups/{id}/admins). */
+export async function promoteWhapiGroupAdmins(
+  id: string,
+  phones: string[],
+): Promise<WhapiResult> {
+  const participants = Array.from(
+    new Set(phones.map((p) => p.replace(/[^\d]/g, '')).filter((p) => p.length >= 8)),
+  ).map((n) => `${n}@s.whatsapp.net`);
+  if (!participants.length) return { ok: false, error: 'Aucun numéro valide' };
+  return whapiRequest('PATCH', `/groups/${encodeURIComponent(id)}/admins`, { participants });
+}
+
+/** Épingle un message (POST /messages/{id}/pin). time: day | week | month. */
+export async function pinWhapiMessage(
+  messageId: string,
+  time: 'day' | 'week' | 'month' = 'month',
+): Promise<WhapiResult> {
+  return whapiRequest('POST', `/messages/${encodeURIComponent(messageId)}/pin`, { time });
+}
+
+/** Envoie un message dans un groupe puis l'épingle (défaut 30 jours). */
+export async function sendAndPinWhapiMessage(
+  body: string,
+  to: string,
+  time: 'day' | 'week' | 'month' = 'month',
+): Promise<WhapiResult> {
+  const sent = await sendWhapiText(body, to);
+  if (!sent.ok || !sent.messageId) return sent;
+  const pinned = await pinWhapiMessage(sent.messageId, time);
+  if (!pinned.ok) return { ok: true, messageId: sent.messageId, error: `Envoyé mais non épinglé : ${pinned.error}` };
+  return { ok: true, messageId: sent.messageId };
 }
 
 /** Configure l'URL de webhook WHAPI (PATCH /settings) pour recevoir les événements. */

@@ -38,7 +38,7 @@ export function buildDestOptions(community: CommunityState | null, groups: Group
     }
     const slotLabels: Record<string, string> = {
       offers: '🛍️ Les Offres Oh My',
-      b2b: '🏢 Espace Pro B2B',
+      b2b: '🧰 Packs Clé en Main Oh My',
       salon: '💬 Le Salon Oh My',
     };
     for (const [key, gid] of Object.entries(community.slots)) {
