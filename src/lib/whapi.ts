@@ -134,7 +134,7 @@ export interface WhapiGroupInfo extends WhapiGroupSummary {
 }
 
 interface RawParticipant { id?: string; rank?: string }
-interface RawGroup { id?: string; name?: string; subject?: string; size?: number; participants?: RawParticipant[] }
+interface RawGroup { id?: string; name?: string; subject?: string; size?: number; participants_count?: number; participants?: RawParticipant[] }
 
 const ADMIN_RANKS = new Set(['admin', 'superadmin', 'creator', 'owner']);
 
@@ -255,15 +255,22 @@ export interface WhapiCommunity {
 
 /** Liste les communautés du numéro connecté (GET /communities). */
 export async function listWhapiCommunities(): Promise<{ ok: boolean; communities?: WhapiCommunity[]; error?: string }> {
-  const r = await whapiGet<{ groups?: RawGroup[] }>('/communities?count=50');
+  // La réponse réelle utilise la clé `communities` (la doc historique disait `groups`) —
+  // on accepte les deux formes.
+  const r = await whapiGet<{ communities?: RawGroup[]; groups?: RawGroup[] }>('/communities?count=50');
   if (!r.ok) return { ok: false, error: r.error };
-  const raw = Array.isArray(r.data?.groups) ? r.data!.groups! : [];
+  const raw = Array.isArray(r.data?.communities)
+    ? r.data!.communities!
+    : Array.isArray(r.data?.groups)
+      ? r.data!.groups!
+      : [];
   return {
     ok: true,
     communities: raw.map((g) => ({
       id: g.id || '',
       name: g.name || g.subject || '(sans nom)',
-      participantsCount: g.size ?? (Array.isArray(g.participants) ? g.participants.length : 0),
+      participantsCount:
+        g.participants_count ?? g.size ?? (Array.isArray(g.participants) ? g.participants.length : 0),
     })),
   };
 }
