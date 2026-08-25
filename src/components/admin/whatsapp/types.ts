@@ -37,7 +37,8 @@ export function buildDestOptions(community: CommunityState | null, groups: Group
       seen.add(community.announce.id);
     }
     const slotLabels: Record<string, string> = {
-      offers: '🛍️ Les Offres Oh My',
+      offers: '🧰 Packs Clé en Main Oh My',
+      // 'b2b' : ancien slot fusionné dans 'offers' (compat config existante)
       b2b: '🧰 Packs Clé en Main Oh My',
       salon: '💬 Le Salon Oh My',
     };

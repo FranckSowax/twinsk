@@ -45,7 +45,8 @@ export default function SendPanel({
   community: CommunityState | null;
 }) {
   const slotOffers = community?.slots.offers || '';
-  const slotB2B = community?.slots.b2b || '';
+  // Groupe commercial unique : les offres B2B partent aussi vers Packs Clé en Main.
+  const slotB2B = community?.slots.b2b || slotOffers;
   const slotSalon = community?.slots.salon || '';
 
   // Annonce / sondage
