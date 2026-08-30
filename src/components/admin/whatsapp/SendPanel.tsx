@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  Store,
   Upload,
   Webhook,
   X,
@@ -32,6 +33,13 @@ interface PollRow {
   title: string | null;
   results: { name?: string; count?: number }[] | null;
   total_votes: number;
+}
+interface CatalogProduct {
+  id: string;
+  name: string;
+  price: number | null;
+  currency: string | null;
+  imageUrl: string | null;
 }
 
 const inputCls =
@@ -68,6 +76,13 @@ export default function SendPanel({
   const [bcId, setBcId] = useState<string | null>(null);
   const [bcStatus, setBcStatus] = useState<Record<string, string>>({});
 
+  // Catalogue WhatsApp (fiches produit natives)
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogDest, setCatalogDest] = useState<Record<string, string>>({});
+  const [catalogSending, setCatalogSending] = useState<string | null>(null);
+  const [catalogStatus, setCatalogStatus] = useState<Record<string, string>>({});
+
   // Sondages (résultats)
   const [polls, setPolls] = useState<PollRow[]>([]);
   const [pollsLoading, setPollsLoading] = useState(false);
@@ -98,10 +113,67 @@ export default function SendPanel({
     }
   }, []);
 
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    try {
+      const res = await fetch('/api/whapi/catalog');
+      const data = await res.json();
+      if (Array.isArray(data.products)) setCatalog(data.products);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadOffers();
     loadPolls();
-  }, [loadOffers, loadPolls]);
+    loadCatalog();
+  }, [loadOffers, loadPolls, loadCatalog]);
+
+  const [catalogClearing, setCatalogClearing] = useState(false);
+
+  // Vide entièrement le catalogue WhatsApp du numéro (destructif, confirmé).
+  const clearCatalog = async () => {
+    if (!catalog.length) return;
+    if (
+      !window.confirm(
+        `⚠️ Supprimer les ${catalog.length} produit(s) du catalogue WhatsApp du numéro ?\n\n` +
+          `Cette action est définitive (les listings dans l'app ne sont pas touchés — ` +
+          `vous pourrez les republier au catalogue avec le bouton 🏪).`,
+      )
+    )
+      return;
+    setCatalogClearing(true);
+    try {
+      const res = await fetch('/api/whapi/catalog', { method: 'DELETE' });
+      const d = await res.json();
+      if (!res.ok) {
+        alert(`❌ ${d.error || 'Échec'}`);
+        return;
+      }
+      alert(`✅ ${d.deleted} produit(s) supprimé(s)` + (d.errors?.length ? `\n⚠️ ${d.errors.join('\n')}` : ''));
+      loadCatalog();
+    } finally {
+      setCatalogClearing(false);
+    }
+  };
+
+  const sendCatalogProduct = async (p: CatalogProduct) => {
+    const to = catalogDest[p.id] ?? slotOffers;
+    setCatalogSending(p.id);
+    setCatalogStatus((s) => ({ ...s, [p.id]: '' }));
+    try {
+      const res = await fetch('/api/whapi/catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: p.id, to: to || undefined }),
+      });
+      const d = await res.json();
+      setCatalogStatus((s) => ({ ...s, [p.id]: res.ok ? '✅ Envoyée' : `❌ ${d.error || 'Échec'}` }));
+    } finally {
+      setCatalogSending(null);
+    }
+  };
 
   const uploadAnnImage = async (file: File) => {
     setAnnUploading(true);
@@ -387,6 +459,80 @@ export default function SendPanel({
                 </li>
               );
             })}
+          </ul>
+        )}
+      </div>
+
+      {/* Fiches produit du catalogue WhatsApp */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <Store className="h-4 w-4" /> Fiches produit (catalogue WhatsApp)
+          </h2>
+          <div className="flex items-center gap-2">
+            <button onClick={loadCatalog} disabled={catalogLoading} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300">
+              {catalogLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Rafraîchir
+            </button>
+            {catalog.length > 0 && (
+              <button
+                onClick={clearCatalog}
+                disabled={catalogClearing}
+                title="Supprimer tous les produits du catalogue WhatsApp"
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:hover:bg-red-900/20"
+              >
+                {catalogClearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                Vider le catalogue
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="mb-3 text-xs text-slate-400">
+          Cartes produit natives WhatsApp (image + prix + bouton « Voir ») — bien plus engageantes qu&apos;un lien.
+          Alimentez le catalogue via le bouton 🏪 des listes d&apos;offres.
+        </p>
+        {catalog.length === 0 ? (
+          <p className="py-2 text-sm text-slate-400">
+            Catalogue vide. Publiez un listing au catalogue depuis « Offres B2C/B2B » (bouton 🏪).
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100 dark:divide-slate-700">
+            {catalog.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
+                <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</p>
+                  {p.price != null && (
+                    <p className="text-xs text-slate-500">
+                      {Math.round(p.price).toLocaleString('fr-FR')} {p.currency || 'XAF'}
+                    </p>
+                  )}
+                </div>
+                {catalogStatus[p.id] && <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{catalogStatus[p.id]}</span>}
+                <select
+                  value={catalogDest[p.id] ?? slotOffers}
+                  onChange={(e) => setCatalogDest((s) => ({ ...s, [p.id]: e.target.value }))}
+                  className={`${inputCls} w-auto max-w-[200px] py-1.5 text-xs`}
+                >
+                  {destOptions.map((opt) => (
+                    <option key={opt.id || 'default'} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => sendCatalogProduct(p)}
+                  disabled={catalogSending === p.id}
+                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white shadow disabled:opacity-60"
+                >
+                  {catalogSending === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Envoyer la fiche
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </div>

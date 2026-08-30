@@ -519,6 +519,48 @@ export async function deleteWhapiProduct(productId: string): Promise<WhapiResult
   return { ok: r.ok, error: r.error };
 }
 
+export interface WhapiCatalogProduct {
+  id: string;
+  name: string;
+  price: number | null;
+  currency: string | null;
+  imageUrl: string | null;
+  retailerId: string | null;
+}
+
+/** Liste les produits du catalogue WhatsApp Business du numéro connecté. */
+export async function listWhapiProducts(): Promise<{ ok: boolean; products?: WhapiCatalogProduct[]; error?: string }> {
+  interface RawCatalogProduct {
+    id?: string;
+    name?: string;
+    price?: number;
+    currency?: string;
+    images?: string[];
+    product_retailer_id?: string;
+  }
+  const r = await whapiGet<{ products?: RawCatalogProduct[] }>('/business/products?count=200');
+  if (!r.ok) return { ok: false, error: r.error };
+  const raw = Array.isArray(r.data?.products) ? r.data!.products! : [];
+  return {
+    ok: true,
+    products: raw
+      .filter((p) => p.id)
+      .map((p) => ({
+        id: p.id!,
+        name: p.name || '(sans nom)',
+        price: p.price ?? null,
+        currency: p.currency ?? null,
+        imageUrl: Array.isArray(p.images) && p.images.length ? p.images[0] : null,
+        retailerId: p.product_retailer_id ?? null,
+      })),
+  };
+}
+
+/** Envoie une FICHE PRODUIT native du catalogue dans un chat/groupe. */
+export async function sendWhapiProduct(productId: string, to: string): Promise<WhapiResult> {
+  return whapiPost(`/business/products/${encodeURIComponent(productId)}`, { to });
+}
+
 /** Crée une collection (regroupement de produits — une par listing). */
 export async function createWhapiCollection(
   name: string,
