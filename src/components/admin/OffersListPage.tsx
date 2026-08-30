@@ -14,6 +14,7 @@ import {
   Loader2,
   Package,
   Plus,
+  Store,
   Tag,
   Trash2,
 } from 'lucide-react';
@@ -88,6 +89,37 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
       window.location.href = `/admin/offer/${data.id}`;
     } finally {
       setCreating(false);
+    }
+  };
+
+  const [catalogSyncing, setCatalogSyncing] = useState<string | null>(null);
+
+  // Publie/synchronise les produits du listing dans le catalogue WhatsApp Business.
+  const syncCatalog = async (o: OfferRow) => {
+    if (!window.confirm(`Publier « ${o.title} » au catalogue WhatsApp Business ?\n(produits avec prix + image ; les « sur devis » sont ignorés)`)) return;
+    setCatalogSyncing(o.id);
+    try {
+      const res = await fetch(`/api/offers/${o.id}/catalog-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: window.location.origin }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        alert(`❌ ${d.error || 'Échec de la synchro'}`);
+        return;
+      }
+      alert(
+        `✅ Catalogue WhatsApp à jour\n` +
+          `${d.created} créé(s) · ${d.updated} mis à jour` +
+          (d.skipped ? ` · ${d.skipped} ignoré(s) (sur devis / sans image)` : '') +
+          (d.collection ? `\nCollection : ${d.collection}` : '') +
+          (d.errors?.length ? `\n⚠️ ${d.errors.join('\n')}` : ''),
+      );
+    } catch {
+      alert('❌ Erreur réseau');
+    } finally {
+      setCatalogSyncing(null);
     }
   };
 
@@ -301,6 +333,17 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
                             >
                               <ArrowUpRight className="h-4 w-4" />
                             </Link>
+                          )}
+                          {o.status === 'published' && (
+                            <button
+                              type="button"
+                              onClick={() => syncCatalog(o)}
+                              disabled={catalogSyncing === o.id}
+                              className="rounded-lg p-1.5 text-[#25D366] hover:bg-emerald-50 disabled:opacity-50 dark:hover:bg-emerald-900/20"
+                              title="Publier au catalogue WhatsApp Business"
+                            >
+                              {catalogSyncing === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}
+                            </button>
                           )}
                           {isB2B && (o.status === 'published' || o.status === 'closed') && (
                             <button

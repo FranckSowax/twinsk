@@ -442,6 +442,98 @@ export async function sendAndPinWhapiMessage(
   return { ok: true, messageId: sent.messageId };
 }
 
+// ----------------------------------------------------------------------------
+// Catalogue WhatsApp Business (produits + collections) — endpoints /business
+// ----------------------------------------------------------------------------
+
+async function whapiBusinessCall<T = Record<string, unknown>>(
+  method: 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  payload?: Record<string, unknown>,
+): Promise<{ ok: boolean; data?: T; error?: string }> {
+  if (!WHAPI_TOKEN) return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
+  try {
+    const res = await fetch(`${WHAPI_BASE}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WHAPI_TOKEN}` },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    const data = (await res.json().catch(() => ({}))) as T & { error?: unknown };
+    if (!res.ok) {
+      return { ok: false, error: `Whapi ${res.status}: ${JSON.stringify(data.error ?? data).slice(0, 200)}` };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+}
+
+export interface WhapiProductInput {
+  name: string;
+  description: string;
+  price: number;
+  currency: string; // ex: XAF
+  images: string[]; // URLs publiques
+  url?: string; // lien de la page listing
+  retailerId?: string; // id produit Twinsk (clé de synchro)
+}
+
+/** Crée un produit dans le catalogue WhatsApp Business. Retourne l'id WhatsApp. */
+export async function createWhapiProduct(
+  p: WhapiProductInput,
+): Promise<{ ok: boolean; productId?: string; error?: string }> {
+  const r = await whapiBusinessCall<{ id?: string }>('POST', '/business/products', {
+    name: p.name,
+    description: p.description,
+    price: p.price,
+    currency: p.currency,
+    images: p.images,
+    url: p.url,
+    product_retailer_id: p.retailerId,
+    availability: 'in stock',
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  if (!r.data?.id) return { ok: false, error: 'Produit créé mais id introuvable dans la réponse' };
+  return { ok: true, productId: r.data.id };
+}
+
+/** Met à jour un produit du catalogue (prix, nom, images…). */
+export async function updateWhapiProduct(
+  productId: string,
+  p: Partial<WhapiProductInput>,
+): Promise<WhapiResult> {
+  const payload: Record<string, unknown> = {};
+  if (p.name !== undefined) payload.name = p.name;
+  if (p.description !== undefined) payload.description = p.description;
+  if (p.price !== undefined) payload.price = p.price;
+  if (p.currency !== undefined) payload.currency = p.currency;
+  if (p.images !== undefined) payload.images = p.images;
+  if (p.url !== undefined) payload.url = p.url;
+  const r = await whapiBusinessCall('PATCH', `/business/products/${encodeURIComponent(productId)}`, payload);
+  return { ok: r.ok, error: r.error };
+}
+
+/** Supprime un produit du catalogue. */
+export async function deleteWhapiProduct(productId: string): Promise<WhapiResult> {
+  const r = await whapiBusinessCall('DELETE', `/business/products/${encodeURIComponent(productId)}`);
+  return { ok: r.ok, error: r.error };
+}
+
+/** Crée une collection (regroupement de produits — une par listing). */
+export async function createWhapiCollection(
+  name: string,
+  productIds: string[],
+): Promise<{ ok: boolean; collectionId?: string; error?: string }> {
+  const r = await whapiBusinessCall<{ id?: string; collection?: { id?: string } }>(
+    'POST',
+    '/business/collections',
+    { name, products: productIds },
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const id = r.data?.id || r.data?.collection?.id;
+  return { ok: true, collectionId: id };
+}
+
 /** Configure l'URL de webhook WHAPI (PATCH /settings) pour recevoir les événements. */
 export async function setWhapiWebhook(
   url: string,
