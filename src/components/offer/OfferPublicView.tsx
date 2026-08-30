@@ -21,6 +21,14 @@ import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText } from 'lucide-react';
 import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
 
+// Normalisation pour la recherche : minuscules + sans accents (« telephone » trouve « Téléphone »).
+function normalizeSearch(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 interface OfferVariant {
   id: string;
   name: string;
@@ -184,6 +192,37 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  // Recherche dynamique : filtre les produits (titre, description, catégorie)
+  // à la frappe, côté client — les catégories vides sont masquées.
+  const [searchQuery, setSearchQuery] = useState('');
+  const totalProducts = useMemo(
+    () => items.reduce((s, it) => s + it.products.length, 0),
+    [items],
+  );
+  const filteredItems = useMemo(() => {
+    const q = normalizeSearch(searchQuery.trim());
+    if (!q) return items;
+    const terms = q.split(/\s+/).filter(Boolean);
+    return items
+      .map((item) => {
+        const catText = normalizeSearch(item.description || '');
+        // La catégorie matche → on garde tous ses produits.
+        if (terms.every((t) => catText.includes(t))) return item;
+        const products = item.products.filter((p) => {
+          const hay = normalizeSearch(
+            `${p.title} ${p.title_original || ''} ${p.description || ''}`,
+          );
+          return terms.every((t) => hay.includes(t));
+        });
+        return { ...item, products };
+      })
+      .filter((item) => item.products.length > 0);
+  }, [items, searchQuery]);
+  const filteredCount = useMemo(
+    () => filteredItems.reduce((s, it) => s + it.products.length, 0),
+    [filteredItems],
+  );
 
   const cartLines = Object.values(cart).filter((l) => l.quantity > 0);
   const allProducts: OfferProduct[] = useMemo(
@@ -418,14 +457,70 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
         )}
       </div>
 
+      {/* Barre de recherche dynamique (dès 5 produits) — sticky pendant le scroll */}
+      {totalProducts >= 5 && (
+        <div className="sticky top-2 z-30 mb-6">
+          <div className="relative rounded-2xl border border-slate-200 bg-white/95 shadow-lg shadow-slate-900/5 backdrop-blur-md">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher un produit… (ex : four, lit, chaise)"
+              className="w-full rounded-2xl border-0 bg-transparent py-3.5 pl-12 pr-24 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 sm:text-base [&::-webkit-search-cancel-button]:hidden"
+            />
+            <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+              {searchQuery.trim() && (
+                <>
+                  <span className="hidden whitespace-nowrap text-xs font-semibold text-emerald-600 sm:inline">
+                    {filteredCount} produit(s)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Effacer la recherche"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {searchQuery.trim() && (
+            <p className="mt-1.5 px-1 text-xs font-medium text-slate-500 sm:hidden">
+              {filteredCount} produit(s) trouvé(s)
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Aucun résultat de recherche */}
+      {searchQuery.trim() && filteredCount === 0 && (
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white py-14 text-center">
+          <Search className="mx-auto h-10 w-10 text-slate-300" />
+          <p className="mt-3 font-semibold text-slate-700">
+            Aucun produit ne correspond à « {searchQuery.trim()} »
+          </p>
+          <p className="mt-1 text-sm text-slate-400">Essayez un autre mot-clé, ou parcourez tout le catalogue.</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="mt-4 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600"
+          >
+            Voir tous les produits
+          </button>
+        </div>
+      )}
+
       {/* Categories (regroupées par phase pour les offres B2B) */}
       <div className="space-y-10">
         {(() => {
           const hasPhases = !!phases && phases.length > 0;
           const rank = new Map((phases || []).map((p, i) => [p.id, i]));
           const ordered = hasPhases
-            ? [...items].sort((a, b) => (rank.get(a.phase_id ?? '') ?? 9999) - (rank.get(b.phase_id ?? '') ?? 9999))
-            : items;
+            ? [...filteredItems].sort((a, b) => (rank.get(a.phase_id ?? '') ?? 9999) - (rank.get(b.phase_id ?? '') ?? 9999))
+            : filteredItems;
           return ordered.map((item, idx) => {
             const showPhase =
               hasPhases && (idx === 0 || ordered[idx - 1].phase_id !== item.phase_id);
