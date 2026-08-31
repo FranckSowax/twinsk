@@ -15,9 +15,8 @@ export const COMMUNITY_SLOTS: {
   auto?: boolean; // créé par WhatsApp (non créable via l'app)
 }[] = [
   { key: 'annonces', emoji: '📣', name: 'Annonces', desc: 'Touche TOUS les membres — temps forts uniquement (2-3/semaine max)', auto: true },
-  // Groupe commercial UNIQUE : tous les listings (B2C et B2B) y sont diffusés.
-  { key: 'offers', emoji: '🧰', name: 'Packs Clé en Main Oh My', desc: 'Tous les listings, avec bouton vers la page — packs pros (pizzeria, resto…) et pour tous (chambre enfant…) · nouveautés lundi, récap vendredi' },
-  { key: 'salon', emoji: '💬', name: 'Le Salon Oh My', desc: 'Discussion libre, demandes produits, sondages' },
+  { key: 'offers', emoji: '🏠', name: 'Oh My Confort — Listing Maison & Confort', desc: 'Listings maison : chambre enfant, séjour, cuisine, bureau… · nouveautés lundi, récap vendredi' },
+  { key: 'b2b', emoji: '💼', name: 'Oh My Business — Listing Projets clés en main', desc: 'Listings pros et porteurs de projets : pizzeria, restaurant, salon… — diffusés avec bouton vers le listing' },
 ];
 
 export type DepartureKind = 'air' | 'sea';
@@ -133,9 +132,9 @@ export function buildRecapMessage(items: { title: string; url: string }[]): stri
 // Rituels récurrents de la semaine (jour ISO : 1 = lundi … 7 = dimanche).
 export const RITUALS: { key: string; day: number | 'monthly'; label: string; hint: string }[] = [
   { key: 'listing_monday', day: 1, label: 'Listing de la semaine', hint: 'Diffuser le listing le plus fort à 12h30 (onglet WhatsApp)' },
-  { key: 'b2b_tuesday', day: 2, label: 'Pack clé en main', hint: 'Poster un pack (pro ou pour tous) dans 🧰 à 10h' },
+  { key: 'b2b_tuesday', day: 2, label: 'Listing Pro & Projet', hint: 'Poster un listing pro dans 💼 à 10h' },
   { key: 'listing_wednesday', day: 3, label: '2ᵉ listing / vidéo', hint: 'Variante ou vidéo du listing à 19h30' },
-  { key: 'poll_thursday', day: 4, label: 'Sondage du Salon', hint: '« Quel produit cherchez-vous ? » à 19h (onglet WhatsApp)' },
+  { key: 'poll_thursday', day: 4, label: 'Sondage de la semaine', hint: '« Quel produit cherchez-vous ? » à 19h — dans 🏠 (le Salon reviendra plus tard)' },
   { key: 'recap_friday', day: 5, label: 'Récap catalogue', hint: 'Générer le récap ci-dessous et mettre à jour l’épingle 📌 2' },
   { key: 'welcome_sunday', day: 7, label: 'Bienvenue aux nouveaux', hint: 'Si des membres ont rejoint cette semaine' },
   { key: 'pins_renewal', day: 'monthly', label: 'Renouveler les 3 épingles', hint: 'Les épingles expirent après 30 jours (le 1ᵉʳ du mois)' },
