@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import {
-  normalizePhone, verifyOtpHash, signAgentToken, AGENT_COOKIE, SESSION_MAX_AGE,
+  phoneCandidates, verifyOtpHash, signAgentToken, AGENT_COOKIE, SESSION_MAX_AGE,
 } from '@/lib/agent';
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { phone?: string; code?: string };
-  const phone = normalizePhone(body.phone);
+  const candidates = phoneCandidates(body.phone);
   const code = (body.code || '').replace(/\D/g, '');
   const fail = () => NextResponse.json({ error: 'Code invalide ou expiré' }, { status: 401 });
-  if (phone.length < 6 || code.length !== 6) return fail();
+  if (!candidates.length || code.length !== 6) return fail();
 
-  const { data: agent } = await supabaseAdmin
+  const { data: agents } = await supabaseAdmin
     .from('agents')
     .select('id, name, active')
-    .eq('phone', phone)
+    .in('phone', candidates)
     .eq('active', true)
-    .single();
+    .limit(1);
+  const agent = agents?.[0];
   if (!agent) return fail();
 
   const { data: otp } = await supabaseAdmin

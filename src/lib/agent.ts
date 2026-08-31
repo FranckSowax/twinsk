@@ -51,7 +51,21 @@ export function verifyOtpHash(code: string, hash: string): boolean {
 }
 
 export function otpRateLimited(recentCount: number): boolean {
-  return recentCount >= 3;
+  return recentCount >= 10; // allégé : 10 OTP / 10 min par agent (silencieux au-delà)
+}
+
+/**
+ * Candidats de correspondance pour un numéro saisi : tolère l'absence (ou la
+ * présence) du préfixe pays 241 — « 06871309 » matche « 24106871309 » et
+ * inversement. Évite les échecs silencieux de l'OTP sur un simple format.
+ */
+export function phoneCandidates(phone: string | null | undefined): string[] {
+  const d = normalizePhone(phone);
+  if (!d) return [];
+  const out = new Set<string>([d]);
+  if (d.startsWith('241')) out.add(d.slice(3));
+  else out.add(`241${d}`);
+  return [...out].filter((x) => x.length >= 6);
 }
 
 export type AgentOrderStatus = 'unpaid' | 'paid' | 'shipped' | 'at_agency' | 'delivered';

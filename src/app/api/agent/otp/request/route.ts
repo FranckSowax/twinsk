@@ -2,21 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { toWhatsappChatId } from '@/lib/order-number';
-import { normalizePhone, generateOtpCode, hashOtp, otpRateLimited, OTP_TTL_MS } from '@/lib/agent';
+import { phoneCandidates, generateOtpCode, hashOtp, otpRateLimited, OTP_TTL_MS } from '@/lib/agent';
 
 // Réponse TOUJOURS générique (anti-énumération) : on n'indique jamais si le numéro existe.
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { phone?: string };
-  const phone = normalizePhone(body.phone);
+  const candidates = phoneCandidates(body.phone);
   const generic = NextResponse.json({ success: true });
-  if (phone.length < 6) return generic;
+  if (!candidates.length) return generic;
 
-  const { data: agent } = await supabaseAdmin
+  const { data: agents } = await supabaseAdmin
     .from('agents')
     .select('id, phone, active')
-    .eq('phone', phone)
+    .in('phone', candidates)
     .eq('active', true)
-    .single();
+    .limit(1);
+  const agent = agents?.[0];
   if (!agent) return generic;
 
   // Rate-limit : compte les OTP créés dans les 10 dernières minutes.
