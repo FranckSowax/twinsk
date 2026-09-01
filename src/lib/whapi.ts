@@ -468,6 +468,47 @@ async function whapiBusinessCall<T = Record<string, unknown>>(
   }
 }
 
+/** Article d'un panier WhatsApp reçu du client. */
+export interface WhapiOrderItem {
+  product_retailer_id: string;
+  quantity: number;
+  price?: number;
+  currency?: string;
+  name?: string;
+}
+
+/**
+ * Lit le contenu d'un panier envoyé par un client depuis le catalogue WhatsApp.
+ * Le message entrant de type `order` porte l'id et le token nécessaires.
+ * NB : le token passe en query (spécificité WHAPI de cet endpoint).
+ */
+export async function getWhapiOrderItems(
+  orderId: string,
+  token?: string,
+): Promise<{ ok: boolean; items?: WhapiOrderItem[]; error?: string }> {
+  if (!WHAPI_TOKEN) return { ok: false, error: 'WHAPI_TOKEN non configuré' };
+  try {
+    const qs = new URLSearchParams({ token: WHAPI_TOKEN });
+    if (token) qs.set('order_token', token);
+    const res = await fetch(`${WHAPI_BASE}/business/orders/${encodeURIComponent(orderId)}?${qs}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${WHAPI_TOKEN}` },
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      items?: WhapiOrderItem[];
+      products?: WhapiOrderItem[];
+      error?: unknown;
+    };
+    if (!res.ok) {
+      return { ok: false, error: `Whapi ${res.status}: ${JSON.stringify(data.error ?? data).slice(0, 200)}` };
+    }
+    const items = data.items || data.products || [];
+    return { ok: true, items: Array.isArray(items) ? items : [] };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+}
+
 export interface WhapiProductInput {
   name: string;
   description: string;
