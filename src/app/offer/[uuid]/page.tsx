@@ -12,9 +12,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { uuid } = await params;
   const data = await fetchPublicOffer(uuid);
   if (!data?.offer) return { title: 'Offre Twinsk' };
+  const description = data.offer.description || data.offer.theme || undefined;
+  // Aperçu WhatsApp/réseaux : cover du listing, sinon 1ʳᵉ image produit.
+  const image =
+    data.offer.cover_image_url || data.items[0]?.products[0]?.image_url || null;
   return {
     title: `${data.offer.title} · Twinsk`,
-    description: data.offer.description || data.offer.theme || undefined,
+    description,
+    openGraph: {
+      title: data.offer.title,
+      description,
+      siteName: 'Twinsk',
+      type: 'website',
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title: data.offer.title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
   };
 }
 

@@ -36,7 +36,33 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { id } = await params;
   const link = await loadLink(id);
   const shop = link?.affiliates?.shop_name;
-  return { title: shop ? `${shop} · Boutique` : 'Boutique' };
+  const title = shop ? `${shop} · Boutique` : 'Boutique';
+  if (!link) return { title };
+  // Aperçu WhatsApp/réseaux : cover du listing source (lecture légère, sans produits).
+  const { data: offer } = await supabaseAdmin
+    .from('offers')
+    .select('title, description, theme, cover_image_url')
+    .eq('id', link.offer_id)
+    .single();
+  const description = offer?.description || offer?.theme || undefined;
+  const image = offer?.cover_image_url || null;
+  return {
+    title,
+    description,
+    openGraph: {
+      title: shop || offer?.title || 'Boutique',
+      description,
+      siteName: shop || 'Boutique',
+      type: 'website',
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title: shop || offer?.title || 'Boutique',
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
+  };
 }
 
 // Applique la commission (majoration %) à un prix CNY.
