@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
+import { notifyOrdersGroup } from '@/lib/order-notify';
 
 // POST: le client choisit de payer CASH en agence.
 // - Réserve la commande (payment_method='cash', payment_status='submitted').
@@ -12,6 +13,23 @@ export async function POST(
   { params }: { params: Promise<{ uuid: string; orderId: string }> },
 ) {
   const { uuid, orderId } = await params;
+
+  // Coordonnées client OBLIGATOIRES avant toute finalisation.
+  const { data: existing } = await supabaseAdmin
+    .from('offer_orders')
+    .select('id, client_name, client_phone')
+    .eq('id', orderId)
+    .eq('offer_id', uuid)
+    .single();
+  if (!existing) {
+    return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 });
+  }
+  if (!existing.client_name?.trim() || !existing.client_phone?.trim()) {
+    return NextResponse.json(
+      { error: 'Renseignez vos coordonnées (nom + WhatsApp) avant de finaliser' },
+      { status: 400 },
+    );
+  }
 
   const { data: order, error } = await supabaseAdmin
     .from('offer_orders')
@@ -65,6 +83,9 @@ export async function POST(
       // ignore
     }
   }
+
+  // 3) Récap détaillé (produits + liens 1688) dans le groupe 🧾 Commandes Oh My Gab.
+  await notifyOrdersGroup(orderId, request.nextUrl.origin);
 
   return NextResponse.json({ success: true, order_number: num });
 }

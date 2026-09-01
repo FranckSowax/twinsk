@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { sendWhapiText } from '@/lib/whapi';
+import { notifyOrdersGroup } from '@/lib/order-notify';
 
 // PATCH: le client renseigne ses coordonnées (après le choix du transport,
 // avant le paiement). Enregistre nom/téléphone/email sur la commande, puis crée
@@ -105,6 +106,21 @@ export async function PATCH(
     } catch {
       // best-effort — ne bloque jamais la commande
     }
+  }
+
+  // Demandes de devis (pas d'étape paiement) : la commande est « terminée » dès
+  // les coordonnées enregistrées → récap dans le groupe 🧾 Commandes Oh My Gab.
+  // Seulement à la 1ʳᵉ saisie (pas de doublon si le client corrige ses infos).
+  const total = Number(
+    (order as { grand_total_fcfa?: number | null; items_total_fcfa?: number | null }).grand_total_fcfa ??
+      (order as { items_total_fcfa?: number | null }).items_total_fcfa,
+  );
+  const isQuote =
+    (order as { transport_mode?: string | null }).transport_mode === 'quote' ||
+    !(Number.isFinite(total) && total > 0);
+  const firstContact = !(order.client_name && order.client_phone);
+  if (isQuote && firstContact) {
+    await notifyOrdersGroup(orderId, request.nextUrl.origin);
   }
 
   return NextResponse.json({ success: true });

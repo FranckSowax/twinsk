@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { notifyOrdersGroup } from '@/lib/order-notify';
 
 // POST: Initiate ebilling payment for an order.
 // NOTE: This is a STUB. Replace with real ebilling integration once credentials
@@ -20,6 +21,13 @@ export async function POST(
     .single();
   if (!order) {
     return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 });
+  }
+  // Coordonnées client OBLIGATOIRES avant toute finalisation.
+  if (!order.client_name?.trim() || !order.client_phone?.trim()) {
+    return NextResponse.json(
+      { error: 'Renseignez vos coordonnées (nom + WhatsApp) avant de finaliser' },
+      { status: 400 },
+    );
   }
   if (order.transport_mode === 'quote') {
     return NextResponse.json(
@@ -44,6 +52,9 @@ export async function POST(
       payment_status: 'pending',
     })
     .eq('id', orderId);
+
+  // Récap détaillé (produits + liens 1688) dans le groupe 🧾 Commandes Oh My Gab.
+  await notifyOrdersGroup(orderId, request.nextUrl.origin);
 
   // Real integration: call ebilling API with grand_total_fcfa + client_phone,
   // get back a payment URL, then redirect customer to it.
