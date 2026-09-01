@@ -29,6 +29,11 @@ const MAX_PER_COLLECTION = 10;
 // convertis et arrondis exactement comme sur la page listing.
 const toFcfa = (cny: number) => roundXafUp(cny * FX_RATES.XAF);
 
+// WHAPI n'accepte dans une collection que des ids produit numériques (10 à 18
+// chiffres). Un id hors format ferait échouer TOUTE la collection : on le filtre
+// et on le signale plutôt que de perdre la catégorie entière.
+const VALID_WA_ID = /^\d{10,18}$/;
+
 /** Une fiche à publier dans le catalogue WhatsApp (produit ou variante). */
 interface CatalogEntry {
   key: string; // clé de synchro : "<productId>" ou "<productId>:<variantId>"
@@ -111,7 +116,11 @@ export async function POST(
     origin?: string;
     phaseIds?: string[];
     itemIds?: string[];
+    /** 'collections' : ne recrée pas les fiches, reconstruit seulement les
+     *  collections à partir des produits déjà synchronisés (réparation). */
+    mode?: 'full' | 'collections';
   };
+  const collectionsOnly = body.mode === 'collections';
   // Périmètre : on ne publie que les phases / catégories cochées (tout si absent).
   const phaseFilter = Array.isArray(body.phaseIds) && body.phaseIds.length ? new Set(body.phaseIds) : null;
   const itemFilter = Array.isArray(body.itemIds) && body.itemIds.length ? new Set(body.itemIds) : null;
@@ -198,6 +207,11 @@ export async function POST(
     const itemWaIds: string[] = [];
     for (const e of entries) {
       const existing = known.get(e.key);
+      // Réparation : on réutilise les fiches déjà au catalogue, sans appel WHAPI.
+      if (collectionsOnly) {
+        if (existing) itemWaIds.push(existing);
+        continue;
+      }
       if (existing) {
         const r = await updateWhapiProduct(existing, e.input);
         if (r.ok) {
@@ -225,9 +239,15 @@ export async function POST(
     }
 
     // Collections de la catégorie — créées une seule fois, par tranches de 10.
+    const collectable = itemWaIds.filter((id) => VALID_WA_ID.test(id));
+    if (collectable.length < itemWaIds.length) {
+      errors.push(
+        `${collectionName} : ${itemWaIds.length - collectable.length} fiche(s) au format d'id inattendu, exclues de la collection`,
+      );
+    }
     const chunks: string[][] = [];
-    for (let i = 0; i < itemWaIds.length; i += MAX_PER_COLLECTION) {
-      chunks.push(itemWaIds.slice(i, i + MAX_PER_COLLECTION));
+    for (let i = 0; i < collectable.length; i += MAX_PER_COLLECTION) {
+      chunks.push(collectable.slice(i, i + MAX_PER_COLLECTION));
     }
     for (let ci = 0; ci < chunks.length; ci++) {
       // Clé stable : id de catégorie, suffixée pour les tranches suivantes.
@@ -257,9 +277,16 @@ export async function POST(
     }
   }
 
-  if (!created && !updated) {
+  if (!created && !updated && !collectionsOnly) {
     return NextResponse.json(
       { error: errors[0] || 'Aucun produit éligible (prix affiché + image requis).' },
+      { status: 400 },
+    );
+  }
+
+  if (collectionsOnly && !collections.length) {
+    return NextResponse.json(
+      { error: errors[0] || 'Aucune collection créée — produits non synchronisés ?' },
       { status: 400 },
     );
   }

@@ -62,7 +62,7 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
     .reduce((n, g) => n + Math.ceil(g.fiches / 10), 0);
   const minutes = Math.max(1, Math.round(((fiches + collections) * 0.4) / 60));
 
-  const publish = async () => {
+  const publish = async (mode: 'full' | 'collections' = 'full') => {
     if (!selected.size) return;
     setSyncing(true);
     setError('');
@@ -72,6 +72,7 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           origin: window.location.origin,
+          mode,
           ...(groupedBy === 'phase'
             ? { phaseIds: [...selected] }
             : { itemIds: [...selected] }),
@@ -84,7 +85,9 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
       }
       onDone(
         `✅ Catalogue WhatsApp à jour\n` +
-          `${d.created} fiche(s) créée(s) · ${d.updated} mise(s) à jour` +
+          (mode === 'collections'
+            ? `${d.collections?.length || 0} collection(s) reconstruite(s)`
+            : `${d.created} fiche(s) créée(s) · ${d.updated} mise(s) à jour`) +
           (d.skipped ? ` · ${d.skipped} ignorée(s)` : '') +
           (d.collections?.length ? `\n${d.collections.length} collection(s)` : '') +
           (d.errors?.length ? `\n⚠️ ${d.errors.join('\n')}` : ''),
@@ -175,12 +178,20 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
             </span>
           </div>
           <button
-            onClick={publish}
+            onClick={() => publish('full')}
             disabled={!selected.size || syncing}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 font-semibold text-white disabled:opacity-50"
           >
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}
             {syncing ? 'Publication en cours…' : 'Publier au catalogue'}
+          </button>
+          <button
+            onClick={() => publish('collections')}
+            disabled={!selected.size || syncing}
+            className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300"
+            title="Regroupe les fiches déjà publiées en collections, sans les recréer"
+          >
+            Reconstruire seulement les collections
           </button>
           {syncing && (
             <p className="mt-2 text-center text-xs text-slate-400">
