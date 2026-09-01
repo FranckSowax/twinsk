@@ -35,6 +35,55 @@ interface CatalogEntry {
   input: WhapiProductInput;
 }
 
+
+/** Nombre de fiches WhatsApp générées par un produit (variantes comprises). */
+function fichesFor(p: { variants?: { price: number | null }[] | null }): number {
+  const sellable = (p.variants || []).filter((v) => v.price != null && v.price > 0);
+  return sellable.length > 1 && sellable.length <= MAX_VARIANTS ? sellable.length : 1;
+}
+
+// GET: périmètre publiable du listing — groupes (phases si présentes, sinon
+// catégories) avec le nombre de fiches et de collections que produirait la synchro.
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ uuid: string }> },
+) {
+  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const { uuid } = await params;
+
+  const data = await fetchPublicOffer(uuid);
+  if (!data?.offer) {
+    return NextResponse.json({ error: 'Listing introuvable ou non publié.' }, { status: 400 });
+  }
+
+  const hasPhases = data.phases.length > 0;
+  const groups = new Map<string, { id: string; title: string; categories: number; fiches: number }>();
+
+  for (const item of data.items) {
+    const eligible = item.products.filter((p) => !p.on_quote && p.from_price > 0 && p.image_url);
+    if (!eligible.length) continue;
+    const fiches = eligible.reduce((n, p) => n + fichesFor(p), 0);
+
+    const key = hasPhases ? item.phase_id || '' : item.id;
+    const title = hasPhases
+      ? (item.phase_id ? data.phases.find((ph) => ph.id === item.phase_id)?.title : null) || 'Sans phase'
+      : splitCategoryTitle(item.description).short || 'Sans catégorie';
+
+    const g = groups.get(key) || { id: key, title, categories: 0, fiches: 0 };
+    g.categories += 1;
+    g.fiches += fiches;
+    groups.set(key, g);
+  }
+
+  const list = [...groups.values()];
+  return NextResponse.json({
+    offer_title: data.offer.title,
+    grouped_by: hasPhases ? 'phase' : 'category',
+    groups: list,
+    total_fiches: list.reduce((n, g) => n + g.fiches, 0),
+  });
+}
+
 // POST: publie/synchronise les produits du listing dans le catalogue WhatsApp
 // Business du numéro connecté (admin only). Body: { origin? }
 // - une COLLECTION par catégorie du listing (préfixée de la phase en B2B) ;
@@ -58,7 +107,14 @@ export async function POST(
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as { origin?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    origin?: string;
+    phaseIds?: string[];
+    itemIds?: string[];
+  };
+  // Périmètre : on ne publie que les phases / catégories cochées (tout si absent).
+  const phaseFilter = Array.isArray(body.phaseIds) && body.phaseIds.length ? new Set(body.phaseIds) : null;
+  const itemFilter = Array.isArray(body.itemIds) && body.itemIds.length ? new Set(body.itemIds) : null;
   const origin = body.origin?.replace(/\/$/, '') || new URL(request.url).origin;
   const offerUrl = `${origin}/offer/${uuid}`;
   const currency = 'XAF'; // catalogue destiné aux clients Gabon
@@ -84,6 +140,9 @@ export async function POST(
   const collections: string[] = [];
 
   for (const item of data.items) {
+    if (phaseFilter && !phaseFilter.has(item.phase_id || '')) continue;
+    if (itemFilter && !itemFilter.has(item.id)) continue;
+
     // Nom de la collection : « Phase · Catégorie » (B2B) ou « Catégorie ».
     const cat = splitCategoryTitle(item.description).short || data.offer.title;
     const phase = item.phase_id ? phaseTitles.get(item.phase_id) : null;
