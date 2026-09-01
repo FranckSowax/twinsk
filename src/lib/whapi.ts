@@ -622,8 +622,25 @@ export async function setWhapiWebhook(
   url: string,
   events: string[] = ['messages'],
 ): Promise<WhapiResult> {
+  // PATCH /settings REMPLACE toute la liste des webhooks. Le canal peut en servir
+  // d'autres (autres projets sur le même numéro) : on relit la config, on conserve
+  // les webhooks tiers et on n'ajoute/remplace que le nôtre.
+  const existing = await getWhapiWebhooks();
+  const kept = existing.filter((w) => {
+    if (typeof w.url !== 'string') return false;
+    // Même destination (hors query/secret) → c'est le nôtre, on le remplace.
+    try {
+      const a = new URL(w.url);
+      const b = new URL(url);
+      return !(a.origin === b.origin && a.pathname === b.pathname);
+    } catch {
+      return true;
+    }
+  });
+
   return whapiRequest('PATCH', '/settings', {
     webhooks: [
+      ...kept,
       {
         url,
         mode: 'body',
@@ -631,6 +648,21 @@ export async function setWhapiWebhook(
       },
     ],
   });
+}
+
+/** Webhooks actuellement enregistrés sur le canal (liste vide si illisible). */
+export async function getWhapiWebhooks(): Promise<Record<string, unknown>[]> {
+  if (!WHAPI_TOKEN) return [];
+  try {
+    const res = await fetch(`${WHAPI_BASE}/settings`, {
+      headers: { Authorization: `Bearer ${WHAPI_TOKEN}` },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json().catch(() => ({}))) as { webhooks?: Record<string, unknown>[] };
+    return Array.isArray(data.webhooks) ? data.webhooks : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Envoie une image (media = URL publique) avec légende optionnelle. */
