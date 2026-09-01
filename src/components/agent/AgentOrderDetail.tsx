@@ -15,6 +15,7 @@ import {
   Package,
   PackageCheck,
   Plane,
+  Camera,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -30,6 +31,7 @@ import {
   TRANSPORT_META,
   TRANSPORT_FALLBACK,
 } from './agent-ui';
+import ParcelPhotos, { type ParcelPhoto } from '@/components/orders/ParcelPhotos';
 
 type Line = {
   id: string;
@@ -51,6 +53,7 @@ type Order = {
   order_status: string | null;
   transport_mode: string | null;
   created_at?: string | null;
+  parcel_photos?: ParcelPhoto[];
 };
 type Action = { action: string; created_at: string };
 
@@ -60,6 +63,7 @@ const ACTION_META: Record<string, { label: string; icon: LucideIcon; dot: string
   ship: { label: 'Expédiée', icon: Plane, dot: 'bg-sky-500' },
   receive: { label: 'Reçue à l’agence', icon: Building2, dot: 'bg-teal-500' },
   deliver: { label: 'Remise au client', icon: HandHeart, dot: 'bg-violet-500' },
+  photos: { label: 'Photos de colis ajoutées', icon: Camera, dot: 'bg-slate-500' },
 };
 
 export default function AgentOrderDetail({ id, onBack }: { id: string; onBack: () => void }) {
@@ -255,6 +259,22 @@ export default function AgentOrderDetail({ id, onBack }: { id: string; onBack: (
             />
           )}
         </section>
+
+        {/* Photos de colis — le colis est en route ou arrivé */}
+        {paid && (
+          <ParcelPhotos
+            photos={order.parcel_photos || []}
+            endpoint={`/api/agent/orders/${id}/photos`}
+            stage="gabon"
+            onSaved={(photos) => setOrder((o) => (o ? { ...o, parcel_photos: photos } : o))}
+            labels={{
+              title: 'Photos du colis',
+              add: 'Prendre une photo',
+              empty: 'Aucune photo. Photographiez le colis à l’arrivée — elles partent aussi dans le groupe Commandes.',
+              error: 'Échec de l’envoi',
+            }}
+          />
+        )}
 
         {/* Historique */}
         {actions.length > 0 && (

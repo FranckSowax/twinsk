@@ -219,6 +219,10 @@ export const DICT = {
     'orders.add.cancel': 'Annuler',
     'orders.add.submit': 'Ajouter',
     'orders.confirmValidate': 'Valider le paiement de',
+    'orders.photos.title': 'Photos du colis',
+    'orders.photos.add': 'Ajouter des photos',
+    'orders.photos.empty': 'Aucune photo. Photographiez les colis avant expédition — elles partent aussi dans le groupe Commandes.',
+    'orders.photos.error': 'Échec de l’envoi',
   },
   zh: {
     // 导航 / 布局
@@ -434,6 +438,10 @@ export const DICT = {
     'orders.add.cancel': '取消',
     'orders.add.submit': '添加',
     'orders.confirmValidate': '确认付款：',
+    'orders.photos.title': '包裹照片',
+    'orders.photos.add': '添加照片',
+    'orders.photos.empty': '暂无照片。发货前请拍摄所有包裹 — 照片会同时发到订单群。',
+    'orders.photos.error': '上传失败',
   },
 } as const;
 

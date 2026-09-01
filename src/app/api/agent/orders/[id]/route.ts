@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { getAgent } from '@/lib/agent';
 import { orderNumber } from '@/lib/order-number';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
+import { readPhotos } from '@/lib/order-photos';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const agent = await getAgent(request);
@@ -11,8 +12,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: order } = await supabaseAdmin
     .from('offer_orders')
+    // `*` : résilient si parcel_photos (migration 53) manque encore en prod.
     .select(
-      'id, client_name, client_phone, grand_total_fcfa, items_total_fcfa, payment_method, payment_status, order_status, transport_mode, created_at, offer_order_lines(id, product_title, product_image, variant_name, quantity, subtotal_cny)'
+      '*, offer_order_lines(id, product_title, product_image, variant_name, quantity, subtotal_cny)'
     )
     .eq('id', id)
     .single();
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       transport_mode: order.transport_mode,
       created_at: order.created_at,
       order_number: orderNumber(order.id),
+      parcel_photos: readPhotos((order as { parcel_photos?: unknown }).parcel_photos),
     },
     lines,
     actions: actions || [],

@@ -16,6 +16,7 @@ import {
   TRANSPORT_META,
   TRANSPORT_FALLBACK,
 } from '@/components/agent/agent-ui';
+import ParcelPhotos, { type ParcelPhoto } from '@/components/orders/ParcelPhotos';
 
 interface Order {
   id: string;
@@ -33,6 +34,7 @@ interface Order {
   created_at: string;
   thumbnail?: string | null;
   items_count?: number;
+  parcel_photos?: ParcelPhoto[];
 }
 
 interface DetailLine {
@@ -630,6 +632,29 @@ export default function AdminOrdersPage() {
                     {d.ebilling_reference && (
                       <p className="mb-4 text-xs text-slate-500">{t('orders.modal.ebillingRef')} <span className="font-mono">{d.ebilling_reference}</span></p>
                     )}
+
+                    {/* Photos de colis (Chine avant expédition, Gabon à l'arrivée) */}
+                    <div className="mb-4">
+                      <ParcelPhotos
+                        variant="plain"
+                        photos={d.parcel_photos || []}
+                        endpoint={`/api/admin/orders/${d.id}/photos`}
+                        stage="china"
+                        onSaved={(photos) =>
+                          setDetail((cur) =>
+                            cur && cur.order.id === d.id
+                              ? { ...cur, order: { ...cur.order, parcel_photos: photos } }
+                              : cur,
+                          )
+                        }
+                        labels={{
+                          title: t('orders.photos.title'),
+                          add: t('orders.photos.add'),
+                          empty: t('orders.photos.empty'),
+                          error: t('orders.photos.error'),
+                        }}
+                      />
+                    </div>
 
                     {/* Statut de traitement */}
                     <div className="mb-4 flex items-center gap-2">
