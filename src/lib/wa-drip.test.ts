@@ -141,6 +141,7 @@ describe('canaux et rappel du listing', () => {
     const data = { ...DATA, offer: { ...DATA.offer, theme: 'Tout pour la chambre' } };
     const plan = buildDripPlan(data, { ...DEFAULT_DRIP_CONFIG, per_category: 1, per_hour_other: 2 }, 'https://t/offer/o1')!;
     expect(plan.header).toContain('🛍️ Maison & Confort — Tout pour la chambre');
+    expect(plan.header.split('\n\n')).toHaveLength(4); // titre / phase / note / listing
     expect(plan.products[0].caption).toContain('Maison & Confort — Tout pour la chambre');
     expect(plan.products[0].social).toContain('Maison & Confort — Tout pour la chambre');
     expect(plan.products[0].social).not.toContain('*');

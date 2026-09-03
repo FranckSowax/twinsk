@@ -227,14 +227,15 @@ export function buildCategoryHeader(cat: DripCategory, offer?: Pick<PublicOfferD
   const { short, rest } = splitCategoryTitle(cat.item.description);
   const title = short || 'Sélection du moment';
   const note = rest ? cleanCategoryNote(rest) : '';
+  // Une ligne vide entre chaque bloc : titre / phase / note / rappel du listing.
   return [
     `📦 *${title}*`,
     cat.phaseTitle ? `_${cat.phaseTitle}_` : null,
-    note ? `\n${note}` : null,
-    offer ? `\n🛍️ ${listingTagline(offer)}` : null,
+    note || null,
+    offer ? `🛍️ ${listingTagline(offer)}` : null,
   ]
     .filter((l): l is string => l !== null)
-    .join('\n');
+    .join('\n\n');
 }
 
 /** Lien profond vers la fiche du produit (modale, variantes, panier) sur la page listing. */
