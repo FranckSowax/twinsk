@@ -76,7 +76,15 @@ export async function broadcastCategory(
     await sleep(THROTTLE_MS);
     for (const p of forGroup) {
       const waId = waIds.get(p.id);
-      const r = waId ? await sendWhapiProduct(waId, to) : await sendWhapiImage(p.imageUrl, p.caption, to);
+      let r = waId ? await sendWhapiProduct(waId, to) : await sendWhapiImage(p.imageUrl, p.caption, to);
+      // La fiche native dépend de la synchro catalogue côté WHAPI, qui est
+      // capricieuse (« specified product not found » alors que la fiche existe) :
+      // on ne perd jamais le produit, on l'envoie en photo + légende.
+      if (!r.ok && waId) {
+        report.group.errors.push(`${p.title.slice(0, 40)} : fiche native indisponible (${r.error}), envoyée en photo`);
+        await sleep(THROTTLE_MS);
+        r = await sendWhapiImage(p.imageUrl, p.caption, to);
+      }
       if (r.ok) report.group.sent += 1;
       else report.group.errors.push(`${p.title.slice(0, 40)} : ${r.error}`);
       await sleep(THROTTLE_MS);

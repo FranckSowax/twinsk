@@ -74,13 +74,44 @@ export async function fbPageStory(args: { imageUrl: string }): Promise<MetaResul
   return graphPost(`${p}/photo_stories`, { photo_id: upload.id });
 }
 
-/** Publication photo Instagram : conteneur puis publication. */
+/**
+ * Instagram traite le média en arrière-plan : publier avant que le conteneur
+ * soit FINISHED renvoie « Media ID is not available (9007) ». On attend.
+ */
+async function waitIgContainer(containerId: string, maxWaitMs = 45000): Promise<MetaResult> {
+  const t = token();
+  if (!t) return { ok: false, skipped: 'not_configured' };
+  const started = Date.now();
+  while (Date.now() - started < maxWaitMs) {
+    try {
+      const res = await fetch(`${GRAPH}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(t)}`);
+      const data = (await res.json().catch(() => ({}))) as { status_code?: string; status?: string; error?: { message?: string } };
+      if (data.error) return { ok: false, error: `Graph: ${data.error.message}`.slice(0, 300) };
+      if (data.status_code === 'FINISHED') return { ok: true, id: containerId };
+      if (data.status_code === 'ERROR' || data.status_code === 'EXPIRED') {
+        return { ok: false, error: `Instagram : conteneur ${data.status_code} — ${data.status || 'média refusé'}`.slice(0, 300) };
+      }
+    } catch (err) {
+      return { ok: false, error: String(err).slice(0, 200) };
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return { ok: false, error: 'Instagram : média toujours en traitement après 45 s' };
+}
+
+async function igPublish(ig: string, containerId: string): Promise<MetaResult> {
+  const ready = await waitIgContainer(containerId);
+  if (!ready.ok) return ready;
+  return graphPost(`${ig}/media_publish`, { creation_id: containerId });
+}
+
+/** Publication photo Instagram : conteneur, attente du traitement, publication. */
 export async function igPhotoPost(args: { imageUrl: string; caption: string }): Promise<MetaResult> {
   const ig = igUserId();
   if (!ig) return { ok: false, skipped: 'not_configured' };
   const container = await graphPost(`${ig}/media`, { image_url: args.imageUrl, caption: args.caption });
   if (!container.ok || !container.id) return container;
-  return graphPost(`${ig}/media_publish`, { creation_id: container.id });
+  return igPublish(ig, container.id);
 }
 
 /** Story photo Instagram (compte professionnel). */
@@ -89,5 +120,5 @@ export async function igStory(args: { imageUrl: string }): Promise<MetaResult> {
   if (!ig) return { ok: false, skipped: 'not_configured' };
   const container = await graphPost(`${ig}/media`, { image_url: args.imageUrl, media_type: 'STORIES' });
   if (!container.ok || !container.id) return container;
-  return graphPost(`${ig}/media_publish`, { creation_id: container.id });
+  return igPublish(ig, container.id);
 }
