@@ -31,6 +31,28 @@ export async function writeDripConfig(cfg: DripConfig): Promise<void> {
     .upsert({ key: DRIP_SETTING_KEY, value: cfg, updated_at: new Date().toISOString() });
 }
 
+/**
+ * Prend le créneau de l'heure de façon atomique : avance le curseur et pose
+ * last_run_at seulement si personne ne l'a fait entre-temps (comparaison sur
+ * l'ancien last_run_at). Retourne false si un autre déclencheur a gagné.
+ */
+async function claimSlot(cfg: DripConfig, now: Date, itemId: string): Promise<boolean> {
+  const next = { ...cfg, cursor: cfg.cursor + 1, last_run_at: now.toISOString(), last_item_id: itemId };
+  let query = supabaseAdmin
+    .from('wa_settings')
+    .update({ value: next, updated_at: now.toISOString() })
+    .eq('key', DRIP_SETTING_KEY);
+  query = cfg.last_run_at
+    ? query.filter('value->>last_run_at', 'eq', cfg.last_run_at)
+    : query.is('value->>last_run_at', null);
+  const { data, error } = await query.select('key');
+  if (error) {
+    console.error('[drip] verrou impossible', error.message);
+    return false;
+  }
+  return (data || []).length === 1;
+}
+
 export type DripRunResult =
   | { skipped: 'not_configured' | 'outside_window' | 'already_sent_this_hour' | 'no_publishable_category'; hour?: number }
   | { error: string }
@@ -64,13 +86,20 @@ export async function runDrip(opts: RunOptions): Promise<DripRunResult> {
   if (!plan) return { skipped: 'no_publishable_category', hour };
   if (opts.dry) return { dry: true, hour, plan };
 
-  const report = await broadcastCategory(plan, cfg, opts.origin);
-  const summary = summarizeReport(report);
   const advance = opts.advance !== false;
 
+  // Verrou AVANT l'envoi (et non après) : deux déclencheurs simultanés — cron
+  // Railway, boucle, planificateur interne, bouton admin — liraient sinon tous
+  // le même curseur et publieraient la même catégorie deux fois (vu le 3 sept.
+  // à 9h04/9h05). Mise à jour conditionnelle : seul celui qui voit encore
+  // l'ancien last_run_at prend le créneau.
   if (advance) {
-    await writeDripConfig({ ...cfg, cursor: cfg.cursor + 1, last_run_at: now.toISOString(), last_item_id: plan.itemId });
+    const taken = await claimSlot(cfg, now, plan.itemId);
+    if (!taken) return { skipped: 'already_sent_this_hour', hour };
   }
+
+  const report = await broadcastCategory(plan, cfg, opts.origin);
+  const summary = summarizeReport(report);
   await supabaseAdmin.from('playbook_log').insert({
     ritual: 'category_drip',
     note: `${plan.categoryTitle} (${plan.index + 1}/${plan.total}) · ${summary}`,
