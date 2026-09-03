@@ -89,6 +89,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const perChannel = { ...current.per_channel };
+  if (body.per_channel && typeof body.per_channel === 'object') {
+    for (const [k, v] of Object.entries(body.per_channel)) {
+      if (k === 'group') continue;
+      if (typeof v === 'number' && (v < 1 || v > DRIP_MAX_PER_CATEGORY)) {
+        return NextResponse.json({ error: `per_channel.${k} entre 1 et ${DRIP_MAX_PER_CATEGORY}` }, { status: 400 });
+      }
+      if (typeof v === 'number') (perChannel as Record<string, number>)[k] = v;
+      else if (v === null) delete (perChannel as Record<string, number>)[k];
+    }
+  }
   const channels = { ...current.channels };
   if (body.channels && typeof body.channels === 'object') {
     for (const c of DRIP_CHANNELS) if (typeof body.channels[c] === 'boolean') channels[c] = body.channels[c];
@@ -97,6 +108,7 @@ export async function POST(request: NextRequest) {
   const next = normalizeDripConfig({
     ...current,
     channels,
+    per_channel: perChannel,
     ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
     ...(body.offer_id !== undefined ? { offer_id: body.offer_id } : {}),
     ...(body.group_id !== undefined ? { group_id: body.group_id } : {}),

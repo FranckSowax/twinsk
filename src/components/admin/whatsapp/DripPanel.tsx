@@ -26,6 +26,7 @@ interface Config {
   channels: Record<Channel, boolean>;
   per_category: number;
   per_hour_other: number;
+  per_channel: Partial<Record<Exclude<Channel, 'group'>, number>>;
   start_hour: number;
   end_hour: number;
   cursor: number;
@@ -65,7 +66,14 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
     load();
   }, [load]);
 
-  const cfg: Config | null = state ? { ...state.config, ...draft, channels: { ...state.config.channels, ...(draft.channels || {}) } } : null;
+  const cfg: Config | null = state
+    ? {
+        ...state.config,
+        ...draft,
+        channels: { ...state.config.channels, ...(draft.channels || {}) },
+        per_channel: { ...state.config.per_channel, ...(draft.per_channel || {}) },
+      }
+    : null;
 
   const save = async (patch: Partial<Config> & { reset_cursor?: boolean }, label = 'Enregistré') => {
     setBusy('save');
@@ -179,7 +187,7 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
             <input type="number" min={1} max={5} className={field} value={cfg.per_category} onChange={(e) => setDraft((d) => ({ ...d, per_category: Number(e.target.value) }))} />
           </div>
           <div>
-            <label className={label}>Produits / h · autres</label>
+            <label className={label}>Produits / h · autres (défaut)</label>
             <input type="number" min={1} max={5} className={field} value={cfg.per_hour_other} onChange={(e) => setDraft((d) => ({ ...d, per_hour_other: Number(e.target.value) }))} />
           </div>
         </div>
@@ -191,6 +199,30 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
           <div>
             <label className={label}>À (h, inclus)</label>
             <input type="number" min={0} max={23} className={field} value={cfg.end_hour} onChange={(e) => setDraft((d) => ({ ...d, end_hour: Number(e.target.value) }))} />
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={label}>Produits / h par canal (vide = défaut)</label>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(['status', 'channel', 'facebook', 'instagram'] as const).map((c) => (
+              <div key={c}>
+                <span className="mb-1 block text-xs text-slate-500">{CHANNELS.find((x) => x.key === c)?.label}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  placeholder={String(cfg.per_hour_other)}
+                  className={field}
+                  value={cfg.per_channel[c] ?? ''}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      per_channel: { ...(d.per_channel || {}), [c]: e.target.value === '' ? null : Number(e.target.value) } as Config['per_channel'],
+                    }))
+                  }
+                />
+              </div>
+            ))}
           </div>
         </div>
         <div className="sm:col-span-2">
@@ -248,7 +280,14 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
                 <span className="flex-1 text-sm">
                   <span className="block font-medium text-slate-800 dark:text-slate-200">{p.title}</span>
                   <span className="block text-xs text-slate-500">
-                    {i < cfg.per_category ? 'groupe' : ''}{i < cfg.per_category && i < cfg.per_hour_other ? ' · ' : ''}{i < cfg.per_hour_other ? 'statut / chaîne / réseaux' : ''}
+                    {[
+                      i < cfg.per_category ? 'groupe' : null,
+                      ...(['status', 'channel', 'facebook', 'instagram'] as const)
+                        .filter((c) => cfg.channels[c] && i < (cfg.per_channel[c] ?? cfg.per_hour_other))
+                        .map((c) => CHANNELS.find((x) => x.key === c)?.label.toLowerCase()),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || '—'}
                   </span>
                 </span>
               </li>

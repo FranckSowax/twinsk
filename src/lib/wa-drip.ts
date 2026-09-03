@@ -29,8 +29,10 @@ export interface DripConfig {
   channels: DripChannels;
   /** Produits par heure dans le groupe. */
   per_category: number;
-  /** Produits par heure sur les autres canaux (statut, chaîne, Facebook, Instagram). */
+  /** Produits par heure sur les autres canaux — valeur par défaut. */
   per_hour_other: number;
+  /** Réglage fin par canal (prime sur per_hour_other quand présent). */
+  per_channel: Partial<Record<Exclude<DripChannel, 'group'>, number>>;
   start_hour: number; // inclus, heure de Libreville
   end_hour: number; // inclus
   cursor: number;
@@ -46,6 +48,7 @@ export const DEFAULT_DRIP_CONFIG: DripConfig = {
   channels: { group: true, status: false, channel: false, facebook: false, instagram: false },
   per_category: 3,
   per_hour_other: 1,
+  per_channel: {},
   start_hour: 9,
   end_hour: 23,
   cursor: 0,
@@ -58,6 +61,27 @@ const clampInt = (v: unknown, min: number, max: number, fallback: number): numbe
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
+
+function normalizePerChannel(raw: unknown): DripConfig['per_channel'] {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const out: DripConfig['per_channel'] = {};
+  for (const c of DRIP_CHANNELS) {
+    if (c === 'group' || r[c] === undefined || r[c] === null) continue;
+    out[c] = clampInt(r[c], 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_hour_other);
+  }
+  return out;
+}
+
+/** Produits par heure pour un canal donné. */
+export function productsFor(cfg: DripConfig, channel: DripChannel): number {
+  if (channel === 'group') return cfg.per_category;
+  return cfg.per_channel[channel] ?? cfg.per_hour_other;
+}
+
+/** Le plus grand rythme demandé, tous canaux confondus (taille du plan). */
+export function maxProductsPerHour(cfg: DripConfig): number {
+  return Math.max(cfg.per_category, cfg.per_hour_other, ...Object.values(cfg.per_channel).map((n) => n ?? 0));
+}
 
 function normalizeChannels(raw: unknown): DripChannels {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<DripChannel, unknown>>;
@@ -77,6 +101,7 @@ export function normalizeDripConfig(raw: unknown): DripConfig {
     channels: normalizeChannels(r.channels),
     per_category: clampInt(r.per_category, 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_category),
     per_hour_other: clampInt(r.per_hour_other, 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_hour_other),
+    per_channel: normalizePerChannel(r.per_channel),
     start_hour: clampInt(r.start_hour, 0, 23, DEFAULT_DRIP_CONFIG.start_hour),
     end_hour: clampInt(r.end_hour, 0, 23, DEFAULT_DRIP_CONFIG.end_hour),
     cursor: clampInt(r.cursor, 0, Number.MAX_SAFE_INTEGER, 0),
@@ -217,6 +242,11 @@ export function buildProductCaption(
     .join('\n');
 }
 
+/** Texte d'une carte à bouton : titre, prix, rappel du listing — le lien est sur le bouton. */
+export function buildCardBody(p: Product, offer: Pick<PublicOfferData['offer'], 'title' | 'theme'>): string {
+  return [`*${p.title.slice(0, 120)}*`, `À partir de ${fcfa(toFcfa(p.from_price))}`, `🛍️ ${listingTagline(offer)}`].join('\n');
+}
+
 /** Texte d'une story / publication réseau (pas de gras WhatsApp, lien en clair). */
 export function buildSocialCaption(
   p: Product,
@@ -240,8 +270,10 @@ export interface DripPlan {
   offerTitle: string;
   theme: string | null;
   header: string;
-  products: Array<{ id: string; title: string; imageUrl: string; caption: string; social: string; url: string }>;
+  products: Array<{ id: string; title: string; imageUrl: string; caption: string; cardBody: string; social: string; url: string }>;
   offerUrl: string;
+  /** Rappel du listing (titre — thème), pour les pieds de carte. */
+  tagline: string;
 }
 
 export function buildDripPlan(data: PublicOfferData, cfg: DripConfig, offerUrl: string): DripPlan | null {
@@ -260,14 +292,16 @@ export function buildDripPlan(data: PublicOfferData, cfg: DripConfig, offerUrl: 
     header: buildCategoryHeader(category, data.offer),
     // On planifie le maximum demandé ; chaque canal prend ensuite sa part
     // (per_category pour le groupe, per_hour_other pour les autres).
-    products: category.products.slice(0, Math.max(cfg.per_category, cfg.per_hour_other)).map((p) => ({
+    products: category.products.slice(0, maxProductsPerHour(cfg)).map((p) => ({
       id: p.id,
       title: p.title,
       imageUrl: p.image_url,
       caption: buildProductCaption(p, offerUrl, data.offer),
+      cardBody: buildCardBody(p, data.offer),
       social: buildSocialCaption(p, categoryTitle, offerUrl, data.offer),
       url: productDeepLink(offerUrl, p.id),
     })),
+    tagline: listingTagline(data.offer),
     offerUrl,
   };
 }

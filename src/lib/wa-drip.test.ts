@@ -9,8 +9,10 @@ import {
   listDripCategories,
   localHour,
   localHourKey,
+  maxProductsPerHour,
   normalizeDripConfig,
   pickCategory,
+  productsFor,
 } from './wa-drip';
 
 type Product = PublicOfferData['items'][number]['products'][number];
@@ -140,7 +142,20 @@ describe('canaux et rappel du listing', () => {
     expect(plan.products[0].caption).toContain('Maison & Confort — Tout pour la chambre');
     expect(plan.products[0].social).toContain('Maison & Confort — Tout pour la chambre');
     expect(plan.products[0].social).not.toContain('*');
+    expect(plan.products[0].cardBody).not.toContain('http');
+    expect(plan.tagline).toBe('Maison & Confort — Tout pour la chambre');
     // on planifie le max des deux rythmes ; chaque canal prend sa part
     expect(plan.products).toHaveLength(2);
+  });
+});
+
+describe('rythme par canal', () => {
+  it('prend la valeur du canal, sinon le défaut, et dimensionne le plan au maximum', () => {
+    const cfg = normalizeDripConfig({ per_category: 5, per_hour_other: 1, per_channel: { status: 5, channel: 5, facebook: 5, instagram: 99, group: 3 } });
+    expect(cfg.per_channel).toEqual({ status: 5, channel: 5, facebook: 5, instagram: 5 });
+    expect(productsFor(cfg, 'group')).toBe(5);
+    expect(productsFor(cfg, 'status')).toBe(5);
+    expect(productsFor({ ...cfg, per_channel: {} }, 'instagram')).toBe(1);
+    expect(maxProductsPerHour({ ...cfg, per_category: 2, per_channel: { facebook: 4 } })).toBe(4);
   });
 });

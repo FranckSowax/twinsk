@@ -10,13 +10,14 @@
 //   instagram → compte pro : une publication photo par produit + une story
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import type { DripChannel, DripConfig, DripPlan } from '@/lib/wa-drip';
+import { productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import {
   postWhapiStory,
   sendWhapiButtonLink,
   sendWhapiImage,
   sendWhapiProduct,
+  sendWhapiProductCard,
   sendWhapiText,
 } from '@/lib/whapi';
 import {
@@ -56,8 +57,8 @@ export async function broadcastCategory(
     facebook: { sent: 0, errors: [] },
     instagram: { sent: 0, errors: [] },
   };
-  const forGroup = plan.products.slice(0, cfg.per_category);
-  const forOthers = plan.products.slice(0, cfg.per_hour_other);
+  const take = (c: DripChannel) => plan.products.slice(0, productsFor(cfg, c));
+  const forGroup = take('group');
 
   // --- Groupe WhatsApp ---------------------------------------------------
   if (!cfg.channels.group) report.group.skipped = 'disabled';
@@ -76,12 +77,25 @@ export async function broadcastCategory(
     await sleep(THROTTLE_MS);
     for (const p of forGroup) {
       const waId = waIds.get(p.id);
-      let r = waId ? await sendWhapiProduct(waId, to) : await sendWhapiImage(p.imageUrl, p.caption, to);
-      // La fiche native dépend de la synchro catalogue côté WHAPI, qui est
-      // capricieuse (« specified product not found » alors que la fiche existe) :
-      // on ne perd jamais le produit, on l'envoie en photo + légende.
+      // 1) Fiche native du catalogue si WHAPI la voit (prix, galerie, bouton « Voir »).
+      let r = waId ? await sendWhapiProduct(waId, to) : { ok: false as const, error: 'pas au catalogue' };
       if (!r.ok && waId) {
-        report.group.errors.push(`${p.title.slice(0, 40)} : fiche native indisponible (${r.error}), envoyée en photo`);
+        report.group.errors.push(`${p.title.slice(0, 40)} : fiche native indisponible (${r.error}), envoyée en carte`);
+        await sleep(THROTTLE_MS);
+      }
+      // 2) Carte : photo + texte + bouton « Voir le produit » (un seul message).
+      if (!r.ok) {
+        r = await sendWhapiProductCard({
+          imageUrl: p.imageUrl,
+          body: p.cardBody,
+          footer: plan.tagline,
+          buttonTitle: 'Voir le produit',
+          url: p.url,
+          to,
+        });
+      }
+      // 3) Repli si WhatsApp refuse les boutons : photo + légende avec le lien en clair.
+      if (!r.ok) {
         await sleep(THROTTLE_MS);
         r = await sendWhapiImage(p.imageUrl, p.caption, to);
       }
@@ -101,7 +115,7 @@ export async function broadcastCategory(
   // --- Statut WhatsApp ---------------------------------------------------
   if (!cfg.channels.status) report.status.skipped = 'disabled';
   else {
-    for (const p of forOthers) {
+    for (const p of take('status')) {
       const r = await postWhapiStory(p.imageUrl, p.social);
       if (r.ok) report.status.sent += 1;
       else report.status.errors.push(`${p.title.slice(0, 40)} : ${r.error}`);
@@ -117,7 +131,7 @@ export async function broadcastCategory(
     const head = await sendWhapiText(plan.header, to);
     if (!head.ok) report.channel.errors.push(`en-tête : ${head.error}`);
     await sleep(THROTTLE_MS);
-    for (const p of forOthers) {
+    for (const p of take('channel')) {
       const r = await sendWhapiImage(p.imageUrl, p.caption, to);
       if (r.ok) report.channel.sent += 1;
       else report.channel.errors.push(`${p.title.slice(0, 40)} : ${r.error}`);
@@ -129,7 +143,7 @@ export async function broadcastCategory(
   if (!cfg.channels.facebook) report.facebook.skipped = 'disabled';
   else if (!metaFacebookConfigured()) report.facebook.skipped = 'not_configured';
   else {
-    for (const p of forOthers) {
+    for (const p of take('facebook')) {
       const img = publicImage(p.imageUrl, origin);
       const post = await fbPagePhotoPost({ imageUrl: img, message: `${plan.header.replace(/[*_]/g, '')}\n\n${p.social}` });
       if (post.ok) report.facebook.sent += 1;
@@ -145,7 +159,7 @@ export async function broadcastCategory(
   if (!cfg.channels.instagram) report.instagram.skipped = 'disabled';
   else if (!metaInstagramConfigured()) report.instagram.skipped = 'not_configured';
   else {
-    for (const p of forOthers) {
+    for (const p of take('instagram')) {
       const img = publicImage(p.imageUrl, origin);
       // Instagram n'accepte pas les liens cliquables dans les légendes : on
       // garde le texte, le lien reste lisible.

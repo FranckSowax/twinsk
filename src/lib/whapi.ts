@@ -814,6 +814,32 @@ export async function sendWhapiButtonLink(args: {
   });
 }
 
+/**
+ * Carte produit : photo en en-tête, texte, bouton URL — un seul message.
+ * Les boutons WHAPI dépendent des versions WhatsApp (« as-is ») : l'appelant
+ * doit prévoir un repli photo + légende si la carte est refusée.
+ */
+export async function sendWhapiProductCard(args: {
+  imageUrl: string;
+  body: string;
+  footer?: string;
+  buttonTitle: string;
+  url: string;
+  to: string;
+}): Promise<WhapiResult> {
+  return whapiPost('/messages/interactive', {
+    to: args.to,
+    type: 'button',
+    media: args.imageUrl,
+    header: { text: '' },
+    body: { text: args.body },
+    ...(args.footer ? { footer: { text: args.footer.slice(0, 60) } } : {}),
+    action: {
+      buttons: [{ type: 'url', title: args.buttonTitle.slice(0, 20), id: 'product_link', url: args.url }],
+    },
+  });
+}
+
 /** Corps du message d'une offre : titre (*gras*) + thème (_italique_) + description. */
 export function buildOfferBody(args: {
   title: string;
