@@ -10,7 +10,7 @@
 //   instagram → compte pro : une publication photo par produit + une story
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
+import { facebookPostsFor, productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import {
   postWhapiStory,
@@ -143,11 +143,17 @@ export async function broadcastCategory(
   if (!cfg.channels.facebook) report.facebook.skipped = 'disabled';
   else if (!metaFacebookConfigured()) report.facebook.skipped = 'not_configured';
   else {
-    for (const p of take('facebook')) {
+    // Publications (restent dans le fil) et stories (24 h) ont chacune leur rythme.
+    const posts = facebookPostsFor(cfg);
+    const stories = take('facebook');
+    for (let i = 0; i < stories.length; i++) {
+      const p = stories[i];
       const img = publicImage(p.imageUrl, origin);
-      const post = await fbPagePhotoPost({ imageUrl: img, message: `${plan.header.replace(/[*_]/g, '')}\n\n${p.social}` });
-      if (post.ok) report.facebook.sent += 1;
-      else report.facebook.errors.push(`post ${p.title.slice(0, 30)} : ${post.error}`);
+      if (i < posts) {
+        const post = await fbPagePhotoPost({ imageUrl: img, message: `${plan.header.replace(/[*_]/g, '')}\n\n${p.social}` });
+        if (post.ok) report.facebook.sent += 1;
+        else report.facebook.errors.push(`post ${p.title.slice(0, 30)} : ${post.error}`);
+      }
       const story = await fbPageStory({ imageUrl: img });
       if (story.ok) report.facebook.sent += 1;
       else report.facebook.errors.push(`story ${p.title.slice(0, 30)} : ${story.error}`);

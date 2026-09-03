@@ -93,8 +93,9 @@ export async function POST(request: NextRequest) {
   if (body.per_channel && typeof body.per_channel === 'object') {
     for (const [k, v] of Object.entries(body.per_channel)) {
       if (k === 'group') continue;
-      if (typeof v === 'number' && (v < 1 || v > DRIP_MAX_PER_CATEGORY)) {
-        return NextResponse.json({ error: `per_channel.${k} entre 1 et ${DRIP_MAX_PER_CATEGORY}` }, { status: 400 });
+      const min = k === 'facebook_posts' ? 0 : 1;
+      if (typeof v === 'number' && (v < min || v > DRIP_MAX_PER_CATEGORY)) {
+        return NextResponse.json({ error: `per_channel.${k} entre ${min} et ${DRIP_MAX_PER_CATEGORY}` }, { status: 400 });
       }
       if (typeof v === 'number') (perChannel as Record<string, number>)[k] = v;
       else if (v === null) delete (perChannel as Record<string, number>)[k];

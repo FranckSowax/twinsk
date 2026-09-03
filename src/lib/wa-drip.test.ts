@@ -9,6 +9,7 @@ import {
   listDripCategories,
   localHour,
   localHourKey,
+  facebookPostsFor,
   maxProductsPerHour,
   normalizeDripConfig,
   pickCategory,
@@ -157,5 +158,10 @@ describe('rythme par canal', () => {
     expect(productsFor(cfg, 'status')).toBe(5);
     expect(productsFor({ ...cfg, per_channel: {} }, 'instagram')).toBe(1);
     expect(maxProductsPerHour({ ...cfg, per_category: 2, per_channel: { facebook: 4 } })).toBe(4);
+    // Facebook : stories et publications séparées (0 publication autorisé)
+    const fb = normalizeDripConfig({ per_channel: { facebook: 5, facebook_posts: 0 } });
+    expect(productsFor(fb, 'facebook')).toBe(5);
+    expect(facebookPostsFor(fb)).toBe(0);
+    expect(facebookPostsFor(normalizeDripConfig({}))).toBe(1);
   });
 });
