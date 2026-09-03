@@ -10,7 +10,7 @@
 //   instagram → compte pro : une publication photo par produit + une story
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { facebookPostsFor, productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
+import { facebookPostsFor, instagramPostsFor, productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import {
   postWhapiStory,
@@ -165,13 +165,18 @@ export async function broadcastCategory(
   if (!cfg.channels.instagram) report.instagram.skipped = 'disabled';
   else if (!metaInstagramConfigured()) report.instagram.skipped = 'not_configured';
   else {
-    for (const p of take('instagram')) {
+    const igPosts = instagramPostsFor(cfg);
+    const igItems = take('instagram');
+    for (let i = 0; i < igItems.length; i++) {
+      const p = igItems[i];
       const img = publicImage(p.imageUrl, origin);
-      // Instagram n'accepte pas les liens cliquables dans les légendes : on
-      // garde le texte, le lien reste lisible.
-      const post = await igPhotoPost({ imageUrl: img, caption: `${plan.categoryTitle} · ${plan.offerTitle}\n\n${p.social}` });
-      if (post.ok) report.instagram.sent += 1;
-      else report.instagram.errors.push(`post ${p.title.slice(0, 30)} : ${post.error}`);
+      if (i < igPosts) {
+        // Instagram n'accepte pas les liens cliquables dans les légendes : on
+        // garde le texte, le lien reste lisible.
+        const post = await igPhotoPost({ imageUrl: img, caption: `${plan.categoryTitle} · ${plan.offerTitle}\n\n${p.social}` });
+        if (post.ok) report.instagram.sent += 1;
+        else report.instagram.errors.push(`post ${p.title.slice(0, 30)} : ${post.error}`);
+      }
       const story = await igStory({ imageUrl: img });
       if (story.ok) report.instagram.sent += 1;
       else report.instagram.errors.push(`story ${p.title.slice(0, 30)} : ${story.error}`);

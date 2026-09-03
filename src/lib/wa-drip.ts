@@ -17,7 +17,7 @@ export const DRIP_MAX_PER_CATEGORY = 5;
 
 export const DRIP_CHANNELS = ['group', 'status', 'channel', 'facebook', 'instagram'] as const;
 export type DripChannel = (typeof DRIP_CHANNELS)[number];
-export const PER_CHANNEL_KEYS = ['status', 'channel', 'facebook', 'facebook_posts', 'instagram'] as const;
+export const PER_CHANNEL_KEYS = ['status', 'channel', 'facebook', 'facebook_posts', 'instagram', 'instagram_posts'] as const;
 export type PerChannelKey = (typeof PER_CHANNEL_KEYS)[number];
 export type DripChannels = Record<DripChannel, boolean>;
 
@@ -35,8 +35,8 @@ export interface DripConfig {
   per_hour_other: number;
   /**
    * Réglage fin par canal (prime sur per_hour_other quand présent).
-   * `facebook` = stories par heure ; `facebook_posts` = publications par heure
-   * (les publications restent dans le fil, les stories disparaissent en 24 h).
+   * `facebook`/`instagram` = stories par heure ; `facebook_posts`/`instagram_posts`
+   * = publications par heure (0 = stories seulement).
    */
   per_channel: Partial<Record<PerChannelKey, number>>;
   start_hour: number; // inclus, heure de Libreville
@@ -87,6 +87,11 @@ export function productsFor(cfg: DripConfig, channel: DripChannel): number {
 /** Publications Facebook par heure (défaut 1 ; 0 = stories seulement). */
 export function facebookPostsFor(cfg: DripConfig): number {
   return cfg.per_channel.facebook_posts ?? 1;
+}
+
+/** Publications Instagram par heure (défaut 1 ; 0 = stories seulement). */
+export function instagramPostsFor(cfg: DripConfig): number {
+  return cfg.per_channel.instagram_posts ?? 1;
 }
 
 /** Le plus grand rythme demandé, tous canaux confondus (taille du plan). */

@@ -15,7 +15,7 @@ const CHANNELS: { key: Channel; label: string; hint: string }[] = [
   { key: 'status', label: 'Statut WhatsApp', hint: '1 story par produit (24 h)' },
   { key: 'channel', label: 'Chaîne WhatsApp', hint: 'en-tête + photos' },
   { key: 'facebook', label: 'Page Facebook', hint: 'publications + stories (rythmes séparés)' },
-  { key: 'instagram', label: 'Instagram', hint: 'publication + story' },
+  { key: 'instagram', label: 'Instagram', hint: 'publications + stories (rythmes séparés)' },
 ];
 
 interface Config {
@@ -26,7 +26,7 @@ interface Config {
   channels: Record<Channel, boolean>;
   per_category: number;
   per_hour_other: number;
-  per_channel: Partial<Record<Exclude<Channel, 'group'> | 'facebook_posts', number>>;
+  per_channel: Partial<Record<Exclude<Channel, 'group'> | 'facebook_posts' | 'instagram_posts', number>>;
   start_hour: number;
   end_hour: number;
   cursor: number;
@@ -203,17 +203,17 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
         </div>
         <div className="sm:col-span-2">
           <label className={label}>Produits / h par canal (vide = défaut)</label>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {(['status', 'channel', 'facebook', 'facebook_posts', 'instagram'] as const).map((c) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {(['status', 'channel', 'facebook', 'facebook_posts', 'instagram', 'instagram_posts'] as const).map((c) => (
               <div key={c}>
                 <span className="mb-1 block text-xs text-slate-500">
-                  {c === 'facebook' ? 'Facebook — stories' : c === 'facebook_posts' ? 'Facebook — publications' : CHANNELS.find((x) => x.key === c)?.label}
+                  {c === 'facebook' ? 'Facebook — stories' : c === 'facebook_posts' ? 'Facebook — publications' : c === 'instagram' ? 'Instagram — stories' : c === 'instagram_posts' ? 'Instagram — publications' : CHANNELS.find((x) => x.key === c)?.label}
                 </span>
                 <input
                   type="number"
-                  min={c === 'facebook_posts' ? 0 : 1}
+                  min={c.endsWith('_posts') ? 0 : 1}
                   max={5}
-                  placeholder={c === 'facebook_posts' ? '1' : String(cfg.per_hour_other)}
+                  placeholder={c.endsWith('_posts') ? '1' : String(cfg.per_hour_other)}
                   className={field}
                   value={cfg.per_channel[c] ?? ''}
                   onChange={(e) =>

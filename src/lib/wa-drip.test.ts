@@ -10,6 +10,7 @@ import {
   localHour,
   localHourKey,
   facebookPostsFor,
+  instagramPostsFor,
   maxProductsPerHour,
   normalizeDripConfig,
   pickCategory,
@@ -163,5 +164,8 @@ describe('rythme par canal', () => {
     expect(productsFor(fb, 'facebook')).toBe(5);
     expect(facebookPostsFor(fb)).toBe(0);
     expect(facebookPostsFor(normalizeDripConfig({}))).toBe(1);
+    const ig = normalizeDripConfig({ per_channel: { instagram: 1, instagram_posts: 0 } });
+    expect(instagramPostsFor(ig)).toBe(0);
+    expect(instagramPostsFor(normalizeDripConfig({}))).toBe(1);
   });
 });
