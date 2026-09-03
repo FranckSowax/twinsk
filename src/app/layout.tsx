@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Oswald } from "next/font/google";
 import "./globals.css";
+import AttributionCapture from "@/components/AttributionCapture";
 
 const geist = Geist({
   variable: "--font-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
         className={`${geist.variable} ${geistMono.variable} ${oswald.variable} antialiased`}
         style={{ fontFamily: 'var(--font-sans)' }}
       >
+        <AttributionCapture />
         {children}
       </body>
     </html>

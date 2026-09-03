@@ -19,6 +19,7 @@ import {
   Filter,
   Ship,
 } from 'lucide-react';
+import { describeTouchPoint, type Attribution } from '@/lib/attribution';
 
 type LeadType =
   | 'freight_estimate'
@@ -36,6 +37,7 @@ interface Lead {
   fields: Record<string, string | number>;
   status: LeadStatus;
   admin_note: string | null;
+  attribution: Attribution | null;
   created_at: string;
   updated_at: string;
 }
@@ -410,6 +412,8 @@ const DetailModal = ({
             </dl>
           </div>
 
+          <AttributionBlock attribution={lead.attribution} />
+
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Statut
@@ -519,4 +523,69 @@ function formatFull(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/**
+ * Provenance du lead : d'où vient la personne, et par quelle campagne.
+ * `first` = la source qui l'a fait découvrir Twinsk, `last` = celle du jour
+ * où elle a rempli le formulaire. Les deux diffèrent dès qu'il y a relance.
+ */
+function AttributionBlock({ attribution }: { attribution: Attribution | null }) {
+  if (!attribution) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/40">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Provenance
+        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Non tracée — lead antérieur à la mise en place du suivi, ou visite directe.
+        </p>
+      </div>
+    );
+  }
+
+  const { first, last } = attribution;
+  const sameTouch = describeTouchPoint(first) === describeTouchPoint(last);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/40">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        Provenance
+      </p>
+      <dl className="space-y-2 text-sm">
+        <div className="grid grid-cols-3 gap-3">
+          <dt className="font-medium text-slate-500 dark:text-slate-400">
+            {sameTouch ? 'Source' : 'Découverte'}
+          </dt>
+          <dd className="col-span-2 font-semibold text-slate-900 dark:text-white break-words">
+            {describeTouchPoint(first)}
+          </dd>
+        </div>
+        {!sameTouch && (
+          <div className="grid grid-cols-3 gap-3">
+            <dt className="font-medium text-slate-500 dark:text-slate-400">Dernier contact</dt>
+            <dd className="col-span-2 font-semibold text-slate-900 dark:text-white break-words">
+              {describeTouchPoint(last)}
+            </dd>
+          </div>
+        )}
+        {last.utm_content && (
+          <div className="grid grid-cols-3 gap-3">
+            <dt className="font-medium text-slate-500 dark:text-slate-400">Créa</dt>
+            <dd className="col-span-2 text-slate-900 dark:text-white break-words">
+              {last.utm_content}
+            </dd>
+          </div>
+        )}
+        {last.landing_path && (
+          <div className="grid grid-cols-3 gap-3">
+            <dt className="font-medium text-slate-500 dark:text-slate-400">Page d’entrée</dt>
+            <dd className="col-span-2 text-slate-900 dark:text-white break-words">
+              {last.landing_path}
+            </dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  );
 }

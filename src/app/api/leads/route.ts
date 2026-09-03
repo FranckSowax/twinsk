@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import {
+  ATTRIBUTION_COOKIE,
+  deserializeAttribution,
+  describeTouchPoint,
+} from '@/lib/attribution';
 
 export type LeadType =
   | 'freight_estimate'
@@ -46,9 +51,12 @@ export async function POST(request: NextRequest) {
       ),
     );
 
+    // Provenance : cookie posé au premier atterrissage (voir AttributionCapture).
+    const attribution = deserializeAttribution(request.cookies.get(ATTRIBUTION_COOKIE)?.value);
+
     const { data: lead, error } = await supabaseAdmin
       .from('leads')
-      .insert({ type, fields: cleanFields })
+      .insert({ type, fields: cleanFields, attribution })
       .select()
       .single();
 
@@ -61,6 +69,8 @@ export async function POST(request: NextRequest) {
       `${TITLES[type]} — <b>nouvelle demande</b>`,
       '',
       ...Object.entries(cleanFields).map(([k, v]) => `• <b>${k}</b> : ${String(v)}`),
+      '',
+      `📣 Source : <b>${describeTouchPoint(attribution?.last)}</b>`,
     ];
     await sendTelegramMessage(lines.join('\n'));
 

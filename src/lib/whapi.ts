@@ -446,25 +446,61 @@ export async function sendAndPinWhapiMessage(
 // Catalogue WhatsApp Business (produits + collections) — endpoints /business
 // ----------------------------------------------------------------------------
 
+// WHAPI documente le 429 sur produits et collections : on réessaie avec un délai
+// croissant plutôt que de perdre la fiche (et la collection qui en dépend).
+const BUSINESS_RETRY_DELAYS_MS = [3000, 6000, 12000];
+
+export interface WhapiBusinessResult<T> {
+  ok: boolean;
+  data?: T;
+  error?: string;
+  status?: number;
+  /** Meta refuse un product_retailer_id déjà pris (« Duplicate Item Code Added »). */
+  duplicate?: boolean;
+}
+
+/** Extrait le message Meta lisible d'une erreur WHAPI (details.message) s'il existe. */
+function metaErrorMessage(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null;
+  const details = (err as { details?: unknown }).details;
+  if (details && typeof details === 'object') {
+    const msg = (details as { message?: unknown }).message;
+    if (typeof msg === 'string') return msg;
+  }
+  return typeof details === 'string' ? details : null;
+}
+
 async function whapiBusinessCall<T = Record<string, unknown>>(
   method: 'POST' | 'PATCH' | 'DELETE',
   path: string,
   payload?: Record<string, unknown>,
-): Promise<{ ok: boolean; data?: T; error?: string }> {
+): Promise<WhapiBusinessResult<T>> {
   if (!WHAPI_TOKEN) return { ok: false, error: 'WHAPI_TOKEN non configuré (variable d’environnement)' };
-  try {
-    const res = await fetch(`${WHAPI_BASE}${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WHAPI_TOKEN}` },
-      body: payload ? JSON.stringify(payload) : undefined,
-    });
-    const data = (await res.json().catch(() => ({}))) as T & { error?: unknown };
-    if (!res.ok) {
-      return { ok: false, error: `Whapi ${res.status}: ${JSON.stringify(data.error ?? data).slice(0, 200)}` };
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(`${WHAPI_BASE}${path}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WHAPI_TOKEN}` },
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
+      const data = (await res.json().catch(() => ({}))) as T & { error?: unknown };
+      if (res.status === 429 && attempt < BUSINESS_RETRY_DELAYS_MS.length) {
+        await sleep(BUSINESS_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      if (!res.ok) {
+        const meta = metaErrorMessage(data.error);
+        return {
+          ok: false,
+          status: res.status,
+          duplicate: /duplicate item code/i.test(meta || ''),
+          error: `Whapi ${res.status}: ${(meta ? `${meta} — ` : '') + JSON.stringify(data.error ?? data)}`.slice(0, 300),
+        };
+      }
+      return { ok: true, data, status: res.status };
+    } catch (err) {
+      return { ok: false, error: String(err).slice(0, 200) };
     }
-    return { ok: true, data };
-  } catch (err) {
-    return { ok: false, error: String(err).slice(0, 200) };
   }
 }
 
@@ -519,10 +555,14 @@ export interface WhapiProductInput {
   retailerId?: string; // id produit Twinsk (clé de synchro)
 }
 
-/** Crée un produit dans le catalogue WhatsApp Business. Retourne l'id WhatsApp. */
+/**
+ * Crée un produit dans le catalogue WhatsApp Business. Retourne l'id WhatsApp.
+ * `duplicate` = Meta connaît déjà ce product_retailer_id (fiche existante ou
+ * « fantôme » d'une création précédente restée sans réponse).
+ */
 export async function createWhapiProduct(
   p: WhapiProductInput,
-): Promise<{ ok: boolean; productId?: string; error?: string }> {
+): Promise<{ ok: boolean; productId?: string; error?: string; duplicate?: boolean }> {
   const r = await whapiBusinessCall<{ id?: string }>('POST', '/business/products', {
     name: p.name,
     description: p.description,
@@ -533,7 +573,7 @@ export async function createWhapiProduct(
     product_retailer_id: p.retailerId,
     availability: 'in stock',
   });
-  if (!r.ok) return { ok: false, error: r.error };
+  if (!r.ok) return { ok: false, error: r.error, duplicate: r.duplicate };
   if (!r.data?.id) return { ok: false, error: 'Produit créé mais id introuvable dans la réponse' };
   return { ok: true, productId: r.data.id };
 }
@@ -617,6 +657,46 @@ export async function createWhapiCollection(
   return { ok: true, collectionId: id };
 }
 
+/**
+ * Modifie une collection : renommage et/ou ajout/retrait de produits
+ * (PATCH /business/collections/{id} — name, add_products, remove_products).
+ */
+export async function updateWhapiCollection(
+  collectionId: string,
+  patch: { name?: string; add?: string[]; remove?: string[] },
+): Promise<WhapiResult> {
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name;
+  if (patch.add?.length) payload.add_products = patch.add;
+  if (patch.remove?.length) payload.remove_products = patch.remove;
+  if (!Object.keys(payload).length) return { ok: true };
+  const r = await whapiBusinessCall('PATCH', `/business/collections/${encodeURIComponent(collectionId)}`, payload);
+  return { ok: r.ok, error: r.error };
+}
+
+/** Supprime une collection (les produits restent au catalogue). */
+export async function deleteWhapiCollection(collectionId: string): Promise<WhapiResult> {
+  const r = await whapiBusinessCall('DELETE', `/business/collections/${encodeURIComponent(collectionId)}`);
+  return { ok: r.ok, error: r.error };
+}
+
+/**
+ * Ids des produits d'une collection, tels que WhatsApp les voit — sert à
+ * vérifier qu'une collection contient bien ce qu'on lui a envoyé.
+ * `products_count` : défaut 10, maximum 30 (limite de LECTURE de l'endpoint,
+ * pas de la collection elle-même).
+ */
+export async function getWhapiCollectionProductIds(
+  collectionId: string,
+): Promise<{ ok: boolean; ids?: string[]; error?: string }> {
+  const r = await whapiGet<{ products?: { id?: string }[] }>(
+    `/business/collections/${encodeURIComponent(collectionId)}/products?products_count=30`,
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const ids = (r.data?.products || []).map((p) => p.id).filter((id): id is string => !!id);
+  return { ok: true, ids };
+}
+
 /** Configure l'URL de webhook WHAPI (PATCH /settings) pour recevoir les événements. */
 export async function setWhapiWebhook(
   url: string,
@@ -682,6 +762,39 @@ export async function sendWhapiVideo(
   to: string = DEFAULT_GROUP_ID,
 ): Promise<WhapiResult> {
   return whapiPost('/messages/video', { to, media: mediaUrl, caption });
+}
+
+/**
+ * Publie une story (statut WhatsApp) photo/vidéo avec légende sur le numéro
+ * connecté. Disparaît après 24 h. Media = URL publique (ou base64).
+ */
+export async function postWhapiStory(mediaUrl: string, caption?: string): Promise<WhapiResult> {
+  return whapiPost('/stories', { media: mediaUrl, ...(caption ? { caption } : {}) });
+}
+
+export interface WhapiNewsletter {
+  id: string; // …@newsletter
+  name: string;
+  inviteCode: string | null;
+  subscribers: number | null;
+}
+
+/** Chaînes WhatsApp du numéro (celles qu'il possède ou suit). */
+export async function getWhapiNewsletters(): Promise<{ ok: boolean; newsletters?: WhapiNewsletter[]; error?: string }> {
+  interface Raw { id?: string; name?: string; invite_code?: string; subscribers_count?: number | null; role?: string }
+  const r = await whapiGet<{ newsletters?: Raw[] }>('/newsletters?count=50');
+  if (!r.ok) return { ok: false, error: r.error };
+  return {
+    ok: true,
+    newsletters: (r.data?.newsletters || [])
+      .filter((n) => n.id)
+      .map((n) => ({
+        id: n.id!,
+        name: n.name || '(sans nom)',
+        inviteCode: n.invite_code || null,
+        subscribers: n.subscribers_count ?? null,
+      })),
+  };
 }
 
 /** Envoie un message interactif avec un bouton URL (boutons WHAPI = « as-is », instables). */

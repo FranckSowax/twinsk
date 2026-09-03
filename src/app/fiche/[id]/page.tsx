@@ -1,7 +1,70 @@
+import { cache } from 'react';
+import { headers } from 'next/headers';
+import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import FicheForm from '@/components/fiche/FicheForm';
+import { buildOgImage } from '@/lib/og-image';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Chargement mutualisé entre generateMetadata et le rendu : `cache` déduplique
+ * l'appel Supabase sur une même requête, sinon la ligne serait lue deux fois.
+ */
+const loadLine = cache(async (id: string) => {
+  const { data } = await supabaseAdmin
+    .from('collab_review_lines')
+    .select(
+      'id, title, title_original, offer_product_id, image_url, product_url, seller, variants, weight, volume, dimensions, has_battery, supplier_shipping_price, delivery_time, collab_notes',
+    )
+    .eq('id', id)
+    .single();
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const line = await loadLine(id);
+
+  // Ces fiches exposent le lien fournisseur 1688 et le prix d'achat : elles ne
+  // doivent jamais finir dans un index de recherche.
+  const robots = { index: false, follow: false };
+
+  if (!line) return { title: 'Fiche produit · Twinsk', robots };
+
+  const title = line.title || line.title_original || 'Fiche produit';
+  const description = 'Fiche produit Twinsk · 产品信息表 — à compléter par le fournisseur.';
+
+  const host = (await headers()).get('host') || 'twinsk-production.up.railway.app';
+  const origin = `https://${host}`;
+  // image_url pointe souvent vers alicdn : buildOgImage la proxifie et mesure
+  // ses dimensions, sans quoi aucun aperçu ne s'affiche.
+  const ogImage = await buildOgImage(line.image_url, origin, title);
+
+  return {
+    title: `${title} · Twinsk`,
+    description,
+    robots,
+    openGraph: {
+      title,
+      description,
+      siteName: 'Twinsk',
+      type: 'website',
+      url: `${origin}/fiche/${id}`,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
+    twitter: {
+      card: ogImage ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      ...(ogImage ? { images: [ogImage.url] } : {}),
+    },
+  };
+}
 
 interface Variant {
   name?: string;
@@ -15,13 +78,7 @@ interface Variant {
 
 export default async function FichePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { data: line } = await supabaseAdmin
-    .from('collab_review_lines')
-    .select(
-      'id, title, title_original, offer_product_id, image_url, product_url, seller, variants, weight, volume, dimensions, has_battery, supplier_shipping_price, delivery_time, collab_notes',
-    )
-    .eq('id', id)
-    .single();
+  const line = await loadLine(id);
 
   if (!line) {
     return (

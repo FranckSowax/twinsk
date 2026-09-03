@@ -1,8 +1,9 @@
 'use client';
 
 // Choix du périmètre avant publication au catalogue WhatsApp Business.
-// Un gros listing (Maison & Confort : 459 produits, 17 phases) ne se publie pas
-// en bloc — on coche les phases (ou catégories) qui doivent partir au catalogue.
+// Le catalogue est une vitrine (500 fiches max, tous listings confondus) :
+// une collection par phase, le premier produit de chaque catégorie. On coche
+// les phases qui doivent partir au catalogue.
 
 import { useEffect, useState } from 'react';
 import { Loader2, Store, X } from 'lucide-react';
@@ -14,6 +15,8 @@ interface Group {
   fiches: number;
 }
 
+const CATALOG_CAP = 500;
+
 interface Props {
   offerId: string;
   offerTitle: string;
@@ -23,7 +26,7 @@ interface Props {
 
 export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone }: Props) {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [groupedBy, setGroupedBy] = useState<'phase' | 'category'>('category');
+  const [groupedBy, setGroupedBy] = useState<'phase' | 'listing'>('phase');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -39,7 +42,7 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
           return;
         }
         setGroups(d.groups || []);
-        setGroupedBy(d.grouped_by || 'category');
+        setGroupedBy(d.grouped_by || 'phase');
       } catch {
         setError('Erreur réseau');
       } finally {
@@ -57,10 +60,10 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
     });
 
   const fiches = groups.filter((g) => selected.has(g.id)).reduce((n, g) => n + g.fiches, 0);
-  const collections = groups
-    .filter((g) => selected.has(g.id))
-    .reduce((n, g) => n + Math.ceil(g.fiches / 10), 0);
-  const minutes = Math.max(1, Math.round(((fiches + collections) * 0.4) / 60));
+  // Une collection par groupe coché (phase, ou listing entier).
+  const collections = selected.size;
+  const minutes = Math.max(1, Math.round(((fiches + collections * 2) * 0.4) / 60));
+  const overCap = fiches > CATALOG_CAP;
 
   const publish = async (mode: 'full' | 'collections' = 'full') => {
     if (!selected.size) return;
@@ -73,9 +76,7 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
         body: JSON.stringify({
           origin: window.location.origin,
           mode,
-          ...(groupedBy === 'phase'
-            ? { phaseIds: [...selected] }
-            : { itemIds: [...selected] }),
+          groupIds: [...selected],
         }),
       });
       const d = await res.json();
@@ -89,6 +90,7 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
             ? `${d.collections?.length || 0} collection(s) reconstruite(s)`
             : `${d.created} fiche(s) créée(s) · ${d.updated} mise(s) à jour`) +
           (d.skipped ? ` · ${d.skipped} ignorée(s)` : '') +
+          (d.duplicates ? ` · ${d.duplicates} fantôme(s)` : '') +
           (d.collections?.length ? `\n${d.collections.length} collection(s)` : '') +
           (d.errors?.length ? `\n⚠️ ${d.errors.join('\n')}` : ''),
       );
@@ -111,7 +113,10 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
               Publier au catalogue WhatsApp
             </h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              {offerTitle} — cochez {groupedBy === 'phase' ? 'les phases' : 'les catégories'} à publier
+              {offerTitle} —{' '}
+              {groupedBy === 'phase'
+                ? 'une collection par phase, le premier produit de chaque catégorie'
+                : 'une collection pour le listing, le premier produit de chaque catégorie'}
             </p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
@@ -156,7 +161,7 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
                         {g.title}
                       </span>
                       <span className="text-xs tabular-nums text-slate-400">
-                        {g.fiches} fiche{g.fiches > 1 ? 's' : ''}
+                        {g.fiches} fiche{g.fiches > 1 ? 's' : ''} · {g.categories} cat.
                       </span>
                     </label>
                   </li>
@@ -171,15 +176,16 @@ export default function CatalogScopeModal({ offerId, offerTitle, onClose, onDone
             <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
           <div className="mb-3 flex items-center justify-between text-sm">
-            <span className="text-slate-500">
+            <span className={overCap ? 'font-semibold text-red-600' : 'text-slate-500'}>
               {fiches
-                ? `${fiches} fiche(s) · ${collections} collection(s) · ~${minutes} min`
+                ? `${fiches} fiche(s) · ${collections} collection(s) · ~${minutes} min` +
+                  (overCap ? ` — dépasse le plafond WhatsApp de ${CATALOG_CAP} fiches` : '')
                 : 'Rien de sélectionné'}
             </span>
           </div>
           <button
             onClick={() => publish('full')}
-            disabled={!selected.size || syncing}
+            disabled={!selected.size || syncing || overCap}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 font-semibold text-white disabled:opacity-50"
           >
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}

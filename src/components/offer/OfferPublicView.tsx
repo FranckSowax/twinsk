@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
@@ -282,12 +282,43 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     });
   };
 
+  // Lien profond : ?p=<id produit> ouvre directement la fiche (modale, variantes,
+  // panier). On tient l'URL à jour à l'ouverture/fermeture pour qu'un partage
+  // depuis le navigateur pointe aussi sur le produit — sans navigation Next.
+  const setProductInUrl = (productId: string | null) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (productId) url.searchParams.set('p', productId);
+    else url.searchParams.delete('p');
+    window.history.replaceState(window.history.state, '', url.toString());
+  };
+
   const openProduct = (p: OfferProduct) => {
     setActiveProduct(p);
     // Default-select the first variant if any in cart, else null
     const existing = Object.values(cart).find((l) => l.productId === p.id);
     setSelectedVariantForActive(existing?.variantId ?? null);
+    setProductInUrl(p.id);
   };
+
+  const closeProduct = () => {
+    setActiveProduct(null);
+    setProductInUrl(null);
+  };
+
+  // À l'arrivée avec ?p=…, on ouvre la fiche une seule fois (pas de réouverture
+  // après fermeture, même si l'URL est relue).
+  const searchParams = useSearchParams();
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const wanted = searchParams.get('p');
+    if (!wanted) return;
+    deepLinkHandled.current = true;
+    const found = items.flatMap((it) => it.products).find((pr) => pr.id === wanted);
+    if (found) openProduct(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, items]);
 
   const addToCart = (p: OfferProduct) => {
     const variantId = selectedVariantForActive;
@@ -295,7 +326,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     const existing = cart[cartKey(p.id, variantId)];
     const qty = existing ? existing.quantity + 1 : 1;
     updateCartLine(p.id, variantId, qty);
-    setActiveProduct(null);
+    closeProduct();
   };
 
   const submitOrder = async () => {
@@ -709,7 +740,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setActiveProduct(null)}
+            onClick={closeProduct}
             className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-0 backdrop-blur-sm sm:p-4"
           >
             <motion.div
@@ -739,7 +770,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                 })()}
                 <button
                   type="button"
-                  onClick={() => setActiveProduct(null)}
+                  onClick={closeProduct}
                   className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur"
                 >
                   <X className="h-5 w-5" />

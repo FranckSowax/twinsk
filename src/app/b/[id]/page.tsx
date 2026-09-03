@@ -1,7 +1,9 @@
 import { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OfferPublicView from '@/components/offer/OfferPublicView';
 import { fetchPublicOffer, type PublicOfferData } from '@/lib/offer-public-fetch';
+import { buildOgImage } from '@/lib/og-image';
 
 // Boutique marque blanche d'un partenaire : /b/[affiliateOfferId].
 // Prix majorés de la commission, produits masqués filtrés, ordre personnalisé,
@@ -46,21 +48,30 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .single();
   const description = offer?.description || offer?.theme || undefined;
   const image = offer?.cover_image_url || null;
+  const ogTitle = shop || offer?.title || 'Boutique';
+
+  const host = (await headers()).get('host') || 'twinsk-production.up.railway.app';
+  const origin = `https://${host}`;
+  // Même traitement que /offer : sans width/height, Facebook affiche la carte
+  // sans visuel au premier partage.
+  const ogImage = await buildOgImage(image, origin, ogTitle);
+
   return {
     title,
     description,
     openGraph: {
-      title: shop || offer?.title || 'Boutique',
+      title: ogTitle,
       description,
       siteName: shop || 'Boutique',
       type: 'website',
-      ...(image ? { images: [{ url: image }] } : {}),
+      url: `${origin}/b/${id}`,
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
     twitter: {
-      card: image ? 'summary_large_image' : 'summary',
-      title: shop || offer?.title || 'Boutique',
+      card: ogImage ? 'summary_large_image' : 'summary',
+      title: ogTitle,
       description,
-      ...(image ? { images: [image] } : {}),
+      ...(ogImage ? { images: [ogImage.url] } : {}),
     },
   };
 }
