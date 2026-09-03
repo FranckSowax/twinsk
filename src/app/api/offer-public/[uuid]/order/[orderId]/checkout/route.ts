@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { settlePromoForOrder } from '@/lib/promo-settle';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 
 // POST: Initiate ebilling payment for an order.
@@ -28,6 +29,14 @@ export async function POST(
       { error: 'Renseignez vos coordonnées (nom + WhatsApp) avant de finaliser' },
       { status: 400 },
     );
+  }
+
+  // Code promo : re-validé au moment de payer (fenêtre, quotas), puis confirmé.
+  // Si le code n'est plus valable, il est retiré et les totaux recalculés :
+  // le client voit le nouveau montant avant de repayer.
+  const promo = await settlePromoForOrder(orderId);
+  if (!promo.ok) {
+    return NextResponse.json({ error: promo.reason, promo_removed: true }, { status: 409 });
   }
   if (order.transport_mode === 'quote') {
     return NextResponse.json(

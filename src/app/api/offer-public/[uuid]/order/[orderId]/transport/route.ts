@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing } from '@/lib/offer-pricing';
+import { pricingOptionsFor } from '@/lib/promo';
 
 // PATCH: Customer picks a transport mode ('air' | 'sea' | 'quote') and we
 // persist the corresponding transport_cost + grand_total.
@@ -17,7 +18,7 @@ export async function PATCH(
 
   const { data: order } = await supabaseAdmin
     .from('offer_orders')
-    .select('id, offer_id, items_total_cny')
+    .select('*') // colonnes promo incluses si la migration 56 est passée (sinon undefined)
     .eq('id', orderId)
     .eq('offer_id', uuid)
     .single();
@@ -65,11 +66,12 @@ export async function PATCH(
         volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
         has_battery: l.has_battery ?? !!meta?.has_battery,
       };
-    })
+    }),
+    pricingOptionsFor(order),
   );
 
   let transportCost: number | null = null;
-  let grandTotal: number | null = pricing.itemsTotalFcfaRounded;
+  let grandTotal: number | null = pricing.itemsNetFcfa;
   if (mode === 'air') {
     if (!pricing.airAvailable) {
       return NextResponse.json(
@@ -93,7 +95,7 @@ export async function PATCH(
     // sera fixé par l'admin. On garde le total produits (non-null : la colonne
     // grand_total_fcfa est NOT NULL) — le transport n'y est pas encore inclus.
     transportCost = null;
-    grandTotal = pricing.itemsTotalFcfaRounded;
+    grandTotal = pricing.itemsNetFcfa;
   }
 
   const { data: updated, error: updErr } = await supabaseAdmin

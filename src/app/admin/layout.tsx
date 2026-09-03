@@ -26,8 +26,7 @@ import {
   Briefcase,
   ShoppingBag,
   Smartphone,
-  Archive,
-} from 'lucide-react';
+  Archive, Ticket } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
 import type { TKey } from '@/lib/i18n/admin';
@@ -46,6 +45,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin/archives', key: 'nav.archives', icon: Archive },
   { href: '/admin/revisions', key: 'nav.revisions', icon: ClipboardCheck },
   { href: '/admin/commandes', key: 'nav.orders', icon: ShoppingBag },
+  { href: '/admin/promos', key: 'nav.promos', icon: Ticket },
   { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
   { href: '/admin/freight', key: 'nav.freight', icon: Ship },
   { href: '/admin/leads', key: 'nav.services', icon: Inbox },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing, CNY_TO_FCFA } from '@/lib/offer-pricing';
+import { describePromo, pricingOptionsFor, type PromoKind } from '@/lib/promo';
 
 // GET: Public order detail (for the confirmation / transport / checkout page).
 export async function GET(
@@ -65,7 +66,8 @@ export async function GET(
         volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
         has_battery: l.has_battery ?? !!meta?.has_battery,
       };
-    })
+    }),
+    pricingOptionsFor(order),
   );
 
   return NextResponse.json({
@@ -84,6 +86,15 @@ export async function GET(
       ebilling_reference: order.ebilling_reference,
       created_at: order.created_at,
       request_id: order.request_id,
+      promo: order.promo_code
+        ? {
+            code: order.promo_code as string,
+            kind: order.promo_kind as PromoKind,
+            label: describePromo({ kind: order.promo_kind as PromoKind, value: Number(order.promo_rate ?? 0) || 0 }),
+            discount_fcfa: Number(order.promo_discount_fcfa) || 0,
+            rate: order.promo_rate == null ? null : Number(order.promo_rate),
+          }
+        : null,
     },
     lines: lines.map((l) => ({
       ...l,

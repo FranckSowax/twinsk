@@ -35,6 +35,8 @@ interface OrderLine {
 }
 
 interface Pricing {
+  discountFcfa: number;
+  itemsNetFcfa: number;
   itemsTotalCny: number;
   itemsTotalFcfa: number;
   itemsTotalFcfaRounded: number;
@@ -59,6 +61,7 @@ interface OrderRow {
   client_email: string | null;
   transport_mode: 'air' | 'sea' | 'quote' | null;
   transport_cost: number | null;
+  promo: { code: string; kind: string; label: string; discount_fcfa: number; rate: number | null } | null;
   status: string;
   payment_status: string;
   payment_method: string | null;
@@ -98,6 +101,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [promoInput, setPromoInput] = useState('');
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoMsg, setPromoMsg] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
 
   const load = useCallback(async () => {
@@ -229,6 +235,43 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
       await load();
     } finally {
       setCashSubmitting(false);
+    }
+  };
+
+  // Code promo : appliqué / retiré sur la commande, totaux recalculés côté serveur.
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setPromoBusy(true);
+    setPromoMsg(null);
+    try {
+      const res = await fetch(`/api/offer-public/${offerId}/order/${orderId}/promo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, client_phone: contactPhone.trim() || undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) setPromoMsg(`⚠️ ${d.error || 'Code refusé'}`);
+      else {
+        setPromoMsg(`✅ ${d.promo?.label || 'Code appliqué'}${d.notice ? ` — ${d.notice}` : ''}`);
+        setPromoInput('');
+        await load();
+      }
+    } catch {
+      setPromoMsg('⚠️ Erreur réseau');
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
+  const removePromo = async () => {
+    setPromoBusy(true);
+    setPromoMsg(null);
+    try {
+      await fetch(`/api/offer-public/${offerId}/order/${orderId}/promo`, { method: 'DELETE' });
+      await load();
+    } finally {
+      setPromoBusy(false);
     }
   };
 
@@ -505,10 +548,49 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <span>Sous-total produits</span>
               <span>{formatFCFA(pricing.itemsTotalFcfaRounded)}</span>
             </div>
+            {pricing.discountFcfa > 0 && (
+              <div className="flex items-center justify-between text-sm text-emerald-300">
+                <span>Remise {order.promo?.code ? `(${order.promo.code})` : ''}</span>
+                <span>− {formatFCFA(pricing.discountFcfa)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm text-slate-300">
-              <span>Transport ({order.transport_mode === 'air' ? 'aérien' : 'maritime'})</span>
+              <span>
+                Transport ({order.transport_mode === 'air' ? 'aérien' : 'maritime'})
+                {order.promo && (order.promo.kind === 'air_rate' || order.promo.kind === 'sea_rate') && (
+                  <span className="ml-1 text-emerald-300">· tarif {order.promo.code}</span>
+                )}
+              </span>
               <span>{formatFCFA(order.transport_cost ?? null)}</span>
             </div>
+
+            {/* Code promo */}
+            {!paymentDone && !paymentSubmitted && (
+              <div className="rounded-xl bg-white/5 p-3">
+                {order.promo ? (
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-emerald-300">🎁 {order.promo.code} — {order.promo.label}</span>
+                    <button type="button" onClick={removePromo} disabled={promoBusy} className="text-xs text-slate-300 underline disabled:opacity-50">
+                      Retirer
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
+                      placeholder="Code promo"
+                      className="min-w-0 flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-slate-400"
+                    />
+                    <button type="button" onClick={applyPromo} disabled={promoBusy || !promoInput.trim()} className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                      {promoBusy ? '…' : 'Appliquer'}
+                    </button>
+                  </div>
+                )}
+                {promoMsg && <p className="mt-2 text-xs text-slate-200">{promoMsg}</p>}
+              </div>
+            )}
             <div className="border-t border-white/10 pt-2" />
             <div className="flex items-center justify-between text-base font-bold">
               <span>Total à payer</span>

@@ -22,6 +22,7 @@ export const DICT = {
     'nav.supplierSourcing': 'Sourcing fournisseurs',
     'nav.collaborators': 'Collaborateurs',
     'nav.orders': 'Commandes',
+    'nav.promos': 'Codes promo',
     'nav.revisions': 'À réviser',
     'nav.agents': 'Agents Gabon',
     // Révisions collaborateurs
@@ -241,6 +242,7 @@ export const DICT = {
     'nav.supplierSourcing': '供应商寻源',
     'nav.collaborators': '协作者',
     'nav.orders': '订单',
+    'nav.promos': '优惠码',
     'nav.revisions': '待审核',
     'nav.agents': '加蓬代理',
     // 协作者审核
