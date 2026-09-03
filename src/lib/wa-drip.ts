@@ -255,12 +255,13 @@ export function buildProductCaption(
     `👉 ${productDeepLink(offerUrl, p.id)}`,
   ]
     .filter((l): l is string => l !== null)
-    .join('\n');
+    .join('\n\n');
 }
 
 /** Texte d'une carte à bouton : titre, prix, rappel du listing — le lien est sur le bouton. */
 export function buildCardBody(p: Product, offer: Pick<PublicOfferData['offer'], 'title' | 'theme'>): string {
-  return [`*${p.title.slice(0, 120)}*`, `À partir de ${fcfa(toFcfa(p.from_price))}`, `🛍️ ${listingTagline(offer)}`].join('\n');
+  // Une ligne vide entre chaque bloc : titre / prix / listing — plus lisible sur mobile.
+  return [`*${p.title.slice(0, 120)}*`, `À partir de ${fcfa(toFcfa(p.from_price))}`, `🛍️ ${listingTagline(offer)}`].join('\n\n');
 }
 
 /** Texte d'une story / publication réseau (pas de gras WhatsApp, lien en clair). */

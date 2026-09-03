@@ -145,6 +145,9 @@ describe('canaux et rappel du listing', () => {
     expect(plan.products[0].social).toContain('Maison & Confort — Tout pour la chambre');
     expect(plan.products[0].social).not.toContain('*');
     expect(plan.products[0].cardBody).not.toContain('http');
+    // une ligne vide entre titre, prix et rappel du listing
+    expect(plan.products[0].cardBody.split('\n\n')).toHaveLength(3);
+    expect(plan.products[0].caption.split('\n\n')).toHaveLength(4);
     expect(plan.tagline).toBe('Maison & Confort — Tout pour la chambre');
     // on planifie le max des deux rythmes ; chaque canal prend sa part
     expect(plan.products).toHaveLength(2);
