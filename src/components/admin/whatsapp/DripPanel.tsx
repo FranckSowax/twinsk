@@ -6,7 +6,7 @@
 // plage horaire, aperçu de la prochaine publication, journal.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Pause, Play, RefreshCw, Send, Eye } from 'lucide-react';
+import { Loader2, Pause, Play, Send, Eye, Square } from 'lucide-react';
 import type { GroupRow } from './types';
 
 type Channel = 'group' | 'status' | 'channel' | 'facebook' | 'instagram';
@@ -37,6 +37,8 @@ interface Plan { index: number; total: number; categoryTitle: string; header: st
 interface State {
   config: Config;
   ready: Record<Channel, boolean>;
+  groups: GroupRow[];
+  groups_stale: boolean;
   newsletters: { id: string; name: string; subscribers: number | null }[];
   offer_title: string | null;
   categories: number;
@@ -51,6 +53,7 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
   const [draft, setDraft] = useState<Partial<Config>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string>('');
+  const [position, setPosition] = useState<string>('');
 
   const load = useCallback(async () => {
     const [d, o] = await Promise.all([fetch('/api/whapi/drip'), fetch('/api/offers')]);
@@ -122,6 +125,14 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
   }
 
   const dirty = Object.keys(draft).length > 0;
+  // Groupes : ceux renvoyés par l'API (avec cache si WHAPI est muet), sinon ceux
+  // de la page ; le groupe configuré reste toujours sélectionnable.
+  const groupOptions: GroupRow[] = (state.groups && state.groups.length ? state.groups : groups).slice();
+  if (cfg.group_id && !groupOptions.some((g) => g.id === cfg.group_id)) {
+    groupOptions.unshift({ id: cfg.group_id, name: `Groupe configuré (${cfg.group_id.split('@')[0]})`, participantsCount: 0 });
+  }
+  const totalCats = Math.max(1, state.categories);
+  const currentPos = (cfg.cursor % totalCats) + 1;
   const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800';
   const label = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500';
 
@@ -136,7 +147,7 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
           <p className="text-sm text-slate-500">
             {state.offer_title ? `${state.offer_title} · ${state.categories} catégories` : 'Aucun listing choisi'}
             {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h (Libreville)
-            {' · '}position {cfg.cursor % Math.max(1, state.categories) + 1}/{state.categories || '—'}
+            {' · '}position {currentPos}/{state.categories || '—'}
           </p>
         </div>
         <button
@@ -167,10 +178,13 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
           <label className={label}>Groupe WhatsApp</label>
           <select className={field} value={cfg.group_id || ''} onChange={(e) => setDraft((d) => ({ ...d, group_id: e.target.value || null }))}>
             <option value="">— choisir —</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name} ({g.participantsCount})</option>
+            {groupOptions.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}{g.participantsCount ? ` (${g.participantsCount})` : ''}</option>
             ))}
           </select>
+          {state.groups_stale && (
+            <p className="mt-1 text-xs text-amber-600">WHAPI ne renvoie pas la liste des groupes en ce moment — dernière liste connue affichée.</p>
+          )}
         </div>
         <div>
           <label className={label}>Chaîne WhatsApp</label>
@@ -263,8 +277,46 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
           <button type="button" onClick={() => run('now')} disabled={busy !== null || dirty || !cfg.enabled} className="flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" title="Publie la prochaine catégorie tout de suite, sur les canaux actifs">
             {busy === 'now' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Publier maintenant
           </button>
-          <button type="button" onClick={() => save({ reset_cursor: true }, 'Curseur remis au début')} disabled={busy !== null} className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-500 disabled:opacity-40 dark:border-slate-600">
-            <RefreshCw className="h-4 w-4" /> Repartir de la 1ʳᵉ catégorie
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Arrêter la diffusion et remettre la position au début ?')) save({ enabled: false, reset_cursor: true }, 'Diffusion arrêtée, position remise au début');
+            }}
+            disabled={busy !== null}
+            className="flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 disabled:opacity-40"
+            title="Coupe la diffusion et repart de la première catégorie à la reprise"
+          >
+            <Square className="h-4 w-4" /> Arrêter
+          </button>
+        </div>
+
+        {/* Reprise à une position choisie */}
+        <div className="flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40 sm:col-span-2">
+          <div>
+            <label className={label}>Reprendre à la catégorie n°</label>
+            <input
+              type="number"
+              min={1}
+              max={totalCats}
+              className={field}
+              placeholder={String(currentPos)}
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+            />
+          </div>
+          <span className="pb-2 text-xs text-slate-500">sur {state.categories || '—'} · actuellement {currentPos}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const n = Number(position);
+              if (!Number.isFinite(n) || n < 1 || n > totalCats) return;
+              save({ cursor: n - 1, enabled: true }, `Reprise à la catégorie ${n} — prochaine publication à l'heure pile`);
+              setPosition('');
+            }}
+            disabled={busy !== null || !position}
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
+          >
+            <Play className="h-4 w-4" /> Reprendre ici
           </button>
         </div>
       </div>
