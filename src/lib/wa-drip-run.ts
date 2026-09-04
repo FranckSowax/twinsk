@@ -15,6 +15,7 @@ import {
   type DripPlan,
 } from '@/lib/wa-drip';
 import { broadcastCategory, summarizeReport, type BroadcastReport } from '@/lib/wa-broadcast';
+import { sendTelegramMessage } from '@/lib/telegram';
 
 export async function readDripConfig(): Promise<DripConfig> {
   const { data } = await supabaseAdmin
@@ -100,12 +101,20 @@ export async function runDrip(opts: RunOptions): Promise<DripRunResult> {
 
   const report = await broadcastCategory(plan, cfg, opts.origin);
   const summary = summarizeReport(report);
+  if (report.whatsapp_status && report.whatsapp_status !== 'AUTH') {
+    // Alerte immédiate : sans session WhatsApp, groupe/statut/chaîne sont muets.
+    await sendTelegramMessage(
+      `🚨 <b>Canal WhatsApp déconnecté</b> (statut ${report.whatsapp_status})\n` +
+        `La diffusion « ${plan.categoryTitle} » n'est partie que sur Facebook/Instagram.\n` +
+        `→ Rescanner le QR dans le panel WHAPI (canal BATMAN-QDRRD).`,
+    ).catch(() => undefined);
+  }
   await supabaseAdmin.from('playbook_log').insert({
     ritual: 'category_drip',
     note: `${plan.categoryTitle} (${plan.index + 1}/${plan.total}) · ${summary}`,
     done_by: opts.actor || 'cron',
   });
 
-  const hasErrors = Object.values(report).some((r) => r.errors.length > 0);
+  const hasErrors = Object.values(report).some((r) => typeof r === 'object' && r !== null && r.errors.length > 0);
   return { success: !hasErrors, plan, report, summary, advanced: advance };
 }

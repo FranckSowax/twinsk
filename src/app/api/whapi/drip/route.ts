@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin } from '@/lib/collab';
 import { fetchPublicOffer } from '@/lib/offer-public-fetch';
 import { publicOrigin } from '@/lib/public-origin';
-import { getWhapiNewsletters } from '@/lib/whapi';
+import { getWhapiHealth, getWhapiNewsletters } from '@/lib/whapi';
 import { listGroupsWithCache } from '@/lib/wa-groups-cache';
 import { metaFacebookConfigured, metaInstagramConfigured } from '@/lib/meta-graph';
 import {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const cfg = await readDripConfig();
 
-  const [newsletters, log, groups] = await Promise.all([
+  const [newsletters, log, groups, health] = await Promise.all([
     getWhapiNewsletters(),
     supabaseAdmin
       .from('playbook_log')
@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       .order('done_at', { ascending: false })
       .limit(24),
     listGroupsWithCache(),
+    getWhapiHealth(),
   ]);
 
   const ready = {
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
     ready,
     groups: groups.groups,
     groups_stale: groups.stale,
+    whatsapp: health,
     newsletters: newsletters.ok ? newsletters.newsletters : [],
     offer_title: offerTitle,
     categories,

@@ -82,6 +82,21 @@ async function whapiGet<T = unknown>(path: string): Promise<{ ok: boolean; data?
   }
 }
 
+export interface WhapiHealth {
+  ok: boolean;
+  /** AUTH = session WhatsApp active ; QR / LAUNCH / INIT / STOP / SYNC_ERROR sinon. */
+  status: string;
+  phone: string | null;
+}
+
+/** État de la session WhatsApp du canal (GET /health). Sans réveil du canal. */
+export async function getWhapiHealth(): Promise<WhapiHealth> {
+  const r = await whapiGet<{ status?: { text?: string }; user?: { id?: string } }>('/health?wakeup=false');
+  if (!r.ok) return { ok: false, status: 'UNREACHABLE', phone: null };
+  const status = r.data?.status?.text || 'UNKNOWN';
+  return { ok: status === 'AUTH', status, phone: r.data?.user?.id || null };
+}
+
 /** Envoie un message texte (le lien génère un aperçu automatiquement). */
 export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID): Promise<WhapiResult> {
   return whapiPost('/messages/text', { to, body, typing_time: 0 });

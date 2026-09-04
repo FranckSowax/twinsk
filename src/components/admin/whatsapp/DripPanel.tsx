@@ -39,6 +39,7 @@ interface State {
   ready: Record<Channel, boolean>;
   groups: GroupRow[];
   groups_stale: boolean;
+  whatsapp: { ok: boolean; status: string; phone: string | null };
   newsletters: { id: string; name: string; subscribers: number | null }[];
   offer_title: string | null;
   categories: number;
@@ -144,6 +145,11 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
           <p className="font-display text-lg font-bold text-slate-900 dark:text-white">
             {cfg.enabled ? '🟢 Diffusion active' : '⏸ Diffusion en pause'}
           </p>
+          {state.whatsapp && !state.whatsapp.ok && (
+            <p className="mt-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+              🚨 Canal WhatsApp déconnecté (statut {state.whatsapp.status}) — rescanner le QR dans le panel WHAPI. Groupe, statut et chaîne ne partiront pas.
+            </p>
+          )}
           <p className="text-sm text-slate-500">
             {state.offer_title ? `${state.offer_title} · ${state.categories} catégories` : 'Aucun listing choisi'}
             {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h (Libreville)

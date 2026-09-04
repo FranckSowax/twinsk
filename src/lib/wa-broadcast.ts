@@ -13,6 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { facebookPostsFor, instagramPostsFor, productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import {
+  getWhapiHealth,
   postWhapiStory,
   sendWhapiButtonLink,
   sendWhapiImage,
@@ -37,7 +38,7 @@ export interface ChannelReport {
   errors: string[];
   skipped?: 'disabled' | 'not_configured';
 }
-export type BroadcastReport = Record<DripChannel, ChannelReport>;
+export type BroadcastReport = Record<DripChannel, ChannelReport> & { whatsapp_status?: string };
 
 /** Image lisible par un service externe (Meta, WhatsApp) : proxifiée si CDN chinois. */
 function publicImage(url: string, origin: string): string {
@@ -60,9 +61,22 @@ export async function broadcastCategory(
   const take = (c: DripChannel) => plan.products.slice(0, productsFor(cfg, c));
   const forGroup = take('group');
 
+  // Session WhatsApp : si le canal WHAPI n'est plus authentifié (QR, SYNC_ERROR…),
+  // aucun envoi WhatsApp ne peut passer — on le dit clairement plutôt que
+  // d'aligner des erreurs 401, et l'appelant alerte.
+  const health = await getWhapiHealth();
+  const waDown = !health.ok;
+  const waDownMsg = `canal WhatsApp déconnecté (statut ${health.status}) — rescanner le QR`;
+  if (waDown) {
+    for (const c of ['group', 'status', 'channel'] as const) {
+      if (cfg.channels[c]) report[c].errors.push(waDownMsg);
+    }
+  }
+
   // --- Groupe WhatsApp ---------------------------------------------------
   if (!cfg.channels.group) report.group.skipped = 'disabled';
   else if (!cfg.group_id) report.group.skipped = 'not_configured';
+  else if (waDown) { /* déjà signalé */ }
   else {
     const to = cfg.group_id;
     // Fiches déjà au catalogue → fiche native (prix, galerie, bouton « Voir »).
@@ -114,6 +128,7 @@ export async function broadcastCategory(
 
   // --- Statut WhatsApp ---------------------------------------------------
   if (!cfg.channels.status) report.status.skipped = 'disabled';
+  else if (waDown) { /* déjà signalé */ }
   else {
     for (const p of take('status')) {
       const r = await postWhapiStory(p.imageUrl, p.social);
@@ -126,6 +141,7 @@ export async function broadcastCategory(
   // --- Chaîne WhatsApp ---------------------------------------------------
   if (!cfg.channels.channel) report.channel.skipped = 'disabled';
   else if (!cfg.channel_id) report.channel.skipped = 'not_configured';
+  else if (waDown) { /* déjà signalé */ }
   else {
     const to = cfg.channel_id;
     const head = await sendWhapiText(plan.header, to);
@@ -184,6 +200,7 @@ export async function broadcastCategory(
     }
   }
 
+  report.whatsapp_status = health.status;
   return report;
 }
 
@@ -196,7 +213,7 @@ export function summarizeReport(report: BroadcastReport): string {
     facebook: 'facebook',
     instagram: 'instagram',
   };
-  return (Object.keys(report) as DripChannel[])
+  return (Object.keys(report).filter((k) => k !== 'whatsapp_status') as DripChannel[])
     .map((c) => {
       const r = report[c];
       if (r.skipped === 'disabled') return null;
