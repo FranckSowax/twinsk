@@ -52,6 +52,19 @@ export async function GET(
     ((prodRows || []) as WL[]).map((p) => [p.id, p])
   );
 
+  // Valeur affichée du code promo : la commande ne conserve que le tarif fret
+  // négocié (promo_rate). Pour une remise articles (% ou FCFA) la valeur vit
+  // sur le code lui-même — sans cette relecture le libellé disait « −0 % ».
+  let promoValue = Number(order.promo_rate ?? 0) || 0;
+  if (order.promo_id && order.promo_rate == null) {
+    const { data: promoRow } = await supabaseAdmin
+      .from('promo_codes')
+      .select('value')
+      .eq('id', order.promo_id)
+      .maybeSingle();
+    promoValue = Number(promoRow?.value ?? 0) || 0;
+  }
+
   const pricing = computeOrderPricing(
     lines.map((l) => {
       const meta = l.product_id ? prodMap.get(l.product_id) : undefined;
@@ -90,7 +103,7 @@ export async function GET(
         ? {
             code: order.promo_code as string,
             kind: order.promo_kind as PromoKind,
-            label: describePromo({ kind: order.promo_kind as PromoKind, value: Number(order.promo_rate ?? 0) || 0 }),
+            label: describePromo({ kind: order.promo_kind as PromoKind, value: promoValue }),
             discount_fcfa: Number(order.promo_discount_fcfa) || 0,
             rate: order.promo_rate == null ? null : Number(order.promo_rate),
           }
