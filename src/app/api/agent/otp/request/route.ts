@@ -18,7 +18,12 @@ export async function POST(request: NextRequest) {
     .eq('active', true)
     .limit(1);
   const agent = agents?.[0];
-  if (!agent) return generic;
+  if (!agent) {
+    // Trace serveur (numéro masqué) : sans elle, un numéro non enregistré est
+    // indiscernable d'une panne — la réponse client reste générique.
+    console.warn(`[agent-otp] aucun agent actif pour …${candidates[0].slice(-4)} (${candidates.length} formes testées)`);
+    return generic;
+  }
 
   // Rate-limit : compte les OTP créés dans les 10 dernières minutes.
   const since = new Date(Date.now() - OTP_TTL_MS).toISOString();
@@ -30,11 +35,15 @@ export async function POST(request: NextRequest) {
   if (otpRateLimited(count || 0)) return generic;
 
   const code = generateOtpCode();
-  await supabaseAdmin.from('agent_otps').insert({
+  const { error: insErr } = await supabaseAdmin.from('agent_otps').insert({
     agent_id: agent.id,
     code_hash: hashOtp(code),
     expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
   });
+  if (insErr) {
+    console.error('[agent-otp] insertion impossible', insErr.message);
+    return generic;
+  }
 
   const chat = toWhatsappChatId(agent.phone);
   if (chat) {
@@ -42,7 +51,11 @@ export async function POST(request: NextRequest) {
     void sendWhapiText(
       `🔐 *TWINSK — Espace agents*\nVotre code de connexion : *${code}*\nValable 10 minutes. Ne le partagez pas.`,
       chat,
-    ).catch(() => {});
+    )
+      .then((r) => {
+        if (!r.ok) console.error(`[agent-otp] envoi WhatsApp refusé pour …${chat.slice(-4 - 15, -15)} : ${r.error}`);
+      })
+      .catch((e) => console.error('[agent-otp] envoi WhatsApp en erreur', e instanceof Error ? e.message : e));
   }
   return generic;
 }

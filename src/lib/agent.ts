@@ -60,11 +60,20 @@ export function otpRateLimited(recentCount: number): boolean {
  * inversement. Évite les échecs silencieux de l'OTP sur un simple format.
  */
 export function phoneCandidates(phone: string | null | undefined): string[] {
-  const d = normalizePhone(phone);
+  let d = normalizePhone(phone);
+  if (d.startsWith('00')) d = d.slice(2); // « 00241… » saisi à l'internationale
   if (!d) return [];
+  // Forme locale gabonaise : 8 chiffres commençant par 0 (06 87 13 09). Beaucoup
+  // l'écrivent sans le 0 après l'indicatif (+241 6 87 13 09) : on génère les
+  // deux formes, avec et sans 241, pour ne jamais rater l'agent sur un format.
+  const locals = new Set<string>([d.startsWith('241') ? d.slice(3) : d]);
+  for (const l of [...locals]) locals.add(l.startsWith('0') ? l.slice(1) : `0${l}`);
   const out = new Set<string>([d]);
-  if (d.startsWith('241')) out.add(d.slice(3));
-  else out.add(`241${d}`);
+  for (const l of locals) {
+    if (l.length < 6) continue; // un numéro local a 7 ou 8 chiffres : pas de faux candidats
+    out.add(l);
+    out.add(`241${l}`);
+  }
   return [...out].filter((x) => x.length >= 6);
 }
 

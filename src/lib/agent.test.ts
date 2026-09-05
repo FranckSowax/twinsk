@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizePhone, signAgentToken, parseAgentToken,
-  generateOtpCode, hashOtp, verifyOtpHash, otpRateLimited, canAdvanceTo,
+  generateOtpCode, hashOtp, verifyOtpHash, otpRateLimited, canAdvanceTo, phoneCandidates,
 } from './agent';
 
 describe('normalizePhone', () => {
@@ -40,9 +40,9 @@ describe('OTP', () => {
 });
 
 describe('otpRateLimited', () => {
-  it('bloque a partir de 3 demandes recentes', () => {
-    expect(otpRateLimited(2)).toBe(false);
-    expect(otpRateLimited(3)).toBe(true);
+  it('bloque a partir de 10 demandes recentes (10 OTP / 10 min)', () => {
+    expect(otpRateLimited(9)).toBe(false);
+    expect(otpRateLimited(10)).toBe(true);
   });
 });
 
@@ -58,5 +58,17 @@ describe('canAdvanceTo', () => {
   it('saut d\'etape ou retour interdit', () => {
     expect(canAdvanceTo('paid', 'delivered')).toBe(false);
     expect(canAdvanceTo('at_agency', 'shipped')).toBe(false);
+  });
+});
+
+describe('phoneCandidates', () => {
+  const agentPhone = '24106871309';
+  it.each(['24106871309', '+241 06 87 13 09', '06871309', '+241 6 87 13 09', '00241 06871309', '2416871309', '6871309'])(
+    'retrouve %s',
+    (typed) => expect(phoneCandidates(typed)).toContain(agentPhone),
+  );
+  it('ignore les saisies trop courtes', () => {
+    expect(phoneCandidates('12')).toEqual([]);
+    expect(phoneCandidates('')).toEqual([]);
   });
 });
