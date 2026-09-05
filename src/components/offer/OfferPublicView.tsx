@@ -392,11 +392,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 text-white">
               <Sparkles className="h-4 w-4" />
             </div>
-            <p className="truncate text-sm font-bold text-slate-900">{affiliate?.shopName || offer.title}</p>
+            <p className="truncate text-sm font-bold text-slate-900">{affiliate?.shopName || offer.theme || offer.title}</p>
             {offer.theme && (
-              <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
-                <Tag className="h-2.5 w-2.5" />
-                {offer.theme}
+              <span className="hidden sm:inline-flex min-w-0 max-w-[24rem] items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                <Tag className="h-2.5 w-2.5 flex-shrink-0" />
+                <span className="truncate">{offer.title}</span>
               </span>
             )}
           </div>
@@ -430,7 +430,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
         </div>
       </div>
 
-      {/* En-tête : thème (badge) + titre, AU-DESSUS de la cover */}
+      {/* En-tête : badge thème, H1 = titre du listing, sous-titre = thème (inversé le 5 sept.) */}
       <div className="mb-4">
         {offer.theme && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm">
@@ -439,11 +439,11 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
           </span>
         )}
         <h1 className="mt-3 font-display text-3xl font-bold uppercase tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
-          {offer.theme || offer.title}
+          {offer.title}
         </h1>
         {offer.theme && (
           <p className="mt-1 text-base font-medium text-slate-600 dark:text-slate-300 sm:text-lg">
-            {offer.title}
+            {offer.theme}
           </p>
         )}
         {offer.description && (
