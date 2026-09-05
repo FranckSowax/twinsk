@@ -17,8 +17,7 @@ import {
   Plus,
   Store,
   Tag,
-  Trash2,
-} from 'lucide-react';
+  Trash2, Search } from 'lucide-react';
 
 interface OfferRow {
   id: string;
@@ -28,6 +27,7 @@ interface OfferRow {
   status: 'draft' | 'published' | 'closed';
   cover_image_url: string | null;
   created_at: string;
+  updated_at?: string | null; // date de modification (migration 57) ; repli : created_at
   offer_type?: string | null; // 'b2c' (défaut) | 'b2b'
   archived_at?: string | null; // non null = aux archives (/admin/archives)
   offer_items: { count: number }[];
@@ -48,8 +48,34 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
   const [title, setTitle] = useState('');
   const [theme, setTheme] = useState('');
   const [description, setDescription] = useState('');
+  // Recherche et tri de la liste (côté client : la liste est courte).
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'updated' | 'created' | 'title'>('updated');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const isB2B = type === 'b2b';
+
+  /** Date de modification (repli sur la création tant que la migration 57 n'est pas passée). */
+  const modifiedAt = (o: OfferRow) => o.updated_at || o.created_at;
+
+  const visible = offers
+    .filter((o) => {
+      const q = query.trim().toLowerCase();
+      if (q) {
+        const hay = `${o.title} ${o.theme || ''} ${o.description || ''} ${o.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      const m = modifiedAt(o).slice(0, 10);
+      if (dateFrom && m < dateFrom) return false;
+      if (dateTo && m > dateTo) return false;
+      return true;
+    })
+    .sort((x, y) => {
+      if (sortBy === 'title') return x.title.localeCompare(y.title, 'fr');
+      if (sortBy === 'created') return y.created_at.localeCompare(x.created_at);
+      return modifiedAt(y).localeCompare(modifiedAt(x));
+    });
 
   const load = async () => {
     setLoading(true);
@@ -221,6 +247,54 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
         </motion.div>
       )}
 
+      {offers.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+          <div className="min-w-[14rem] flex-1">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">Rechercher</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Titre, thème, description…"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">Trier</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'updated' | 'created' | 'title')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            >
+              <option value="updated">Modifiées récemment</option>
+              <option value="created">Créées récemment</option>
+              <option value="title">Titre A → Z</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">Modifiées du</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">au</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+          </div>
+          {(query || dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => { setQuery(''); setDateFrom(''); setDateTo(''); }}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+            >
+              Effacer
+            </button>
+          )}
+          <span className="pb-2 text-xs text-slate-500">{visible.length} / {offers.length}</span>
+        </div>
+      )}
+
       {!offers.length ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
           <Package className="mx-auto h-12 w-12 text-slate-300" />
@@ -236,7 +310,7 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
                 <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Titre</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Thème</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Modifiée</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Catégories</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Commandes</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Statut</th>
@@ -244,7 +318,12 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {offers.map((o, i) => {
+                {visible.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">Aucune offre ne correspond à la recherche.</td>
+                  </tr>
+                )}
+                {visible.map((o, i) => {
                   const status = STATUS_LABEL[o.status] || STATUS_LABEL.draft;
                   const itemCount = o.offer_items?.[0]?.count ?? 0;
                   const orderCount = o.offer_orders?.[0]?.count ?? 0;
@@ -273,9 +352,14 @@ export default function OffersListPage({ type }: { type: 'b2c' | 'b2b' }) {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-                        {new Date(o.created_at).toLocaleDateString('fr-FR', {
+                        {new Date(modifiedAt(o)).toLocaleDateString('fr-FR', {
                           day: 'numeric', month: 'short', year: 'numeric',
                         })}
+                        {o.updated_at && o.updated_at !== o.created_at && (
+                          <span className="block text-xs text-slate-400">
+                            créée le {new Date(o.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
                         {itemCount}
