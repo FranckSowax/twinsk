@@ -93,6 +93,7 @@ interface Props {
     note: string | null; // meta.note — chapô/contexte
     currency?: CurrencyCode; // devise affichée (défaut XAF)
     offer_type?: 'b2c' | 'b2b'; // B2B → vue liste par défaut
+    best_sellers?: { enabled: boolean; product_ids: string[]; title?: string | null } | null; // galerie en tête
   };
   items: OfferItem[];
   phases?: { id: string; title: string }[]; // phases B2B (regroupent des catégories)
@@ -200,6 +201,16 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     () => items.reduce((s, it) => s + it.products.length, 0),
     [items],
   );
+  // Best sellers : produits choisis par l'admin (ordre conservé), affichés en
+  // tête quand la galerie est activée et qu'aucune recherche n'est en cours.
+  const bestSellers = useMemo(() => {
+    const bs = offer.best_sellers;
+    if (!bs?.enabled || !bs.product_ids?.length) return [] as OfferProduct[];
+    const byId = new Map<string, OfferProduct>();
+    for (const it of items) for (const p of it.products) byId.set(p.id, p);
+    return bs.product_ids.map((id) => byId.get(id)).filter((p): p is OfferProduct => !!p);
+  }, [offer.best_sellers, items]);
+
   const filteredItems = useMemo(() => {
     const q = normalizeSearch(searchQuery.trim());
     if (!q) return items;
@@ -524,6 +535,63 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
             </p>
           )}
         </div>
+      )}
+
+      {/* Best sellers : galerie horizontale en tête, cartes à cadre rouge animé */}
+      {bestSellers.length > 0 && !searchQuery.trim() && (
+        <section className="mb-10">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-red-600/30">
+              🔥 Best sellers
+            </span>
+            <h2 className="font-display text-xl font-bold uppercase tracking-tight text-slate-900 sm:text-2xl">
+              {offer.best_sellers?.title || 'Nos meilleures ventes'}
+            </h2>
+          </div>
+          <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0">
+            {bestSellers.map((p, i) => {
+              const lineCount = Object.values(cart).filter((l) => l.productId === p.id).length;
+              return (
+                <motion.button
+                  type="button"
+                  key={p.id}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => openProduct(p)}
+                  className="best-seller-card group relative flex w-[68%] flex-shrink-0 snap-start flex-col overflow-hidden text-left sm:w-56 lg:w-60"
+                >
+                  <div className="relative aspect-square w-full overflow-hidden rounded-t-[0.8rem] bg-slate-100">
+                    <SmartImage
+                      src={p.image_url}
+                      fallbackSrc={p.thumbnail_url}
+                      alt={p.title}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <span className="absolute left-2 top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-red-600 px-2 text-xs font-black text-white shadow-lg">
+                      #{i + 1}
+                    </span>
+                    {lineCount > 0 && (
+                      <span className="absolute right-2 top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-emerald-500 px-2 text-xs font-bold text-white shadow-lg">
+                        {lineCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col p-3">
+                    <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-900" title={p.title}>
+                      {shortenTitle(p.title, 5)}
+                    </p>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <p className={`text-base font-bold ${isAcompte(p.price_type) ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {cardPriceLabel(p)}
+                      </p>
+                      {p.moq != null && <p className="text-[10px] text-slate-500">MOQ {p.moq}</p>}
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* Aucun résultat de recherche */}

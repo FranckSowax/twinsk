@@ -63,6 +63,7 @@ function offer(phases: PublicOfferData['phases'], items: PublicOfferData['items'
       note: null,
       currency: 'XAF',
       offer_type: 'b2c',
+      best_sellers: { enabled: false, product_ids: [], title: null },
     },
     phases,
     items,

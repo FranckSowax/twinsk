@@ -2,6 +2,7 @@
 // and the /api/offer-public/[uuid] route. Avoid re-fetching over HTTP from a
 // Server Component on Railway where localhost:port is unreliable.
 
+import { EMPTY_BEST_SELLERS, normalizeBestSellers, type BestSellers } from '@/lib/best-sellers';
 import { supabaseAdmin } from './supabase/server';
 import { sanitizeForPublic } from './utils/shortenTitle';
 import { isAcompte, variantIsAcompte, PRICE_TYPE_ACOMPTE } from './acompte';
@@ -60,6 +61,7 @@ export interface PublicOfferData {
     note: string | null; // meta.note — chapô/contexte (safe côté client)
     currency: 'CNY' | 'USD' | 'EUR' | 'XAF'; // devise affichée (défaut XAF)
     offer_type: 'b2c' | 'b2b'; // B2B → vue liste par défaut
+    best_sellers: BestSellers; // galerie en tête (migration 57)
   };
   phases: Array<{ id: string; title: string }>;
   items: Array<{
@@ -119,6 +121,15 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
     .single();
   if (offerErr || !offer) return null;
   if (offer.status !== 'published') return null;
+
+  // Best sellers : requête séparée et tolérante — si la migration 57 n'est pas
+  // encore passée, la page publique reste servie (galerie simplement absente).
+  const { data: bsRow, error: bsErr } = await supabaseAdmin
+    .from('offers')
+    .select('best_sellers')
+    .eq('id', uuid)
+    .maybeSingle();
+  const bestSellers: BestSellers = bsErr ? { ...EMPTY_BEST_SELLERS } : normalizeBestSellers(bsRow?.best_sellers);
 
   const { data: items, error: itemsErr } = await supabaseAdmin
     .from('offer_items')
@@ -275,6 +286,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       note: sanitizeForPublic((offer as { note?: string | null }).note) || null,
       currency: ((offer as { offer_currency?: string }).offer_currency as 'CNY' | 'USD' | 'EUR' | 'XAF') || 'XAF',
       offer_type: ((offer as { offer_type?: string }).offer_type as 'b2c' | 'b2b') || 'b2c',
+      best_sellers: bestSellers,
     },
     phases,
     items: publicItems,

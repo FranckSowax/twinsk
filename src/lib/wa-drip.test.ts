@@ -33,7 +33,7 @@ function item(id: string, phase_id: string | null, desc: string, products: Produ
   return { id, image_url: null, description: desc, phase_id, products };
 }
 const DATA: PublicOfferData = {
-  offer: { id: 'o1', title: 'Maison & Confort', theme: null, description: null, cover_image_url: null, cover_video_url: null, mobile_video_url: null, note: null, currency: 'XAF', offer_type: 'b2c' },
+  offer: { id: 'o1', title: 'Maison & Confort', theme: null, description: null, cover_image_url: null, cover_video_url: null, mobile_video_url: null, note: null, currency: 'XAF', offer_type: 'b2c', best_sellers: { enabled: false, product_ids: [], title: null } },
   phases: [{ id: 'ph1', title: 'Literie complète' }],
   items: [
     item('c1', 'ph1', 'Matelas roll-pack enfant — Matelas compressés, livrés roulés', [product('a1'), product('a2'), product('a3'), product('a4')]),

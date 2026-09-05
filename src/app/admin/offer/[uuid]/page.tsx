@@ -38,6 +38,8 @@ import JsonImportsButton from '@/components/admin/JsonImportsButton';
 import AffiliateLinksButton from '@/components/admin/AffiliateLinksButton';
 import ExportOfferButton from '@/components/admin/ExportOfferButton';
 import OfferPhasesPanel, { type OfferPhase } from '@/components/admin/OfferPhasesPanel';
+import BestSellersPanel from '@/components/admin/BestSellersPanel';
+import { normalizeBestSellers } from '@/lib/best-sellers';
 import MarginControls from '@/components/admin/MarginControls';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -57,6 +59,7 @@ interface OfferRow {
   created_at: string;
   offer_currency?: string | null;
   offer_type?: string | null; // 'b2c' (défaut) | 'b2b'
+  best_sellers?: unknown; // galerie en tête (migration 57)
 }
 
 interface OfferProduct {
@@ -1529,6 +1532,19 @@ export default function AdminOfferDetailPage() {
           })()}
           {isB2B && (
             <OfferPhasesPanel offerId={uuid} phases={phases} onChanged={loadPhases} />
+          )}
+          {isB2B && (
+            <BestSellersPanel
+              key={`bs-${uuid}`}
+              offerId={uuid}
+              value={normalizeBestSellers(offer.best_sellers)}
+              products={items.flatMap((it) =>
+                (it.search_results || [])
+                  .filter((p) => p.selected)
+                  .map((p) => ({ id: p.id, title: p.title, image_url: p.main_image_url || p.image_url, category: it.description })),
+              )}
+              onSaved={(v) => setOffer((prev) => (prev ? { ...prev, best_sellers: v } : prev))}
+            />
           )}
           <ResultsTable
             items={displayItems}
