@@ -20,6 +20,7 @@ import { roundXafUp, formatXAF, formatCNY, formatUSD, formatEUR, formatInCurrenc
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText } from 'lucide-react';
 import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
+import { validateContact } from '@/lib/contact-validation';
 
 // Normalisation pour la recherche : minuscules + sans accents (« telephone » trouve « Téléphone »).
 function normalizeSearch(s: string): string {
@@ -193,6 +194,10 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  // Coordonnées obligatoires AVANT la création de la commande (nom + WhatsApp) :
+  // aucune commande n'est enregistrée sans un client joignable.
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
 
   // Recherche dynamique : filtre les produits (titre, description, catégorie)
   // à la frappe, côté client — les catégories vides sont masquées.
@@ -345,15 +350,21 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
       setSubmitError('Panier vide');
       return;
     }
+    const contact = validateContact(contactName, contactPhone);
+    if (!contact.ok) {
+      setSubmitError(contact.error);
+      return;
+    }
     setSubmitting(true);
     setSubmitError('');
     try {
-      // Coordonnées saisies plus tard (page commande, après le transport).
       const res = await fetch(`/api/offer-public/${offerId}/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           affiliate_ref: affiliate?.ref,
+          client_name: contact.name,
+          client_phone: contactPhone.trim(),
           picks: cartLines.map((l) => ({
             product_id: l.productId,
             variant_id: l.variantId,
@@ -1308,14 +1319,31 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   </p>
                 )}
 
-                {/* Les coordonnées sont demandées à l'étape suivante
-                    (après le choix du transport, avant le paiement). */}
+                {/* Coordonnées obligatoires : nom + numéro WhatsApp avant toute commande. */}
                 {cartLines.length > 0 && (
-                  <p className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-                    {total.allAcompte
-                      ? 'Étape suivante : laissez vos coordonnées, notre équipe vous envoie le devis.'
-                      : 'Étape suivante : choix du transport, puis vos coordonnées et le paiement.'}
-                  </p>
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Vos coordonnées (obligatoires)</p>
+                    <input
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder="Votre nom complet *"
+                      autoComplete="name"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                    <input
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      placeholder="Numéro WhatsApp (avec indicatif +241 / +242…) *"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      {total.allAcompte
+                        ? 'Notre équipe vous envoie le devis sur ce numéro WhatsApp.'
+                        : 'Étape suivante : choix du transport, puis le paiement. La confirmation arrive sur WhatsApp.'}
+                    </p>
+                  </div>
                 )}
 
                 {submitError && (
@@ -1337,7 +1365,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   onClick={submitOrder}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  disabled={submitting || cartLines.length === 0}
+                  disabled={submitting || cartLines.length === 0 || !contactName.trim() || contactPhone.replace(/\D/g, '').length < 8}
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : total.allAcompte ? <FileText className="h-4 w-4" /> : <Send className="h-4 w-4" />}

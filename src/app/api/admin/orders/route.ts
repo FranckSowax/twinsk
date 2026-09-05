@@ -13,6 +13,12 @@ export async function GET(request: NextRequest) {
     .select(
       'id, offer_id, client_name, client_phone, items_total_fcfa, grand_total_fcfa, transport_mode, status, order_status, payment_status, payment_method, payment_proof_url, created_at, offer_order_lines(product_image, quantity)',
     )
+    // Pas de commande sans coordonnées : les paniers abandonnés avant la saisie
+    // du nom/numéro (anciens flux) sont injoignables, on ne les liste pas.
+    .neq('client_name', '')
+    .neq('client_phone', '')
+    .not('client_name', 'is', null)
+    .not('client_phone', 'is', null)
     .order('created_at', { ascending: false })
     .limit(100);
   if (request.nextUrl.searchParams.get('pending') === '1') {

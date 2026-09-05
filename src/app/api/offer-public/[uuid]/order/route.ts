@@ -3,6 +3,9 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 import { isAcompte } from '@/lib/acompte';
+import { validateContact } from '@/lib/contact-validation';
+import { notifyOrdersGroup } from '@/lib/order-notify';
+import { publicOrigin } from '@/lib/public-origin';
 
 interface Pick {
   product_id: string;
@@ -32,12 +35,15 @@ export async function POST(
     affiliate_ref?: string; // lien marque blanche (/b/[id]) — attribution de la vente
   };
 
-  // Coordonnées désormais OPTIONNELLES à la création : elles sont saisies plus
-  // tard sur la page commande (après le choix du transport, avant le paiement).
-  // Le miroir vers /admin/requests est différé jusqu'à la saisie des coordonnées
-  // (route .../contact) pour éviter des demandes fantômes de paniers abandonnés.
-  const clientName = (body.client_name || '').trim();
-  const clientPhone = (body.client_phone || '').trim();
+  // Coordonnées OBLIGATOIRES dès la création (décision du 5 sept. 2026) : pas de
+  // commande sans au moins un nom et un numéro WhatsApp joignable. Le formulaire
+  // du panier les demande ; ici c'est la garde serveur.
+  const contact = validateContact(body.client_name, body.client_phone);
+  if (!contact.ok) {
+    return NextResponse.json({ error: contact.error, field: 'contact' }, { status: 400 });
+  }
+  const clientName = contact.name;
+  const clientPhone = contact.phone;
   const clientEmail = (body.client_email || '').trim();
 
   const picks = Array.isArray(body.picks) ? body.picks : [];
@@ -239,24 +245,24 @@ export async function POST(
     );
   }
 
-  // 3. Le miroir vers /admin/requests est créé plus tard, quand le client
-  //    renseigne ses coordonnées (route .../contact). Cf. mirrorOrderToRequest.
-  if (clientName && clientPhone) {
-    // Compat : si des coordonnées sont fournies dès la création (ancien flux),
-    // on met à jour et on crée le miroir immédiatement.
-    await supabaseAdmin
-      .from('offer_orders')
-      .update({ client_name: clientName, client_phone: clientPhone, client_email: clientEmail || null })
-      .eq('id', orderRow.id);
-    const requestId = await mirrorOrderToRequest({
-      orderId: orderRow.id,
-      offerTitle: offer.title,
-      clientName,
-      clientPhone,
-      clientEmail,
-    });
-    return NextResponse.json({ success: true, order_id: orderRow.id, request_id: requestId });
+  // 3. Miroir vers /admin/requests dès la création (les coordonnées sont là).
+  const requestId = await mirrorOrderToRequest({
+    orderId: orderRow.id,
+    offerTitle: offer.title,
+    clientName,
+    clientPhone,
+    clientEmail,
+  });
+
+  // 4. Demande de devis pure (toutes les lignes en acompte) : pas de transport ni
+  //    de paiement, la commande est complète ici → récap dans le groupe Commandes.
+  //    (Avant, ce récap partait à la saisie des coordonnées, désormais faite ici.)
+  const allAcompte = lineRows.every((l) => l.price_type === 'acompte');
+  if (allAcompte) {
+    await notifyOrdersGroup(orderRow.id, publicOrigin(request)).catch((e) =>
+      console.error('[order] notification devis impossible', e instanceof Error ? e.message : e),
+    );
   }
 
-  return NextResponse.json({ success: true, order_id: orderRow.id, request_id: null });
+  return NextResponse.json({ success: true, order_id: orderRow.id, request_id: requestId });
 }

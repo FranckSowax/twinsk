@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyOrdersGroup } from '@/lib/order-notify';
+import { publicOrigin } from '@/lib/public-origin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing } from '@/lib/offer-pricing';
 import { pricingOptionsFor } from '@/lib/promo';
@@ -114,6 +116,14 @@ export async function PATCH(
     .single();
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
+  }
+  // Devis transport sur mesure : la commande est complète ici (coordonnées déjà
+  // fournies à la création, pas d'étape paiement) → récap dans le groupe
+  // Commandes, une seule fois (pas de doublon si le client re-clique « devis »).
+  if (mode === 'quote' && order.transport_mode !== 'quote') {
+    await notifyOrdersGroup(orderId, publicOrigin(request)).catch((e) =>
+      console.error('[transport] notification devis impossible', e instanceof Error ? e.message : e),
+    );
   }
   return NextResponse.json({ success: true, order: updated, pricing });
 }

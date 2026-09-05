@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { sendWhapiText } from '@/lib/whapi';
 import { notifyOrdersGroup } from '@/lib/order-notify';
+import { validateContact } from '@/lib/contact-validation';
 
 // PATCH: le client renseigne ses coordonnées (après le choix du transport,
 // avant le paiement). Enregistre nom/téléphone/email sur la commande, puis crée
@@ -18,16 +19,13 @@ export async function PATCH(
     client_phone?: string;
     client_email?: string;
   };
-  const clientName = (body.client_name || '').trim();
-  const clientPhone = (body.client_phone || '').trim();
+  const contact = validateContact(body.client_name, body.client_phone);
+  if (!contact.ok) {
+    return NextResponse.json({ error: contact.error }, { status: 400 });
+  }
+  const clientName = contact.name;
+  const clientPhone = contact.phone;
   const clientEmail = (body.client_email || '').trim();
-
-  if (!clientName) {
-    return NextResponse.json({ error: 'Nom requis' }, { status: 400 });
-  }
-  if (!clientPhone) {
-    return NextResponse.json({ error: 'Numéro WhatsApp requis' }, { status: 400 });
-  }
 
   // Vérifie que la commande existe et appartient à l'offre.
   const { data: order } = await supabaseAdmin
