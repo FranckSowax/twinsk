@@ -20,7 +20,7 @@ import CommunityPanel from '@/components/admin/whatsapp/CommunityPanel';
 import SendPanel from '@/components/admin/whatsapp/SendPanel';
 import PlaybookPanel from '@/components/admin/whatsapp/PlaybookPanel';
 import DeparturesPanel from '@/components/admin/whatsapp/DeparturesPanel';
-import DripPanel from '@/components/admin/whatsapp/DripPanel';
+import DripCampaigns from '@/components/admin/whatsapp/DripCampaigns';
 import { buildDestOptions, type CommunityState, type GroupRow } from '@/components/admin/whatsapp/types';
 
 const TABS = [
@@ -114,7 +114,7 @@ export default function AdminWhatsappPage() {
       {tab === 'community' && <CommunityPanel community={community} groups={groups} onChanged={load} />}
       {tab === 'playbook' && <PlaybookPanel destOptions={destOptions} community={community} />}
       {tab === 'departures' && <DeparturesPanel groups={groups} communityConfigured={communityConfigured} />}
-      {tab === 'drip' && <DripPanel groups={groups} />}
+      {tab === 'drip' && <DripCampaigns groups={groups} />}
     </div>
   );
 }

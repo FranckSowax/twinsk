@@ -48,7 +48,7 @@ interface State {
 }
 interface Offer { id: string; title: string; status: string; archived_at?: string | null }
 
-export default function DripPanel({ groups }: { groups: GroupRow[] }) {
+export default function DripPanel({ groups, slot = 1, onChanged }: { groups: GroupRow[]; slot?: number; onChanged?: () => void }) {
   const [state, setState] = useState<State | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [draft, setDraft] = useState<Partial<Config>>({});
@@ -57,14 +57,14 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
   const [position, setPosition] = useState<string>('');
 
   const load = useCallback(async () => {
-    const [d, o] = await Promise.all([fetch('/api/whapi/drip'), fetch('/api/offers')]);
+    const [d, o] = await Promise.all([fetch(`/api/whapi/drip?slot=${slot}`), fetch('/api/offers')]);
     if (d.ok) setState(await d.json());
     if (o.ok) {
       const list = (await o.json()) as Offer[];
       if (Array.isArray(list)) setOffers(list.filter((x) => x.status === 'published' && !x.archived_at));
     }
     setDraft({});
-  }, []);
+  }, [slot]);
 
   useEffect(() => {
     load();
@@ -86,12 +86,13 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
       const res = await fetch('/api/whapi/drip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify({ ...patch, slot }),
       });
       const d = await res.json();
       if (!res.ok) setMessage(`⚠️ ${d.error || 'Échec'}`);
       else setMessage(`✅ ${label}`);
       await load();
+      onChanged?.();
     } finally {
       setBusy(null);
     }
@@ -104,7 +105,7 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
       const res = await fetch('/api/whapi/drip/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'dry' ? { dry: true } : { advance: true }),
+        body: JSON.stringify(mode === 'dry' ? { dry: true, slot } : { advance: true, slot }),
       });
       const d = await res.json();
       if (!res.ok) setMessage(`⚠️ ${d.error || 'Échec'}`);
@@ -112,6 +113,7 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
       else if (d.skipped) setMessage(`ℹ️ Ignoré : ${d.skipped}`);
       else setMessage(`${d.success ? '✅' : '⚠️'} ${d.plan?.categoryTitle} → ${d.summary}`);
       await load();
+      onChanged?.();
     } finally {
       setBusy(null);
     }
@@ -143,7 +145,7 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
         <div>
           <p className="font-display text-lg font-bold text-slate-900 dark:text-white">
-            {cfg.enabled ? '🟢 Diffusion active' : '⏸ Diffusion en pause'}
+            Campagne {slot} · {cfg.enabled ? '🟢 active' : '⏸ en pause'}
           </p>
           {state.whatsapp && !state.whatsapp.ok && (
             <p className="mt-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
@@ -249,6 +251,11 @@ export default function DripPanel({ groups }: { groups: GroupRow[] }) {
         </div>
         <div className="sm:col-span-2">
           <label className={label}>Canaux</label>
+          {slot > 1 && (cfg.channels.status || cfg.channels.channel || cfg.channels.facebook || cfg.channels.instagram) && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Statut, chaîne, Facebook et Instagram sont partagés entre les campagnes : les deux flux s&apos;y cumuleront. Seul le groupe est propre à cette campagne.
+            </p>
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
             {CHANNELS.map((c) => {
               const on = cfg.channels[c.key];

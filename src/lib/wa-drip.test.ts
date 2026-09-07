@@ -15,6 +15,9 @@ import {
   normalizeDripConfig,
   pickCategory,
   productsFor,
+  dripRitual,
+  dripSettingKey,
+  parseDripSlot,
 } from './wa-drip';
 
 type Product = PublicOfferData['items'][number]['products'][number];
@@ -171,5 +174,21 @@ describe('rythme par canal', () => {
     const ig = normalizeDripConfig({ per_channel: { instagram: 1, instagram_posts: 0 } });
     expect(instagramPostsFor(ig)).toBe(0);
     expect(instagramPostsFor(normalizeDripConfig({}))).toBe(1);
+  });
+});
+
+describe('campagnes simultanées (emplacements)', () => {
+  it('garde la clé historique pour la campagne 1 et suffixe les autres', () => {
+    expect(dripSettingKey(1)).toBe('category_drip');
+    expect(dripSettingKey(2)).toBe('category_drip:2');
+    expect(dripRitual(1)).toBe('category_drip');
+    expect(dripRitual(3)).toBe('category_drip:3');
+  });
+  it('retombe sur la campagne 1 pour toute valeur invalide', () => {
+    expect(parseDripSlot('2')).toBe(2);
+    expect(parseDripSlot(undefined)).toBe(1);
+    expect(parseDripSlot(0)).toBe(1);
+    expect(parseDripSlot(99)).toBe(1);
+    expect(parseDripSlot('abc')).toBe(1);
   });
 });

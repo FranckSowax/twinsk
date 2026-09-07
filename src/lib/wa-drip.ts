@@ -11,6 +11,23 @@ import { FX_RATES, roundXafUp } from '@/lib/utils/formatCurrency';
 import { isEligible } from '@/lib/wa-catalog-plan';
 
 export const DRIP_SETTING_KEY = 'category_drip';
+/**
+ * Campagnes simultanées : chaque emplacement (1..MAX_DRIP_SLOTS) a sa propre
+ * config, son curseur, son verrou horaire et son journal — elles n'interfèrent
+ * pas. L'emplacement 1 garde la clé historique `category_drip`.
+ */
+export const MAX_DRIP_SLOTS = 3;
+export function parseDripSlot(v: unknown): number {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= MAX_DRIP_SLOTS ? n : 1;
+}
+export function dripSettingKey(slot: number): string {
+  return slot <= 1 ? DRIP_SETTING_KEY : `${DRIP_SETTING_KEY}:${slot}`;
+}
+/** Rituel du journal (playbook_log) propre à chaque campagne. */
+export function dripRitual(slot: number): string {
+  return slot <= 1 ? 'category_drip' : `category_drip:${slot}`;
+}
 export const DRIP_TIMEZONE = 'Africa/Libreville';
 /** Produits publiés par catégorie et par heure (au-delà, c'est du spam de groupe). */
 export const DRIP_MAX_PER_CATEGORY = 5;

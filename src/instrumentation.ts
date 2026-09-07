@@ -18,10 +18,13 @@ function msUntilNextHour(): number {
 
 async function tick(): Promise<void> {
   try {
-    const { runDrip } = await import('@/lib/wa-drip-run');
-    const result = await runDrip({ origin: PUBLIC_ORIGIN_FALLBACK, actor: 'scheduler' });
-    const label = 'skipped' in result ? `ignoré (${result.skipped})` : 'error' in result ? `erreur : ${result.error}` : 'summary' in result ? result.summary : 'ok';
-    console.log(`[drip-scheduler] ${new Date().toISOString()} ${label}`);
+    const { runAllDrips, describeRunResult } = await import('@/lib/wa-drip-run');
+    const results = await runAllDrips({ origin: PUBLIC_ORIGIN_FALLBACK, actor: 'scheduler' });
+    for (const { slot, result } of results) {
+      // Les campagnes non configurées restent silencieuses dans les logs.
+      if ('skipped' in result && result.skipped === 'not_configured') continue;
+      console.log(`[drip-scheduler] ${new Date().toISOString()} campagne ${slot} : ${describeRunResult(result)}`);
+    }
   } catch (err) {
     console.error('[drip-scheduler] échec', err);
   }

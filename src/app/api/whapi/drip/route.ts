@@ -11,10 +11,12 @@ import {
   DRIP_MAX_PER_CATEGORY,
   buildDripPlan,
   listDripCategories,
+  dripRitual,
   normalizeDripConfig,
+  parseDripSlot,
   type DripConfig,
 } from '@/lib/wa-drip';
-import { readDripConfig, writeDripConfig } from '@/lib/wa-drip-run';
+import { listDripCampaigns, readDripConfig, writeDripConfig } from '@/lib/wa-drip-run';
 
 // Réglage du goutte-à-goutte multi-canal (admin only).
 // GET  → config, disponibilité des canaux, groupes (avec cache si WHAPI est
@@ -22,22 +24,25 @@ import { readDripConfig, writeDripConfig } from '@/lib/wa-drip-run';
 // POST → champs à modifier : enabled, offer_id, group_id, channel_id,
 //        channels {group,status,channel,facebook,instagram}, per_category,
 //        per_hour_other, per_channel, start_hour, end_hour, reset_cursor,
-//        cursor (position 0-based : 0 = première catégorie)
+//        cursor (position 0-based : 0 = première catégorie), slot (campagne 1..3)
+// ?slot=N (GET) / body.slot (POST) : campagne visée — chaque campagne est isolée.
 
 export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  const cfg = await readDripConfig();
+  const slot = parseDripSlot(request.nextUrl.searchParams.get('slot'));
+  const cfg = await readDripConfig(slot);
 
-  const [newsletters, log, groups, health] = await Promise.all([
+  const [newsletters, log, groups, health, campaigns] = await Promise.all([
     getWhapiNewsletters(),
     supabaseAdmin
       .from('playbook_log')
       .select('note, done_by, done_at')
-      .eq('ritual', 'category_drip')
+      .eq('ritual', dripRitual(slot))
       .order('done_at', { ascending: false })
       .limit(24),
     listGroupsWithCache(),
     getWhapiHealth(),
+    listDripCampaigns(),
   ]);
 
   const ready = {
@@ -61,6 +66,8 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
+    slot,
+    campaigns,
     config: cfg,
     ready,
     groups: groups.groups,
@@ -76,8 +83,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  const body = (await request.json().catch(() => ({}))) as Partial<DripConfig> & { reset_cursor?: boolean };
-  const current = await readDripConfig();
+  const body = (await request.json().catch(() => ({}))) as Partial<DripConfig> & { reset_cursor?: boolean; slot?: number };
+  const slot = parseDripSlot(body.slot);
+  const current = await readDripConfig(slot);
 
   if (body.group_id && !/^[\d-]{10,31}@g\.us$/.test(body.group_id)) {
     return NextResponse.json({ error: 'group_id invalide (attendu : …@g.us)' }, { status: 400 });
@@ -141,6 +149,6 @@ export async function POST(request: NextRequest) {
     ...cursorPatch,
   });
 
-  await writeDripConfig(next);
-  return NextResponse.json({ success: true, config: next });
+  await writeDripConfig(next, slot);
+  return NextResponse.json({ success: true, slot, config: next });
 }

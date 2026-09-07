@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicOrigin } from '@/lib/public-origin';
-import { runDrip } from '@/lib/wa-drip-run';
+import { runAllDrips, runDrip } from '@/lib/wa-drip-run';
+import { parseDripSlot } from '@/lib/wa-drip';
 
 // GET/POST : publie UNE catégorie du listing sur les canaux actifs (groupe,
 // statut, chaîne, Facebook, Instagram). À appeler toutes les heures par un cron
@@ -10,7 +11,7 @@ import { runDrip } from '@/lib/wa-drip-run';
 //   ?dry=1   → montre ce qui partirait, sans rien envoyer
 //   ?force=1 → ignore la fenêtre et le verrou (tests)
 
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 async function handle(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -18,14 +19,21 @@ async function handle(request: NextRequest) {
   if (!secret || key !== secret) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
-  const result = await runDrip({
+  const base = {
     origin: publicOrigin(request),
     dry: request.nextUrl.searchParams.get('dry') === '1',
     force: request.nextUrl.searchParams.get('force') === '1',
     actor: 'cron',
-  });
-  if ('error' in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  };
+  // ?slot=N → une seule campagne ; sinon toutes, l'une après l'autre.
+  const slotParam = request.nextUrl.searchParams.get('slot');
+  if (slotParam) {
+    const result = await runDrip({ ...base, slot: parseDripSlot(slotParam) });
+    if ('error' in result) return NextResponse.json(result, { status: 400 });
+    return NextResponse.json(result);
+  }
+  const campaigns = await runAllDrips(base);
+  return NextResponse.json({ campaigns });
 }
 
 export const GET = handle;
