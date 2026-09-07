@@ -62,17 +62,24 @@ type ProductRow = {
   price_type?: unknown;
 };
 
-export async function createOfferOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
-  const { offerId, clientName, clientPhone } = input;
-  const clientEmail = (input.clientEmail || '').trim();
-  const picks = Array.isArray(input.picks) ? input.picks : [];
-  if (!picks.length) return { ok: false, status: 400, error: 'Aucun produit sélectionné' };
+export interface PricedPicks {
+  lineRows: Record<string, unknown>[];
+  itemsTotalCny: number;
+  commissionCny: number;
+  anyBattery: boolean;
+}
 
-  const { data: offer } = await supabaseAdmin.from('offers').select('id, title, status').eq('id', offerId).single();
-  if (!offer || offer.status !== 'published') return { ok: false, status: 404, error: 'Offre non publique' };
-
+/**
+ * Valorise des choix produit (prix + marge, commission affilié, snapshot) en
+ * lignes prêtes à insérer. Partagé entre la création de commande et l'ajout
+ * d'un produit à une commande existante.
+ */
+export async function priceOrderPicks(
+  picks: OrderPick[],
+  affiliateCommission = 0,
+): Promise<PricedPicks | { error: string; status: number }> {
   const productIds = picks.map((p) => p.product_id).filter(Boolean);
-  if (!productIds.length) return { ok: false, status: 400, error: 'Produits invalides' };
+  if (!productIds.length) return { error: 'Produits invalides', status: 400 };
 
   // price_type inclus dans le select ; repli sans lui si la colonne manque
   // (migration 46 pas encore appliquée) — l'import ne doit jamais casser la commande.
@@ -86,25 +93,9 @@ export async function createOfferOrder(input: CreateOrderInput): Promise<CreateO
     prodRes = await supabaseAdmin.from('offer_products').select(baseCols).in('id', productIds);
   }
   const products = prodRes.data as ProductRow[] | null;
-  if (!products?.length) return { ok: false, status: 400, error: 'Produits introuvables' };
+  if (!products?.length) return { error: 'Produits introuvables', status: 400 };
   const productMap = new Map<string, ProductRow>(products.map((p) => [p.id, p]));
 
-  // Attribution marque blanche : valide le lien affilié (offre + actif) et
-  // récupère sa commission — appliquée SERVEUR.
-  let affiliate: { linkId: string; affiliateId: string; commission: number } | null = null;
-  if (input.affiliateRef) {
-    const { data: aff } = await supabaseAdmin
-      .from('affiliate_offers')
-      .select('id, offer_id, commission_percent, active, affiliates(id, active)')
-      .eq('id', input.affiliateRef)
-      .single();
-    const a = aff?.affiliates as unknown as { id: string; active: boolean } | null;
-    if (aff && aff.offer_id === offerId && aff.active !== false && a && a.active !== false) {
-      affiliate = { linkId: aff.id, affiliateId: a.id, commission: Number(aff.commission_percent) || 0 };
-    }
-  }
-
-  // Lignes
   let itemsTotalCny = 0;
   let commissionCny = 0;
   const lineRows: Record<string, unknown>[] = [];
@@ -118,8 +109,8 @@ export async function createOfferOrder(input: CreateOrderInput): Promise<CreateO
     const acompte = isAcompte(product.price_type) || isAcompte(variant?.price_type);
     const baseUnit = variant && variant.price != null ? variant.price : product.price;
     const unitBeforeCommission = acompte ? 0 : baseUnit * (1 + (product.margin_percent || 0) / 100);
-    const unitWithMargin = affiliate ? unitBeforeCommission * (1 + affiliate.commission / 100) : unitBeforeCommission;
-    if (affiliate && !acompte) commissionCny += (unitWithMargin - unitBeforeCommission) * qty;
+    const unitWithMargin = affiliateCommission ? unitBeforeCommission * (1 + affiliateCommission / 100) : unitBeforeCommission;
+    if (affiliateCommission && !acompte) commissionCny += (unitWithMargin - unitBeforeCommission) * qty;
     const subtotal = acompte ? 0 : unitWithMargin * qty;
     itemsTotalCny += subtotal;
     if (product.has_battery) anyBattery = true;
@@ -139,7 +130,49 @@ export async function createOfferOrder(input: CreateOrderInput): Promise<CreateO
       has_battery: product.has_battery ?? null,
     });
   }
-  if (!lineRows.length) return { ok: false, status: 400, error: 'Aucun produit valide' };
+  if (!lineRows.length) return { error: 'Aucun produit valide', status: 400 };
+  return { lineRows, itemsTotalCny, commissionCny, anyBattery };
+}
+
+/** Insère des lignes en tolérant l'absence des colonnes snapshot (migration 30). */
+export async function insertOrderLines(orderId: string, lineRows: Record<string, unknown>[]): Promise<string | null> {
+  const withOrder = lineRows.map((l) => ({ ...l, order_id: orderId }));
+  let err = (await supabaseAdmin.from('offer_order_lines').insert(withOrder)).error;
+  if (err) {
+    const strip = new Set(['weight', 'volume', 'has_battery', 'price_type']);
+    const fallback = withOrder.map((l) => Object.fromEntries(Object.entries(l).filter(([k]) => !strip.has(k))));
+    err = (await supabaseAdmin.from('offer_order_lines').insert(fallback)).error;
+  }
+  return err ? err.message || 'Erreur enregistrement des lignes' : null;
+}
+
+export async function createOfferOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
+  const { offerId, clientName, clientPhone } = input;
+  const clientEmail = (input.clientEmail || '').trim();
+  const picks = Array.isArray(input.picks) ? input.picks : [];
+  if (!picks.length) return { ok: false, status: 400, error: 'Aucun produit sélectionné' };
+
+  const { data: offer } = await supabaseAdmin.from('offers').select('id, title, status').eq('id', offerId).single();
+  if (!offer || offer.status !== 'published') return { ok: false, status: 404, error: 'Offre non publique' };
+
+  // Attribution marque blanche : valide le lien affilié (offre + actif) et
+  // récupère sa commission — appliquée SERVEUR.
+  let affiliate: { linkId: string; affiliateId: string; commission: number } | null = null;
+  if (input.affiliateRef) {
+    const { data: aff } = await supabaseAdmin
+      .from('affiliate_offers')
+      .select('id, offer_id, commission_percent, active, affiliates(id, active)')
+      .eq('id', input.affiliateRef)
+      .single();
+    const a = aff?.affiliates as unknown as { id: string; active: boolean } | null;
+    if (aff && aff.offer_id === offerId && aff.active !== false && a && a.active !== false) {
+      affiliate = { linkId: aff.id, affiliateId: a.id, commission: Number(aff.commission_percent) || 0 };
+    }
+  }
+
+  const priced = await priceOrderPicks(picks, affiliate?.commission || 0);
+  if ('error' in priced) return { ok: false, status: priced.status, error: priced.error };
+  const { lineRows, itemsTotalCny, commissionCny, anyBattery } = priced;
 
   // 1. Commande
   const { data: orderRow, error: orderErr } = await supabaseAdmin
@@ -164,18 +197,11 @@ export async function createOfferOrder(input: CreateOrderInput): Promise<CreateO
     .single();
   if (orderErr || !orderRow) return { ok: false, status: 500, error: orderErr?.message || 'Erreur création commande' };
 
-  // 2. Lignes — résilient au schéma (colonnes snapshot de la migration 30).
-  const linesWithOrder = lineRows.map((l) => ({ ...l, order_id: orderRow.id }));
-  let linesErr = (await supabaseAdmin.from('offer_order_lines').insert(linesWithOrder)).error;
+  // 2. Lignes — pas de commande sans lignes.
+  const linesErr = await insertOrderLines(orderRow.id, lineRows);
   if (linesErr) {
-    const strip = new Set(['weight', 'volume', 'has_battery', 'price_type']);
-    const fallback = linesWithOrder.map((l) => Object.fromEntries(Object.entries(l).filter(([k]) => !strip.has(k))));
-    linesErr = (await supabaseAdmin.from('offer_order_lines').insert(fallback)).error;
-  }
-  if (linesErr) {
-    // Pas de commande sans lignes.
     await supabaseAdmin.from('offer_orders').delete().eq('id', orderRow.id);
-    return { ok: false, status: 500, error: linesErr.message || 'Erreur enregistrement des lignes' };
+    return { ok: false, status: 500, error: linesErr };
   }
 
   // 3. Miroir /admin/requests (les coordonnées sont obligatoires, donc toujours).

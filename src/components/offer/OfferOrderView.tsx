@@ -12,7 +12,8 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Smartphone, Upload, Clock, Banknote, FileText } from 'lucide-react';
+import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2 } from 'lucide-react';
+import OrderAddProductModal from '@/components/offer/OrderAddProductModal';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
@@ -105,6 +106,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
+  // Modification du panier (ajout / quantité / suppression) — tant que rien n'est payé.
+  const [addOpen, setAddOpen] = useState(false);
+  const [lineBusy, setLineBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,6 +279,51 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
     }
   };
 
+  const afterLineChange = (d: { promo_removed?: boolean }) => {
+    setError('');
+    if (d.promo_removed) setPromoMsg('Le panier a changé : le code promo a été retiré, vous pouvez le ré-appliquer.');
+  };
+  const addLine = async (pick: { product_id: string; variant_id: string | null; quantity: number }): Promise<string | null> => {
+    const res = await fetch(`/api/offer-public/${offerId}/order/${orderId}/lines`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pick),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return d.error || 'Ajout impossible';
+    afterLineChange(d);
+    await load();
+    return null;
+  };
+  const setLineQty = async (lineId: string, quantity: number) => {
+    setLineBusy(lineId);
+    try {
+      const res = await fetch(`/api/offer-public/${offerId}/order/${orderId}/lines/${lineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) setError(d.error || 'Modification impossible');
+      else afterLineChange(d);
+      await load();
+    } finally {
+      setLineBusy(null);
+    }
+  };
+  const removeLine = async (lineId: string) => {
+    setLineBusy(lineId);
+    try {
+      const res = await fetch(`/api/offer-public/${offerId}/order/${orderId}/lines/${lineId}`, { method: 'DELETE' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) setError(d.error || 'Suppression impossible');
+      else afterLineChange(d);
+      await load();
+    } finally {
+      setLineBusy(null);
+    }
+  };
+
   const saveContact = async () => {
     if (!contactName.trim() || !contactPhone.trim()) {
       setError('Nom et numéro WhatsApp requis');
@@ -330,6 +379,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const transportPicked = !!order.transport_mode;
   const paymentDone = paymentParam === 'mock-success' || order.payment_status === 'paid';
   const paymentSubmitted = order.payment_status === 'submitted';
+  const cartEditable = !paymentDone && !paymentSubmitted;
   const grandTotalFcfa = roundXafUp(pricing.itemsTotalFcfaRounded + (order.transport_cost || 0));
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
@@ -380,10 +430,24 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
 
       {/* Cart summary */}
       <section className="mb-6 space-y-2 rounded-3xl border border-slate-200 bg-white p-6">
-        <h2 className="flex items-center gap-2 font-semibold text-slate-900">
-          <ShoppingBag className="h-4 w-4 text-emerald-500" />
-          Récapitulatif panier
-        </h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+            <ShoppingBag className="h-4 w-4 text-emerald-500" />
+            Récapitulatif panier
+          </h2>
+          {cartEditable && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+            >
+              <Plus className="h-3.5 w-3.5" /> Ajouter un produit
+            </button>
+          )}
+        </div>
+        {cartEditable && (
+          <p className="text-xs text-slate-500">Vous pouvez encore ajuster les quantités, retirer ou ajouter des produits. Le transport sera à re-choisir après un changement.</p>
+        )}
         <div className="space-y-2 pt-2">
           {lines.map((l) => (
             <div
@@ -426,6 +490,31 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   {roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
                 </p>
               )}
+              {cartEditable && (
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => setLineQty(l.id, l.quantity - 1)} disabled={lineBusy !== null || l.quantity <= 1} title="Moins" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 ring-1 ring-slate-200 disabled:opacity-30">
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" onClick={() => setLineQty(l.id, l.quantity + 1)} disabled={lineBusy !== null} title="Plus" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 ring-1 ring-slate-200 disabled:opacity-30">
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (lines.length <= 1) {
+                        setError('Une commande doit garder au moins un produit.');
+                        return;
+                      }
+                      if (confirm('Retirer ce produit du panier ?')) removeLine(l.id);
+                    }}
+                    disabled={lineBusy !== null}
+                    title="Retirer"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30"
+                  >
+                    {lineBusy === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -457,6 +546,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           )}
         </div>
       </section>
+      {addOpen && <OrderAddProductModal offerId={offerId} onAdd={addLine} onClose={() => setAddOpen(false)} />}
 
       {/* Transport selection */}
       {!allAcompte && (
