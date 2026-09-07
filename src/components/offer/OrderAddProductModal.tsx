@@ -8,6 +8,9 @@ import { Loader2, Plus, Search, X } from 'lucide-react';
 import SmartImage from '@/components/ui/SmartImage';
 import { formatInCurrency } from '@/lib/utils/formatCurrency';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
+import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
+
+const catTitle = (d: string | null | undefined) => splitCategoryTitle(d).short || d || 'Sans titre';
 
 type Product = PublicOfferData['items'][number]['products'][number];
 
@@ -44,8 +47,8 @@ export default function OrderAddProductModal({
     const q = query.trim().toLowerCase();
     return data.items
       .filter((it) => !category || it.id === category)
-      .flatMap((it) => it.products.map((p) => ({ p, category: it.description || '' })))
-      .filter(({ p, category: c }) => !q || `${p.title} ${c}`.toLowerCase().includes(q));
+      .flatMap((it) => it.products.map((p) => ({ p, category: catTitle(it.description), note: it.description || '' })))
+      .filter(({ p, note }) => !q || `${p.title} ${note}`.toLowerCase().includes(q));
   }, [data, query, category]);
 
   const add = async (p: Product) => {
@@ -93,7 +96,7 @@ export default function OrderAddProductModal({
             >
               <option value="">Toutes les catégories</option>
               {data.items.map((it) => (
-                <option key={it.id} value={it.id}>{(it.description || 'Sans titre').slice(0, 70)} ({it.products.length})</option>
+                <option key={it.id} value={it.id}>{catTitle(it.description).slice(0, 70)} ({it.products.length})</option>
               ))}
             </select>
           )}

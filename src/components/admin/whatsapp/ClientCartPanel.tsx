@@ -13,6 +13,9 @@ import { formatInCurrency } from '@/lib/utils/formatCurrency';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
+import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
+
+const catTitle = (d: string | null | undefined) => splitCategoryTitle(d).short || d || 'Sans titre';
 
 type Product = PublicOfferData['items'][number]['products'][number];
 interface Offer { id: string; title: string; status: string; archived_at?: string | null; offer_type?: string | null }
@@ -94,7 +97,7 @@ export default function ClientCartPanel() {
     };
   }, [offerId]);
 
-  const categories = useMemo(() => (data?.items || []).map((it) => ({ id: it.id, label: it.description || 'Sans titre', count: it.products.length })), [data]);
+  const categories = useMemo(() => (data?.items || []).map((it) => ({ id: it.id, label: catTitle(it.description), count: it.products.length })), [data]);
   const products = useMemo(() => {
     if (!data) return [] as { p: Product; category: string }[];
     const q = query.trim().toLowerCase();
@@ -103,7 +106,7 @@ export default function ClientCartPanel() {
       .flatMap((it) =>
         it.products
           .filter((p) => !q || `${p.title} ${it.description || ''}`.toLowerCase().includes(q))
-          .map((p) => ({ p, category: it.description || '' })),
+          .map((p) => ({ p, category: catTitle(it.description) })),
       );
   }, [data, query, category]);
   const byId = useMemo(() => {
