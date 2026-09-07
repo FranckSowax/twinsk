@@ -15,12 +15,13 @@ import {
   MessageCircle,
   RefreshCw,
   Send,
-  Ship, Radio } from 'lucide-react';
+  Ship, Radio, ShoppingCart } from 'lucide-react';
 import CommunityPanel from '@/components/admin/whatsapp/CommunityPanel';
 import SendPanel from '@/components/admin/whatsapp/SendPanel';
 import PlaybookPanel from '@/components/admin/whatsapp/PlaybookPanel';
 import DeparturesPanel from '@/components/admin/whatsapp/DeparturesPanel';
 import DripCampaigns from '@/components/admin/whatsapp/DripCampaigns';
+import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
 import { buildDestOptions, type CommunityState, type GroupRow } from '@/components/admin/whatsapp/types';
 
 const TABS = [
@@ -29,6 +30,7 @@ const TABS = [
   { key: 'playbook', label: 'Playbook', icon: BookOpenCheck },
   { key: 'departures', label: 'Départs', icon: Ship },
   { key: 'drip', label: 'Diffusion', icon: Radio },
+  { key: 'cart', label: 'Panier client', icon: ShoppingCart },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -115,6 +117,7 @@ export default function AdminWhatsappPage() {
       {tab === 'playbook' && <PlaybookPanel destOptions={destOptions} community={community} />}
       {tab === 'departures' && <DeparturesPanel groups={groups} communityConfigured={communityConfigured} />}
       {tab === 'drip' && <DripCampaigns groups={groups} />}
+      {tab === 'cart' && <ClientCartPanel />}
     </div>
   );
 }
