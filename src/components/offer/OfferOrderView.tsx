@@ -18,7 +18,7 @@ import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatFCFA } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { orderNumber } from '@/lib/order-number';
-import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
+import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
 
 interface OrderLine {
   id: string;
@@ -491,7 +491,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   {isAcompte(l.price_type) ? (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">{ACOMPTE_BADGE}</span>
                   ) : (
-                    <span className="text-xs text-slate-500">{roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA / u.</span>
+                    l.quantity > 1 && (
+                      <span className="whitespace-nowrap text-[11px] text-slate-500">{roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} / u.</span>
+                    )
                   )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-2">
