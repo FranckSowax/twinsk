@@ -450,71 +450,75 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         )}
         <div className="space-y-2 pt-2">
           {lines.map((l) => (
-            <div
-              key={l.id}
-              className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
-            >
-              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                {l.product_image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={l.product_image} alt={l.product_title || ''} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-slate-300">
-                    <ShoppingBag className="h-5 w-5" />
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-slate-800">
-                  {l.product_title || (l.product_id ? `Produit #${l.product_id.slice(0, 8)}` : 'Produit')}
-                </p>
-                {l.variant_name && (
-                  <p className="text-xs text-emerald-600">{l.variant_name}</p>
-                )}
-                {isAcompte(l.price_type) ? (
-                  <p className="text-xs font-semibold text-amber-600">
-                    {ACOMPTE_LABEL} · {l.quantity} article{l.quantity > 1 ? 's' : ''} — sur devis
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-500">
-                    {l.quantity} × {roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA
-                  </p>
-                )}
-              </div>
-              {isAcompte(l.price_type) ? (
-                <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold uppercase text-amber-700">
-                  {ACOMPTE_BADGE}
-                </span>
-              ) : (
-                <p className="flex-shrink-0 text-sm font-bold text-emerald-600">
-                  {roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA
-                </p>
-              )}
-              {cartEditable && (
-                <div className="flex flex-shrink-0 items-center gap-1">
-                  <button type="button" onClick={() => setLineQty(l.id, l.quantity - 1)} disabled={lineBusy !== null || l.quantity <= 1} title="Moins" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 ring-1 ring-slate-200 disabled:opacity-30">
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <button type="button" onClick={() => setLineQty(l.id, l.quantity + 1)} disabled={lineBusy !== null} title="Plus" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 ring-1 ring-slate-200 disabled:opacity-30">
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (lines.length <= 1) {
-                        setError('Une commande doit garder au moins un produit.');
-                        return;
-                      }
-                      if (confirm('Retirer ce produit du panier ?')) removeLine(l.id);
-                    }}
-                    disabled={lineBusy !== null}
-                    title="Retirer"
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30"
-                  >
-                    {lineBusy === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
+            <div key={l.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm">
+              {/* Rangée 1 : image + titre + variante */}
+              <div className="flex items-start gap-3">
+                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                  {l.product_image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={l.product_image} alt={l.product_title || ''} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-300">
+                      <ShoppingBag className="h-5 w-5" />
+                    </div>
+                  )}
                 </div>
-              )}
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-2 font-semibold leading-snug text-slate-800" title={l.product_title || ''}>
+                    {l.product_title || (l.product_id ? `Produit #${l.product_id.slice(0, 8)}` : 'Produit')}
+                  </p>
+                  {l.variant_name && (
+                    <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-emerald-600">{l.variant_name}</p>
+                  )}
+                </div>
+              </div>
+              {/* Rangée 2 : quantité (boutons) + prix unitaire | sous-total */}
+              <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-2">
+                <div className="flex items-center gap-2">
+                  {cartEditable ? (
+                    <div className="flex items-center rounded-lg bg-white ring-1 ring-slate-200">
+                      <button type="button" onClick={() => setLineQty(l.id, l.quantity - 1)} disabled={lineBusy !== null || l.quantity <= 1} title="Moins" className="flex h-8 w-8 items-center justify-center rounded-l-lg text-slate-700 disabled:opacity-30">
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="w-8 text-center text-sm font-semibold text-slate-800">{l.quantity}</span>
+                      <button type="button" onClick={() => setLineQty(l.id, l.quantity + 1)} disabled={lineBusy !== null} title="Plus" className="flex h-8 w-8 items-center justify-center rounded-r-lg text-slate-700 disabled:opacity-30">
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-500">× {l.quantity}</span>
+                  )}
+                  {isAcompte(l.price_type) ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">{ACOMPTE_BADGE}</span>
+                  ) : (
+                    <span className="text-xs text-slate-500">{roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} FCFA / u.</span>
+                  )}
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  {isAcompte(l.price_type) ? (
+                    <span className="text-xs font-semibold text-amber-600">Sur devis</span>
+                  ) : (
+                    <p className="text-sm font-bold text-emerald-600">{roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA</p>
+                  )}
+                  {cartEditable && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (lines.length <= 1) {
+                          setError('Une commande doit garder au moins un produit.');
+                          return;
+                        }
+                        if (confirm('Retirer ce produit du panier ?')) removeLine(l.id);
+                      }}
+                      disabled={lineBusy !== null}
+                      title="Retirer"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30"
+                    >
+                      {lineBusy === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
