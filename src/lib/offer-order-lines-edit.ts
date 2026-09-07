@@ -35,8 +35,11 @@ export async function orderAffiliateCommission(order: EditableOrder): Promise<nu
 }
 
 export async function recomputeAfterLineChange(order: EditableOrder): Promise<{ promo_removed: boolean; lines: number }> {
-  const { data: rows } = await supabaseAdmin.from('offer_order_lines').select('subtotal_cny, has_battery').eq('order_id', order.id);
-  const lines = (rows || []) as { subtotal_cny: number; has_battery?: boolean | null }[];
+  // `subtotal_cny` seul : la colonne snapshot has_battery (migration 30) peut
+  // manquer en prod, et une colonne inconnue ferait échouer toute la requête.
+  const { data: rows, error } = await supabaseAdmin.from('offer_order_lines').select('subtotal_cny').eq('order_id', order.id);
+  if (error) throw new Error(`lecture des lignes impossible : ${error.message}`);
+  const lines = (rows || []) as { subtotal_cny: number }[];
   const itemsTotalCny = lines.reduce((s, l) => s + (Number(l.subtotal_cny) || 0), 0);
   const pricing = computeOrderPricing(await loadOrderPricingLines(order.id));
 
