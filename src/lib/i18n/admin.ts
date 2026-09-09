@@ -24,6 +24,7 @@ export const DICT = {
     'nav.collaborators': 'Collaborateurs',
     'nav.orders': 'Commandes',
     'nav.promos': 'Codes promo',
+    'nav.bio': 'Page lien bio',
     'nav.revisions': 'À réviser',
     'nav.agents': 'Agents Gabon',
     // Révisions collaborateurs
@@ -245,6 +246,7 @@ export const DICT = {
     'nav.collaborators': '协作者',
     'nav.orders': '订单',
     'nav.promos': '优惠码',
+    'nav.bio': '链接页',
     'nav.revisions': '待审核',
     'nav.agents': '加蓬代理',
     // 协作者审核
