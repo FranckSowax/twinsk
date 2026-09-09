@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { handleWhatsappCart } from '@/lib/whapi-cart';
+import { extractInboundImage, extractInboundText, isSalonCandidate, type InboundMessage } from '@/lib/salon';
+import { createSalonRequest, readSalonConfig, sendSalonAck } from '@/lib/salon-data';
 
 // Webhook WHAPI (appelé par les serveurs WHAPI). PUBLIC mais protégé par un secret
 // passé en query (?secret=WHAPI_WEBHOOK_SECRET). Capte les votes de sondage (poll_update).
@@ -26,7 +28,28 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { messages?: WhapiMessage[] };
   const messages = Array.isArray(body.messages) ? body.messages : [];
 
+  // Groupe « Oh My Recherche » : chaque message client devient une demande
+  // numérotée, avec accusé de réception dans le groupe (config lue une fois par lot).
+  const salon = messages.length ? await readSalonConfig() : null;
+
   for (const m of messages) {
+    if (salon?.enabled && isSalonCandidate(m as InboundMessage, salon.group_id) && m.id) {
+      const im = m as InboundMessage;
+      const phone = String(im.from || '').replace(/\D/g, '');
+      if (phone) {
+        const created = await createSalonRequest({
+          msgId: m.id,
+          chatId: salon.group_id,
+          phone,
+          name: im.from_name || null,
+          text: extractInboundText(im),
+          imageUrl: extractInboundImage(im),
+        });
+        if (created?.created && salon.ack_enabled) await sendSalonAck(salon.group_id, created.number, phone);
+      }
+      continue;
+    }
+
     // Panier envoyé par un client depuis le catalogue WhatsApp → commande + lien de paiement.
     if (m.type === 'order' && m.order?.id && !m.from_me) {
       const chat = m.chat_id || (m.from ? `${m.from}@s.whatsapp.net` : '');

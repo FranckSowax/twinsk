@@ -98,8 +98,10 @@ export async function getWhapiHealth(): Promise<WhapiHealth> {
 }
 
 /** Envoie un message texte (le lien génère un aperçu automatiquement). */
-export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID): Promise<WhapiResult> {
-  return whapiPost('/messages/text', { to, body, typing_time: 0 });
+export async function sendWhapiText(body: string, to: string = DEFAULT_GROUP_ID, mentions?: string[]): Promise<WhapiResult> {
+  // `mentions` : ids de contacts (…@s.whatsapp.net) à notifier ; le corps doit
+  // contenir « @<numéro> » pour que WhatsApp affiche la mention.
+  return whapiPost('/messages/text', { to, body, typing_time: 0, ...(mentions?.length ? { mentions } : {}) });
 }
 
 /** Envoie un sondage (poll) — l'option interactive STABLE de WhatsApp (vs boutons). */
