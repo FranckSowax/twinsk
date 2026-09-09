@@ -3,8 +3,8 @@
 // Gestion de la page « lien en bio » (/bio) : identité, listings affichés
 // (onglet, ordre, pastille), étapes « Comment ça marche », contacts.
 
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, ExternalLink, Link2, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, ExternalLink, ImagePlus, Link2, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
 import { DEFAULT_BIO_STEPS, type BioConfig, type BioContacts, type BioListing, type BioStep } from '@/lib/bio-page';
 
 interface OfferRow { id: string; title: string; theme: string | null; offer_type: string | null; cover_image_url: string | null }
@@ -26,6 +26,8 @@ export default function AdminBioPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [addId, setAddId] = useState('');
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/bio');
@@ -52,6 +54,28 @@ export default function AdminBioPage() {
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Logo depuis un fichier : même route d'upload que les covers de listing
+  // (bucket public Supabase), l'URL obtenue devient logo_url.
+  const uploadLogo = async (file: File) => {
+    if (!cfg) return;
+    setLogoUploading(true);
+    setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const r = await fetch('/api/upload', { method: 'POST', body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.urls?.[0]) setMsg({ ok: false, text: d.error || 'Erreur upload du logo' });
+      else {
+        setCfg({ ...cfg, logo_url: d.urls[0] });
+        setMsg({ ok: true, text: 'Logo importé — pensez à enregistrer la page.' });
+      }
+    } finally {
+      setLogoUploading(false);
+      if (logoFileRef.current) logoFileRef.current.value = '';
     }
   };
 
@@ -95,7 +119,39 @@ export default function AdminBioPage() {
         <h2 className="font-semibold text-slate-900 dark:text-white">Identité</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div><label className={label}>Titre</label><input className={field} value={cfg.title} maxLength={60} onChange={(e) => setCfg({ ...cfg, title: e.target.value })} /></div>
-          <div><label className={label}>Logo (URL, optionnel)</label><input className={field} value={cfg.logo_url || ''} onChange={(e) => setCfg({ ...cfg, logo_url: e.target.value || null })} placeholder="https://…/logo.png" /></div>
+          <div>
+            <label className={label}>Logo</label>
+            <div className="flex items-center gap-3">
+              <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-2xl dark:bg-slate-700">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {cfg.logo_url ? <img src={cfg.logo_url} alt="Logo" className="h-full w-full object-cover" /> : '🛒'}
+              </div>
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => logoFileRef.current?.click()} disabled={logoUploading} className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200">
+                    {logoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />} Importer un fichier
+                  </button>
+                  {cfg.logo_url && (
+                    <button type="button" onClick={() => setCfg({ ...cfg, logo_url: null })} className="flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
+                      <X className="h-3.5 w-3.5" /> Retirer
+                    </button>
+                  )}
+                </div>
+                <input className={`${field} text-xs`} value={cfg.logo_url || ''} onChange={(e) => setCfg({ ...cfg, logo_url: e.target.value || null })} placeholder="ou coller une URL https://…/logo.png" />
+                <p className="text-[11px] text-slate-500">PNG, JPG ou WebP, 10 Mo max. Idéal : carré, 512 × 512 px.</p>
+              </div>
+              <input
+                ref={logoFileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadLogo(f);
+                }}
+              />
+            </div>
+          </div>
           <div className="sm:col-span-2"><label className={label}>Accroche</label><input className={field} value={cfg.tagline} maxLength={160} onChange={(e) => setCfg({ ...cfg, tagline: e.target.value })} /></div>
         </div>
       </section>
