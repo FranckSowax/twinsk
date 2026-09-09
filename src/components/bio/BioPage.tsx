@@ -152,13 +152,16 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
                 </div>
                 <h2 className="absolute bottom-3 left-3 right-3 font-display text-xl font-bold uppercase leading-tight text-white drop-shadow sm:text-2xl">{l.title}</h2>
               </div>
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <p className="text-xs text-slate-500">
+              <div className="space-y-2.5 px-4 pb-4 pt-3">
+                <span className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-emerald-500/30 transition group-hover:bg-emerald-600">
+                  Voir & commander <ArrowRight className="h-4 w-4" />
+                </span>
+                {l.description && (
+                  <p className="line-clamp-2 text-sm leading-relaxed text-slate-600">{l.description}</p>
+                )}
+                <p className="text-xs font-medium text-slate-500">
                   {l.products > 0 ? `${l.products} produits` : 'Sélection'}{l.categories > 0 ? ` · ${l.categories} catégories` : ''}
                 </p>
-                <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white group-hover:bg-emerald-600">
-                  Voir & commander <ArrowRight className="h-3.5 w-3.5" />
-                </span>
               </div>
             </a>
           ))}
