@@ -19,11 +19,22 @@ const TABS: { key: BioTab; label: string; hint: string; emoji: string }[] = [
 /** Vignette d'un listing : vidéo carrée en boucle (muette) si disponible, sinon la cover. */
 function CardMedia({ card }: { card: BioOfferCard }) {
   const [videoFailed, setVideoFailed] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const video = card.mobile_video_url && !videoFailed ? card.mobile_video_url : null;
   const poster = card.cover_image_url ? proxyImageUrl(card.cover_image_url) : undefined;
+  // React ne pose pas l'attribut `muted` dans le HTML rendu : on force la
+  // propriété puis on relance la lecture, sinon iOS/Chrome bloquent l'autoplay.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    v.defaultMuted = true;
+    v.play().catch(() => undefined);
+  }, [video]);
   if (video) {
     return (
       <video
+        ref={videoRef}
         src={video}
         poster={poster}
         muted
