@@ -22,6 +22,8 @@ export interface BioOfferCard {
   theme: string | null;
   description: string | null;
   cover_image_url: string | null;
+  /** Vidéo carrée 1:1 du listing (autoplay muet en boucle sur la vignette). */
+  mobile_video_url: string | null;
   offer_type: 'b2c' | 'b2b';
   tab: BioTab;
   badge: string | null;
@@ -35,6 +37,7 @@ interface OfferRow {
   theme: string | null;
   description: string | null;
   cover_image_url: string | null;
+  mobile_video_url: string | null;
   offer_type: string | null;
   updated_at: string | null;
   offer_items: { offer_products: { count: number }[] | null }[] | null;
@@ -44,7 +47,7 @@ interface OfferRow {
 export async function loadBioListings(cfg: BioConfig): Promise<BioOfferCard[]> {
   let q = supabaseAdmin
     .from('offers')
-    .select('id, title, theme, description, cover_image_url, offer_type, updated_at, offer_items(offer_products(count))')
+    .select('id, title, theme, description, cover_image_url, mobile_video_url, offer_type, updated_at, offer_items(offer_products(count))')
     .eq('status', 'published')
     .is('archived_at', null);
   if (cfg.listings.length) q = q.in('id', cfg.listings.map((l) => l.offer_id));
@@ -59,6 +62,7 @@ export async function loadBioListings(cfg: BioConfig): Promise<BioOfferCard[]> {
       theme: r.theme,
       description: r.description,
       cover_image_url: r.cover_image_url,
+      mobile_video_url: r.mobile_video_url || null,
       offer_type: r.offer_type === 'b2b' ? 'b2b' : 'b2c',
       tab,
       badge,
@@ -77,7 +81,7 @@ export async function loadBioListings(cfg: BioConfig): Promise<BioOfferCard[]> {
   const perTab: Record<BioTab, number> = { confort: 0, pro: 0 };
   const out: BioOfferCard[] = [];
   // Les listings avec une cover passent devant (vitrine), puis par fraîcheur.
-  const ordered = [...rows].sort((a, b) => Number(!!b.cover_image_url) - Number(!!a.cover_image_url));
+  const ordered = [...rows].sort((a, b) => Number(!!(b.mobile_video_url || b.cover_image_url)) - Number(!!(a.mobile_video_url || a.cover_image_url)));
   for (const r of ordered) {
     const tab = tabForOfferType(r.offer_type);
     if (perTab[tab] >= AUTO_MAX_PER_TAB) continue;

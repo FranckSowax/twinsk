@@ -16,6 +16,33 @@ const TABS: { key: BioTab; label: string; hint: string; emoji: string }[] = [
   { key: 'pro', label: 'Pro', hint: 'Business clé en main', emoji: '💼' },
 ];
 
+/** Vignette d'un listing : vidéo carrée en boucle (muette) si disponible, sinon la cover. */
+function CardMedia({ card }: { card: BioOfferCard }) {
+  const [videoFailed, setVideoFailed] = useState(false);
+  const video = card.mobile_video_url && !videoFailed ? card.mobile_video_url : null;
+  const poster = card.cover_image_url ? proxyImageUrl(card.cover_image_url) : undefined;
+  if (video) {
+    return (
+      <video
+        src={video}
+        poster={poster}
+        muted
+        autoPlay
+        loop
+        playsInline
+        preload="metadata"
+        onError={() => setVideoFailed(true)}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+  if (poster) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={poster} alt={card.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />;
+  }
+  return <div className="flex h-full w-full items-center justify-center text-5xl">{card.tab === 'pro' ? '💼' : '🏠'}</div>;
+}
+
 function TikTokIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -52,11 +79,11 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
   const c = config.contacts;
   const contacts = [
     c.whatsapp_number && { href: waLink(c.whatsapp_number, 'Bonjour Oh My Gab, je souhaite des informations.'), label: 'Écrire sur WhatsApp', sub: `+${c.whatsapp_number}`, icon: <MessageCircle className="h-5 w-5" />, cls: 'bg-[#25D366] text-white' },
-    c.whatsapp_channel && { href: c.whatsapp_channel, label: 'Chaîne WhatsApp', sub: 'Nouveautés et promos chaque heure', icon: <Radio className="h-5 w-5" />, cls: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' },
     c.whatsapp_group && { href: c.whatsapp_group, label: 'Groupe WhatsApp', sub: 'Le Salon Oh My : questions et échanges', icon: <Users className="h-5 w-5" />, cls: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' },
-    c.instagram && { href: c.instagram, label: 'Instagram', sub: 'Stories et coulisses', icon: <Instagram className="h-5 w-5" />, cls: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
-    c.facebook && { href: c.facebook, label: 'Facebook', sub: 'Page Oh My Gab', icon: <Facebook className="h-5 w-5" />, cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+    c.whatsapp_channel && { href: c.whatsapp_channel, label: 'Chaîne WhatsApp', sub: 'Nouveautés et promos chaque heure', icon: <Radio className="h-5 w-5" />, cls: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' },
     c.tiktok && { href: c.tiktok, label: 'TikTok', sub: 'Vidéos produits', icon: <TikTokIcon className="h-5 w-5" />, cls: 'bg-slate-900 text-white' },
+    c.facebook && { href: c.facebook, label: 'Facebook', sub: 'Page Oh My Gab', icon: <Facebook className="h-5 w-5" />, cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+    c.instagram && { href: c.instagram, label: 'Instagram', sub: 'Stories et coulisses', icon: <Instagram className="h-5 w-5" />, cls: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
     c.youtube && { href: c.youtube, label: 'YouTube', sub: 'Guides et présentations', icon: <Youtube className="h-5 w-5" />, cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
     c.email && { href: `mailto:${c.email}`, label: 'E-mail', sub: c.email, icon: <Mail className="h-5 w-5" />, cls: 'bg-slate-100 text-slate-800 ring-1 ring-slate-200' },
   ].filter(Boolean) as { href: string; label: string; sub: string; icon: React.ReactNode; cls: string }[];
@@ -68,9 +95,9 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
         <header className="text-center">
           {config.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={config.logo_url} alt={config.title} className="mx-auto h-20 w-20 rounded-3xl object-cover shadow-lg shadow-blue-500/10" />
+            <img src={config.logo_url} alt={config.title} className="mx-auto h-32 w-32 rounded-[2rem] object-cover shadow-xl shadow-blue-500/15 sm:h-36 sm:w-36" />
           ) : (
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-400 to-blue-600 text-4xl shadow-lg shadow-blue-500/20">🛒</div>
+            <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-[2rem] bg-gradient-to-br from-sky-400 to-blue-600 text-6xl shadow-xl shadow-blue-500/20 sm:h-36 sm:w-36">🛒</div>
           )}
           <h1 className="mt-4 font-display text-3xl font-bold uppercase tracking-tight sm:text-4xl">{config.title}</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">{config.tagline}</p>
@@ -85,7 +112,7 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
                 key={t.key}
                 type="button"
                 onClick={() => setTab(t.key)}
-                className={`rounded-xl px-3 py-2.5 text-left transition ${active ? 'bg-slate-900 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`rounded-xl px-3 py-2.5 text-left transition ${active ? 'bg-[#0047FF] text-white shadow-md shadow-[#0047FF]/30' : 'text-slate-600 hover:bg-slate-50'}`}
               >
                 <span className="block text-sm font-bold">{t.emoji} {t.label} <span className={`ml-1 rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{counts[t.key]}</span></span>
                 <span className={`block text-[11px] ${active ? 'text-white/70' : 'text-slate-400'}`}>{t.hint}</span>
@@ -105,13 +132,8 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
               href={`/offer/${l.id}?utm_source=bio&utm_medium=link&utm_campaign=${l.tab}`}
               className="group block overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-900/5 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-lg"
             >
-              <div className="relative aspect-[16/9] w-full bg-slate-100">
-                {l.cover_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={proxyImageUrl(l.cover_image_url)} alt={l.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-5xl">{l.tab === 'pro' ? '💼' : '🏠'}</div>
-                )}
+              <div className={`relative w-full bg-slate-100 ${l.mobile_video_url ? 'aspect-square' : 'aspect-[16/9]'}`}>
+                <CardMedia card={l} />
                 <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-900/70 to-transparent" />
                 <div className="absolute left-3 top-3 flex gap-2">
                   {l.theme && <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-800 backdrop-blur">{l.theme}</span>}
