@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BIO_STEPS, normalizeBioConfig, tabForOfferType, waLink } from './bio-page';
+import { DEFAULT_BIO_STEPS, normalizeBioConfig, normalizeContactUrl, tabForOfferType, waLink } from './bio-page';
 
 describe('normalizeBioConfig', () => {
   it('retombe sur les défauts complets pour une valeur absente', () => {
@@ -24,5 +24,16 @@ describe('normalizeBioConfig', () => {
     expect(waLink('+241 07 42 55 60', 'Bonjour')).toBe('https://wa.me/24107425560?text=Bonjour');
     expect(tabForOfferType('b2b')).toBe('pro');
     expect(tabForOfferType(null)).toBe('confort');
+  });
+});
+
+describe('normalizeContactUrl', () => {
+  it('rend les liens absolus et comprend les pseudos', () => {
+    expect(normalizeContactUrl('www.tiktok.com/@ohmygabshop', 'tiktok')).toBe('https://www.tiktok.com/@ohmygabshop');
+    expect(normalizeContactUrl('@ohmygabshop', 'tiktok')).toBe('https://www.tiktok.com/@ohmygabshop');
+    expect(normalizeContactUrl('@ohmygab_gabon', 'instagram')).toBe('https://www.instagram.com/ohmygab_gabon');
+    expect(normalizeContactUrl('https://chat.whatsapp.com/ABC')).toBe('https://chat.whatsapp.com/ABC');
+    expect(normalizeContactUrl('')).toBe('');
+    expect(normalizeBioConfig({ contacts: { tiktok: 'www.tiktok.com/@ohmygabshop' } }).contacts.tiktok).toBe('https://www.tiktok.com/@ohmygabshop');
   });
 });

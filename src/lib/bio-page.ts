@@ -64,6 +64,24 @@ export const DEFAULT_BIO_CONFIG: BioConfig = {
 
 const str = (v: unknown, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/**
+ * Lien de contact toujours absolu : « www.tiktok.com/@x » → « https://www.tiktok.com/@x »
+ * (sinon le navigateur le traite comme un chemin du site), « @pseudo » → profil du réseau.
+ */
+export function normalizeContactUrl(value: string, network?: 'tiktok' | 'instagram' | 'facebook' | 'youtube'): string {
+  const v = value.trim();
+  if (!v) return '';
+  if (/^(https?:\/\/|mailto:)/i.test(v)) return v;
+  if (v.startsWith('@')) {
+    const handle = v.slice(1);
+    if (network === 'tiktok') return `https://www.tiktok.com/@${handle}`;
+    if (network === 'instagram') return `https://www.instagram.com/${handle}`;
+    if (network === 'youtube') return `https://www.youtube.com/@${handle}`;
+    if (network === 'facebook') return `https://www.facebook.com/${handle}`;
+  }
+  return `https://${v.replace(/^\/+/, '')}`;
+}
+
 /** Normalise une valeur brute (base ou formulaire admin) : toujours complète et sûre. */
 export function normalizeBioConfig(raw: unknown): BioConfig {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -73,6 +91,9 @@ export function normalizeBioConfig(raw: unknown): BioConfig {
     if (typeof c[k] === 'string') contacts[k] = str(c[k], 300);
   }
   contacts.whatsapp_number = contacts.whatsapp_number.replace(/\D/g, '');
+  for (const k of ['whatsapp_channel', 'whatsapp_group', 'facebook', 'instagram', 'tiktok', 'youtube'] as const) {
+    contacts[k] = normalizeContactUrl(contacts[k], k === 'whatsapp_channel' || k === 'whatsapp_group' ? undefined : k);
+  }
 
   const seen = new Set<string>();
   const listings: BioListing[] = [];
