@@ -13,6 +13,9 @@ export async function writeBioConfig(cfg: BioConfig): Promise<void> {
   await supabaseAdmin.from('wa_settings').upsert({ key: BIO_SETTING_KEY, value: cfg, updated_at: new Date().toISOString() });
 }
 
+/** Mode automatique (aucune sélection admin) : listings récents par onglet. */
+export const AUTO_MAX_PER_TAB = 8;
+
 export interface BioOfferCard {
   id: string;
   title: string;
@@ -69,5 +72,17 @@ export async function loadBioListings(cfg: BioConfig): Promise<BioOfferCard[]> {
       return toCard(r, l.tab, l.badge);
     });
   }
-  return rows.map((r) => toCard(r, tabForOfferType(r.offer_type), null));
+  // Mode automatique : les listings les plus récents, plafonnés par onglet pour
+  // garder une page « bio » courte — l'admin choisit et ordonne pour aller au-delà.
+  const perTab: Record<BioTab, number> = { confort: 0, pro: 0 };
+  const out: BioOfferCard[] = [];
+  // Les listings avec une cover passent devant (vitrine), puis par fraîcheur.
+  const ordered = [...rows].sort((a, b) => Number(!!b.cover_image_url) - Number(!!a.cover_image_url));
+  for (const r of ordered) {
+    const tab = tabForOfferType(r.offer_type);
+    if (perTab[tab] >= AUTO_MAX_PER_TAB) continue;
+    perTab[tab] += 1;
+    out.push(toCard(r, tab, null));
+  }
+  return out;
 }
