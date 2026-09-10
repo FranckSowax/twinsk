@@ -216,6 +216,40 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     return bs.product_ids.map((id) => byId.get(id)).filter((p): p is OfferProduct => !!p);
   }, [offer.best_sellers, items]);
 
+  // Sommaire B2B : phases présentes dans le listing, avec leurs catégories
+  // (titres courts) — alimente la barre de phases collante et les puces d'ancrage.
+  const phaseNav = useMemo(() => {
+    if (!phases?.length) return [] as { id: string; title: string; categories: { id: string; title: string; count: number }[] }[];
+    return phases
+      .map((ph) => ({
+        id: ph.id,
+        title: ph.title,
+        categories: items
+          .filter((it) => it.phase_id === ph.id)
+          .map((it) => ({ id: it.id, title: splitCategoryTitle(it.description).short || 'Produits', count: it.products.length })),
+      }))
+      .filter((ph) => ph.categories.length > 0);
+  }, [phases, items]);
+  const [activePhase, setActivePhase] = useState<string | null>(null);
+  useEffect(() => {
+    if (!phaseNav.length || typeof IntersectionObserver === 'undefined') return;
+    const els = Array.from(document.querySelectorAll<HTMLElement>('[data-phase-anchor]'));
+    if (!els.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActivePhase(visible[0].target.getAttribute('data-phase-anchor'));
+      },
+      { rootMargin: '-35% 0px -55% 0px', threshold: 0 },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [phaseNav, searchQuery]);
+  const jumpTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const filteredItems = useMemo(() => {
     const q = normalizeSearch(searchQuery.trim());
     if (!q) return items;
@@ -548,6 +582,31 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
         </div>
       )}
 
+      {/* Sommaire B2B : barre de phases collante (défilement horizontal, phase active soulignée) */}
+      {phaseNav.length > 0 && !searchQuery.trim() && (
+        <nav aria-label="Phases du listing" className={`sticky z-20 mb-6 ${totalProducts >= 5 ? 'top-[4.6rem]' : 'top-2'}`}>
+          <div className="-mx-4 flex snap-x gap-2 overflow-x-auto rounded-none bg-slate-50/95 px-4 py-2 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:rounded-2xl sm:border sm:border-slate-200 sm:bg-white/95 sm:px-2">
+            {phaseNav.map((ph, i) => {
+              const active = activePhase === ph.id;
+              return (
+                <button
+                  key={ph.id}
+                  type="button"
+                  onClick={() => jumpTo(`phase-${ph.id}`)}
+                  className={`flex flex-shrink-0 snap-start items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold transition ${
+                    active ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:ring-slate-400'
+                  }`}
+                >
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/20 text-white' : 'bg-slate-900 text-white'}`}>{i + 1}</span>
+                  <span className="max-w-[14rem] truncate">{ph.title}</span>
+                  <span className={`text-[11px] font-medium ${active ? 'text-white/70' : 'text-slate-400'}`}>{ph.categories.length}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
       {/* Best sellers : galerie horizontale en tête, cartes à cadre rouge animé */}
       {bestSellers.length > 0 && !searchQuery.trim() && (
         <section className="mb-10">
@@ -641,11 +700,31 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
             return (
           <div key={item.id} className="space-y-4">
             {showPhase && phaseTitle && (
-              <div className="rounded-2xl bg-slate-900 px-5 py-3 text-white">
-                <p className="font-display text-lg font-bold uppercase tracking-wide">{phaseTitle}</p>
+              <div id={`phase-${item.phase_id}`} data-phase-anchor={item.phase_id ?? ''} className="scroll-mt-36 rounded-2xl bg-slate-900 px-5 py-4 text-white">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-white/60">
+                  Phase {(phaseNav.findIndex((ph) => ph.id === item.phase_id) + 1) || ''}
+                </p>
+                <p className="font-display text-xl font-bold uppercase tracking-wide">{phaseTitle}</p>
+                {(() => {
+                  const cats = phaseNav.find((ph) => ph.id === item.phase_id)?.categories || [];
+                  return cats.length > 1 ? (
+                    <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {cats.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => jumpTo(`cat-${c.id}`)}
+                          className="flex-shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white ring-1 ring-white/20 hover:bg-white/20"
+                        >
+                          {c.title.slice(0, 40)} <span className="text-white/50">· {c.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
-          <section>
+          <section id={`cat-${item.id}`} className="scroll-mt-36">
             <div className="mb-4">
               <h2 className="font-display text-xl font-bold text-slate-900">
                 {catShort || 'Produits'}
