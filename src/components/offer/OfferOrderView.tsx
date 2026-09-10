@@ -612,7 +612,12 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="font-semibold text-slate-900">Fret maritime</p>
               {order.transport_mode === 'sea' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
-            <p className="text-xs text-slate-500">{SEA_RATE_FCFA_PER_M3.toLocaleString('fr-FR')} FCFA / m³</p>
+            <p className="text-xs text-slate-500">
+              {Math.round(pricing.seaRate).toLocaleString('fr-FR')} FCFA / m³
+              {pricing.seaRate < SEA_RATE_FCFA_PER_M3 && (
+                <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">tarif dégressif</span>
+              )}
+            </p>
             <p className="font-display text-lg font-bold text-emerald-600">
               {formatFCFA(pricing.seaCost)}
             </p>

@@ -10,6 +10,27 @@ export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 
 export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_FCFA_PER_KG) || 18000;
 export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 240000;
 
+// Grille dégressive maritime (décision du 10 sept. 2026) : plein tarif jusqu'à
+// 2,5 m³, puis le tarif au m³ baisse linéairement jusqu'à 28 m³ = 5 000 000 FCFA
+// (≈ 178 571 FCFA / m³). Au-delà de 28 m³, le tarif plancher s'applique.
+export const SEA_DEGRESSIVE_FROM_M3 = 2.5;
+export const SEA_DEGRESSIVE_TO_M3 = 28;
+export const SEA_DEGRESSIVE_TO_TOTAL_FCFA = 5_000_000;
+export const SEA_RATE_FLOOR_FCFA_PER_M3 = SEA_DEGRESSIVE_TO_TOTAL_FCFA / SEA_DEGRESSIVE_TO_M3;
+
+/**
+ * Tarif maritime au m³ pour un volume de commande donné (FCFA / m³, non arrondi).
+ * ≤ 2,5 m³ → tarif de base ; 2,5 → 28 m³ → interpolation linéaire vers le plancher ;
+ * ≥ 28 m³ → plancher. Le total (volume × tarif) reste croissant sur toute la plage.
+ */
+export function seaRateForVolume(volumeM3: number, baseRate: number = SEA_RATE_FCFA_PER_M3): number {
+  if (!Number.isFinite(volumeM3) || volumeM3 <= SEA_DEGRESSIVE_FROM_M3) return baseRate;
+  const floor = Math.min(baseRate, SEA_RATE_FLOOR_FCFA_PER_M3);
+  if (volumeM3 >= SEA_DEGRESSIVE_TO_M3) return floor;
+  const t = (volumeM3 - SEA_DEGRESSIVE_FROM_M3) / (SEA_DEGRESSIVE_TO_M3 - SEA_DEGRESSIVE_FROM_M3);
+  return baseRate - (baseRate - floor) * t;
+}
+
 // Taux de conversion CNY -> FCFA (mis à jour manuellement, ~91 FCFA / CNY).
 // IMPORTANT : garder synchronisé avec FX_RATES.XAF dans src/lib/utils/formatCurrency.ts.
 // Sera remplacé par une source live si besoin.
@@ -88,7 +109,10 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
   const defaultAirRate = hasBattery ? AIR_BATTERY_RATE_FCFA_PER_KG : AIR_RATE_FCFA_PER_KG;
   // Tarif imposé par un code promo transport (jamais plus cher que le tarif normal).
   const airRate = opts.airRate != null && opts.airRate > 0 ? Math.min(opts.airRate, defaultAirRate) : defaultAirRate;
-  const seaRate = opts.seaRate != null && opts.seaRate > 0 ? Math.min(opts.seaRate, SEA_RATE_FCFA_PER_M3) : SEA_RATE_FCFA_PER_M3;
+  // Maritime : tarif dégressif selon le volume total ; un tarif négocié (code
+  // promo) s'applique s'il est encore plus bas, jamais au-dessus.
+  const degressiveSeaRate = seaAvailable ? seaRateForVolume(totalVolume) : SEA_RATE_FCFA_PER_M3;
+  const seaRate = opts.seaRate != null && opts.seaRate > 0 ? Math.min(opts.seaRate, degressiveSeaRate) : degressiveSeaRate;
   const airCost = airAvailable ? totalWeight * airRate : null;
   const seaCost = seaAvailable ? totalVolume * seaRate : null;
 
