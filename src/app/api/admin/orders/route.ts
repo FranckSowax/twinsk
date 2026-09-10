@@ -21,8 +21,14 @@ export async function GET(request: NextRequest) {
     .not('client_phone', 'is', null)
     .order('created_at', { ascending: false })
     .limit(100);
+  // Une commande n'entre dans la table qu'une fois le paiement engagé : preuve
+  // Airtel envoyée ou paiement cash choisi (submitted), ou payée. Les paniers
+  // et commandes sans paiement restent visibles via ?scope=all (onglet Paniers).
+  const scope = request.nextUrl.searchParams.get('scope');
   if (request.nextUrl.searchParams.get('pending') === '1') {
     query = query.eq('payment_status', 'submitted');
+  } else if (scope !== 'all') {
+    query = query.in('payment_status', ['submitted', 'paid']);
   }
   const { data, error } = await query;
   if (error) return NextResponse.json({ orders: [], warning: error.message });

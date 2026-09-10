@@ -89,8 +89,21 @@ export async function notifyOrdersGroup(orderId: string, origin: string): Promis
       (order.has_battery ? `🔋 Contient des batteries\n` : '') +
       `\n🔗 Récap : ${origin}/offer/${order.offer_id}/order/${order.id}`;
 
-    await sendWhapiText(body, ORDERS_GROUP_ID);
-  } catch {
-    // best-effort — ne bloque jamais la commande
+    // Envoi avec une relance : le groupe Commandes est la source de vérité de
+    // l'équipe, un raté doit être visible (journal + logs), jamais silencieux.
+    let r = await sendWhapiText(body, ORDERS_GROUP_ID);
+    if (!r.ok) {
+      await new Promise((res) => setTimeout(res, 2000));
+      r = await sendWhapiText(body, ORDERS_GROUP_ID);
+    }
+    if (!r.ok) console.error(`[order-notify] ${num} : envoi au groupe Commandes refusé — ${r.error}`);
+    await supabaseAdmin.from('playbook_log').insert({
+      ritual: 'order_notify',
+      note: `${num} · ${order.client_name || '—'} · ${Math.round(total).toLocaleString('fr-FR')} FCFA · ${r.ok ? 'envoyé au groupe Commandes' : `ÉCHEC : ${r.error}`}`,
+      done_by: 'system',
+    });
+  } catch (e) {
+    // best-effort — ne bloque jamais la commande, mais on le dit dans les logs
+    console.error('[order-notify] exception', e instanceof Error ? e.message : e);
   }
 }

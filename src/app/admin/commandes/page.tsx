@@ -146,16 +146,18 @@ export default function AdminOrdersPage() {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Par défaut l'API ne renvoie que les commandes payées ou au paiement engagé
+  // (preuve Airtel, cash choisi) ; l'onglet Paniers demande tout.
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/orders');
+      const res = await fetch(tab === 'carts' ? '/api/admin/orders?scope=all' : '/api/admin/orders');
       const data = await res.json();
       if (Array.isArray(data.orders)) setOrders(data.orders);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tab]);
 
   useEffect(() => {
     load();
