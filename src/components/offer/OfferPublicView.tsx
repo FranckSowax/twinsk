@@ -245,6 +245,17 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, [phaseNav, searchQuery]);
+  // La pastille de la phase active reste visible dans la barre (16 phases sur
+  // un listing pizzeria : sans ça, la phase courante sort de l'écran).
+  const phaseBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const bar = phaseBarRef.current;
+    if (!bar || !activePhase) return;
+    const btn = bar.querySelector<HTMLElement>(`[data-phase-btn="${activePhase}"]`);
+    if (!btn) return;
+    const left = btn.offsetLeft - bar.clientWidth / 2 + btn.offsetWidth / 2;
+    bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [activePhase]);
   const jumpTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -585,13 +596,14 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
       {/* Sommaire B2B : barre de phases collante (défilement horizontal, phase active soulignée) */}
       {phaseNav.length > 0 && !searchQuery.trim() && (
         <nav aria-label="Phases du listing" className={`sticky z-20 mb-6 ${totalProducts >= 5 ? 'top-[4.6rem]' : 'top-2'}`}>
-          <div className="-mx-4 flex snap-x gap-2 overflow-x-auto rounded-none bg-slate-50/95 px-4 py-2 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:rounded-2xl sm:border sm:border-slate-200 sm:bg-white/95 sm:px-2">
+          <div ref={phaseBarRef} className="-mx-4 flex snap-x gap-2 overflow-x-auto rounded-none bg-slate-50/95 px-4 py-2 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:rounded-2xl sm:border sm:border-slate-200 sm:bg-white/95 sm:px-2">
             {phaseNav.map((ph, i) => {
               const active = activePhase === ph.id;
               return (
                 <button
                   key={ph.id}
                   type="button"
+                  data-phase-btn={ph.id}
                   onClick={() => jumpTo(`phase-${ph.id}`)}
                   className={`flex flex-shrink-0 snap-start items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold transition ${
                     active ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:ring-slate-400'
