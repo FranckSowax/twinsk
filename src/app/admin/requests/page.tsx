@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import { FileJson, Search, X } from 'lucide-react';
+import ImportJsonRequestModal from '@/components/admin/ImportJsonRequestModal';
 import RequestsTable, { type RequestRow } from '@/components/admin/RequestsTable';
 
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const loadRequests = useCallback(() => {
     fetch('/api/requests')
@@ -124,6 +126,17 @@ export default function AdminRequestsPage() {
         </div>
       </div>
 
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setImportOpen(true)}
+          className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+          title="Créer une demande à partir du JSON d’un listing B2B ou B2C, pour générer un devis ou une packing list"
+        >
+          <FileJson className="h-4 w-4" /> Importer un JSON (devis / packing list)
+        </button>
+      </div>
+      <ImportJsonRequestModal open={importOpen} onClose={() => setImportOpen(false)} />
       <RequestsTable
         requests={filtered}
         onDelete={handleDelete}
