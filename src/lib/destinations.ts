@@ -27,7 +27,7 @@ export const DESTINATIONS: Record<DestinationCode, Destination> = {
     currency: 'XAF',
     air_rate_per_kg: 13_000,
     air_battery_rate_per_kg: 18_000,
-    sea_rate_per_cbm: 260_000,
+    sea_rate_per_cbm: 240_000,
   },
   france: {
     code: 'france',

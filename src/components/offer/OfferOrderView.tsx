@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2 } from 'lucide-react';
 import OrderAddProductModal from '@/components/offer/OrderAddProductModal';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { formatFCFA } from '@/lib/offer-pricing';
+import { formatFCFA, SEA_RATE_FCFA_PER_M3 } from '@/lib/offer-pricing';
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { orderNumber } from '@/lib/order-number';
 import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
@@ -612,7 +612,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="font-semibold text-slate-900">Fret maritime</p>
               {order.transport_mode === 'sea' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
-            <p className="text-xs text-slate-500">260 000 FCFA / m³</p>
+            <p className="text-xs text-slate-500">{SEA_RATE_FCFA_PER_M3.toLocaleString('fr-FR')} FCFA / m³</p>
             <p className="font-display text-lg font-bold text-emerald-600">
               {formatFCFA(pricing.seaCost)}
             </p>

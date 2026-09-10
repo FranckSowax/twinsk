@@ -1,14 +1,14 @@
 // Transport pricing for /offer/[uuid] checkout.
 // Tarifs Twinsk fournis par l'admin :
 //  - Aérien : 13 000 FCFA / kg (18 000 FCFA / kg si batterie au lithium)
-//  - Maritime : 260 000 FCFA / m³
+//  - Maritime : 240 000 FCFA / m³ (260 000 jusqu’au 10 sept. 2026)
 import { roundXafUp } from '@/lib/utils/formatCurrency';
 
 // Tarifs configurables via variables d'environnement (défauts Twinsk).
 export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 13000;
 // Tarif aérien spécial pour les produits AVEC batterie (lithium — dangereux).
 export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_FCFA_PER_KG) || 18000;
-export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 260000;
+export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 240000;
 
 // Taux de conversion CNY -> FCFA (mis à jour manuellement, ~91 FCFA / CNY).
 // IMPORTANT : garder synchronisé avec FX_RATES.XAF dans src/lib/utils/formatCurrency.ts.

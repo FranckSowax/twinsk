@@ -17,7 +17,7 @@ const VALUE_HINT: Record<Kind, string> = {
   items_percent: 'ex. 10 pour −10 %',
   items_fixed: 'ex. 5000 FCFA',
   air_rate: 'ex. 9000 FCFA / kg (normal : 13 000)',
-  sea_rate: 'ex. 200000 FCFA / m³ (normal : 260 000)',
+  sea_rate: 'ex. 200000 FCFA / m³ (normal : 240 000)',
 };
 
 interface Promo {
