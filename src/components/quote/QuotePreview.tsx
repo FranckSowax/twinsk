@@ -142,7 +142,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               Date : {new Date(quote.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <p className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-              {transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : '✈️🚢 Transport au choix'} · {destLabel}
+              {transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : '✈️🚢 Transport au choix'} · Door to Door
             </p>
           </div>
         </div>

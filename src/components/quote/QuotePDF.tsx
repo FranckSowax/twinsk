@@ -382,7 +382,7 @@ export default function QuotePDF({
           <Text style={styles.metaLineBold}>N° TWK{quoteId.slice(0, 8).toUpperCase()}</Text>
           <Text style={styles.metaLine}>Date : {quoteDate}</Text>
           <Text style={styles.metaLine}>
-            Transport : {mode === 'air' ? 'aérien' : mode === 'sea' ? 'maritime' : 'au choix (le moins cher retenu)'} · Destination : {destLabel}
+            Transport : {mode === 'air' ? 'aérien' : mode === 'sea' ? 'maritime' : 'au choix (le moins cher retenu)'} · Door to Door
           </Text>
         </View>
 

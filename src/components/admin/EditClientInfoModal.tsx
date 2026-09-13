@@ -3,11 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, MapPin, Mail, Phone, User, X, FileText } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { DESTINATION_LIST, DEFAULT_DESTINATION, DESTINATIONS, type DestinationCode } from '@/lib/destinations';
 
-function isKnownDestination(value: string): value is DestinationCode {
-  return value in DESTINATIONS;
-}
 
 interface ClientInfo {
   client_name: string | null;
@@ -148,25 +144,16 @@ export default function EditClientInfoModal({
                 />
               </Field>
 
-              <Field icon={<MapPin className="h-4 w-4 text-emerald-500" />} label="Destination de livraison">
-                <select
-                  value={isKnownDestination(destination) ? destination : (destination ? '__legacy__' : DEFAULT_DESTINATION)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '__legacy__') return; // ne pas reecrire la valeur legacy
-                    setDestination(v);
-                  }}
-                  className="w-full rounded-xl border border-emerald-200 bg-emerald-50/30 px-3 py-2 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-emerald-800 dark:bg-emerald-900/10 dark:text-slate-200"
-                >
-                  {DESTINATION_LIST.map((d) => (
-                    <option key={d.code} value={d.code}>{d.label}</option>
-                  ))}
-                  {destination && !isKnownDestination(destination) && (
-                    <option value="__legacy__">{destination} (à mettre à jour)</option>
-                  )}
-                </select>
+              <Field icon={<MapPin className="h-4 w-4 text-emerald-500" />} label="Ville et pays de livraison (optionnel)">
+                <input
+                  type="text"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  placeholder="Ex : Libreville, Gabon · Douala, Cameroun · Paris, France"
+                  className="w-full rounded-xl border border-emerald-200 bg-emerald-50/30 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-emerald-800 dark:bg-emerald-900/10 dark:text-slate-200"
+                />
                 <p className="mt-1 text-[10px] text-slate-400">
-                  Tarifs transport appliqués automatiquement selon le pays choisi.
+                  Affiché tel quel sur le devis et la packing list. Tarifs transport : France si la ville ou le pays mentionne la France ou Paris, sinon grille Afrique (Gabon).
                 </p>
               </Field>
 
