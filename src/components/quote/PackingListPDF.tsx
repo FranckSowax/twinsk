@@ -97,6 +97,8 @@ interface PackingListPDFProps {
   clientEmail: string;
   clientPhone: string;
   items: PackingItem[];
+  transportMode?: 'air' | 'sea' | 'both' | null;
+  destinationLabel?: string | null;
 }
 
 export default function PackingListPDF({
@@ -106,6 +108,8 @@ export default function PackingListPDF({
   clientEmail,
   clientPhone,
   items,
+  transportMode,
+  destinationLabel,
 }: PackingListPDFProps) {
   const totalWeight = items.reduce((sum, i) => sum + (i.weight || 0) * i.quantity, 0);
   const totalVolume = items.reduce((sum, i) => sum + (i.volume || 0) * i.quantity, 0);
@@ -118,12 +122,22 @@ export default function PackingListPDF({
         <View style={styles.header}>
           <View>
             <Text style={styles.logo}>TWINSK</Text>
-            <Text style={styles.subtitle}>Logistics & Sourcing Company</Text>
+            <Text style={[styles.subtitle, { fontFamily: 'Helvetica-Bold', color: '#0f172a' }]}>Twinsk Company Ltd</Text>
+            <Text style={styles.subtitle}>Logistics & Sourcing · Hong Kong · Guangzhou</Text>
+            <Text style={[styles.subtitle, { fontSize: 7 }]}>Room 506, Tongyue Building, No. 7 Tongya East Street, Xicha Road, Baiyun District, Guangzhou</Text>
+            <Text style={[styles.subtitle, { fontSize: 7 }]}>Contact : +86 137 1081 6769 · contact@twinskcompanyltd.com</Text>
           </View>
           <View>
             <Text style={styles.docTitle}>PACKING LIST</Text>
             <Text style={styles.docInfo}>N° {quoteId.slice(0, 8).toUpperCase()}</Text>
             <Text style={styles.docInfo}>Date : {quoteDate}</Text>
+            {transportMode && transportMode !== 'both' ? (
+              <Text style={[styles.docInfo, { fontFamily: 'Helvetica-Bold', color: '#b45309' }]}>
+                Transport {transportMode === 'air' ? 'aérien' : 'maritime'}{destinationLabel ? ` · ${destinationLabel}` : ''}
+              </Text>
+            ) : destinationLabel ? (
+              <Text style={styles.docInfo}>Destination : {destinationLabel}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -211,6 +225,12 @@ export default function PackingListPDF({
             <Text style={styles.totalLabel}>Volume total (m³) :</Text>
             <Text style={styles.totalValue}>{totalVolume.toFixed(4)}</Text>
           </View>
+          {transportMode && transportMode !== 'both' ? (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Mode de transport :</Text>
+              <Text style={styles.totalValue}>{transportMode === 'air' ? 'Aérien' : 'Maritime'}</Text>
+            </View>
+          ) : null}
           <View style={styles.grandTotal}>
             <Text style={styles.grandTotalLabel}>POIDS TOTAL :</Text>
             <Text style={styles.grandTotalValue}>{totalWeight.toFixed(3)} kg</Text>
@@ -218,7 +238,7 @@ export default function PackingListPDF({
         </View>
 
         <Text style={styles.footer}>
-          TWINSK Company — Logistics & Sourcing • Document de colisage à valeur informative
+          Twinsk Company Ltd — Logistics & Sourcing • Document de colisage à valeur informative
         </Text>
       </Page>
     </Document>

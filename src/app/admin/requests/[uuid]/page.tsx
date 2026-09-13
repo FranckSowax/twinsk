@@ -11,6 +11,8 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
+import TransportModeSelector from '@/components/admin/TransportModeSelector';
+import { computeQuoteTransport, type QuoteTransportMode } from '@/lib/quote-transport';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
 import JsonImportsButton from '@/components/admin/JsonImportsButton';
@@ -76,6 +78,7 @@ export default function AdminRequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
+  const [transportMode, setTransportMode] = useState<QuoteTransportMode>('both');
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -184,7 +187,7 @@ export default function AdminRequestDetailPage() {
       const res = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: uuid, document_type: documentType }),
+        body: JSON.stringify({ request_id: uuid, document_type: documentType, transport_mode: transportMode }),
       });
       const data = await res.json();
 
@@ -661,6 +664,25 @@ export default function AdminRequestDetailPage() {
           <OrderSummaryShareCard uuid={uuid} />
 
           <DocumentTypeSelector value={documentType} onChange={setDocumentType} />
+
+          <TransportModeSelector
+            value={transportMode}
+            onChange={setTransportMode}
+            currency={proposalCurrency === 'USD' || proposalCurrency === 'EUR' || proposalCurrency === 'XAF' ? proposalCurrency : 'CNY'}
+            transport={
+              selectedResults.length
+                ? computeQuoteTransport(
+                    selectedResults.map((r) => ({
+                      quantity: Math.max(1, Number(r.quantity) || 1),
+                      weight: r.weight ?? null,
+                      volume: r.volume ?? null,
+                      has_battery: !!r.has_battery,
+                    })),
+                    (request as unknown as { destination?: string | null })?.destination ?? null,
+                  )
+                : null
+            }
+          />
 
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
             <div>

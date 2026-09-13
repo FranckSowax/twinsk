@@ -6,7 +6,8 @@ import path from 'path';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import QuotePDF from '@/components/quote/QuotePDF';
 import PackingListPDF from '@/components/quote/PackingListPDF';
-import { computeQuoteTransport } from '@/lib/quote-transport';
+import { computeQuoteTransport, normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { destinationLabel } from '@/lib/destinations';
 import type { CurrencyCode } from '@/lib/utils/formatCurrency';
 import type { Quote, Request as RequestType, RequestItemWithResults } from '@/lib/types/database';
 
@@ -45,6 +46,8 @@ export async function GET(
     }
 
     const q = quote as Quote;
+    const { data: tm } = await supabaseAdmin.from('wa_settings').select('value').eq('key', `quote_transport:${q.id}`).maybeSingle();
+    const transportMode = normalizeQuoteTransportMode((tm?.value as { mode?: unknown } | null)?.mode);
 
     const { data: request } = await supabaseAdmin
       .from('requests')
@@ -84,6 +87,8 @@ export async function GET(
         clientName: req?.client_name || 'Client',
         clientEmail: req?.client_email || '',
         clientPhone: req?.client_phone || '',
+        transportMode,
+        destinationLabel: destinationLabel((req as unknown as { destination?: string | null } | null)?.destination ?? null),
         items: selectedResults.map((r) => ({
           title: r.title,
           image_url: r.image_url,
@@ -164,6 +169,7 @@ export async function GET(
         totalAmountCny: q.total_amount,
         currency,
         transport,
+        transportMode,
         logoUrl,
       });
     }

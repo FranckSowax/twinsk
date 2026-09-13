@@ -61,6 +61,8 @@ export interface Quote {
   status: QuoteStatus;
   pdf_url: string | null;
   document_type: DocumentType;
+  /** Mode de transport retenu à la génération (réglage, pas une colonne). */
+  transport_mode?: 'air' | 'sea' | 'both' | null;
 }
 
 export interface CatalogEntry {

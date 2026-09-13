@@ -1,3 +1,4 @@
+import { normalizeQuoteTransportMode } from '@/lib/quote-transport';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { Quote, RequestItemWithResults } from '@/lib/types/database';
@@ -21,6 +22,8 @@ export async function GET(
     }
 
     const q = quote as Quote;
+    const { data: tm } = await supabaseAdmin.from('wa_settings').select('value').eq('key', `quote_transport:${q.id}`).maybeSingle();
+    q.transport_mode = normalizeQuoteTransportMode((tm?.value as { mode?: unknown } | null)?.mode);
 
     const { data: request } = await supabaseAdmin
       .from('requests')

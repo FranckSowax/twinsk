@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { RequestItemWithResults } from '@/lib/types/database';
+import { normalizeQuoteTransportMode } from '@/lib/quote-transport';
 
 // POST: Generate a quote from selected results
 export async function POST(request: NextRequest) {
@@ -10,7 +11,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
-    const { request_id, margin_global, document_type } = await request.json();
+    const { request_id, margin_global, document_type, transport_mode } = await request.json();
+    const transportMode = normalizeQuoteTransportMode(transport_mode);
 
     if (!request_id) {
       return NextResponse.json({ error: 'request_id requis' }, { status: 400 });
@@ -76,12 +78,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: quoteError.message }, { status: 500 });
     }
 
+    // Mode de transport retenu : mémorisé dans les réglages (pas de colonne
+    // sur quotes, aucune migration) et relu par GET /api/quotes/[id].
+    await supabaseAdmin.from('wa_settings').upsert({
+      key: `quote_transport:${quote.id}`,
+      value: { mode: transportMode },
+      updated_at: new Date().toISOString(),
+    });
+
     await supabaseAdmin
       .from('requests')
       .update({ status: 'quoted' })
       .eq('id', request_id);
 
-    return NextResponse.json(quote);
+    return NextResponse.json({ ...quote, transport_mode: transportMode });
   } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

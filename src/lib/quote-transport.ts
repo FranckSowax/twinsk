@@ -2,6 +2,7 @@
 // (see src/lib/destinations.ts). On retourne le cout dans la devise native
 // du pays + son equivalent CNY pour faciliter le calcul total cote PDF.
 
+import { seaRateForVolume } from '@/lib/offer-pricing';
 import {
   CONTAINER_20,
   CONTAINER_40,
@@ -88,7 +89,9 @@ export function computeQuoteTransport(
   const airRatePerKg = hasBattery
     ? dest.air_battery_rate_per_kg
     : dest.air_rate_per_kg;
-  const seaRatePerCbm = dest.sea_rate_per_cbm;
+  // Gabon (FCFA) : grille dégressive au-delà de 2,5 m³ (même règle que le
+  // checkout) ; autres destinations : tarif plat de la destination.
+  const seaRatePerCbm = dest.currency === 'XAF' ? seaRateForVolume(totalVolume, dest.sea_rate_per_cbm) : dest.sea_rate_per_cbm;
 
   const airCostNative = airAvailable ? totalWeight * airRatePerKg : null;
 
@@ -154,4 +157,26 @@ export function computeQuoteTransport(
     seaCostCny:
       seaCostNative != null ? nativeToCny(seaCostNative, seaCostCurrency) : null,
   };
+}
+
+/** Mode de transport retenu pour un document : aérien, maritime, ou le moins cher des deux. */
+export type QuoteTransportMode = 'air' | 'sea' | 'both';
+export const QUOTE_TRANSPORT_MODES: QuoteTransportMode[] = ['air', 'sea', 'both'];
+export function normalizeQuoteTransportMode(v: unknown): QuoteTransportMode {
+  return v === 'air' || v === 'sea' ? v : 'both';
+}
+export const QUOTE_TRANSPORT_LABEL: Record<QuoteTransportMode, string> = {
+  air: 'Aérien',
+  sea: 'Maritime',
+  both: 'Au choix (le moins cher retenu)',
+};
+
+/** Coût transport (CNY) retenu pour le total selon le mode choisi. */
+export function pickQuoteTransportCny(t: { airCostCny: number | null; seaCostCny: number | null }, mode: QuoteTransportMode): number | null {
+  if (mode === 'air') return t.airCostCny;
+  if (mode === 'sea') return t.seaCostCny;
+  const a = t.airCostCny;
+  const s = t.seaCostCny;
+  if (a != null && s != null) return Math.min(a, s);
+  return a ?? s ?? null;
 }

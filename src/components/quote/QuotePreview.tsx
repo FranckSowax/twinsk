@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { Download, Printer } from 'lucide-react';
 import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
-import { computeQuoteTransport } from '@/lib/quote-transport';
+import { computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny } from '@/lib/quote-transport';
 import { stripMarkdown } from '@/lib/utils/stripMarkdown';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
@@ -70,14 +70,12 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
     (sum, it) => sum + applyMargin(unitPriceFor(it), it.margin_percent) * it.quantity,
     0,
   );
-  const transportCnyPicked: number | null = (() => {
-    const a = transport.airCostCny;
-    const s = transport.seaCostCny;
-    if (a != null && s != null) return Math.min(a, s);
-    if (a != null) return a;
-    if (s != null) return s;
-    return null;
-  })();
+  // Mode choisi par l'admin à la génération : un seul pack affiché et retenu,
+  // ou les deux (le moins cher entre dans le total) si « au choix ».
+  const transportMode = normalizeQuoteTransportMode(quote.transport_mode);
+  const showAir = transportMode !== 'sea';
+  const showSea = transportMode !== 'air';
+  const transportCnyPicked: number | null = pickQuoteTransportCny(transport, transportMode);
   const grandTotalCny = itemsTotalCny + (transportCnyPicked ?? 0);
   const hub = transport.hub;
   const destLabel = transport.destinationLabel;
@@ -122,42 +120,47 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
 
       {/* Quote document */}
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl print:border-none print:shadow-none sm:p-12 dark:border-slate-700 dark:bg-slate-800">
-        {/* Header : logo + client */}
-        <div className="flex items-start justify-between gap-8 pb-6">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/twinsk-logo.jpg"
-            alt="Twinsk"
-            className="h-28 w-28 flex-shrink-0 object-contain"
-          />
-          <div className="flex-1 pt-4 text-center">
-            <p className="font-display text-xl font-bold text-slate-900 dark:text-white">
-              {request.client_name || 'Client Twinsk'}
+        {/* En-tête : société (gauche) · document + client (droite) */}
+        <div className="flex flex-col gap-6 border-b-2 border-slate-900 pb-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/twinsk-logo.jpg" alt="Twinsk" className="h-20 w-20 flex-shrink-0 object-contain" />
+            <div className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              <p className="font-display text-base font-bold uppercase tracking-wide text-slate-900 dark:text-white">Twinsk Company Ltd</p>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-amber-600">Logistics & Sourcing · Hong Kong · Guangzhou</p>
+              <p>Room 506, Tongyue Building, No. 7 Tongya East Street,</p>
+              <p>Xicha Road, Baiyun District, Guangzhou</p>
+              <p>广州市白云区西槎路同雅东街7号同粤大厦506</p>
+              <p>邓小姐 +86 137 1081 6769 · contact@twinskcompanyltd.com</p>
+            </div>
+          </div>
+          <div className="text-left sm:text-right">
+            <p className="font-display text-3xl font-bold uppercase tracking-wider text-slate-900 dark:text-white">Facture</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Invoice</p>
+            <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">N° TWK{quote.id.slice(0, 8).toUpperCase()}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Date : {new Date(quote.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
-            <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              {request.client_email || request.client_phone || ''}
+            <p className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+              {transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : '✈️🚢 Transport au choix'} · {destLabel}
             </p>
           </div>
         </div>
 
-        {/* Meta */}
-        <div className="mb-4">
-          <p className="text-sm text-slate-700 dark:text-slate-300">
-            Date : {new Date(quote.created_at).toLocaleDateString('fr-FR', {
-              day: '2-digit', month: '2-digit', year: 'numeric',
-            })}
-          </p>
-          <p className="text-sm font-bold text-slate-900 dark:text-white">
-            INVOICE N° : TWK{quote.id.slice(0, 8).toUpperCase()}
-          </p>
-        </div>
-
-        {/* Twinsk company address */}
-        <div className="mb-6 text-xs text-slate-600 dark:text-slate-400">
-          <p>Room 506, Tongyue Building, No. 7 Tongya East Street,</p>
-          <p>Xicha Road, Baiyun District, Guangzhou</p>
-          <p>广州市白云区西槎路同雅东街7号同粤大厦506</p>
-          <p>邓小姐 13710816769</p>
+        {/* Client */}
+        <div className="my-6 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-700/40">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Facturé à</p>
+            <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">{request.client_name || 'Client Twinsk'}</p>
+            {request.client_email && <p className="text-sm text-slate-600 dark:text-slate-300">{request.client_email}</p>}
+            {request.client_phone && <p className="text-sm text-slate-600 dark:text-slate-300">{request.client_phone}</p>}
+          </div>
+          <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Conditions</p>
+            <p className="mt-1">Devise : <strong>{currency}</strong> · Prix FOB Chine, transport détaillé ci-dessous</p>
+            <p>Validité : <strong>15 jours</strong> · Paiement à la commande</p>
+            <p>Destination : <strong>{destLabel}</strong> · Hub {hub}</p>
+          </div>
         </div>
 
         {/* Products + totals table */}
@@ -268,6 +271,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               </tr>
 
               {/* Aérien */}
+              {showAir && (
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
                   <p className="font-bold text-slate-900 dark:text-white">Pack Transport Aérien {hub}</p>
@@ -294,8 +298,10 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                   {transport.airCostCny != null ? fmt(transport.airCostCny) : <span className="text-slate-400">—</span>}
                 </td>
               </tr>
+              )}
 
               {/* Maritime */}
+              {showSea && (
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
                   <p className="font-bold text-slate-900 dark:text-white">
@@ -334,6 +340,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                   {transport.seaCostCny != null ? fmt(transport.seaCostCny) : <span className="text-slate-400">—</span>}
                 </td>
               </tr>
+              )}
 
               {/* Separator black */}
               <tr>

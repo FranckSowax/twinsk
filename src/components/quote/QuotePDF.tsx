@@ -3,7 +3,7 @@ import {
   type CurrencyCode,
   formatInCurrency,
 } from '@/lib/utils/formatCurrency';
-import type { QuoteTransportSummary } from '@/lib/quote-transport';
+import { normalizeQuoteTransportMode, pickQuoteTransportCny, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { ensureCjkFont } from '@/lib/pdf/fonts';
 import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
 
@@ -280,6 +280,8 @@ interface QuotePDFProps {
   totalAmountCny: number;
   currency?: CurrencyCode;
   transport?: QuoteTransportSummary | null;
+  /** Mode retenu à la génération : seul le pack correspondant est affiché. */
+  transportMode?: QuoteTransportMode | null;
   logoUrl?: string;
 }
 
@@ -317,6 +319,7 @@ export default function QuotePDF({
   totalAmountCny,
   currency = 'CNY',
   transport,
+  transportMode,
   logoUrl,
 }: QuotePDFProps) {
   // Compute totals — si l item a des variantes, on utilise le prix de la
@@ -334,16 +337,15 @@ export default function QuotePDF({
 
   // Couts transport dans la devise du devis (CNY). On affiche les 2 modes ;
   // le "Total a payer" prend le moins cher disponible (cas B2B le plus courant).
-  const transportAirCny = transport?.airAvailable ? transport.airCostCny : null;
-  const transportSeaCny = transport?.seaAvailable ? transport.seaCostCny : null;
-  let finalTransportCny: number | null = null;
-  if (transportAirCny != null && transportSeaCny != null) {
-    finalTransportCny = Math.min(transportAirCny, transportSeaCny);
-  } else if (transportAirCny != null) {
-    finalTransportCny = transportAirCny;
-  } else if (transportSeaCny != null) {
-    finalTransportCny = transportSeaCny;
-  }
+  const mode = normalizeQuoteTransportMode(transportMode);
+  const showAir = mode !== 'sea';
+  const showSea = mode !== 'air';
+  const finalTransportCny: number | null = transport
+    ? pickQuoteTransportCny(
+        { airCostCny: transport.airAvailable ? transport.airCostCny : null, seaCostCny: transport.seaAvailable ? transport.seaCostCny : null },
+        mode,
+      )
+    : null;
   const grandTotalCny = itemsTotalCny + (finalTransportCny ?? 0);
   const hub = transport?.hub || 'LBV';
   const destLabel = transport?.destinationLabel || 'Gabon (Libreville)';
@@ -374,16 +376,22 @@ export default function QuotePDF({
           </View>
         </View>
 
-        {/* Meta : Date + Invoice */}
+        {/* Meta : Facture / Invoice + transport retenu */}
         <View style={styles.metaBlock}>
+          <Text style={[styles.metaLineBold, { fontSize: 14, letterSpacing: 1 }]}>FACTURE · INVOICE</Text>
+          <Text style={styles.metaLineBold}>N° TWK{quoteId.slice(0, 8).toUpperCase()}</Text>
           <Text style={styles.metaLine}>Date : {quoteDate}</Text>
-          <Text style={styles.metaLineBold}>
-            INVOICE N° : TWK{quoteId.slice(0, 8).toUpperCase()}
+          <Text style={styles.metaLine}>
+            Transport : {mode === 'air' ? 'aérien' : mode === 'sea' ? 'maritime' : 'au choix (le moins cher retenu)'} · Destination : {destLabel}
           </Text>
         </View>
 
         {/* Twinsk company info */}
         <View style={styles.twinskInfo}>
+          <Text style={[styles.twinskInfoLine, { fontFamily: 'Helvetica-Bold', fontSize: 10, color: '#0f172a' }]}>
+            Twinsk Company Ltd
+          </Text>
+          <Text style={[styles.twinskInfoLine, { color: '#b45309' }]}>Logistics & Sourcing · Hong Kong · Guangzhou</Text>
           <Text style={styles.twinskInfoLine}>
             Room 506, Tongyue Building, No. 7 Tongya East Street,
           </Text>
@@ -529,8 +537,8 @@ export default function QuotePDF({
             </Text>
           </View>
 
-          {/* Transport aérien */}
-          {transport?.airAvailable && transport.airCostCny != null ? (
+          {/* Transport aérien (masqué si le maritime est retenu) */}
+          {showAir && (transport?.airAvailable && transport.airCostCny != null ? (
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
@@ -581,10 +589,10 @@ export default function QuotePDF({
               <Text style={[styles.tableCell, styles.colUnit, { color: '#94a3b8' }]}>—</Text>
               <Text style={[styles.tableCell, styles.colTotalLast, { color: '#94a3b8' }]}>—</Text>
             </View>
-          )}
+          ))}
 
-          {/* Transport maritime */}
-          {transport?.seaAvailable && transport.seaCostCny != null ? (
+          {/* Transport maritime (masqué si l'aérien est retenu) */}
+          {showSea && (transport?.seaAvailable && transport.seaCostCny != null ? (
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
@@ -641,7 +649,7 @@ export default function QuotePDF({
               <Text style={[styles.tableCell, styles.colUnit, { color: '#94a3b8' }]}>—</Text>
               <Text style={[styles.tableCell, styles.colTotalLast, { color: '#94a3b8' }]}>—</Text>
             </View>
-          )}
+          ))}
 
           {/* Separateur noir + total : jamais separes par un saut de page.
               minPresenceAhead reserve la place de la note legale en dessous,

@@ -54,13 +54,24 @@ export default function PackingListPreview({ quote, request, items }: PackingLis
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl print:border-none print:shadow-none sm:p-12 dark:border-slate-700 dark:bg-slate-800">
         {/* Header */}
         <div className="flex items-start justify-between border-b-2 border-amber-500 pb-6">
-          <div>
-            <h1 className="font-display text-3xl font-bold tracking-wider text-amber-500">TWINSK</h1>
-            <p className="mt-1 text-sm text-slate-500">Logistics & Sourcing Company</p>
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/twinsk-logo.jpg" alt="Twinsk" className="h-16 w-16 flex-shrink-0 object-contain" />
+            <div>
+              <h1 className="font-display text-2xl font-bold uppercase tracking-wide text-slate-900 dark:text-white">Twinsk Company Ltd</h1>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Logistics & Sourcing · Hong Kong · Guangzhou</p>
+              <p className="mt-1 text-xs text-slate-500">Room 506, Tongyue Building, No. 7 Tongya East Street, Xicha Road, Baiyun District, Guangzhou</p>
+              <p className="text-xs text-slate-500">广州市白云区西槎路同雅东街7号同粤大厦506 · 邓小姐 +86 137 1081 6769</p>
+            </div>
           </div>
           <div className="text-right">
             <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">PACKING LIST</h2>
             <p className="mt-1 text-sm text-slate-500">N° {quote.id.slice(0, 8).toUpperCase()}</p>
+            {quote.transport_mode && quote.transport_mode !== 'both' && (
+              <p className="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                Transport {quote.transport_mode === 'air' ? '✈️ aérien' : '🚢 maritime'}
+              </p>
+            )}
             <p className="text-sm text-slate-500">
               {new Date(quote.created_at).toLocaleDateString('fr-FR', {
                 day: 'numeric',
@@ -167,6 +178,12 @@ export default function PackingListPreview({ quote, request, items }: PackingLis
               <span>Volume total</span>
               <span>{totalVolume.toFixed(4)} m³</span>
             </div>
+            {quote.transport_mode && quote.transport_mode !== 'both' && (
+              <div className="flex justify-between text-slate-500">
+                <span>Mode de transport</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{quote.transport_mode === 'air' ? 'Aérien' : 'Maritime'}</span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-slate-200 pt-3 dark:border-slate-600">
               <span className="text-lg font-bold text-slate-900 dark:text-white">POIDS TOTAL</span>
               <span className="text-lg font-bold text-amber-500">{totalWeight.toFixed(3)} kg</span>
@@ -177,7 +194,7 @@ export default function PackingListPreview({ quote, request, items }: PackingLis
         {/* Footer */}
         <div className="mt-12 border-t border-slate-200 pt-6 text-center dark:border-slate-700">
           <p className="text-xs text-slate-400">
-            TWINSK Company — Logistics & Sourcing • Document de colisage à valeur informative
+            Twinsk Company Ltd — Logistics & Sourcing • Document de colisage à valeur informative
           </p>
         </div>
       </div>
