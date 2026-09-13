@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor, logCollabAction } from '@/lib/collab';
-import { CNY_TO_FCFA } from '@/lib/offer-pricing';
-import { roundXafUp } from '@/lib/utils/formatCurrency';
+import { CNY_TO_EUR, CNY_TO_FCFA, roundSettlement } from '@/lib/offer-pricing';
+import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { recomputeOrder } from '@/lib/admin-order';
 import { sendWhapiText } from '@/lib/whapi';
 
@@ -49,15 +49,19 @@ export async function GET(
     }
   }
 
+  // Devise de règlement : montants « fcfa » en euros pour un listing en euros.
+  const currency = await offerSettlementCurrency(order.offer_id);
+  const lineRate = currency === 'EUR' ? CNY_TO_EUR : CNY_TO_FCFA;
   const lines = lineList.map((l) => ({
     ...l,
     product_url: (l.product_url as string | null) || (l.product_id ? urlMap.get(l.product_id as string) || null : null),
-    unit_price_fcfa: roundXafUp(((l.unit_price_cny as number) || 0) * CNY_TO_FCFA),
-    subtotal_fcfa: roundXafUp(((l.subtotal_cny as number) || 0) * CNY_TO_FCFA),
+    unit_price_fcfa: roundSettlement(((l.unit_price_cny as number) || 0) * lineRate, currency),
+    subtotal_fcfa: roundSettlement(((l.subtotal_cny as number) || 0) * lineRate, currency),
   }));
 
   return NextResponse.json({
-    order: { ...order, offer_title: (order.offers as { title?: string } | null)?.title || null },
+    currency,
+    order: { ...order, offer_title: (order.offers as { title?: string } | null)?.title || null, currency },
     lines,
   });
 }

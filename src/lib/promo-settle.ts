@@ -4,8 +4,8 @@
 // client ne paie jamais un montant remisé à tort.
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing } from '@/lib/offer-pricing';
-import { loadOrderPricingLines } from '@/lib/order-pricing-lines';
+import { computeOrderPricing, toFcfa } from '@/lib/offer-pricing';
+import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { confirmPromoUse, countPromoUses, evaluatePromo, normalizePhone, releasePromoUse, type PromoCode } from '@/lib/promo';
 
 export type SettleResult = { ok: true; applied: boolean } | { ok: false; reason: string };
@@ -20,17 +20,18 @@ export async function settlePromoForOrder(orderId: string): Promise<SettleResult
 
   const { data: promo } = await supabaseAdmin.from('promo_codes').select('*').eq('id', order.promo_id).maybeSingle();
   const phone = normalizePhone(order.client_phone) || null;
+  const currency = await offerSettlementCurrency(order.offer_id);
   let reason: string | null = null;
 
   if (!promo) reason = 'Ce code promo n’existe plus.';
   else {
     const lines = await loadOrderPricingLines(orderId);
-    const base = computeOrderPricing(lines);
+    const base = computeOrderPricing(lines, { currency });
     const uses = await countPromoUses(promo.id, phone, orderId);
     const verdict = evaluatePromo(promo as PromoCode, {
       now: new Date(),
       phone,
-      itemsTotalFcfa: base.itemsTotalFcfaRounded,
+      itemsTotalFcfa: toFcfa(base.itemsTotalFcfaRounded, currency),
       totalUses: uses.total,
       phoneUses: uses.byPhone,
     });
@@ -41,7 +42,7 @@ export async function settlePromoForOrder(orderId: string): Promise<SettleResult
     // Retrait : usage libéré, promo effacée, totaux recalculés sans elle.
     await releasePromoUse(orderId);
     const lines = await loadOrderPricingLines(orderId);
-    const pricing = computeOrderPricing(lines);
+    const pricing = computeOrderPricing(lines, { currency });
     const mode = order.transport_mode;
     await supabaseAdmin
       .from('offer_orders')

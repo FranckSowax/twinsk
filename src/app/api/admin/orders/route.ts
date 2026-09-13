@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor } from '@/lib/collab';
+import { settlementCurrencyOf } from '@/lib/offer-pricing';
 
 // GET: liste des commandes /offer (admin ou collaborateur rôle "commandes").
 // ?pending=1 = uniquement à vérifier.
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   let query = supabaseAdmin
     .from('offer_orders')
     .select(
-      'id, offer_id, client_name, client_phone, items_total_fcfa, grand_total_fcfa, transport_mode, status, order_status, payment_status, payment_method, payment_proof_url, created_at, offer_order_lines(product_image, quantity)',
+      'id, offer_id, client_name, client_phone, items_total_fcfa, grand_total_fcfa, transport_mode, status, order_status, payment_status, payment_method, payment_proof_url, created_at, offers(offer_currency), offer_order_lines(product_image, quantity)',
     )
     // Pas de commande sans coordonnées : les paniers abandonnés avant la saisie
     // du nom/numéro (anciens flux) sont injoignables, on ne les liste pas.
@@ -37,8 +38,13 @@ export async function GET(request: NextRequest) {
     const lines = (o.offer_order_lines || []) as { product_image: string | null; quantity: number | null }[];
     const row: Record<string, unknown> = { ...o };
     delete row.offer_order_lines;
+    delete row.offers;
+    const offerCur = (o.offers as { offer_currency?: string | null } | { offer_currency?: string | null }[] | null);
+    const offerCurrency = Array.isArray(offerCur) ? offerCur[0]?.offer_currency : offerCur?.offer_currency;
     return {
       ...row,
+      // Devise de règlement (montants items_total / grand_total dans cette devise).
+      currency: settlementCurrencyOf(offerCurrency),
       thumbnail: lines.find((l) => l.product_image)?.product_image ?? null,
       items_count: lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0) || lines.length,
     };

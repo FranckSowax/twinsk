@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing } from '@/lib/offer-pricing';
+import { computeOrderPricing, toFcfa } from '@/lib/offer-pricing';
 import {
   MAX_PROMO_ATTEMPTS,
   computeItemsDiscount,
@@ -13,7 +13,7 @@ import {
   releasePromoUse,
   reservePromoUse,
 } from '@/lib/promo';
-import { loadOrderPricingLines } from '@/lib/order-pricing-lines';
+import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 
 // POST   { code, client_phone? } → applique un code promo à la commande (réserve l'usage)
 // DELETE                          → retire le code (libère l'usage)
@@ -30,12 +30,13 @@ async function loadOrder(uuid: string, orderId: string) {
 }
 
 /** Recalcule et persiste items/transport/total selon la promo portée par la commande. */
-async function persistTotals(orderId: string, promo: { kind: string | null; rate: number | null; discount: number }, transportMode: string | null) {
-  const lines = await loadOrderPricingLines(orderId);
+async function persistTotals(orderId: string, offerId: string, promo: { kind: string | null; rate: number | null; discount: number }, transportMode: string | null) {
+  const [lines, currency] = await Promise.all([loadOrderPricingLines(orderId), offerSettlementCurrency(offerId)]);
   const pricing = computeOrderPricing(lines, {
     airRate: promo.kind === 'air_rate' ? promo.rate : null,
     seaRate: promo.kind === 'sea_rate' ? promo.rate : null,
     discountFcfa: promo.discount,
+    currency,
   });
   const transportCost = transportMode === 'air' ? pricing.airCost : transportMode === 'sea' ? pricing.seaCost : null;
   const grandTotal =
@@ -79,13 +80,15 @@ export async function POST(
   if (!promo) return fail('Code promo inconnu.');
 
   const phone = normalizePhone(body.client_phone || order.client_phone) || null;
-  const lines = await loadOrderPricingLines(orderId);
-  const base = computeOrderPricing(lines);
+  const [lines, currency] = await Promise.all([loadOrderPricingLines(orderId), offerSettlementCurrency(uuid)]);
+  const base = computeOrderPricing(lines, { currency });
+  // Les règles promo (minimum d'achat, remise) sont exprimées en FCFA.
+  const itemsTotalFcfa = toFcfa(base.itemsTotalFcfaRounded, currency);
   const uses = await countPromoUses(promo.id, phone, orderId);
   const verdict = evaluatePromo(promo, {
     now: new Date(),
     phone,
-    itemsTotalFcfa: base.itemsTotalFcfaRounded,
+    itemsTotalFcfa,
     totalUses: uses.total,
     phoneUses: uses.byPhone,
   });
@@ -97,7 +100,7 @@ export async function POST(
   if (promo.kind === 'air_rate' && order.transport_mode === 'sea') notice = 'Ce code s’applique au fret aérien.';
   if (promo.kind === 'sea_rate' && order.transport_mode === 'air') notice = 'Ce code s’applique au fret maritime.';
 
-  const discount = computeItemsDiscount(promo, base.itemsTotalFcfaRounded);
+  const discount = computeItemsDiscount(promo, itemsTotalFcfa);
   const rate = promo.kind === 'air_rate' || promo.kind === 'sea_rate' ? promo.value : null;
 
   // Une seule promo par commande : l'ancienne est libérée.
@@ -114,7 +117,7 @@ export async function POST(
       ...(phone && !order.client_phone ? { client_phone: body.client_phone?.trim() || null } : {}),
     })
     .eq('id', orderId);
-  const pricing = await persistTotals(orderId, { kind: promo.kind, rate, discount }, order.transport_mode);
+  const pricing = await persistTotals(orderId, uuid, { kind: promo.kind, rate, discount }, order.transport_mode);
 
   return NextResponse.json({
     success: true,
@@ -136,6 +139,6 @@ export async function DELETE(
     .from('offer_orders')
     .update({ promo_id: null, promo_code: null, promo_kind: null, promo_rate: null, promo_discount_fcfa: 0 })
     .eq('id', orderId);
-  const pricing = await persistTotals(orderId, { kind: null, rate: null, discount: 0 }, order.transport_mode);
+  const pricing = await persistTotals(orderId, uuid, { kind: null, rate: null, discount: 0 }, order.transport_mode);
   return NextResponse.json({ success: true, pricing });
 }

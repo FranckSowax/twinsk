@@ -37,7 +37,7 @@ export const DESTINATIONS: Record<DestinationCode, Destination> = {
     air_rate_per_kg: 10,
     // Pas de tarif batterie distinct communique : memes 10 EUR/kg.
     air_battery_rate_per_kg: 10,
-    sea_rate_per_cbm: 380,
+    sea_rate_per_cbm: 390,
   },
 };
 

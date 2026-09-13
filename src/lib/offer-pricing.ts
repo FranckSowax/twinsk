@@ -2,7 +2,60 @@
 // Tarifs Twinsk fournis par l'admin :
 //  - Aérien : 13 000 FCFA / kg (18 000 FCFA / kg si batterie au lithium)
 //  - Maritime : 240 000 FCFA / m³ (260 000 jusqu’au 10 sept. 2026)
-import { roundXafUp } from '@/lib/utils/formatCurrency';
+// Devise de règlement : FCFA par défaut ; quand le listing est affiché en euros
+// (offer_currency = EUR), la commande se règle en euros avec les tarifs
+// transport des devis Europe (10 €/kg, 390 €/m³, pas de grille dégressive).
+import { FX_RATES, roundXafUp } from '@/lib/utils/formatCurrency';
+import { DESTINATIONS } from '@/lib/destinations';
+
+/** Devise dans laquelle une commande /offer est chiffrée et réglée. */
+export type SettlementCurrency = 'XAF' | 'EUR';
+
+/** Devise de règlement d'un listing : EUR si l'admin affiche l'offre en euros, sinon FCFA. */
+export function settlementCurrencyOf(offerCurrency: unknown): SettlementCurrency {
+  return offerCurrency === 'EUR' ? 'EUR' : 'XAF';
+}
+
+// Tarifs euros = ceux des devis Europe (source unique : destinations.france).
+export const EUR_AIR_RATE_PER_KG = DESTINATIONS.france.air_rate_per_kg;
+export const EUR_AIR_BATTERY_RATE_PER_KG = DESTINATIONS.france.air_battery_rate_per_kg;
+export const EUR_SEA_RATE_PER_M3 = DESTINATIONS.france.sea_rate_per_cbm;
+export const CNY_TO_EUR = FX_RATES.EUR;
+
+/** Arrondi commercial dans la devise de règlement : FCFA au 100 supérieur, euros au centime. */
+export function roundSettlement(amount: number, currency: SettlementCurrency): number {
+  if (currency === 'EUR') return Math.round(amount * 100) / 100;
+  return roundXafUp(amount);
+}
+
+/** Montant FCFA → devise de règlement (identité en FCFA). */
+export function fromFcfa(amountFcfa: number, currency: SettlementCurrency): number {
+  if (currency === 'EUR') return (amountFcfa / FX_RATES.XAF) * FX_RATES.EUR;
+  return amountFcfa;
+}
+
+/** Devise de règlement → FCFA (identité en FCFA). */
+export function toFcfa(amount: number, currency: SettlementCurrency): number {
+  if (currency === 'EUR') return (amount / FX_RATES.EUR) * FX_RATES.XAF;
+  return amount;
+}
+
+/** Formate un montant de la devise de règlement (null = sur devis). */
+export function formatSettlement(n: number | null | undefined, currency: SettlementCurrency): string {
+  if (n == null) return 'Sur devis';
+  if (currency === 'EUR') {
+    return `${(Math.round(n * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  }
+  return formatFCFA(n);
+}
+
+/** Libellé court d'un tarif unitaire (« 13 000 FCFA / kg », « 10,00 € / kg »). */
+export function formatSettlementRate(rate: number, unit: 'kg' | 'm³', currency: SettlementCurrency): string {
+  if (currency === 'EUR') {
+    return `${rate.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} € / ${unit}`;
+  }
+  return `${Math.round(rate).toLocaleString('fr-FR')} FCFA / ${unit}`;
+}
 
 // Tarifs configurables via variables d'environnement (défauts Twinsk).
 export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 13000;
@@ -48,10 +101,17 @@ export interface OrderLineForPricing {
 export interface PricingOptions {
   airRate?: number | null; // FCFA / kg imposé (code air_rate)
   seaRate?: number | null; // FCFA / m³ imposé (code sea_rate)
-  discountFcfa?: number | null; // remise sur le total articles (hors transport)
+  discountFcfa?: number | null; // remise sur le total articles (hors transport), toujours en FCFA
+  /** Devise de règlement (défaut FCFA). En euros, tous les montants « Fcfa » du résultat sont en euros. */
+  currency?: SettlementCurrency;
 }
 
+/**
+ * Montants dans la DEVISE DE RÈGLEMENT (`currency`) : les champs gardent leur
+ * nom historique « Fcfa » mais sont en euros pour une commande en euros.
+ */
 export interface PricingResult {
+  currency: SettlementCurrency;
   itemsTotalCny: number;
   itemsTotalFcfa: number;
   // Total produits = SOMME des sous-totaux de ligne arrondis (au 100 sup.).
@@ -75,15 +135,17 @@ export interface PricingResult {
 }
 
 export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingOptions = {}): PricingResult {
+  const currency: SettlementCurrency = opts.currency === 'EUR' ? 'EUR' : 'XAF';
+  const rate = currency === 'EUR' ? CNY_TO_EUR : CNY_TO_FCFA;
   const itemsTotalCny = lines.reduce(
     (s, l) => s + l.unit_price_cny * l.quantity,
     0,
   );
-  const itemsTotalFcfa = itemsTotalCny * CNY_TO_FCFA;
+  const itemsTotalFcfa = itemsTotalCny * rate;
   // Somme des sous-totaux de ligne arrondis individuellement — DOIT correspondre
   // à ce que le client additionne visuellement ligne par ligne.
   const itemsTotalFcfaRounded = lines.reduce(
-    (s, l) => s + roundXafUp(l.unit_price_cny * l.quantity * CNY_TO_FCFA),
+    (s, l) => s + roundSettlement(l.unit_price_cny * l.quantity * rate, currency),
     0,
   );
 
@@ -106,21 +168,40 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
 
   // Calcul aérien : applique le tarif batterie globalement si au moins une ligne
   // a une batterie (sécurité réglementaire) — la totalité du colis est dangereuse.
-  const defaultAirRate = hasBattery ? AIR_BATTERY_RATE_FCFA_PER_KG : AIR_RATE_FCFA_PER_KG;
-  // Tarif imposé par un code promo transport (jamais plus cher que le tarif normal).
-  const airRate = opts.airRate != null && opts.airRate > 0 ? Math.min(opts.airRate, defaultAirRate) : defaultAirRate;
-  // Maritime : tarif dégressif selon le volume total ; un tarif négocié (code
-  // promo) s'applique s'il est encore plus bas, jamais au-dessus.
-  const degressiveSeaRate = seaAvailable ? seaRateForVolume(totalVolume) : SEA_RATE_FCFA_PER_M3;
-  const seaRate = opts.seaRate != null && opts.seaRate > 0 ? Math.min(opts.seaRate, degressiveSeaRate) : degressiveSeaRate;
-  const airCost = airAvailable ? totalWeight * airRate : null;
-  const seaCost = seaAvailable ? totalVolume * seaRate : null;
+  const defaultAirRate =
+    currency === 'EUR'
+      ? hasBattery
+        ? EUR_AIR_BATTERY_RATE_PER_KG
+        : EUR_AIR_RATE_PER_KG
+      : hasBattery
+        ? AIR_BATTERY_RATE_FCFA_PER_KG
+        : AIR_RATE_FCFA_PER_KG;
+  // Tarif imposé par un code promo transport (saisi en FCFA, converti dans la
+  // devise de règlement) — jamais plus cher que le tarif normal.
+  const promoAir = opts.airRate != null && opts.airRate > 0 ? fromFcfa(opts.airRate, currency) : null;
+  const airRate = promoAir != null ? Math.min(promoAir, defaultAirRate) : defaultAirRate;
+  // Maritime : en FCFA, tarif dégressif selon le volume total ; en euros, tarif
+  // fixe des devis Europe. Un tarif négocié (code promo) s'applique s'il est
+  // encore plus bas, jamais au-dessus.
+  const degressiveSeaRate =
+    currency === 'EUR' ? EUR_SEA_RATE_PER_M3 : seaAvailable ? seaRateForVolume(totalVolume) : SEA_RATE_FCFA_PER_M3;
+  const promoSea = opts.seaRate != null && opts.seaRate > 0 ? fromFcfa(opts.seaRate, currency) : null;
+  const seaRate = promoSea != null ? Math.min(promoSea, degressiveSeaRate) : degressiveSeaRate;
+  // En euros, coûts et totaux au centime ; en FCFA, inchangés (bruts, comme avant).
+  const cents = (n: number) => (currency === 'EUR' ? Math.round(n * 100) / 100 : n);
+  const airCost = airAvailable ? cents(totalWeight * airRate) : null;
+  const seaCost = seaAvailable ? cents(totalVolume * seaRate) : null;
 
-  // Remise articles (hors transport), bornée au total articles.
-  const discountFcfa = Math.min(Math.max(0, Math.round(opts.discountFcfa ?? 0)), itemsTotalFcfaRounded);
-  const itemsNetFcfa = itemsTotalFcfaRounded - discountFcfa;
+  // Remise articles (hors transport, saisie en FCFA), bornée au total articles.
+  const rawDiscount = fromFcfa(Math.max(0, opts.discountFcfa ?? 0), currency);
+  const discountFcfa = Math.min(
+    currency === 'EUR' ? Math.round(rawDiscount * 100) / 100 : Math.round(rawDiscount),
+    itemsTotalFcfaRounded,
+  );
+  const itemsNetFcfa = cents(itemsTotalFcfaRounded - discountFcfa);
 
   return {
+    currency,
     itemsTotalCny,
     itemsTotalFcfa,
     itemsTotalFcfaRounded,
@@ -136,8 +217,8 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     discountFcfa,
     itemsNetFcfa,
     // Total à payer = total produits arrondi (somme des lignes) − remise + transport.
-    airTotal: airCost != null ? itemsNetFcfa + airCost : null,
-    seaTotal: seaCost != null ? itemsNetFcfa + seaCost : null,
+    airTotal: airCost != null ? cents(itemsNetFcfa + airCost) : null,
+    seaTotal: seaCost != null ? cents(itemsNetFcfa + seaCost) : null,
   };
 }
 

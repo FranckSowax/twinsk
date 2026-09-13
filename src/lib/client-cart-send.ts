@@ -3,15 +3,13 @@
 // avec le bouton « Voir mon panier ». Partagé par la création et le renvoi.
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing, CNY_TO_FCFA } from '@/lib/offer-pricing';
-import { loadOrderPricingLines } from '@/lib/order-pricing-lines';
+import { CNY_TO_EUR, CNY_TO_FCFA, computeOrderPricing, formatSettlement, roundSettlement } from '@/lib/offer-pricing';
+import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
-import { roundXafUp } from '@/lib/utils/formatCurrency';
 import { listingTagline, productDeepLink } from '@/lib/wa-drip';
 import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiText } from '@/lib/whapi';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const fcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 
 export interface ClientCartSendResult {
   order_id: string;
@@ -49,14 +47,18 @@ export async function sendClientCartWhatsapp(args: {
 
   const offerUrl = `${args.origin}/offer/${o.offer_id}`;
   const orderUrl = `${offerUrl}/order/${o.id}`;
-  const [{ data: lineRows }, pricingLines] = await Promise.all([
+  const [{ data: lineRows }, pricingLines, currency] = await Promise.all([
     supabaseAdmin
       .from('offer_order_lines')
       .select('product_id, product_title, variant_name, quantity, unit_price_cny, product_image, price_type')
       .eq('order_id', o.id),
     loadOrderPricingLines(o.id),
+    offerSettlementCurrency(o.offer_id),
   ]);
-  const pricing = computeOrderPricing(pricingLines);
+  // Devise de règlement du listing (FCFA, ou euros pour un listing en euros).
+  const pricing = computeOrderPricing(pricingLines, { currency });
+  const lineRate = currency === 'EUR' ? CNY_TO_EUR : CNY_TO_FCFA;
+  const fcfa = (n: number) => formatSettlement(n, currency);
   const lines = (lineRows || []) as {
     product_id: string | null;
     product_title: string | null;
@@ -89,7 +91,7 @@ export async function sendClientCartWhatsapp(args: {
   for (const l of lines) {
     const title = (l.product_title || 'Produit').slice(0, 120);
     const acompte = l.price_type === 'acompte';
-    const unitFcfa = roundXafUp(l.unit_price_cny * CNY_TO_FCFA);
+    const unitFcfa = roundSettlement(l.unit_price_cny * lineRate, currency);
     const priceLine = acompte ? 'Sur devis (acompte usine)' : `${l.quantity} × ${fcfa(unitFcfa)} = *${fcfa(unitFcfa * l.quantity)}*`;
     const cardBody = [`*${title}*`, l.variant_name ? `Variante : ${l.variant_name}` : null, priceLine].filter(Boolean).join('\n\n');
     const url = l.product_id ? productDeepLink(offerUrl, l.product_id) : offerUrl;
@@ -107,7 +109,7 @@ export async function sendClientCartWhatsapp(args: {
   }
 
   const recapLines = lines.map((l) => {
-    const unitFcfa = roundXafUp(l.unit_price_cny * CNY_TO_FCFA);
+    const unitFcfa = roundSettlement(l.unit_price_cny * lineRate, currency);
     const t = (l.product_title || 'Produit').slice(0, 60);
     return l.price_type === 'acompte'
       ? `• ${t} × ${l.quantity} — sur devis`

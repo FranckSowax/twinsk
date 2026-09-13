@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShoppingBag, Loader2, RefreshCw, CheckCircle2, ExternalLink, X, Package, CreditCard, QrCode, Save, Trash2, Plus, Plane, Ship, Search, ChevronRight, HandCoins, Banknote, BadgeAlert, HandHeart } from 'lucide-react';
 import { orderNumber } from '@/lib/order-number';
+import { toFcfa } from '@/lib/offer-pricing';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 import type { TKey } from '@/lib/i18n/admin';
 import {
@@ -32,6 +33,8 @@ interface Order {
   payment_method: string | null;
   payment_proof_url: string | null;
   created_at: string;
+  /** Devise de règlement des montants (FCFA par défaut, euros pour un listing en euros). */
+  currency?: 'XAF' | 'EUR';
   thumbnail?: string | null;
   items_count?: number;
   parcel_photos?: ParcelPhoto[];
@@ -93,8 +96,10 @@ const PAY_LABEL: Record<string, { key: TKey; cls: string }> = {
   pending: { key: 'orders.pay.pending', cls: 'bg-slate-100 text-slate-500' },
 };
 
-function fmt(n: number | null) {
-  return n != null ? `${Math.round(n).toLocaleString('fr-FR')} FCFA` : '—';
+function fmt(n: number | null, currency: 'XAF' | 'EUR' = 'XAF') {
+  if (n == null) return '—';
+  if (currency === 'EUR') return `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  return `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 }
 function fmtDate(s: string) {
   return new Date(s).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -164,7 +169,7 @@ export default function AdminOrdersPage() {
   }, [load]);
 
   const validate = async (o: Order) => {
-    if (!window.confirm(`${t('orders.confirmValidate')} ${o.client_name} (${fmt(o.grand_total_fcfa || o.items_total_fcfa)}) ?`)) return;
+    if (!window.confirm(`${t('orders.confirmValidate')} ${o.client_name} (${fmt(o.grand_total_fcfa || o.items_total_fcfa, o.currency)}) ?`)) return;
     setBusy(o.id);
     try {
       await fetch(`/api/admin/orders/${o.id}`, {
@@ -231,7 +236,8 @@ export default function AdminOrdersPage() {
     const toVerify = orders.filter((o) => inTab('to_verify', o));
     const toCollect = orders.filter((o) => inTab('to_collect', o));
     const collected = orders.filter((o) => o.payment_status === 'paid');
-    const sum = (list: Order[]) => list.reduce((s, o) => s + (totalOf(o) || 0), 0);
+    // Les KPI sont en FCFA : une commande en euros est convertie au taux interne.
+    const sum = (list: Order[]) => list.reduce((s, o) => s + toFcfa(totalOf(o) || 0, o.currency === 'EUR' ? 'EUR' : 'XAF'), 0);
     return [
       { label: t('orders.kpi.toVerify'), value: String(toVerify.length), sub: t('orders.kpi.toVerifySub'), icon: BadgeAlert, box: 'bg-red-50 text-red-600 ring-red-200' },
       { label: t('orders.kpi.toCollect'), value: String(toCollect.length), sub: fmt(sum(toCollect)), icon: HandCoins, box: 'bg-amber-50 text-amber-600 ring-amber-200' },
@@ -417,7 +423,7 @@ export default function AdminOrdersPage() {
                         </p>
                         <p className="text-[11px] text-slate-400">{o.client_phone || '—'}</p>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">{fmt(totalOf(o))}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">{fmt(totalOf(o), o.currency)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <IconTag meta={payMetaOf(o.payment_method)} />
@@ -495,7 +501,7 @@ export default function AdminOrdersPage() {
                       <p className="mt-0.5 truncate text-sm font-medium text-slate-800 dark:text-slate-100">
                         {o.client_name || <span className="italic text-slate-400">{t('orders.noContact')}</span>}
                       </p>
-                      <p className="text-base font-bold text-slate-900 dark:text-white">{fmt(totalOf(o))}</p>
+                      <p className="text-base font-bold text-slate-900 dark:text-white">{fmt(totalOf(o), o.currency)}</p>
                     </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
@@ -611,14 +617,14 @@ export default function AdminOrdersPage() {
 
                     {/* Totaux */}
                     <div className="mb-4 mt-4 space-y-1.5 rounded-2xl bg-slate-900 p-4 text-sm text-white">
-                      <div className="flex justify-between text-slate-300"><span>{t('orders.modal.subtotal')}</span><span>{fmt(d.items_total_fcfa)}</span></div>
+                      <div className="flex justify-between text-slate-300"><span>{t('orders.modal.subtotal')}</span><span>{fmt(d.items_total_fcfa, d.currency)}</span></div>
                       <div className="flex justify-between text-slate-400 text-xs">
                         <span>{t('orders.modal.weight')} : {d.total_weight != null ? `${d.total_weight} kg` : '—'} · {t('orders.modal.volume')} : {d.total_volume != null ? `${d.total_volume} m³` : '—'}</span>
                       </div>
                       {d.transport_mode && d.transport_mode !== 'quote' && (
-                        <div className="flex justify-between text-slate-300"><span>{t('orders.modal.transport')} ({t(TRANSPORT_KEY[d.transport_mode])})</span><span>{fmt(d.transport_cost)}</span></div>
+                        <div className="flex justify-between text-slate-300"><span>{t('orders.modal.transport')} ({t(TRANSPORT_KEY[d.transport_mode])})</span><span>{fmt(d.transport_cost, d.currency)}</span></div>
                       )}
-                      <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold"><span>{t('orders.modal.total')}</span><span className="text-emerald-400">{fmt(d.grand_total_fcfa || d.items_total_fcfa)}</span></div>
+                      <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold"><span>{t('orders.modal.total')}</span><span className="text-emerald-400">{fmt(d.grand_total_fcfa || d.items_total_fcfa, d.currency)}</span></div>
                     </div>
 
                     {/* Preuve de paiement Airtel */}

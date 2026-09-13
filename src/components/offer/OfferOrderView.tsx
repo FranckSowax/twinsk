@@ -15,8 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2 } from 'lucide-react';
 import OrderAddProductModal from '@/components/offer/OrderAddProductModal';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { formatFCFA, SEA_RATE_FCFA_PER_M3 } from '@/lib/offer-pricing';
-import { roundXafUp } from '@/lib/utils/formatCurrency';
+import { formatSettlement, formatSettlementRate, roundSettlement, SEA_RATE_FCFA_PER_M3, type SettlementCurrency } from '@/lib/offer-pricing';
 import { orderNumber } from '@/lib/order-number';
 import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
 
@@ -72,6 +71,8 @@ interface OrderRow {
 }
 
 interface OrderData {
+  /** Devise de règlement : FCFA, ou euros pour un listing affiché en euros. */
+  currency?: SettlementCurrency;
   order: OrderRow;
   lines: OrderLine[];
   pricing: Pricing;
@@ -372,6 +373,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   }
 
   const { order, lines, pricing, airtel_number } = data;
+  // Tous les montants (lignes, transport, total) suivent la devise du listing.
+  const currency: SettlementCurrency = data.currency === 'EUR' ? 'EUR' : 'XAF';
+  const fmt = (n: number | null | undefined) => formatSettlement(n, currency);
   // Devis : lignes « acompte » (sur devis). Une commande 100% acompte = demande de
   // devis (pas de transport ni de paiement — notre équipe établit le devis).
   const hasAcompte = lines.some((l) => isAcompte(l.price_type));
@@ -380,7 +384,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const paymentDone = paymentParam === 'mock-success' || order.payment_status === 'paid';
   const paymentSubmitted = order.payment_status === 'submitted';
   const cartEditable = !paymentDone && !paymentSubmitted;
-  const grandTotalFcfa = roundXafUp(pricing.itemsTotalFcfaRounded + (order.transport_cost || 0));
+  // Total recalculé à chaque affichage (devise du listing), jamais relu tel quel.
+  const transportCostNow = order.transport_mode === 'air' ? pricing.airCost : order.transport_mode === 'sea' ? pricing.seaCost : null;
+  const grandTotalFcfa = roundSettlement(pricing.itemsNetFcfa + (transportCostNow || 0), currency);
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
   // Formulaire coordonnées à afficher : transport choisi (ou devis pur) mais coordonnées manquantes.
@@ -492,7 +498,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">{ACOMPTE_BADGE}</span>
                   ) : (
                     l.quantity > 1 && (
-                      <span className="whitespace-nowrap text-[11px] text-slate-500">{roundXafUp(l.unit_price_fcfa).toLocaleString('fr-FR')} / u.</span>
+                      <span className="whitespace-nowrap text-[11px] text-slate-500">{fmt(roundSettlement(l.unit_price_fcfa, currency))} / u.</span>
                     )
                   )}
                 </div>
@@ -500,7 +506,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   {isAcompte(l.price_type) ? (
                     <span className="text-xs font-semibold text-amber-600">Sur devis</span>
                   ) : (
-                    <p className="text-sm font-bold text-emerald-600">{roundXafUp(l.subtotal_fcfa).toLocaleString('fr-FR')} FCFA</p>
+                    <p className="text-sm font-bold text-emerald-600">{fmt(roundSettlement(l.subtotal_fcfa, currency))}</p>
                   )}
                   {cartEditable && (
                     <button
@@ -526,7 +532,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         </div>
         <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
           <p className="text-sm font-semibold text-emerald-700">Sous-total produits</p>
-          <MultiCurrencyPrice amountCny={pricing.itemsTotalCny} xafOverrideFcfa={pricing.itemsTotalFcfaRounded} variant="stacked" primary="XAF" only />
+          {currency === 'EUR' ? (
+            <p className="font-display text-lg font-bold text-indigo-600">{fmt(pricing.itemsTotalFcfaRounded)}</p>
+          ) : (
+            <MultiCurrencyPrice amountCny={pricing.itemsTotalCny} xafOverrideFcfa={pricing.itemsTotalFcfaRounded} variant="stacked" primary="XAF" only />
+          )}
         </div>
         <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-slate-500">
           <p>
@@ -579,11 +589,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               {order.transport_mode === 'air' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
             <p className="text-xs text-slate-500">
-              {pricing.airRate.toLocaleString('fr-FR')} FCFA / kg
+              {formatSettlementRate(pricing.airRate, 'kg', currency)}
               {pricing.hasBattery ? ' (avec batteries)' : ''}
             </p>
             <p className="font-display text-lg font-bold text-emerald-600">
-              {formatFCFA(pricing.airCost)}
+              {fmt(pricing.airCost)}
             </p>
             <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
             <p className="text-[10px] text-slate-400">
@@ -613,13 +623,13 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               {order.transport_mode === 'sea' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
             <p className="text-xs text-slate-500">
-              {Math.round(pricing.seaRate).toLocaleString('fr-FR')} FCFA / m³
-              {pricing.seaRate < SEA_RATE_FCFA_PER_M3 && (
+              {formatSettlementRate(pricing.seaRate, 'm³', currency)}
+              {currency === 'XAF' && pricing.seaRate < SEA_RATE_FCFA_PER_M3 && (
                 <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">tarif dégressif</span>
               )}
             </p>
             <p className="font-display text-lg font-bold text-emerald-600">
-              {formatFCFA(pricing.seaCost)}
+              {fmt(pricing.seaCost)}
             </p>
             <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 60 à 85 jours</p>
             <p className="text-[10px] text-slate-400">
@@ -647,12 +657,12 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           <div className="mt-4 space-y-2 rounded-2xl bg-slate-900 p-5 text-white">
             <div className="flex items-center justify-between text-sm text-slate-300">
               <span>Sous-total produits</span>
-              <span>{formatFCFA(pricing.itemsTotalFcfaRounded)}</span>
+              <span>{fmt(pricing.itemsTotalFcfaRounded)}</span>
             </div>
             {pricing.discountFcfa > 0 && (
               <div className="flex items-center justify-between text-sm text-emerald-300">
                 <span>Remise {order.promo?.code ? `(${order.promo.code})` : ''}</span>
-                <span>− {formatFCFA(pricing.discountFcfa)}</span>
+                <span>− {fmt(pricing.discountFcfa)}</span>
               </div>
             )}
             <div className="flex items-center justify-between text-sm text-slate-300">
@@ -662,7 +672,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   <span className="ml-1 text-emerald-300">· tarif {order.promo.code}</span>
                 )}
               </span>
-              <span>{formatFCFA(order.transport_cost ?? null)}</span>
+              <span>{fmt(order.transport_mode === 'air' ? pricing.airCost : pricing.seaCost)}</span>
             </div>
 
             {/* Code promo */}
@@ -696,7 +706,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <div className="flex items-center justify-between text-base font-bold">
               <span>Total à payer</span>
               <span className="text-emerald-400">
-                {formatFCFA(
+                {fmt(
                   order.transport_mode === 'air' ? pricing.airTotal : pricing.seaTotal,
                 )}
               </span>
@@ -781,7 +791,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         <section className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 p-6">
           <h2 className="font-semibold text-slate-900">Paiement</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Montant à régler : <b className="text-emerald-700">{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b>. Choisissez votre moyen de paiement.
+            Montant à régler : <b className="text-emerald-700">{fmt(grandTotalFcfa)}</b>. Choisissez votre moyen de paiement.
           </p>
 
           {/* Choix de la méthode */}
@@ -819,7 +829,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           {paymentMethod === 'cash' && (
             <div className="mt-4 space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
               <p className="text-sm text-slate-700">
-                💵 Réglez <b className="text-amber-700">{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b> en <b>espèces</b> directement à notre agence.
+                💵 Réglez <b className="text-amber-700">{fmt(grandTotalFcfa)}</b> en <b>espèces</b> directement à notre agence.
                 Votre commande est réservée ; elle sera validée à l’encaissement.
               </p>
               <p className="text-xs text-slate-500">
@@ -862,7 +872,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <div className="mt-4 space-y-3 rounded-2xl border border-red-200 bg-white p-4">
               <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
                 <li>
-                  Envoyez <b className="text-red-600">{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b> par Airtel Money au numéro :{' '}
+                  Envoyez <b className="text-red-600">{fmt(grandTotalFcfa)}</b> par Airtel Money au numéro :{' '}
                   <b className="whitespace-nowrap">{airtel_number || '—'}</b>
                   {!airtel_number && (
                     <span className="block text-xs text-amber-600">(numéro non configuré — contactez-nous sur WhatsApp)</span>
@@ -921,7 +931,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           <h2 className="mt-3 font-display text-xl font-bold text-amber-800">Commande réservée — paiement cash</h2>
           <p className="mt-2 text-sm text-amber-700">
             Rendez-vous à l’agence TWINSK la plus proche pour régler{' '}
-            <b>{grandTotalFcfa.toLocaleString('fr-FR')} FCFA</b> en espèces, <b>sous 48h</b>.
+            <b>{fmt(grandTotalFcfa)}</b> en espèces, <b>sous 48h</b>.
           </p>
           <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-500 px-4 py-1.5 text-sm font-bold text-white">
             Présentez : {orderNumber(order.id)}

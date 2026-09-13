@@ -5,6 +5,7 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber } from '@/lib/order-number';
+import { formatSettlement, settlementCurrencyOf } from '@/lib/offer-pricing';
 
 export const ORDERS_GROUP_ID =
   process.env.WHAPI_ORDERS_GROUP_ID || '120363428402268041@g.us';
@@ -40,7 +41,7 @@ interface OrderRow {
   grand_total_fcfa: number | null;
   items_total_fcfa: number | null;
   has_battery: boolean | null;
-  offers: { title?: string } | null;
+  offers: { title?: string; offer_currency?: string | null } | null;
   offer_order_lines: OrderLineRow[] | null;
 }
 
@@ -52,7 +53,7 @@ export async function notifyOrdersGroup(orderId: string, origin: string): Promis
       .select(
         'id, offer_id, client_name, client_phone, client_email, transport_mode, ' +
           'payment_method, grand_total_fcfa, items_total_fcfa, has_battery, ' +
-          'offers(title), offer_order_lines(product_title, variant_name, quantity, unit_price_cny, product_url)',
+          'offers(title, offer_currency), offer_order_lines(product_title, variant_name, quantity, unit_price_cny, product_url)',
       )
       .eq('id', orderId)
       .single();
@@ -63,6 +64,8 @@ export async function notifyOrdersGroup(orderId: string, origin: string): Promis
     const offerTitle = order.offers?.title || '';
     const lines = (order.offer_order_lines || []) as OrderLineRow[];
     const total = Number(order.grand_total_fcfa ?? order.items_total_fcfa) || 0;
+    // Montants stockés dans la devise de règlement du listing (FCFA ou euros).
+    const totalStr = formatSettlement(total, settlementCurrencyOf(order.offers?.offer_currency));
 
     const productLines = lines
       .map((l, i) => {
@@ -83,7 +86,7 @@ export async function notifyOrdersGroup(orderId: string, origin: string): Promis
       `\n` +
       (offerTitle ? `🛍️ Listing : ${offerTitle}\n` : '') +
       `\n📦 *Produits (${lines.length})*\n${productLines}\n\n` +
-      (total > 0 ? `💰 Total : *${Math.round(total).toLocaleString('fr-FR')} FCFA*\n` : '') +
+      (total > 0 ? `💰 Total : *${totalStr}*\n` : '') +
       (transport ? `🚚 Transport : ${transport}\n` : '') +
       (payment ? `💳 Paiement : ${payment}\n` : '') +
       (order.has_battery ? `🔋 Contient des batteries\n` : '') +
@@ -99,7 +102,7 @@ export async function notifyOrdersGroup(orderId: string, origin: string): Promis
     if (!r.ok) console.error(`[order-notify] ${num} : envoi au groupe Commandes refusé — ${r.error}`);
     await supabaseAdmin.from('playbook_log').insert({
       ritual: 'order_notify',
-      note: `${num} · ${order.client_name || '—'} · ${Math.round(total).toLocaleString('fr-FR')} FCFA · ${r.ok ? 'envoyé au groupe Commandes' : `ÉCHEC : ${r.error}`}`,
+      note: `${num} · ${order.client_name || '—'} · ${totalStr} · ${r.ok ? 'envoyé au groupe Commandes' : `ÉCHEC : ${r.error}`}`,
       done_by: 'system',
     });
   } catch (e) {

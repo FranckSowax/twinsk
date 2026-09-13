@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { formatSettlement, settlementCurrencyOf } from '@/lib/offer-pricing';
 import { settlePromoForOrder } from '@/lib/promo-settle';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
@@ -45,7 +46,7 @@ export async function POST(
     .update({ payment_method: 'cash', payment_status: 'submitted' })
     .eq('id', orderId)
     .eq('offer_id', uuid)
-    .select('id, client_name, client_phone, grand_total_fcfa, items_total_fcfa, offers(title)')
+    .select('id, client_name, client_phone, grand_total_fcfa, items_total_fcfa, offers(title, offer_currency)')
     .single();
   if (error || !order) {
     return NextResponse.json({ error: error?.message || 'Commande introuvable' }, { status: 500 });
@@ -53,9 +54,10 @@ export async function POST(
 
   const num = orderNumber(order.id);
   const total = Number(order.grand_total_fcfa ?? order.items_total_fcfa) || 0;
-  const totalStr = `${Math.round(total).toLocaleString('fr-FR')} FCFA`;
+  const offerMeta = order.offers as { title?: string; offer_currency?: string | null } | null;
+  const totalStr = formatSettlement(total, settlementCurrencyOf(offerMeta?.offer_currency));
   const recapUrl = `${request.nextUrl.origin}/offer/${uuid}/order/${orderId}`;
-  const offerTitle = (order.offers as { title?: string } | null)?.title || '';
+  const offerTitle = offerMeta?.title || '';
 
   // 1) Message au client (best-effort).
   const clientChat = toWhatsappChatId(order.client_phone);

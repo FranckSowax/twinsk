@@ -4,6 +4,7 @@ import { publicOrigin } from '@/lib/public-origin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing } from '@/lib/offer-pricing';
 import { pricingOptionsFor } from '@/lib/promo';
+import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 
 // PATCH: Customer picks a transport mode ('air' | 'sea' | 'quote') and we
 // persist the corresponding transport_cost + grand_total.
@@ -69,7 +70,7 @@ export async function PATCH(
         has_battery: l.has_battery ?? !!meta?.has_battery,
       };
     }),
-    pricingOptionsFor(order),
+    { ...pricingOptionsFor(order), currency: await offerSettlementCurrency(uuid) },
   );
 
   let transportCost: number | null = null;

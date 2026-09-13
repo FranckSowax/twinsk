@@ -5,7 +5,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing } from '@/lib/offer-pricing';
-import { loadOrderPricingLines } from '@/lib/order-pricing-lines';
+import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { releasePromoUse } from '@/lib/promo';
 
 export interface EditableOrder {
@@ -41,7 +41,7 @@ export async function recomputeAfterLineChange(order: EditableOrder): Promise<{ 
   if (error) throw new Error(`lecture des lignes impossible : ${error.message}`);
   const lines = (rows || []) as { subtotal_cny: number }[];
   const itemsTotalCny = lines.reduce((s, l) => s + (Number(l.subtotal_cny) || 0), 0);
-  const pricing = computeOrderPricing(await loadOrderPricingLines(order.id));
+  const pricing = computeOrderPricing(await loadOrderPricingLines(order.id), { currency: await offerSettlementCurrency(order.offer_id) });
 
   const promoRemoved = !!order.promo_id;
   if (promoRemoved) await releasePromoUse(order.id);

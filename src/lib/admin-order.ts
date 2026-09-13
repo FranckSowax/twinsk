@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing } from '@/lib/offer-pricing';
-import { roundXafUp } from '@/lib/utils/formatCurrency';
+import { computeOrderPricing, roundSettlement } from '@/lib/offer-pricing';
+import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 
 // Recalcule et persiste les totaux d'une commande /offer à partir de ses lignes
 // (poids/volume/batterie stockés sur offer_order_lines) et du mode de transport.
@@ -16,10 +16,11 @@ export async function recomputeOrder(orderId: string): Promise<{
 } | null> {
   const { data: order } = await supabaseAdmin
     .from('offer_orders')
-    .select('id, transport_mode')
+    .select('id, offer_id, transport_mode')
     .eq('id', orderId)
     .single();
   if (!order) return null;
+  const currency = await offerSettlementCurrency(order.offer_id);
 
   const { data: lines } = await supabaseAdmin
     .from('offer_order_lines')
@@ -34,13 +35,15 @@ export async function recomputeOrder(orderId: string): Promise<{
       volume: l.volume != null ? Number(l.volume) : null,
       has_battery: !!l.has_battery,
     })),
+    { currency },
   );
 
   const mode = order.transport_mode as 'air' | 'sea' | 'quote' | null;
   const transportCost =
     mode === 'air' ? pricing.airCost : mode === 'sea' ? pricing.seaCost : null;
-  const grandTotal = roundXafUp(
+  const grandTotal = roundSettlement(
     pricing.itemsTotalFcfaRounded + (transportCost || 0),
+    currency,
   );
 
   await supabaseAdmin

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing, CNY_TO_FCFA } from '@/lib/offer-pricing';
+import { computeOrderPricing, CNY_TO_EUR, CNY_TO_FCFA } from '@/lib/offer-pricing';
+import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { describePromo, pricingOptionsFor, type PromoKind } from '@/lib/promo';
 
 // GET: Public order detail (for the confirmation / transport / checkout page).
@@ -65,6 +66,10 @@ export async function GET(
     promoValue = Number(promoRow?.value ?? 0) || 0;
   }
 
+  // Devise de règlement : euros si le listing est affiché en euros (tarifs
+  // transport des devis Europe), sinon FCFA.
+  const currency = await offerSettlementCurrency(order.offer_id);
+  const lineRate = currency === 'EUR' ? CNY_TO_EUR : CNY_TO_FCFA;
   const pricing = computeOrderPricing(
     lines.map((l) => {
       const meta = l.product_id ? prodMap.get(l.product_id) : undefined;
@@ -80,10 +85,11 @@ export async function GET(
         has_battery: l.has_battery ?? !!meta?.has_battery,
       };
     }),
-    pricingOptionsFor(order),
+    { ...pricingOptionsFor(order), currency },
   );
 
   return NextResponse.json({
+    currency,
     order: {
       id: order.id,
       offer_id: order.offer_id,
@@ -109,10 +115,11 @@ export async function GET(
           }
         : null,
     },
+    // Montants de ligne dans la devise de règlement (noms historiques « fcfa »).
     lines: lines.map((l) => ({
       ...l,
-      unit_price_fcfa: l.unit_price_cny * CNY_TO_FCFA,
-      subtotal_fcfa: l.subtotal_cny * CNY_TO_FCFA,
+      unit_price_fcfa: l.unit_price_cny * lineRate,
+      subtotal_fcfa: l.subtotal_cny * lineRate,
     })),
     pricing,
     // Numéro Airtel Money affiché dans les instructions de paiement :

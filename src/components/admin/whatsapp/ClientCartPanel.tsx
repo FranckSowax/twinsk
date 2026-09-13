@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink, FilePlus2, Loader2, Minus, Pencil, Plus, RefreshCw, Save, Search, Send, ShoppingCart, Trash2 } from 'lucide-react';
 import SmartImage from '@/components/ui/SmartImage';
 import { formatInCurrency } from '@/lib/utils/formatCurrency';
-import { roundXafUp } from '@/lib/utils/formatCurrency';
+import { formatSettlement, roundSettlement } from '@/lib/offer-pricing';
 import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
@@ -22,14 +22,15 @@ interface Offer { id: string; title: string; status: string; archived_at?: strin
 interface CartLine { productId: string; variantId: string | null; quantity: number }
 interface SavedCart {
   id: string; offer_id: string; offer_title: string | null; client_name: string; client_phone: string;
-  status: string; transport_mode: string | null; items_total_fcfa: number | null; items_count: number; created_at: string;
+  status: string; transport_mode: string | null; items_total_fcfa: number | null; items_count: number; created_at: string; currency?: 'XAF' | 'EUR';
 }
 interface OrderLine { id: string; product_id: string | null; product_title: string | null; variant_name: string | null; product_image: string | null; quantity: number; unit_price_fcfa: number; subtotal_fcfa: number; price_type: string | null }
-interface OrderData { order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; airTotal: number | null; seaTotal: number | null } }
+interface OrderData { currency?: 'XAF' | 'EUR'; order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; airTotal: number | null; seaTotal: number | null } }
 interface SendResult { order_id: string; order_url: string; items_total_fcfa?: number; sent: number; errors: string[]; success: boolean; saved?: boolean }
 
 const key = (p: string, v: string | null) => `${p}::${v || ''}`;
-const fcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
+// Montants dans la devise de règlement du listing (FCFA, ou euros pour un listing en euros).
+const fcfa = (n: number, currency: 'XAF' | 'EUR' = 'XAF') => formatSettlement(n, currency);
 
 export default function ClientCartPanel() {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -271,6 +272,8 @@ export default function ClientCartPanel() {
   const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-white';
   const label = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500';
   const offerTitle = offers.find((o) => o.id === offerId)?.title || data?.offer.title || '';
+  // Devise du listing choisi : les prix du panneau et le panier envoyé la suivent.
+  const panelCur: 'XAF' | 'EUR' = orderData?.currency || (data?.offer.currency === 'EUR' ? 'EUR' : 'XAF');
 
   return (
     <div className="space-y-5">
@@ -300,7 +303,7 @@ export default function ClientCartPanel() {
                       <span className="block text-xs text-slate-500">{c.client_phone}</span>
                     </td>
                     <td className="hidden py-2 pr-2 text-xs text-slate-600 sm:table-cell dark:text-slate-300">{c.offer_title || '—'}</td>
-                    <td className="py-2 pr-2 text-xs text-slate-600 dark:text-slate-300">{c.items_count} art. · {c.items_total_fcfa != null ? fcfa(c.items_total_fcfa) : '—'}</td>
+                    <td className="py-2 pr-2 text-xs text-slate-600 dark:text-slate-300">{c.items_count} art. · {c.items_total_fcfa != null ? fcfa(c.items_total_fcfa, c.currency) : '—'}</td>
                     <td className="py-2 pr-2">
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.transport_mode ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                         {c.transport_mode ? `transport ${c.transport_mode}` : 'brouillon'}
@@ -367,11 +370,11 @@ export default function ClientCartPanel() {
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-white" title={p.title}>{p.title}</p>
                       <p className="truncate text-[11px] text-slate-500">{cat}</p>
-                      <p className="text-sm font-bold text-emerald-600">{p.on_quote || p.price_type === 'acompte' ? 'Sur devis' : formatInCurrency(unit, 'XAF')}</p>
+                      <p className="text-sm font-bold text-emerald-600">{p.on_quote || p.price_type === 'acompte' ? 'Sur devis' : formatInCurrency(unit, panelCur)}</p>
                       {variants.length > 0 && (
                         <select className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" value={chosen || ''} onChange={(e) => setVariantPick((v) => ({ ...v, [p.id]: e.target.value }))}>
                           {variants.map((v) => (
-                            <option key={v.id} value={v.id}>{v.name}{v.price != null ? ` — ${formatInCurrency(v.price, 'XAF')}` : ''}</option>
+                            <option key={v.id} value={v.id}>{v.name}{v.price != null ? ` — ${formatInCurrency(v.price, panelCur)}` : ''}</option>
                           ))}
                         </select>
                       )}
@@ -420,7 +423,7 @@ export default function ClientCartPanel() {
                           <button type="button" onClick={() => editQty(l.id, l.quantity + 1)} disabled={busy !== null} className="p-1.5 text-slate-700 disabled:opacity-30 dark:text-slate-200"><Plus className="h-3 w-3" /></button>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{l.price_type === 'acompte' ? 'Sur devis' : fcfa(roundXafUp(l.subtotal_fcfa))}</span>
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{l.price_type === 'acompte' ? 'Sur devis' : fcfa(roundSettlement(l.subtotal_fcfa, orderData?.currency || 'XAF'), orderData?.currency)}</span>
                           <button type="button" onClick={() => { if (orderData.lines.length > 1 && confirm('Retirer ce produit ?')) editRemove(l.id); }} disabled={busy !== null || orderData.lines.length <= 1} className="rounded p-1 text-red-500 hover:bg-red-50 disabled:opacity-30" title="Retirer"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                       </div>
@@ -446,7 +449,7 @@ export default function ClientCartPanel() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200" title={p.title}>{p.title}</p>
                         {v && <p className="truncate text-[11px] text-emerald-600">{v.name}</p>}
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{quote ? 'Sur devis' : formatInCurrency(unitCny(p, l.variantId) * l.quantity, 'XAF')}</p>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{quote ? 'Sur devis' : formatInCurrency(unitCny(p, l.variantId) * l.quantity, panelCur)}</p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button type="button" onClick={() => setQty(k, l.quantity - 1)} className="rounded bg-slate-100 p-1 text-slate-700 dark:bg-slate-700 dark:text-slate-200"><Minus className="h-3 w-3" /></button>
@@ -463,12 +466,12 @@ export default function ClientCartPanel() {
             {(editing ? !!orderData?.lines.length : lines.length > 0) && (
               <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
                 <span className="text-sm font-semibold text-emerald-700">Total articles{editing ? '' : ' (estimé)'}</span>
-                <span className="text-sm font-bold text-emerald-700">{editing && orderData ? fcfa(orderData.pricing.itemsTotalFcfaRounded) : formatInCurrency(totalCny, 'XAF')}</span>
+                <span className="text-sm font-bold text-emerald-700">{editing && orderData ? fcfa(orderData.pricing.itemsTotalFcfaRounded, orderData.currency) : formatInCurrency(totalCny, panelCur)}</span>
               </div>
             )}
             {editing && orderData && (orderData.pricing.airTotal != null || orderData.pricing.seaTotal != null) && (
               <p className="mt-1 text-[11px] text-slate-500">
-                {orderData.pricing.airTotal != null ? `✈️ ${fcfa(orderData.pricing.airTotal)}` : ''}{orderData.pricing.airTotal != null && orderData.pricing.seaTotal != null ? ' · ' : ''}{orderData.pricing.seaTotal != null ? `🚢 ${fcfa(orderData.pricing.seaTotal)}` : ''}
+                {orderData.pricing.airTotal != null ? `✈️ ${fcfa(orderData.pricing.airTotal, orderData.currency)}` : ''}{orderData.pricing.airTotal != null && orderData.pricing.seaTotal != null ? ' · ' : ''}{orderData.pricing.seaTotal != null ? `🚢 ${fcfa(orderData.pricing.seaTotal, orderData.currency)}` : ''}
               </p>
             )}
             <p className="mt-2 text-[11px] text-slate-500">
@@ -519,7 +522,7 @@ export default function ClientCartPanel() {
           {result && (
             <div className={`rounded-2xl border p-4 text-sm ${result.success ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
               <p className="font-semibold">{result.sent > 0 ? (result.success ? '✅ Envoyé sur WhatsApp' : '⚠️ Envoi partiel') : '💾 Panier enregistré'}</p>
-              {result.items_total_fcfa != null && <p className="mt-1">Total articles : {fcfa(result.items_total_fcfa)}{result.sent > 0 ? ` · ${result.sent} message(s)` : ''}</p>}
+              {result.items_total_fcfa != null && <p className="mt-1">Total articles : {fcfa(result.items_total_fcfa, panelCur)}{result.sent > 0 ? ` · ${result.sent} message(s)` : ''}</p>}
               <a href={result.order_url} target="_blank" rel="noreferrer" className="mt-1 block break-all underline">{result.order_url}</a>
               {result.errors.length > 0 && <ul className="mt-2 list-disc pl-5 text-xs">{result.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
             </div>

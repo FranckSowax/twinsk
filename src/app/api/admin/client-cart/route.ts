@@ -5,6 +5,7 @@ import { validateContact } from '@/lib/contact-validation';
 import { createOfferOrder, type OrderPick } from '@/lib/offer-order-create';
 import { publicOrigin } from '@/lib/public-origin';
 import { sendClientCartWhatsapp } from '@/lib/client-cart-send';
+import { settlementCurrencyOf } from '@/lib/offer-pricing';
 
 // « Panier client » (admin).
 // GET  → paniers enregistrés (commandes non payées, les plus récentes) pour édition.
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { data, error } = await supabaseAdmin
     .from('offer_orders')
-    .select('id, offer_id, client_name, client_phone, status, payment_status, transport_mode, items_total_fcfa, grand_total_fcfa, created_at, offers(title), offer_order_lines(quantity)')
+    .select('id, offer_id, client_name, client_phone, status, payment_status, transport_mode, items_total_fcfa, grand_total_fcfa, created_at, offers(title, offer_currency), offer_order_lines(quantity)')
     .neq('client_name', '')
     .neq('client_phone', '')
     .eq('payment_status', 'pending')
@@ -27,11 +28,12 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const carts = (data || []).map((o) => {
     const lines = (o.offer_order_lines || []) as { quantity: number | null }[];
-    const row = o as unknown as { offers?: { title?: string } | null };
+    const row = o as unknown as { offers?: { title?: string; offer_currency?: string | null } | null };
     return {
       id: o.id,
       offer_id: o.offer_id,
       offer_title: row.offers?.title || null,
+      currency: settlementCurrencyOf(row.offers?.offer_currency),
       client_name: o.client_name,
       client_phone: o.client_phone,
       status: o.status,
