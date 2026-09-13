@@ -11,6 +11,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { facebookPostsFor, instagramPostsFor, productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
+import type { MediaPlan } from '@/lib/wa-media';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import {
   getWhapiHealth,
@@ -20,12 +21,16 @@ import {
   sendWhapiProduct,
   sendWhapiProductCard,
   sendWhapiText,
+  sendWhapiVideo,
 } from '@/lib/whapi';
 import {
   fbPagePhotoPost,
   fbPageStory,
+  fbPageVideoPost,
   igPhotoPost,
   igStory,
+  igVideoPost,
+  igVideoStory,
   metaFacebookConfigured,
   metaInstagramConfigured,
 } from '@/lib/meta-graph';
@@ -222,4 +227,106 @@ export function summarizeReport(report: BroadcastReport): string {
     })
     .filter((x): x is string => !!x)
     .join(' · ');
+}
+
+/**
+ * Mode « médias en boucle » : UN média (photo ou vidéo) de la médiathèque,
+ * publié tel quel sur chaque canal actif — un seul message par canal, jamais
+ * de rafale. Facebook/Instagram : une publication (si le rythme le prévoit)
+ * et une story ; les vidéos partent en publication vidéo / Reel / story vidéo.
+ */
+export async function broadcastMedia(plan: MediaPlan, cfg: DripConfig, origin: string): Promise<BroadcastReport> {
+  const report: BroadcastReport = {
+    group: { sent: 0, errors: [] },
+    status: { sent: 0, errors: [] },
+    channel: { sent: 0, errors: [] },
+    facebook: { sent: 0, errors: [] },
+    instagram: { sent: 0, errors: [] },
+  };
+  const { item, caption } = plan;
+  const isVideo = item.kind === 'video';
+  const label = (item.title || item.url.split('/').pop() || 'média').slice(0, 40);
+  const sendWa = (to: string) => (isVideo ? sendWhapiVideo(item.url, caption || undefined, to) : sendWhapiImage(item.url, caption || undefined, to));
+
+  const health = await getWhapiHealth();
+  const waDown = !health.ok;
+  const waDownMsg = `canal WhatsApp déconnecté (statut ${health.status}) — rescanner le QR`;
+  if (waDown) {
+    for (const c of ['group', 'status', 'channel'] as const) {
+      if (cfg.channels[c]) report[c].errors.push(waDownMsg);
+    }
+  }
+
+  // --- Groupe WhatsApp : un seul message média + légende ------------------
+  if (!cfg.channels.group) report.group.skipped = 'disabled';
+  else if (!cfg.group_id) report.group.skipped = 'not_configured';
+  else if (!waDown) {
+    const r = await sendWa(cfg.group_id);
+    if (r.ok) report.group.sent += 1;
+    else report.group.errors.push(`${label} : ${r.error}`);
+    await sleep(THROTTLE_MS);
+  }
+
+  // --- Statut WhatsApp : une story (photo ou vidéo) -------------------------
+  if (!cfg.channels.status) report.status.skipped = 'disabled';
+  else if (!waDown) {
+    const r = await postWhapiStory(item.url, caption || undefined);
+    if (r.ok) report.status.sent += 1;
+    else report.status.errors.push(`${label} : ${r.error}`);
+    await sleep(THROTTLE_MS);
+  }
+
+  // --- Chaîne WhatsApp ------------------------------------------------------
+  if (!cfg.channels.channel) report.channel.skipped = 'disabled';
+  else if (!cfg.channel_id) report.channel.skipped = 'not_configured';
+  else if (!waDown) {
+    const r = await sendWa(cfg.channel_id);
+    if (r.ok) report.channel.sent += 1;
+    else report.channel.errors.push(`${label} : ${r.error}`);
+    await sleep(THROTTLE_MS);
+  }
+
+  // Légende sans gras/italique WhatsApp pour les réseaux.
+  const social = caption.replace(/[*_]/g, '');
+  const publicUrl = isVideo ? item.url : publicImage(item.url, origin);
+
+  // --- Facebook (Page) ------------------------------------------------------
+  if (!cfg.channels.facebook) report.facebook.skipped = 'disabled';
+  else if (!metaFacebookConfigured()) report.facebook.skipped = 'not_configured';
+  else {
+    if (facebookPostsFor(cfg) > 0) {
+      const post = isVideo
+        ? await fbPageVideoPost({ videoUrl: publicUrl, description: social })
+        : await fbPagePhotoPost({ imageUrl: publicUrl, message: social });
+      if (post.ok) report.facebook.sent += 1;
+      else report.facebook.errors.push(`publication : ${post.error}`);
+    }
+    if (isVideo) {
+      // Les stories vidéo Facebook exigent une session de téléversement en plusieurs étapes : non prises en charge ici.
+      if (facebookPostsFor(cfg) === 0) report.facebook.errors.push('story vidéo Facebook non prise en charge — activez au moins 1 publication');
+    } else {
+      const story = await fbPageStory({ imageUrl: publicUrl });
+      if (story.ok) report.facebook.sent += 1;
+      else report.facebook.errors.push(`story : ${story.error}`);
+    }
+  }
+
+  // --- Instagram ------------------------------------------------------------
+  if (!cfg.channels.instagram) report.instagram.skipped = 'disabled';
+  else if (!metaInstagramConfigured()) report.instagram.skipped = 'not_configured';
+  else {
+    if (instagramPostsFor(cfg) > 0) {
+      const post = isVideo
+        ? await igVideoPost({ videoUrl: publicUrl, caption: social })
+        : await igPhotoPost({ imageUrl: publicUrl, caption: social });
+      if (post.ok) report.instagram.sent += 1;
+      else report.instagram.errors.push(`publication : ${post.error}`);
+    }
+    const story = isVideo ? await igVideoStory({ videoUrl: publicUrl }) : await igStory({ imageUrl: publicUrl });
+    if (story.ok) report.instagram.sent += 1;
+    else report.instagram.errors.push(`story : ${story.error}`);
+  }
+
+  report.whatsapp_status = health.status;
+  return report;
 }

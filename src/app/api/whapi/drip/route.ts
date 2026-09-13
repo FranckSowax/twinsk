@@ -12,11 +12,14 @@ import {
   buildDripPlan,
   listDripCategories,
   dripRitual,
+  listingTagline,
   normalizeDripConfig,
+  normalizeMediaHours,
   parseDripSlot,
   type DripConfig,
 } from '@/lib/wa-drip';
-import { listDripCampaigns, readDripConfig, writeDripConfig } from '@/lib/wa-drip-run';
+import { buildMediaPlan } from '@/lib/wa-media';
+import { listDripCampaigns, readDripConfig, readMediaLibrary, writeDripConfig } from '@/lib/wa-drip-run';
 
 // Réglage du goutte-à-goutte multi-canal (admin only).
 // GET  → config, disponibilité des canaux, groupes (avec cache si WHAPI est
@@ -32,7 +35,7 @@ export async function GET(request: NextRequest) {
   const slot = parseDripSlot(request.nextUrl.searchParams.get('slot'));
   const cfg = await readDripConfig(slot);
 
-  const [newsletters, log, groups, health, campaigns] = await Promise.all([
+  const [newsletters, log, groups, health, campaigns, media] = await Promise.all([
     getWhapiNewsletters(),
     supabaseAdmin
       .from('playbook_log')
@@ -43,6 +46,7 @@ export async function GET(request: NextRequest) {
     listGroupsWithCache(),
     getWhapiHealth(),
     listDripCampaigns(),
+    readMediaLibrary(),
   ]);
 
   const ready = {
@@ -56,14 +60,20 @@ export async function GET(request: NextRequest) {
   let next = null;
   let offerTitle: string | null = null;
   let categories = 0;
+  let tagline: string | null = null;
+  let offerUrl: string | null = null;
   if (cfg.offer_id) {
     const data = await fetchPublicOffer(cfg.offer_id);
     if (data?.offer) {
       offerTitle = data.offer.title;
       categories = listDripCategories(data).length;
-      next = buildDripPlan(data, cfg, `${publicOrigin(request)}/offer/${cfg.offer_id}`);
+      tagline = listingTagline(data.offer);
+      offerUrl = `${publicOrigin(request)}/offer/${cfg.offer_id}`;
+      next = buildDripPlan(data, cfg, offerUrl);
     }
   }
+  // Mode médias : prochain média de la boucle (légende finale incluse).
+  const nextMedia = buildMediaPlan(media, cfg, { tagline, offerUrl });
 
   return NextResponse.json({
     slot,
@@ -77,6 +87,8 @@ export async function GET(request: NextRequest) {
     offer_title: offerTitle,
     categories,
     next,
+    media,
+    next_media: nextMedia,
     recent: log.data || [],
   });
 }
@@ -84,6 +96,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const body = (await request.json().catch(() => ({}))) as Partial<DripConfig> & { reset_cursor?: boolean; slot?: number };
+  if (body.mode !== undefined && body.mode !== 'media' && body.mode !== 'catalog') {
+    return NextResponse.json({ error: 'mode invalide (media | catalog)' }, { status: 400 });
+  }
+  if (body.media_cursor !== undefined && (!Number.isFinite(Number(body.media_cursor)) || Number(body.media_cursor) < 0)) {
+    return NextResponse.json({ error: 'Position média invalide.' }, { status: 400 });
+  }
   const slot = parseDripSlot(body.slot);
   const current = await readDripConfig(slot);
 
@@ -131,14 +149,20 @@ export async function POST(request: NextRequest) {
     body.cursor !== undefined
       ? { cursor: Math.round(Number(body.cursor)), last_run_at: null, last_item_id: null }
       : body.reset_cursor || (body.offer_id && body.offer_id !== current.offer_id)
-        ? { cursor: 0, last_run_at: null, last_item_id: null }
+        ? { cursor: 0, media_cursor: 0, last_run_at: null, last_item_id: null }
         : {};
+  // Position dans la boucle des médias (0 = premier média retenu).
+  const mediaCursorPatch =
+    body.media_cursor !== undefined ? { media_cursor: Math.round(Number(body.media_cursor)), last_run_at: null, last_item_id: null } : {};
 
   const next = normalizeDripConfig({
     ...current,
     channels,
     per_channel: perChannel,
     ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+    ...(body.mode !== undefined ? { mode: body.mode } : {}),
+    ...(body.media_hours !== undefined ? { media_hours: normalizeMediaHours(body.media_hours) } : {}),
+    ...(body.media_ids !== undefined ? { media_ids: Array.isArray(body.media_ids) ? body.media_ids : [] } : {}),
     ...(body.offer_id !== undefined ? { offer_id: body.offer_id } : {}),
     ...(body.group_id !== undefined ? { group_id: body.group_id } : {}),
     ...(body.channel_id !== undefined ? { channel_id: body.channel_id } : {}),
@@ -147,6 +171,7 @@ export async function POST(request: NextRequest) {
     ...(body.start_hour !== undefined ? { start_hour: body.start_hour } : {}),
     ...(body.end_hour !== undefined ? { end_hour: body.end_hour } : {}),
     ...cursorPatch,
+    ...mediaCursorPatch,
   });
 
   await writeDripConfig(next, slot);

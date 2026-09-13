@@ -96,13 +96,41 @@ async function waitIgContainer(containerId: string, maxWaitMs = 45000): Promise<
     }
     await new Promise((r) => setTimeout(r, 3000));
   }
-  return { ok: false, error: 'Instagram : média toujours en traitement après 45 s' };
+  return { ok: false, error: `Instagram : média toujours en traitement après ${Math.round(maxWaitMs / 1000)} s` };
 }
 
-async function igPublish(ig: string, containerId: string): Promise<MetaResult> {
-  const ready = await waitIgContainer(containerId);
+async function igPublish(ig: string, containerId: string, maxWaitMs = 45000): Promise<MetaResult> {
+  const ready = await waitIgContainer(containerId, maxWaitMs);
   if (!ready.ok) return ready;
   return graphPost(`${ig}/media_publish`, { creation_id: containerId });
+}
+
+/** Une vidéo est transcodée par Instagram : on lui laisse jusqu'à 3 minutes. */
+const IG_VIDEO_WAIT_MS = 180_000;
+
+/** Publication vidéo Instagram (Reel, mp4 public). */
+export async function igVideoPost(args: { videoUrl: string; caption: string }): Promise<MetaResult> {
+  const ig = igUserId();
+  if (!ig) return { ok: false, skipped: 'not_configured' };
+  const container = await graphPost(`${ig}/media`, { video_url: args.videoUrl, media_type: 'REELS', caption: args.caption });
+  if (!container.ok || !container.id) return container;
+  return igPublish(ig, container.id, IG_VIDEO_WAIT_MS);
+}
+
+/** Story vidéo Instagram (mp4 public, 3 à 60 s). */
+export async function igVideoStory(args: { videoUrl: string }): Promise<MetaResult> {
+  const ig = igUserId();
+  if (!ig) return { ok: false, skipped: 'not_configured' };
+  const container = await graphPost(`${ig}/media`, { video_url: args.videoUrl, media_type: 'STORIES' });
+  if (!container.ok || !container.id) return container;
+  return igPublish(ig, container.id, IG_VIDEO_WAIT_MS);
+}
+
+/** Publication vidéo sur la Page (fil d'actualité) — Facebook télécharge l'URL. */
+export async function fbPageVideoPost(args: { videoUrl: string; description: string }): Promise<MetaResult> {
+  const p = pageId();
+  if (!p) return { ok: false, skipped: 'not_configured' };
+  return graphPost(`${p}/videos`, { file_url: args.videoUrl, description: args.description });
 }
 
 /** Publication photo Instagram : conteneur, attente du traitement, publication. */

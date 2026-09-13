@@ -38,8 +38,24 @@ export const PER_CHANNEL_KEYS = ['status', 'channel', 'facebook', 'facebook_post
 export type PerChannelKey = (typeof PER_CHANNEL_KEYS)[number];
 export type DripChannels = Record<DripChannel, boolean>;
 
+/**
+ * Mode d'une campagne :
+ *  - `media`   : médias (photos / vidéos) de la médiathèque publiés en boucle,
+ *                aux créneaux quotidiens choisis (défaut : 1 fois par jour) ;
+ *  - `catalog` : historique — une catégorie du listing par heure (fiches produit).
+ */
+export type DripMode = 'media' | 'catalog';
+export const DEFAULT_MEDIA_HOURS = [10];
+
 export interface DripConfig {
   enabled: boolean;
+  mode: DripMode;
+  /** Créneaux (heures de Libreville) des publications médias — 1 média par créneau. */
+  media_hours: number[];
+  /** Médias de la médiathèque retenus pour cette campagne (vide = tous les actifs). */
+  media_ids: string[];
+  /** Position dans la boucle des médias. */
+  media_cursor: number;
   offer_id: string | null;
   group_id: string | null;
   /** Chaîne WhatsApp (…@newsletter) qui reçoit la publication. */
@@ -65,6 +81,10 @@ export interface DripConfig {
 
 export const DEFAULT_DRIP_CONFIG: DripConfig = {
   enabled: false,
+  mode: 'media',
+  media_hours: DEFAULT_MEDIA_HOURS,
+  media_ids: [],
+  media_cursor: 0,
   offer_id: null,
   group_id: null,
   channel_id: null,
@@ -123,11 +143,30 @@ function normalizeChannels(raw: unknown): DripChannels {
   return out;
 }
 
+/** Heures (0-23) uniques et triées ; vide → défaut. */
+export function normalizeMediaHours(raw: unknown): number[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  const hours = Array.from(
+    new Set(arr.map((h) => Number(h)).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)),
+  ).sort((a, b) => a - b);
+  return hours.length ? hours : [...DEFAULT_MEDIA_HOURS];
+}
+
+/** Créneau média : l'heure locale figure dans media_hours. */
+export function isMediaHour(hour: number, cfg: Pick<DripConfig, 'media_hours'>): boolean {
+  return cfg.media_hours.includes(hour);
+}
+
 /** Config lue en base (jsonb) : on tolère l'absence ou des champs partiels. */
 export function normalizeDripConfig(raw: unknown): DripConfig {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof DripConfig, unknown>>;
   return {
     enabled: r.enabled === true,
+    // Défaut « médias » : les fiches produit ne partent plus qu'en mode catalogue explicite.
+    mode: r.mode === 'catalog' ? 'catalog' : 'media',
+    media_hours: normalizeMediaHours(r.media_hours),
+    media_ids: Array.isArray(r.media_ids) ? r.media_ids.filter((x): x is string => typeof x === 'string' && !!x) : [],
+    media_cursor: clampInt(r.media_cursor, 0, Number.MAX_SAFE_INTEGER, 0),
     offer_id: typeof r.offer_id === 'string' && r.offer_id ? r.offer_id : null,
     group_id: typeof r.group_id === 'string' && r.group_id ? r.group_id : null,
     channel_id: typeof r.channel_id === 'string' && r.channel_id ? r.channel_id : null,

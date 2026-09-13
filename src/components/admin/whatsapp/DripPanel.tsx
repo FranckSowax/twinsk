@@ -1,25 +1,34 @@
 'use client';
 
-// Onglet « Diffusion » : le goutte-à-goutte horaire (une catégorie par heure)
-// et ses canaux — groupe, statut, chaîne WhatsApp, Facebook, Instagram.
-// Tout se règle ici : pause/reprise globale et par canal, listing, rythme,
-// plage horaire, aperçu de la prochaine publication, journal.
+// Onglet « Diffusion » : une campagne = un mode et ses canaux (groupe, statut,
+// chaîne WhatsApp, Facebook, Instagram).
+//   - Médias en boucle (recommandé) : les photos / vidéos de la médiathèque
+//     partent une par créneau quotidien (défaut : 1 fois par jour), en boucle.
+//   - Catalogue : l'ancien goutte-à-goutte horaire (une catégorie de produits par heure).
+// Tout se règle ici : pause/reprise, listing, créneaux, médiathèque, aperçu, journal.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Pause, Play, Send, Eye, Square } from 'lucide-react';
+import { Loader2, Pause, Play, Send, Eye, Square, Film, LayoutList } from 'lucide-react';
 import type { GroupRow } from './types';
+import DripMediaLibrary, { type MediaRow } from './DripMediaLibrary';
 
 type Channel = 'group' | 'status' | 'channel' | 'facebook' | 'instagram';
-const CHANNELS: { key: Channel; label: string; hint: string }[] = [
-  { key: 'group', label: 'Groupe WhatsApp', hint: 'en-tête + produits + bouton' },
-  { key: 'status', label: 'Statut WhatsApp', hint: '1 story par produit (24 h)' },
-  { key: 'channel', label: 'Chaîne WhatsApp', hint: 'en-tête + photos' },
-  { key: 'facebook', label: 'Page Facebook', hint: 'publications + stories (rythmes séparés)' },
-  { key: 'instagram', label: 'Instagram', hint: 'publications + stories (rythmes séparés)' },
+type Mode = 'media' | 'catalog';
+const CHANNELS: { key: Channel; label: string; hint: Record<Mode, string> }[] = [
+  { key: 'group', label: 'Groupe WhatsApp', hint: { media: '1 photo / vidéo + légende par créneau', catalog: 'en-tête + produits + bouton' } },
+  { key: 'status', label: 'Statut WhatsApp', hint: { media: '1 story photo / vidéo par créneau (24 h)', catalog: '1 story par produit (24 h)' } },
+  { key: 'channel', label: 'Chaîne WhatsApp', hint: { media: '1 photo / vidéo + légende par créneau', catalog: 'en-tête + photos' } },
+  { key: 'facebook', label: 'Page Facebook', hint: { media: 'publication (photo / vidéo) + story photo', catalog: 'publications + stories (rythmes séparés)' } },
+  { key: 'instagram', label: 'Instagram', hint: { media: 'publication (photo / Reel) + story', catalog: 'publications + stories (rythmes séparés)' } },
 ];
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
 interface Config {
   enabled: boolean;
+  mode: Mode;
+  media_hours: number[];
+  media_ids: string[];
+  media_cursor: number;
   offer_id: string | null;
   group_id: string | null;
   channel_id: string | null;
@@ -34,6 +43,7 @@ interface Config {
 }
 interface PlanProduct { id: string; title: string; imageUrl: string; url: string }
 interface Plan { index: number; total: number; categoryTitle: string; header: string; products: PlanProduct[] }
+interface MediaPlan { index: number; total: number; item: MediaRow; caption: string }
 interface State {
   config: Config;
   ready: Record<Channel, boolean>;
@@ -44,6 +54,8 @@ interface State {
   offer_title: string | null;
   categories: number;
   next: Plan | null;
+  media: MediaRow[];
+  next_media: MediaPlan | null;
   recent: { note: string; done_by: string | null; done_at: string }[];
 }
 interface Offer { id: string; title: string; status: string; archived_at?: string | null }
@@ -109,8 +121,10 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
       });
       const d = await res.json();
       if (!res.ok) setMessage(`⚠️ ${d.error || 'Échec'}`);
+      else if (d.dry && d.media) setMessage(`👁 Aperçu : ${d.media.item?.title || d.media.item?.kind} (${(d.media.index ?? 0) + 1}/${d.media.total}) — rien n'a été envoyé`);
       else if (d.dry) setMessage(`👁 Aperçu : ${d.plan?.categoryTitle} (${(d.plan?.index ?? 0) + 1}/${d.plan?.total}) — rien n'a été envoyé`);
-      else if (d.skipped) setMessage(`ℹ️ Ignoré : ${d.skipped}`);
+      else if (d.skipped) setMessage(`ℹ️ Ignoré : ${d.skipped === 'no_media' ? 'aucun média actif dans la médiathèque' : d.skipped}`);
+      else if (d.media) setMessage(`${d.success ? '✅' : '⚠️'} ${d.media.item?.title || d.media.item?.kind} → ${d.summary}`);
       else setMessage(`${d.success ? '✅' : '⚠️'} ${d.plan?.categoryTitle} → ${d.summary}`);
       await load();
       onChanged?.();
@@ -136,6 +150,15 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
   }
   const totalCats = Math.max(1, state.categories);
   const currentPos = (cfg.cursor % totalCats) + 1;
+  const isMedia = cfg.mode === 'media';
+  const activeMedia = state.media.filter((m) => m.active);
+  const mediaInLoop = (cfg.media_ids.length ? activeMedia.filter((m) => cfg.media_ids.includes(m.id)) : activeMedia).length || (cfg.media_ids.length ? activeMedia.length : 0);
+  const mediaPos = mediaInLoop ? (cfg.media_cursor % mediaInLoop) + 1 : 0;
+  const toggleHour = (h: number) => {
+    const cur = cfg.media_hours;
+    const next = cur.includes(h) ? cur.filter((x) => x !== h) : [...cur, h].sort((a, b) => a - b);
+    setDraft((d) => ({ ...d, media_hours: next.length ? next : cur }));
+  };
   const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800';
   const label = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500';
 
@@ -152,11 +175,24 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
               🚨 Canal WhatsApp déconnecté (statut {state.whatsapp.status}) — rescanner le QR dans le panel WHAPI. Groupe, statut et chaîne ne partiront pas.
             </p>
           )}
-          <p className="text-sm text-slate-500">
-            {state.offer_title ? `${state.offer_title} · ${state.categories} catégories` : 'Aucun listing choisi'}
-            {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h (Libreville)
-            {' · '}position {currentPos}/{state.categories || '—'}
-          </p>
+          {isMedia ? (
+            <p className="text-sm text-slate-500">
+              🎬 Médias en boucle · {mediaInLoop} média{mediaInLoop > 1 ? 's' : ''} · {cfg.media_hours.map((h) => `${h}h`).join(', ')} (Libreville)
+              {' · '}position {mediaPos}/{mediaInLoop || '—'}
+              {state.offer_title ? ` · listing rappelé : ${state.offer_title}` : ''}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">
+              📦 Catalogue · {state.offer_title ? `${state.offer_title} · ${state.categories} catégories` : 'Aucun listing choisi'}
+              {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h (Libreville)
+              {' · '}position {currentPos}/{state.categories || '—'}
+            </p>
+          )}
+          {isMedia && cfg.enabled && mediaInLoop === 0 && (
+            <p className="mt-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+              Aucun média dans la boucle : rien ne partira tant que la médiathèque est vide.
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -171,12 +207,72 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
 
       {message && <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm dark:bg-slate-700">{message}</p>}
 
+      {/* Mode de la campagne */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {([
+          { key: 'media', icon: Film, title: 'Médias en boucle', text: 'Vos photos et vidéos, une par créneau quotidien, en boucle. Recommandé : pas d’inondation de produits.' },
+          { key: 'catalog', icon: LayoutList, title: 'Catalogue (fiches produit)', text: 'Ancien mode : une catégorie du listing chaque heure, avec ses fiches produit.' },
+        ] as const).map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => setDraft((d) => ({ ...d, mode: m.key }))}
+            className={`flex items-start gap-3 rounded-2xl border p-4 text-left ${
+              cfg.mode === m.key ? 'border-[#25D366] bg-[#25D366]/10' : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800'
+            }`}
+          >
+            <m.icon className={`mt-0.5 h-5 w-5 ${cfg.mode === m.key ? 'text-[#25D366]' : 'text-slate-400'}`} />
+            <span>
+              <span className="block font-semibold text-slate-900 dark:text-white">{m.title}</span>
+              <span className="block text-xs text-slate-500">{m.text}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Créneaux + médiathèque (mode médias) */}
+      {isMedia && (
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <div>
+            <label className={label}>Créneaux quotidiens (heure de Libreville) — 1 média par créneau</label>
+            <div className="flex flex-wrap gap-1.5">
+              {HOURS.map((h) => {
+                const on = cfg.media_hours.includes(h);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => toggleHour(h)}
+                    className={`h-8 w-11 rounded-lg text-xs font-semibold ${on ? 'bg-[#25D366] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'}`}
+                  >
+                    {h}h
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {cfg.media_hours.length} publication{cfg.media_hours.length > 1 ? 's' : ''} par jour : {cfg.media_hours.map((h) => `${h}h`).join(', ')}. Le média suivant de la boucle part à chaque créneau.
+            </p>
+          </div>
+          <div>
+            <label className={label}>Médiathèque</label>
+            <DripMediaLibrary
+              media={state.media}
+              selectedIds={cfg.media_ids}
+              onSelectedChange={(ids) => setDraft((d) => ({ ...d, media_ids: ids }))}
+              nextId={state.next_media?.item.id ?? null}
+              onChanged={load}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Réglages */}
       <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 sm:grid-cols-2">
         <div>
-          <label className={label}>Listing</label>
+          <label className={label}>Listing{isMedia ? ' (optionnel — rappelé dans la légende avec son lien)' : ''}</label>
           <select className={field} value={cfg.offer_id || ''} onChange={(e) => setDraft((d) => ({ ...d, offer_id: e.target.value || null }))}>
-            <option value="">— choisir —</option>
+            <option value="">{isMedia ? '— aucun —' : '— choisir —'}</option>
             {offers.map((o) => (
               <option key={o.id} value={o.id}>{o.title}</option>
             ))}
@@ -203,6 +299,7 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
             ))}
           </select>
         </div>
+        {!isMedia && (<>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={label}>Produits / h · groupe</label>
@@ -249,6 +346,24 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
             ))}
           </div>
         </div>
+        </>)}
+        {isMedia && (
+          <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
+            {(['facebook_posts', 'instagram_posts'] as const).map((c) => (
+              <div key={c}>
+                <label className={label}>{c === 'facebook_posts' ? 'Facebook — publication' : 'Instagram — publication'}</label>
+                <select
+                  className={field}
+                  value={String(cfg.per_channel[c] ?? 1)}
+                  onChange={(e) => setDraft((d) => ({ ...d, per_channel: { ...(d.per_channel || {}), [c]: Number(e.target.value) } as Config['per_channel'] }))}
+                >
+                  <option value="1">oui, en plus de la story</option>
+                  <option value="0">non, story seulement</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="sm:col-span-2">
           <label className={label}>Canaux</label>
           {slot > 1 && (cfg.channels.status || cfg.channels.channel || cfg.channels.facebook || cfg.channels.instagram) && (
@@ -270,7 +385,7 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
                   />
                   <span className="flex-1">
                     <span className="block text-sm font-medium text-slate-800 dark:text-slate-200">{c.label}</span>
-                    <span className="block text-xs text-slate-500">{c.hint}</span>
+                    <span className="block text-xs text-slate-500">{c.hint[cfg.mode]}</span>
                   </span>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${ready ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                     {ready ? 'prêt' : 'à configurer'}
@@ -287,7 +402,7 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
           <button type="button" onClick={() => run('dry')} disabled={busy !== null || dirty} className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200">
             <Eye className="h-4 w-4" /> Aperçu
           </button>
-          <button type="button" onClick={() => run('now')} disabled={busy !== null || dirty || !cfg.enabled} className="flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" title="Publie la prochaine catégorie tout de suite, sur les canaux actifs">
+          <button type="button" onClick={() => run('now')} disabled={busy !== null || dirty || !cfg.enabled} className="flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" title={isMedia ? 'Publie le prochain média tout de suite, sur les canaux actifs' : 'Publie la prochaine catégorie tout de suite, sur les canaux actifs'}>
             {busy === 'now' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Publier maintenant
           </button>
           <button
@@ -306,24 +421,28 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
         {/* Reprise à une position choisie */}
         <div className="flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40 sm:col-span-2">
           <div>
-            <label className={label}>Reprendre à la catégorie n°</label>
+            <label className={label}>{isMedia ? 'Reprendre au média n°' : 'Reprendre à la catégorie n°'}</label>
             <input
               type="number"
               min={1}
-              max={totalCats}
+              max={isMedia ? Math.max(1, mediaInLoop) : totalCats}
               className={field}
-              placeholder={String(currentPos)}
+              placeholder={String(isMedia ? mediaPos : currentPos)}
               value={position}
               onChange={(e) => setPosition(e.target.value)}
             />
           </div>
-          <span className="pb-2 text-xs text-slate-500">sur {state.categories || '—'} · actuellement {currentPos}</span>
+          <span className="pb-2 text-xs text-slate-500">
+            {isMedia ? `sur ${mediaInLoop || '—'} · actuellement ${mediaPos || '—'}` : `sur ${state.categories || '—'} · actuellement ${currentPos}`}
+          </span>
           <button
             type="button"
             onClick={() => {
               const n = Number(position);
-              if (!Number.isFinite(n) || n < 1 || n > totalCats) return;
-              save({ cursor: n - 1, enabled: true }, `Reprise à la catégorie ${n} — prochaine publication à l'heure pile`);
+              const max = isMedia ? Math.max(1, mediaInLoop) : totalCats;
+              if (!Number.isFinite(n) || n < 1 || n > max) return;
+              if (isMedia) save({ media_cursor: n - 1, enabled: true }, `Reprise au média ${n} — prochaine publication au prochain créneau`);
+              else save({ cursor: n - 1, enabled: true }, `Reprise à la catégorie ${n} — prochaine publication à l'heure pile`);
               setPosition('');
             }}
             disabled={busy !== null || !position}
@@ -334,8 +453,37 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
         </div>
       </div>
 
+      {/* Aperçu du prochain média */}
+      {isMedia && state.next_media && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <p className={label}>Prochaine publication · média {state.next_media.index + 1}/{state.next_media.total} · prochain créneau {(() => {
+            const now = new Date();
+            const h = Number(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Africa/Libreville', hour: '2-digit', hour12: false }).format(now)) % 24;
+            const next = cfg.media_hours.find((x) => x > h) ?? cfg.media_hours[0];
+            return `${next}h${next <= h ? ' (demain)' : ''}`;
+          })()}</p>
+          <div className="flex gap-3">
+            <div className="h-36 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-black">
+              {state.next_media.item.kind === 'video' ? (
+                <video src={state.next_media.item.url} muted playsInline controls preload="metadata" className="h-full w-full object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={state.next_media.item.url} alt="" className="h-full w-full object-cover" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-slate-800 dark:text-slate-200">{state.next_media.item.title || (state.next_media.item.kind === 'video' ? 'Vidéo' : 'Photo')}</p>
+              <pre className="mt-1 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-800 dark:bg-slate-900 dark:text-slate-200">{state.next_media.caption || '(sans légende)'}</pre>
+              <p className="mt-1 text-xs text-slate-500">
+                Canaux : {CHANNELS.filter((c) => cfg.channels[c.key]).map((c) => c.label.toLowerCase()).join(' · ') || 'aucun'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Aperçu de la prochaine publication */}
-      {state.next && (
+      {!isMedia && state.next && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
           <p className={label}>Prochaine publication · {state.next.index + 1}/{state.next.total}</p>
           <pre className="whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-800 dark:bg-slate-900 dark:text-slate-200">{state.next.header}</pre>

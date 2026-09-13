@@ -11,6 +11,7 @@ import type { GroupRow } from './types';
 
 interface Summary {
   slot: number;
+  mode?: 'media' | 'catalog';
   enabled: boolean;
   offer_id: string | null;
   offer_title: string | null;
@@ -37,7 +38,7 @@ export default function DripCampaigns({ groups }: { groups: GroupRow[] }) {
     };
   }, [tick]);
 
-  const tabs = campaigns.length ? campaigns : [{ slot: 1, enabled: false, offer_id: null, offer_title: null, group_id: null }];
+  const tabs = campaigns.length ? campaigns : [{ slot: 1, mode: 'media' as const, enabled: false, offer_id: null, offer_title: null, group_id: null }];
   const groupName = (id: string | null) => (id ? groups.find((g) => g.id === id)?.name || id.split('@')[0] : null);
 
   return (
@@ -45,7 +46,8 @@ export default function DripCampaigns({ groups }: { groups: GroupRow[] }) {
       <div className="flex flex-wrap gap-2">
         {tabs.map((c) => {
           const active = c.slot === slot;
-          const configured = !!c.offer_id;
+          const configured = c.mode === 'media' ? !!c.group_id || c.enabled : !!c.offer_id;
+          const modeLabel = c.mode === 'catalog' ? '📦 catalogue' : '🎬 médias';
           return (
             <button
               key={c.slot}
@@ -63,7 +65,10 @@ export default function DripCampaigns({ groups }: { groups: GroupRow[] }) {
                   Campagne {c.slot} {c.enabled ? '🟢' : configured ? '⏸' : ''}
                 </span>
                 <span className="block text-xs text-slate-500">
-                  {configured ? `${c.offer_title || 'listing'}${c.group_id ? ` → ${groupName(c.group_id)}` : ''}` : 'non configurée — cliquer pour lancer'}
+                  {modeLabel}
+                  {configured
+                    ? ` · ${c.mode === 'catalog' ? c.offer_title || 'listing' : c.offer_title || 'médiathèque'}${c.group_id ? ` → ${groupName(c.group_id)}` : ''}`
+                    : ' · non configurée — cliquer pour lancer'}
                 </span>
               </span>
             </button>
