@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import QuotePreview from '@/components/quote/QuotePreview';
 import PackingListPreview from '@/components/quote/PackingListPreview';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
+import { resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
 
 interface RawVariant {
   id?: string;
@@ -16,6 +17,7 @@ interface RawVariant {
   dimensions?: string | null;
   capacity?: string | null;
   image_url?: string | null;
+  pick_qty?: number | null;
 }
 
 interface RawSearchResult {
@@ -43,6 +45,7 @@ export interface QuoteVariantDisplay {
 
 interface QuoteItemDisplay {
   title: string;
+  variant_name: string | null;
   description: string | null;
   image_url: string;
   price: number;
@@ -56,6 +59,7 @@ interface QuoteItemDisplay {
 
 interface PackingItemDisplay {
   title: string;
+  variant_name: string | null;
   image_url: string;
   moq: number | null;
   quantity: number;
@@ -87,56 +91,36 @@ export default function QuotePage() {
           (item: { search_results: RawSearchResult[] }) => item.search_results
         );
 
+        // Une ligne par variante retenue (pick_qty), sinon une ligne produit.
+        const lines = resolveAllQuoteLines(flatRaw as unknown as QuoteSourceResult[]);
+
         setQuoteItems(
-          flatRaw.map((r) => {
-            const rawVariants = Array.isArray(r.variants) ? r.variants : [];
-            const cleaned = rawVariants
-              .filter((v) => v && typeof v.name === 'string' && v.name.trim().length > 0)
-              .map((v) => ({
-                id: v.id || '',
-                name: v.name!.trim(),
-                price: typeof v.price === 'number' ? v.price : null,
-              }));
-            // Variante principale : celle choisie par le client si presente,
-            // sinon la premiere de la liste.
-            const mainIndex = (() => {
-              if (!cleaned.length) return -1;
-              if (r.client_variant_id) {
-                const idx = cleaned.findIndex((v) => v.id === r.client_variant_id);
-                if (idx >= 0) return idx;
-              }
-              return 0;
-            })();
-            return {
-              title: r.title,
-              description: r.description,
-              image_url: r.image_url,
-              price: r.price,
-              quantity: r.quantity,
-              margin_percent: r.margin_percent,
-              weight: r.weight,
-              volume: r.volume,
-              has_battery: r.has_battery ?? null,
-              variants: cleaned.map((v, idx) => ({
-                id: v.id,
-                name: v.name,
-                price: v.price,
-                is_main: idx === mainIndex,
-              })),
-            };
-          })
+          lines.map((l) => ({
+            title: l.title,
+            variant_name: l.variant_name,
+            description: l.description,
+            image_url: l.image_url,
+            price: l.price,
+            quantity: l.quantity,
+            margin_percent: l.margin_percent,
+            weight: l.weight,
+            volume: l.volume,
+            has_battery: l.has_battery,
+            variants: l.variants,
+          })),
         );
 
         setPackingItems(
-          flatRaw.map((r) => ({
-            title: r.title,
-            image_url: r.image_url,
-            moq: r.moq,
-            quantity: r.quantity,
-            weight: r.weight,
-            volume: r.volume,
-            dimensions: r.dimensions,
-          }))
+          lines.map((l) => ({
+            title: l.title,
+            variant_name: l.variant_name,
+            image_url: l.image_url,
+            moq: l.moq,
+            quantity: l.quantity,
+            weight: l.weight,
+            volume: l.volume,
+            dimensions: l.dimensions,
+          })),
         );
       })
       .catch((err) => setError(err.message))

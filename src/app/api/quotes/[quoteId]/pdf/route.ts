@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import QuotePDF from '@/components/quote/QuotePDF';
 import PackingListPDF from '@/components/quote/PackingListPDF';
 import { computeQuoteTransport, normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
 import { destinationLabel } from '@/lib/destinations';
 import type { CurrencyCode } from '@/lib/utils/formatCurrency';
 import type { Quote, Request as RequestType, RequestItemWithResults } from '@/lib/types/database';
@@ -75,6 +76,8 @@ export async function GET(
     });
 
     const isPackingList = q.document_type === 'packing_list';
+    // Une ligne par variante retenue, sinon une ligne produit.
+    const quoteLines = resolveAllQuoteLines(selectedResults as unknown as QuoteSourceResult[]);
 
     let pdfElement;
     let filenamePrefix: string;
@@ -89,14 +92,15 @@ export async function GET(
         clientPhone: req?.client_phone || '',
         transportMode,
         destinationLabel: destinationLabel((req as unknown as { destination?: string | null } | null)?.destination ?? null),
-        items: selectedResults.map((r) => ({
-          title: r.title,
-          image_url: r.image_url,
-          moq: r.moq,
-          quantity: r.quantity,
-          weight: r.weight,
-          volume: r.volume,
-          dimensions: r.dimensions,
+        items: quoteLines.map((l) => ({
+          title: l.title,
+          variant_name: l.variant_name,
+          image_url: l.image_url,
+          moq: l.moq,
+          quantity: l.quantity,
+          weight: l.weight,
+          volume: l.volume,
+          dimensions: l.dimensions,
         })),
       });
     } else {
@@ -113,12 +117,11 @@ export async function GET(
       const destinationCode =
         (req as unknown as { destination?: string | null } | null)?.destination ?? null;
       const transport = computeQuoteTransport(
-        selectedResults.map((r) => ({
-          quantity: r.quantity,
-          weight: r.weight,
-          volume: r.volume,
-          has_battery:
-            (r as unknown as { has_battery?: boolean | null }).has_battery ?? null,
+        quoteLines.map((l) => ({
+          quantity: l.quantity,
+          weight: l.weight,
+          volume: l.volume,
+          has_battery: l.has_battery,
         })),
         destinationCode,
       );
@@ -128,44 +131,16 @@ export async function GET(
         clientName: req?.client_name || 'Client',
         clientEmail: req?.client_email || '',
         clientPhone: req?.client_phone || '',
-        items: selectedResults.map((r) => {
-          const rawVariants = Array.isArray(
-            (r as unknown as { variants?: unknown[] }).variants,
-          )
-            ? ((r as unknown as { variants?: { id?: string; name?: string; price?: number | null }[] }).variants || [])
-            : [];
-          const cleaned = rawVariants
-            .filter((v) => v && typeof v.name === 'string' && v.name.trim().length > 0)
-            .map((v) => ({
-              id: v.id || '',
-              name: (v.name || '').trim(),
-              price: typeof v.price === 'number' ? v.price : null,
-            }));
-          const clientVariantId = (r as unknown as { client_variant_id?: string | null })
-            .client_variant_id || null;
-          const mainIndex = (() => {
-            if (!cleaned.length) return -1;
-            if (clientVariantId) {
-              const idx = cleaned.findIndex((v) => v.id === clientVariantId);
-              if (idx >= 0) return idx;
-            }
-            return 0;
-          })();
-          return {
-            title: r.title,
-            description: r.description,
-            image_url: r.image_url,
-            price: r.price,
-            quantity: r.quantity,
-            margin_percent: r.margin_percent,
-            variants: cleaned.map((v, idx) => ({
-              id: v.id,
-              name: v.name,
-              price: v.price,
-              is_main: idx === mainIndex,
-            })),
-          };
-        }),
+        items: quoteLines.map((l) => ({
+          title: l.title,
+          variant_name: l.variant_name,
+          description: l.description,
+          image_url: l.image_url,
+          price: l.price,
+          quantity: l.quantity,
+          margin_percent: l.margin_percent,
+          variants: l.variants,
+        })),
         totalAmountCny: q.total_amount,
         currency,
         transport,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { RequestItemWithResults } from '@/lib/types/database';
 import { normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { quoteLinesTotal, resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
 
 // POST: Generate a quote from selected results
 export async function POST(request: NextRequest) {
@@ -38,29 +39,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Aucun produit sélectionné' }, { status: 400 });
     }
 
-    const totalAmount = selectedResults.reduce((sum, r) => {
-      const margin = r.margin_percent || margin_global || 0;
-      // Si le produit a des variantes : on compte uniquement la variante
-      // principale (celle choisie par le client, sinon la premiere).
-      const rawVariants = Array.isArray(
-        (r as unknown as { variants?: unknown[] }).variants,
-      )
-        ? ((r as unknown as { variants?: { id?: string; name?: string; price?: number | null }[] }).variants || [])
-        : [];
-      const cleaned = rawVariants.filter(
-        (v) => v && typeof v.name === 'string' && v.name.trim().length > 0,
-      );
-      let unitPrice = r.price;
-      if (cleaned.length) {
-        const clientVariantId = (r as unknown as { client_variant_id?: string | null })
-          .client_variant_id || null;
-        const main =
-          (clientVariantId && cleaned.find((v) => v.id === clientVariantId)) ||
-          cleaned[0];
-        if (main && typeof main.price === 'number') unitPrice = main.price;
-      }
-      return sum + unitPrice * (1 + margin / 100) * r.quantity;
-    }, 0);
+    // Une ligne par variante retenue (pick_qty), sinon une ligne produit
+    // (variante principale = choix client ou première).
+    const lines = resolveAllQuoteLines(
+      selectedResults.map((r) => ({
+        ...(r as unknown as QuoteSourceResult),
+        margin_percent: r.margin_percent || margin_global || 0,
+      })),
+    );
+    const totalAmount = quoteLinesTotal(lines);
 
     const { data: quote, error: quoteError } = await supabaseAdmin
       .from('quotes')

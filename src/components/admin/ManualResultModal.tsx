@@ -23,6 +23,8 @@ export interface ProductVariant {
   volume?: number | null;
   dimensions?: string | null;
   capacity?: string | null;
+  /** Quantité retenue pour le devis (multi-variantes) — préservée à l'édition. */
+  pick_qty?: number | null;
 }
 
 export interface ExistingResult {
@@ -262,6 +264,11 @@ export default function ManualResultModal({
           capacity: (v.capacity || '').trim() || null,
           image_url: (v.image_url || '').trim() || null,
         };
+        // Quantité retenue pour le devis (multi-variantes) : préservée telle quelle.
+        const pickQty = Number((v as { pick_qty?: unknown }).pick_qty);
+        if (Number.isFinite(pickQty) && pickQty > 0) {
+          (cleaned as { pick_qty?: number }).pick_qty = Math.floor(pickQty);
+        }
         return cleaned;
       })
       .filter((v) => v.name.length > 0);

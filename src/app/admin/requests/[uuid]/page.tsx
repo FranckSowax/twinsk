@@ -13,6 +13,7 @@ import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import TransportModeSelector from '@/components/admin/TransportModeSelector';
 import { computeQuoteTransport, type QuoteTransportMode } from '@/lib/quote-transport';
+import { resolveAllQuoteLines } from '@/lib/variant-picks';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
 import JsonImportsButton from '@/components/admin/JsonImportsButton';
@@ -54,6 +55,7 @@ interface RequestItemWithResults {
       volume?: number | null;
       dimensions?: string | null;
       capacity?: string | null;
+      pick_qty?: number | null;
     }[] | null;
     seller: string | null;
     product_url: string;
@@ -216,6 +218,8 @@ export default function AdminRequestDetailPage() {
   }
 
   const selectedResults = items.flatMap((i) => i.search_results).filter((r) => r.selected);
+  // Lignes réelles du devis : une par variante retenue (sinon une par produit).
+  const quoteLines = resolveAllQuoteLines(selectedResults);
   const clientLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/request/${uuid}`;
 
   // Client feedback summary: counts of products the client has reviewed
@@ -577,6 +581,7 @@ export default function AdminRequestDetailPage() {
             requestId={uuid}
             onUpdate={handleUpdateResult}
             onRefresh={loadData}
+            variantPicks
           />
 
           {/* Proposal link — only when at least one result is selected */}
@@ -670,13 +675,13 @@ export default function AdminRequestDetailPage() {
             onChange={setTransportMode}
             currency={proposalCurrency === 'USD' || proposalCurrency === 'EUR' || proposalCurrency === 'XAF' ? proposalCurrency : 'CNY'}
             transport={
-              selectedResults.length
+              quoteLines.length
                 ? computeQuoteTransport(
-                    selectedResults.map((r) => ({
-                      quantity: Math.max(1, Number(r.quantity) || 1),
-                      weight: r.weight ?? null,
-                      volume: r.volume ?? null,
-                      has_battery: !!r.has_battery,
+                    quoteLines.map((l) => ({
+                      quantity: l.quantity,
+                      weight: l.weight,
+                      volume: l.volume,
+                      has_battery: !!l.has_battery,
                     })),
                     (request as unknown as { destination?: string | null })?.destination ?? null,
                   )
@@ -688,6 +693,11 @@ export default function AdminRequestDetailPage() {
             <div>
               <p className="font-medium text-slate-900 dark:text-white">
                 {selectedResults.length} produit(s) sélectionné(s)
+                {quoteLines.length !== selectedResults.length && (
+                  <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                    {quoteLines.length} ligne(s) avec variantes
+                  </span>
+                )}
               </p>
               <p className="text-sm text-slate-500">
                 Prêt à générer le {documentType === 'devis' ? 'devis' : 'packing list'}

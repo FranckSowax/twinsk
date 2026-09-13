@@ -82,6 +82,7 @@ const styles = StyleSheet.create({
 
 interface PackingItem {
   title: string;
+  variant_name?: string | null;
   image_url: string;
   moq: number | null;
   quantity: number;
@@ -189,9 +190,16 @@ export default function PackingListPDF({
                 <View style={styles.colImage}>
                   {item.image_url ? <Image src={item.image_url} style={styles.productImage} /> : null}
                 </View>
-                <Text style={[styles.productTitle, styles.colProduct]}>
-                  {item.title.length > 50 ? item.title.slice(0, 50) + '…' : item.title}
-                </Text>
+                <View style={styles.colProduct}>
+                  <Text style={styles.productTitle}>
+                    {item.title.length > 50 ? item.title.slice(0, 50) + '…' : item.title}
+                  </Text>
+                  {item.variant_name ? (
+                    <Text style={{ fontSize: 7, color: '#4338ca', fontFamily: 'Helvetica-Bold' }}>
+                      Variante : {item.variant_name}
+                    </Text>
+                  ) : null}
+                </View>
                 <Text style={[{ fontSize: 8 }, styles.colNumeric]}>
                   {item.moq != null ? item.moq : '—'}
                 </Text>

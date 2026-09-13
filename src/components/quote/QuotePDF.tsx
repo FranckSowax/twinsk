@@ -262,6 +262,8 @@ interface QuoteVariant {
 
 interface QuoteItem {
   title: string;
+  /** Renseigné quand la ligne est une variante retenue du produit. */
+  variant_name?: string | null;
   description?: string | null;
   image_url: string;
   price: number;
@@ -443,6 +445,11 @@ export default function QuotePDF({
                     <Image src={item.image_url} style={styles.productImage} />
                   ) : null}
                   <Text style={styles.productTitleBold}>{item.title}</Text>
+                  {item.variant_name ? (
+                    <Text style={{ fontSize: 8, color: '#4338ca', fontFamily: 'Helvetica-Bold', marginBottom: 2 }}>
+                      Variante : {item.variant_name}
+                    </Text>
+                  ) : null}
                   {description ? (
                     <Text style={{ fontSize: 8, color: '#475569', lineHeight: 1.3 }}>
                       {description}

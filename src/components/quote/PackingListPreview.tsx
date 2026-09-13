@@ -6,6 +6,7 @@ import type { Request as RequestType, Quote } from '@/lib/types/database';
 
 interface PackingItem {
   title: string;
+  variant_name?: string | null;
   image_url: string;
   moq: number | null;
   quantity: number;
@@ -134,9 +135,14 @@ export default function PackingListPreview({ quote, request, items }: PackingLis
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
                           </div>
-                          <p className="text-slate-700 dark:text-slate-200">
-                            {item.title.length > 50 ? item.title.slice(0, 50) + '…' : item.title}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-slate-700 dark:text-slate-200">
+                              {item.title.length > 50 ? item.title.slice(0, 50) + '…' : item.title}
+                            </p>
+                            {item.variant_name && (
+                              <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">Variante : {item.variant_name}</p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-3 py-3 text-center text-slate-700 dark:text-slate-300">

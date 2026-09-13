@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight, Video, Layers } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
@@ -8,6 +8,8 @@ import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
 import ManualResultModal from './ManualResultModal';
 import EditRequestItemModal from './EditRequestItemModal';
+import VariantPickerPanel, { type PickerVariant } from './VariantPickerPanel';
+import { pickedTotalQty, pickedVariants } from '@/lib/variant-picks';
 import NotesThread, { type NoteItem } from '@/components/ui/NotesThread';
 import { useAdminT } from '@/components/admin/LocaleProvider';
 import type { TKey } from '@/lib/i18n/admin';
@@ -39,6 +41,8 @@ interface SearchResultRow {
     dimensions?: string | null;
     capacity?: string | null;
     price_type?: string | null;
+    /** Quantité retenue pour le devis (multi-variantes) ; absent/0 = non retenue. */
+    pick_qty?: number | null;
   }[] | null;
   seller: string | null;
   product_url: string;
@@ -113,6 +117,8 @@ interface ResultsTableProps {
   onReorderProducts?: (itemId: string, orderedProductIds: string[]) => void | Promise<void>;
   /** Si fournie, affiche un bouton pour supprimer un produit de sa catégorie. */
   onDeleteResult?: (result: SearchResultRow) => void | Promise<void>;
+  /** Contexte demande/devis : sélection de plusieurs variantes (avec quantité) par produit. */
+  variantPicks?: boolean;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -171,6 +177,7 @@ export default function ResultsTable({
   onSetItemPhase,
   onReorderProducts,
   onDeleteResult,
+  variantPicks = false,
 }: ResultsTableProps) {
   const { t } = useAdminT();
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -321,6 +328,32 @@ export default function ResultsTable({
       setSavingIds((prev) => {
         const next = new Set(prev);
         next.delete(resultId);
+        return next;
+      });
+    }, 500);
+  };
+
+  // Panneaux « variantes à retenir » ouverts (contexte devis).
+  const [openVariantIds, setOpenVariantIds] = useState<Set<string>>(new Set());
+  const toggleVariantPanel = (resultId: string) =>
+    setOpenVariantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(resultId)) next.delete(resultId);
+      else next.add(resultId);
+      return next;
+    });
+  const handleVariantPicks = (result: SearchResultRow, variants: PickerVariant[], totalQty: number) => {
+    const fields: Partial<SearchResultRow> = { variants: variants as SearchResultRow['variants'] };
+    if (totalQty > 0) {
+      fields.quantity = totalQty;
+      if (!result.selected) fields.selected = true;
+    }
+    setSavingIds((prev) => new Set(prev).add(result.id));
+    onUpdate(result.id, fields);
+    setTimeout(() => {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(result.id);
         return next;
       });
     }, 500);
@@ -699,8 +732,8 @@ export default function ResultsTable({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {products.map((result) => (
+                    <Fragment key={result.id}>
                     <motion.tr
-                      key={result.id}
                       layout
                       data-flip-id={`product-${result.id}`}
                       draggable={dragEnabled || productReorderEnabled}
@@ -844,6 +877,30 @@ export default function ResultsTable({
                             {(() => {
                               const vf = variantFill(result);
                               if (vf.total === 0) return null;
+                              if (variantPicks) {
+                                const picked = pickedVariants(result.variants).length;
+                                const open = openVariantIds.has(result.id);
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleVariantPanel(result.id)}
+                                    title={`${vf.filled}/${vf.total} variantes avec poids et volume · cliquer pour choisir les variantes à retenir`}
+                                    className={`mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors ${
+                                      picked > 0
+                                        ? 'bg-indigo-500 text-white'
+                                        : open
+                                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                          : vf.filled === vf.total
+                                            ? 'bg-emerald-100 text-emerald-700 hover:bg-indigo-100 hover:text-indigo-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                            : 'bg-amber-100 text-amber-700 hover:bg-indigo-100 hover:text-indigo-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                    }`}
+                                  >
+                                    <Layers className="h-3 w-3" />
+                                    {picked > 0 ? `${picked}/${vf.total} retenue(s) · ${pickedTotalQty(result.variants)} u.` : `${vf.total} variantes`}
+                                    {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                  </button>
+                                );
+                              }
                               const done = vf.filled === vf.total;
                               return (
                                 <span
@@ -1129,6 +1186,26 @@ export default function ResultsTable({
                         </div>
                       </td>
                     </motion.tr>
+                    {variantPicks && openVariantIds.has(result.id) && Array.isArray(result.variants) && result.variants.length > 0 && (
+                      <tr className="bg-indigo-50/30 dark:bg-indigo-900/5">
+                        <td colSpan={14} className="px-3 pb-3 pt-1">
+                          <VariantPickerPanel
+                            resultId={result.id}
+                            variants={result.variants as PickerVariant[]}
+                            product={{
+                              price: result.price,
+                              moq: result.moq,
+                              weight: result.weight,
+                              volume: result.volume,
+                              dimensions: result.dimensions,
+                              margin_percent: result.margin_percent,
+                            }}
+                            onCommit={(variants, totalQty) => handleVariantPicks(result, variants, totalQty)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
