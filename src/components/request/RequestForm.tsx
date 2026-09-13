@@ -40,11 +40,6 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
       return;
     }
 
-    if (!clientEmail.trim()) {
-      setError('Veuillez entrer votre adresse email');
-      return;
-    }
-
     // Drop totally empty items (auto-created blank that the user never filled)
     const filledItems = items.filter(
       (it) => (it.url && it.url.length > 0) || it.description.trim().length > 0,
@@ -132,14 +127,13 @@ export default function RequestForm({ requestId, initialData }: RequestFormProps
 
           <div>
             <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-              <Mail className="h-4 w-4" /> Email *
+              <Mail className="h-4 w-4" /> Email
             </label>
             <input
               type="email"
               value={clientEmail}
               onChange={(e) => setClientEmail(e.target.value)}
-              placeholder="jean@exemple.com"
-              required
+              placeholder="jean@exemple.com (optionnel)"
               className={inputClass}
             />
           </div>
