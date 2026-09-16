@@ -18,7 +18,7 @@ import {
   type DripConfig,
   type DripPlan,
 } from '@/lib/wa-drip';
-import { MEDIA_SETTING_KEY, buildMediaPlan, normalizeMediaLibrary, type MediaItem, type MediaPlan } from '@/lib/wa-media';
+import { MEDIA_SETTING_KEY, buildMediaBatch, normalizeMediaLibrary, type MediaItem, type MediaPlan } from '@/lib/wa-media';
 import { broadcastCategory, broadcastMedia, summarizeReport, type BroadcastReport } from '@/lib/wa-broadcast';
 import { sendTelegramMessage } from '@/lib/telegram';
 
@@ -89,9 +89,9 @@ export async function listDripCampaigns(): Promise<DripCampaignSummary[]> {
  * last_run_at seulement si personne ne l'a fait entre-temps (comparaison sur
  * l'ancien last_run_at). Retourne false si un autre déclencheur a gagné.
  */
-async function claimSlot(cfg: DripConfig, now: Date, itemId: string, slot: number): Promise<boolean> {
-  // Le curseur qui avance dépend du mode : catégories (catalogue) ou médias (boucle).
-  const advanceCursor = cfg.mode === 'media' ? { media_cursor: cfg.media_cursor + 1 } : { cursor: cfg.cursor + 1 };
+async function claimSlot(cfg: DripConfig, now: Date, itemId: string, slot: number, step = 1): Promise<boolean> {
+  // Le curseur qui avance dépend du mode : catégories (catalogue) ou médias (boucle, `step` médias publiés).
+  const advanceCursor = cfg.mode === 'media' ? { media_cursor: cfg.media_cursor + step } : { cursor: cfg.cursor + 1 };
   const next = { ...cfg, ...advanceCursor, last_run_at: now.toISOString(), last_item_id: itemId };
   let query = supabaseAdmin
     .from('wa_settings')
@@ -112,9 +112,9 @@ export type DripRunResult =
   | { skipped: 'not_configured' | 'outside_window' | 'already_sent_this_hour' | 'no_publishable_category' | 'not_media_hour' | 'no_media'; hour?: number }
   | { error: string }
   | { dry: true; hour: number; plan: DripPlan }
-  | { dry: true; hour: number; media: MediaPlan }
+  | { dry: true; hour: number; media: MediaPlan; batch: MediaPlan[] }
   | { success: boolean; plan: DripPlan; report: BroadcastReport; summary: string; advanced: boolean }
-  | { success: boolean; media: MediaPlan; report: BroadcastReport; summary: string; advanced: boolean };
+  | { success: boolean; media: MediaPlan; batch: MediaPlan[]; report: BroadcastReport; summary: string; advanced: boolean };
 
 export interface RunOptions {
   origin: string;
@@ -179,10 +179,13 @@ export async function runDrip(opts: RunOptions): Promise<DripRunResult> {
   return { success: !hasErrors, plan, report, summary, advanced: advance };
 }
 
+/** Pause entre deux médias d'un même créneau (WHAPI n'aime pas les rafales). */
+const MEDIA_GAP_MS = 4000;
+
 /**
- * Mode « médias en boucle » : aux créneaux quotidiens de la campagne, UN média
- * de la médiathèque part sur les canaux actifs ; le curseur avance en boucle.
- * Même verrou horaire atomique que le mode catalogue.
+ * Mode « médias » : aux créneaux quotidiens de la campagne, TOUS les médias
+ * actifs de la campagne (ou les N suivants en boucle) partent sur les canaux
+ * actifs, l'un après l'autre. Même verrou horaire atomique que le mode catalogue.
  */
 async function runMediaDrip(cfg: DripConfig, slot: number, opts: RunOptions): Promise<DripRunResult> {
   if (!cfg.enabled) return { skipped: 'not_configured' };
@@ -201,33 +204,53 @@ async function runMediaDrip(cfg: DripConfig, slot: number, opts: RunOptions): Pr
       offerUrl = `${opts.origin}/offer/${cfg.offer_id}`;
     }
   }
-  const media = buildMediaPlan(await readMediaLibrary(), cfg, { tagline, offerUrl });
+  const batch = buildMediaBatch(await readMediaLibrary(), cfg, { tagline, offerUrl });
+  const media = batch[0];
   if (!media) return { skipped: 'no_media', hour };
-  if (opts.dry) return { dry: true, hour, media };
+  if (opts.dry) return { dry: true, hour, media, batch };
 
   const advance = opts.advance !== false;
   if (advance) {
-    const taken = await claimSlot(cfg, now, media.item.id, slot);
+    const taken = await claimSlot(cfg, now, media.item.id, slot, batch.length);
     if (!taken) return { skipped: 'already_sent_this_hour', hour };
   }
 
-  const report = await broadcastMedia(media, cfg, opts.origin);
+  // Un média après l'autre, bilan cumulé par canal.
+  const report: BroadcastReport = {
+    group: { sent: 0, errors: [] },
+    status: { sent: 0, errors: [] },
+    channel: { sent: 0, errors: [] },
+    facebook: { sent: 0, errors: [] },
+    instagram: { sent: 0, errors: [] },
+  };
+  for (let i = 0; i < batch.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, MEDIA_GAP_MS));
+    const one = await broadcastMedia(batch[i], cfg, opts.origin);
+    for (const c of ['group', 'status', 'channel', 'facebook', 'instagram'] as const) {
+      report[c].sent += one[c].sent;
+      report[c].errors.push(...one[c].errors);
+      if (one[c].skipped) report[c].skipped = one[c].skipped;
+    }
+    report.whatsapp_status = one.whatsapp_status;
+    // Session WhatsApp tombée : inutile d'enchaîner les autres médias.
+    if (one.whatsapp_status && one.whatsapp_status !== 'AUTH' && !cfg.channels.facebook && !cfg.channels.instagram) break;
+  }
   const summary = summarizeReport(report);
-  const label = media.item.title || (media.item.kind === 'video' ? 'vidéo' : 'photo');
+  const label = batch.length === 1 ? media.item.title || (media.item.kind === 'video' ? 'vidéo' : 'photo') : `${batch.length} médias`;
   if (report.whatsapp_status && report.whatsapp_status !== 'AUTH') {
     await sendTelegramMessage(
       `🚨 <b>Canal WhatsApp déconnecté</b> (statut ${report.whatsapp_status})\n` +
-        `Campagne ${slot} — le média « ${label} » n'est parti que sur Facebook/Instagram.\n` +
+        `Campagne ${slot} — « ${label} » n'est parti que sur Facebook/Instagram.\n` +
         `→ Rescanner le QR dans le panel WHAPI (canal BATMAN-QDRRD).`,
     ).catch(() => undefined);
   }
   await supabaseAdmin.from('playbook_log').insert({
     ritual: dripRitual(slot),
-    note: `${media.item.kind === 'video' ? '🎬' : '🖼️'} ${label} (${media.index + 1}/${media.total}) · ${summary}`,
+    note: `${batch.length === 1 ? (media.item.kind === 'video' ? '🎬' : '🖼️') : '🎬🖼️'} ${label}${batch.length === 1 ? ` (${media.index + 1}/${media.total})` : ` (${batch.map((b) => b.item.title || b.item.kind).join(', ').slice(0, 120)})`} · ${summary}`,
     done_by: opts.actor || 'cron',
   });
   const hasErrors = Object.values(report).some((r) => typeof r === 'object' && r !== null && r.errors.length > 0);
-  return { success: !hasErrors, media, report, summary, advanced: advance };
+  return { success: !hasErrors, media, batch, report, summary, advanced: advance };
 }
 
 /**

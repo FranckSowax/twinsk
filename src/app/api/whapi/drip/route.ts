@@ -18,7 +18,7 @@ import {
   parseDripSlot,
   type DripConfig,
 } from '@/lib/wa-drip';
-import { buildMediaPlan } from '@/lib/wa-media';
+import { buildMediaBatch } from '@/lib/wa-media';
 import { listDripCampaigns, readDripConfig, readMediaLibrary, writeDripConfig } from '@/lib/wa-drip-run';
 
 // Réglage du goutte-à-goutte multi-canal (admin only).
@@ -72,8 +72,9 @@ export async function GET(request: NextRequest) {
       next = buildDripPlan(data, cfg, offerUrl);
     }
   }
-  // Mode médias : prochain média de la boucle (légende finale incluse).
-  const nextMedia = buildMediaPlan(media, cfg, { tagline, offerUrl });
+  // Mode médias : médias du prochain créneau (légendes finales incluses).
+  const nextBatch = buildMediaBatch(media, cfg, { tagline, offerUrl });
+  const nextMedia = nextBatch[0] ?? null;
 
   return NextResponse.json({
     slot,
@@ -89,6 +90,7 @@ export async function GET(request: NextRequest) {
     next,
     media,
     next_media: nextMedia,
+    next_batch: nextBatch,
     recent: log.data || [],
   });
 }
@@ -101,6 +103,9 @@ export async function POST(request: NextRequest) {
   }
   if (body.media_cursor !== undefined && (!Number.isFinite(Number(body.media_cursor)) || Number(body.media_cursor) < 0)) {
     return NextResponse.json({ error: 'Position média invalide.' }, { status: 400 });
+  }
+  if (body.media_batch !== undefined && (!Number.isFinite(Number(body.media_batch)) || Number(body.media_batch) < 0)) {
+    return NextResponse.json({ error: 'Nombre de médias par créneau invalide (0 = tous).' }, { status: 400 });
   }
   const slot = parseDripSlot(body.slot);
   const current = await readDripConfig(slot);
@@ -163,6 +168,7 @@ export async function POST(request: NextRequest) {
     ...(body.mode !== undefined ? { mode: body.mode } : {}),
     ...(body.media_hours !== undefined ? { media_hours: normalizeMediaHours(body.media_hours) } : {}),
     ...(body.media_ids !== undefined ? { media_ids: Array.isArray(body.media_ids) ? body.media_ids : [] } : {}),
+    ...(body.media_batch !== undefined ? { media_batch: Math.round(Number(body.media_batch)) } : {}),
     ...(body.offer_id !== undefined ? { offer_id: body.offer_id } : {}),
     ...(body.group_id !== undefined ? { group_id: body.group_id } : {}),
     ...(body.channel_id !== undefined ? { channel_id: body.channel_id } : {}),

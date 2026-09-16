@@ -79,6 +79,36 @@ export interface MediaPlan {
   caption: string;
 }
 
+/** Légende finale : légende du média + rappel du listing + lien. */
+function finalCaption(item: MediaItem, extra?: { tagline?: string | null; offerUrl?: string | null }): string {
+  return [item.caption || null, extra?.tagline ? `🛍️ ${extra.tagline}` : null, extra?.offerUrl ? `👉 ${extra.offerUrl}` : null]
+    .filter((l): l is string => !!l)
+    .join('\n\n');
+}
+
+/**
+ * Médias à publier au prochain créneau : TOUS les médias de la campagne
+ * (media_batch = 0, dans l'ordre de la médiathèque) ou les N suivants en
+ * boucle à partir du curseur.
+ */
+export function buildMediaBatch(
+  items: MediaItem[],
+  cfg: Pick<DripConfig, 'media_ids' | 'media_cursor' | 'media_batch'>,
+  extra?: { tagline?: string | null; offerUrl?: string | null },
+): MediaPlan[] {
+  const pool = campaignMedia(items, cfg);
+  if (!pool.length) return [];
+  const total = pool.length;
+  if (!cfg.media_batch || cfg.media_batch >= total) {
+    return pool.map((item, index) => ({ index, total, item, caption: finalCaption(item, extra) }));
+  }
+  const start = ((cfg.media_cursor % total) + total) % total;
+  return Array.from({ length: cfg.media_batch }, (_, i) => {
+    const index = (start + i) % total;
+    return { index, total, item: pool[index], caption: finalCaption(pool[index], extra) };
+  });
+}
+
 /** Prochain média de la boucle (curseur modulo), avec sa légende finale. */
 export function buildMediaPlan(
   items: MediaItem[],
@@ -89,8 +119,5 @@ export function buildMediaPlan(
   if (!pool.length) return null;
   const index = ((cfg.media_cursor % pool.length) + pool.length) % pool.length;
   const item = pool[index];
-  const caption = [item.caption || null, extra?.tagline ? `🛍️ ${extra.tagline}` : null, extra?.offerUrl ? `👉 ${extra.offerUrl}` : null]
-    .filter((l): l is string => !!l)
-    .join('\n\n');
-  return { index, total: pool.length, item, caption };
+  return { index, total: pool.length, item, caption: finalCaption(item, extra) };
 }

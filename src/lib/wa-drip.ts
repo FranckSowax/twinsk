@@ -50,12 +50,14 @@ export const DEFAULT_MEDIA_HOURS = [10];
 export interface DripConfig {
   enabled: boolean;
   mode: DripMode;
-  /** Créneaux (heures de Libreville) des publications médias — 1 média par créneau. */
+  /** Créneaux (heures de Libreville) des publications médias (tous les médias, ou N en boucle, par créneau). */
   media_hours: number[];
   /** Médias de la médiathèque retenus pour cette campagne (vide = tous les actifs). */
   media_ids: string[];
   /** Position dans la boucle des médias. */
   media_cursor: number;
+  /** Médias publiés à chaque créneau : 0 = TOUS les médias actifs (défaut), sinon N en boucle. */
+  media_batch: number;
   offer_id: string | null;
   group_id: string | null;
   /** Chaîne WhatsApp (…@newsletter) qui reçoit la publication. */
@@ -85,6 +87,7 @@ export const DEFAULT_DRIP_CONFIG: DripConfig = {
   media_hours: DEFAULT_MEDIA_HOURS,
   media_ids: [],
   media_cursor: 0,
+  media_batch: 0,
   offer_id: null,
   group_id: null,
   channel_id: null,
@@ -167,6 +170,7 @@ export function normalizeDripConfig(raw: unknown): DripConfig {
     media_hours: normalizeMediaHours(r.media_hours),
     media_ids: Array.isArray(r.media_ids) ? r.media_ids.filter((x): x is string => typeof x === 'string' && !!x) : [],
     media_cursor: clampInt(r.media_cursor, 0, Number.MAX_SAFE_INTEGER, 0),
+    media_batch: clampInt(r.media_batch, 0, 60, 0),
     offer_id: typeof r.offer_id === 'string' && r.offer_id ? r.offer_id : null,
     group_id: typeof r.group_id === 'string' && r.group_id ? r.group_id : null,
     channel_id: typeof r.channel_id === 'string' && r.channel_id ? r.channel_id : null,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMediaPlan, campaignMedia, mediaKindFromUrl, normalizeMediaLibrary } from './wa-media';
+import { buildMediaBatch, buildMediaPlan, campaignMedia, mediaKindFromUrl, normalizeMediaLibrary } from './wa-media';
 import { isMediaHour, normalizeDripConfig, normalizeMediaHours } from './wa-drip';
 
 const lib = normalizeMediaLibrary([
@@ -50,5 +50,20 @@ describe('créneaux médias de la campagne', () => {
   it('normalise les heures : uniques, triées, bornées', () => {
     expect(normalizeMediaHours([18, 10, '10', 25, -1, 'x'])).toEqual([10, 18]);
     expect(normalizeMediaHours([])).toEqual([10]);
+  });
+});
+
+describe('buildMediaBatch — médias publiés par créneau', () => {
+  it('par défaut (media_batch = 0) tous les médias actifs partent, dans l’ordre', () => {
+    const batch = buildMediaBatch(lib, { media_ids: [], media_cursor: 5, media_batch: 0 });
+    expect(batch.map((p) => p.item.id)).toEqual(['a', 'c']);
+    expect(batch.map((p) => p.index)).toEqual([0, 1]);
+  });
+  it('avec N médias, prend les N suivants en boucle à partir du curseur', () => {
+    const batch = buildMediaBatch(lib, { media_ids: [], media_cursor: 1, media_batch: 1 });
+    expect(batch.map((p) => p.item.id)).toEqual(['c']);
+    // N supérieur au nombre de médias → tous
+    expect(buildMediaBatch(lib, { media_ids: [], media_cursor: 0, media_batch: 9 })).toHaveLength(2);
+    expect(buildMediaBatch([], { media_ids: [], media_cursor: 0, media_batch: 0 })).toEqual([]);
   });
 });

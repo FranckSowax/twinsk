@@ -29,6 +29,7 @@ interface Config {
   media_hours: number[];
   media_ids: string[];
   media_cursor: number;
+  media_batch: number;
   offer_id: string | null;
   group_id: string | null;
   channel_id: string | null;
@@ -56,6 +57,7 @@ interface State {
   next: Plan | null;
   media: MediaRow[];
   next_media: MediaPlan | null;
+  next_batch: MediaPlan[];
   recent: { note: string; done_by: string | null; done_at: string }[];
 }
 interface Offer { id: string; title: string; status: string; archived_at?: string | null }
@@ -121,10 +123,10 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
       });
       const d = await res.json();
       if (!res.ok) setMessage(`⚠️ ${d.error || 'Échec'}`);
-      else if (d.dry && d.media) setMessage(`👁 Aperçu : ${d.media.item?.title || d.media.item?.kind} (${(d.media.index ?? 0) + 1}/${d.media.total}) — rien n'a été envoyé`);
+      else if (d.dry && d.media) setMessage(`👁 Aperçu : ${d.batch?.length > 1 ? `${d.batch.length} médias partiraient` : `${d.media.item?.title || d.media.item?.kind} (${(d.media.index ?? 0) + 1}/${d.media.total})`} — rien n'a été envoyé`);
       else if (d.dry) setMessage(`👁 Aperçu : ${d.plan?.categoryTitle} (${(d.plan?.index ?? 0) + 1}/${d.plan?.total}) — rien n'a été envoyé`);
       else if (d.skipped) setMessage(`ℹ️ Ignoré : ${d.skipped === 'no_media' ? 'aucun média actif dans la médiathèque' : d.skipped}`);
-      else if (d.media) setMessage(`${d.success ? '✅' : '⚠️'} ${d.media.item?.title || d.media.item?.kind} → ${d.summary}`);
+      else if (d.media) setMessage(`${d.success ? '✅' : '⚠️'} ${d.batch?.length > 1 ? `${d.batch.length} médias publiés` : d.media.item?.title || d.media.item?.kind} → ${d.summary}`);
       else setMessage(`${d.success ? '✅' : '⚠️'} ${d.plan?.categoryTitle} → ${d.summary}`);
       await load();
       onChanged?.();
@@ -177,8 +179,8 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
           )}
           {isMedia ? (
             <p className="text-sm text-slate-500">
-              🎬 Médias en boucle · {mediaInLoop} média{mediaInLoop > 1 ? 's' : ''} · {cfg.media_hours.map((h) => `${h}h`).join(', ')} (Libreville)
-              {' · '}position {mediaPos}/{mediaInLoop || '—'}
+              🎬 Médias · {mediaInLoop} média{mediaInLoop > 1 ? 's' : ''} · {cfg.media_hours.map((h) => `${h}h`).join(', ')} (Libreville)
+              {cfg.media_batch > 0 && cfg.media_batch < mediaInLoop ? ` · ${cfg.media_batch} par créneau en boucle · position ${mediaPos}/${mediaInLoop || '—'}` : ' · tous les médias à chaque créneau'}
               {state.offer_title ? ` · listing rappelé : ${state.offer_title}` : ''}
             </p>
           ) : (
@@ -210,7 +212,7 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
       {/* Mode de la campagne */}
       <div className="grid gap-2 sm:grid-cols-2">
         {([
-          { key: 'media', icon: Film, title: 'Médias en boucle', text: 'Vos photos et vidéos, une par créneau quotidien, en boucle. Recommandé : pas d’inondation de produits.' },
+          { key: 'media', icon: Film, title: 'Médias (photos / vidéos)', text: 'Vos photos et vidéos actives partent à chaque créneau quotidien. Recommandé : pas d’inondation de produits.' },
           { key: 'catalog', icon: LayoutList, title: 'Catalogue (fiches produit)', text: 'Ancien mode : une catégorie du listing chaque heure, avec ses fiches produit.' },
         ] as const).map((m) => (
           <button
@@ -234,7 +236,7 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
       {isMedia && (
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
           <div>
-            <label className={label}>Créneaux quotidiens (heure de Libreville) — 1 média par créneau</label>
+            <label className={label}>Créneaux quotidiens (heure de Libreville)</label>
             <div className="flex flex-wrap gap-1.5">
               {HOURS.map((h) => {
                 const on = cfg.media_hours.includes(h);
@@ -251,7 +253,19 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
               })}
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              {cfg.media_hours.length} publication{cfg.media_hours.length > 1 ? 's' : ''} par jour : {cfg.media_hours.map((h) => `${h}h`).join(', ')}. Le média suivant de la boucle part à chaque créneau.
+              {cfg.media_hours.length} créneau{cfg.media_hours.length > 1 ? 'x' : ''} par jour : {cfg.media_hours.map((h) => `${h}h`).join(', ')}.
+            </p>
+          </div>
+          <div className="sm:max-w-xs">
+            <label className={label}>À chaque créneau</label>
+            <select className={field} value={String(cfg.media_batch)} onChange={(e) => setDraft((d) => ({ ...d, media_batch: Number(e.target.value) }))}>
+              <option value="0">Tous les médias actifs de la campagne</option>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n} média{n > 1 ? 's' : ''} en boucle</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              {cfg.media_batch === 0 ? 'Chaque média actif est publié, l’un après l’autre, sur les canaux cochés.' : 'Les médias tournent : à chaque créneau, les suivants de la boucle partent.'}
             </p>
           </div>
           <div>
@@ -456,7 +470,7 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
       {/* Aperçu du prochain média */}
       {isMedia && state.next_media && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <p className={label}>Prochaine publication · média {state.next_media.index + 1}/{state.next_media.total} · prochain créneau {(() => {
+          <p className={label}>Prochaine publication · {state.next_batch.length > 1 ? `${state.next_batch.length} médias` : `média ${state.next_media.index + 1}/${state.next_media.total}`} · prochain créneau {(() => {
             const now = new Date();
             const h = Number(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Africa/Libreville', hour: '2-digit', hour12: false }).format(now)) % 24;
             const next = cfg.media_hours.find((x) => x > h) ?? cfg.media_hours[0];
@@ -479,6 +493,23 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
               </p>
             </div>
           </div>
+          {state.next_batch.length > 1 && (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {state.next_batch.map((b, i) => (
+                <li key={b.item.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-1.5 text-xs dark:border-slate-600">
+                  <span className="h-10 w-7 overflow-hidden rounded bg-black">
+                    {b.item.kind === 'video' ? (
+                      <video src={b.item.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={b.item.url} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </span>
+                  <span className="max-w-[140px] truncate text-slate-700 dark:text-slate-200">{i + 1}. {b.item.title || (b.item.kind === 'video' ? 'Vidéo' : 'Photo')}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
