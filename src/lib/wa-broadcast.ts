@@ -27,6 +27,7 @@ import {
   fbPagePhotoPost,
   fbPageStory,
   fbPageVideoPost,
+  fbPageVideoStory,
   igPhotoPost,
   igStory,
   igVideoPost,
@@ -301,14 +302,9 @@ export async function broadcastMedia(plan: MediaPlan, cfg: DripConfig, origin: s
       if (post.ok) report.facebook.sent += 1;
       else report.facebook.errors.push(`publication : ${post.error}`);
     }
-    if (isVideo) {
-      // Les stories vidéo Facebook exigent une session de téléversement en plusieurs étapes : non prises en charge ici.
-      if (facebookPostsFor(cfg) === 0) report.facebook.errors.push('story vidéo Facebook non prise en charge — activez au moins 1 publication');
-    } else {
-      const story = await fbPageStory({ imageUrl: publicUrl });
-      if (story.ok) report.facebook.sent += 1;
-      else report.facebook.errors.push(`story : ${story.error}`);
-    }
+    const story = isVideo ? await fbPageVideoStory({ videoUrl: publicUrl }) : await fbPageStory({ imageUrl: publicUrl });
+    if (story.ok) report.facebook.sent += 1;
+    else report.facebook.errors.push(`story : ${story.error}`);
   }
 
   // --- Instagram ------------------------------------------------------------

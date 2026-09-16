@@ -126,6 +126,48 @@ export async function igVideoStory(args: { videoUrl: string }): Promise<MetaResu
   return igPublish(ig, container.id, IG_VIDEO_WAIT_MS);
 }
 
+/**
+ * Story vidéo sur la Page : session de téléversement en 3 temps (start → envoi
+ * de l'URL hébergée à rupload → finish), comme pour les Reels. La vidéo doit
+ * être un mp4 public de 3 à 60 s, 9:16 conseillé.
+ */
+export async function fbPageVideoStory(args: { videoUrl: string }): Promise<MetaResult> {
+  const p = pageId();
+  const t = token();
+  if (!p || !t) return { ok: false, skipped: 'not_configured' };
+  try {
+    const start = await fetch(`${GRAPH}/${p}/video_stories`, {
+      method: 'POST',
+      body: new URLSearchParams({ upload_phase: 'start', access_token: t }),
+    });
+    const s = (await start.json().catch(() => ({}))) as { video_id?: string; upload_url?: string; error?: { message?: string } };
+    if (!start.ok || s.error || !s.video_id || !s.upload_url) {
+      return { ok: false, error: `Graph story start : ${s.error?.message || start.status}`.slice(0, 300) };
+    }
+    const up = await fetch(s.upload_url, { method: 'POST', headers: { Authorization: `OAuth ${t}`, file_url: args.videoUrl } });
+    const u = (await up.json().catch(() => ({}))) as { success?: boolean; debug_info?: { message?: string }; error?: { message?: string } };
+    if (!up.ok || u.success === false || u.error) {
+      return { ok: false, error: `story upload : ${u.error?.message || u.debug_info?.message || up.status}`.slice(0, 300) };
+    }
+    // Attente du traitement (jusqu'à 2 min) avant de finaliser.
+    const started = Date.now();
+    while (Date.now() - started < 120_000) {
+      const st = await fetch(`${GRAPH}/${s.video_id}?fields=status&access_token=${encodeURIComponent(t)}`);
+      const d = (await st.json().catch(() => ({}))) as { status?: { video_status?: string; uploading_phase?: { status?: string }; processing_phase?: { status?: string } } };
+      const uploading = d.status?.uploading_phase?.status;
+      const processing = d.status?.processing_phase?.status;
+      if (uploading === 'complete' && (processing === 'complete' || processing === 'not_started' || !processing)) break;
+      if (uploading === 'error' || processing === 'error' || d.status?.video_status === 'error') {
+        return { ok: false, error: 'story : traitement vidéo en erreur côté Facebook' };
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return graphPost(`${p}/video_stories`, { upload_phase: 'finish', video_id: s.video_id });
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+}
+
 /** Publication vidéo sur la Page (fil d'actualité) — Facebook télécharge l'URL. */
 export async function fbPageVideoPost(args: { videoUrl: string; description: string }): Promise<MetaResult> {
   const p = pageId();

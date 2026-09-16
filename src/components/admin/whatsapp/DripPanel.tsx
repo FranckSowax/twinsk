@@ -18,7 +18,7 @@ const CHANNELS: { key: Channel; label: string; hint: Record<Mode, string> }[] = 
   { key: 'group', label: 'Groupe WhatsApp', hint: { media: '1 photo / vidéo + légende par créneau', catalog: 'en-tête + produits + bouton' } },
   { key: 'status', label: 'Statut WhatsApp', hint: { media: '1 story photo / vidéo par créneau (24 h)', catalog: '1 story par produit (24 h)' } },
   { key: 'channel', label: 'Chaîne WhatsApp', hint: { media: '1 photo / vidéo + légende par créneau', catalog: 'en-tête + photos' } },
-  { key: 'facebook', label: 'Page Facebook', hint: { media: 'publication (photo / vidéo) + story photo', catalog: 'publications + stories (rythmes séparés)' } },
+  { key: 'facebook', label: 'Page Facebook', hint: { media: 'publication (photo / vidéo) + story', catalog: 'publications + stories (rythmes séparés)' } },
   { key: 'instagram', label: 'Instagram', hint: { media: 'publication (photo / Reel) + story', catalog: 'publications + stories (rythmes séparés)' } },
 ];
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
