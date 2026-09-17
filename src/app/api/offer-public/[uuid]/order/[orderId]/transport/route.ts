@@ -121,7 +121,9 @@ export async function PATCH(
   // Devis transport sur mesure : la commande est complète ici (coordonnées déjà
   // fournies à la création, pas d'étape paiement) → récap dans le groupe
   // Commandes, une seule fois (pas de doublon si le client re-clique « devis »).
-  if (mode === 'quote' && order.transport_mode !== 'quote') {
+  // Sans coordonnées (nouveau parcours : transport avant nom/WhatsApp), c'est la
+  // route .../contact qui notifiera à la saisie — pas de doublon.
+  if (mode === 'quote' && order.transport_mode !== 'quote' && order.client_name && order.client_phone) {
     await notifyOrdersGroup(orderId, publicOrigin(request)).catch((e) =>
       console.error('[transport] notification devis impossible', e instanceof Error ? e.message : e),
     );

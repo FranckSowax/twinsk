@@ -17,8 +17,10 @@ export interface OrderPick {
 
 export interface CreateOrderInput {
   offerId: string;
-  clientName: string;
-  clientPhone: string;
+  /** Coordonnées : facultatives à la création (le client les saisit après le
+   *  choix du transport, route .../contact) ; obligatoires avant paiement / devis. */
+  clientName?: string;
+  clientPhone?: string;
   clientEmail?: string;
   picks: OrderPick[];
   /** Lien marque blanche (/b/[id]) — attribution de la vente. */
@@ -147,7 +149,9 @@ export async function insertOrderLines(orderId: string, lineRows: Record<string,
 }
 
 export async function createOfferOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
-  const { offerId, clientName, clientPhone } = input;
+  const { offerId } = input;
+  const clientName = (input.clientName || '').trim();
+  const clientPhone = (input.clientPhone || '').trim();
   const clientEmail = (input.clientEmail || '').trim();
   const picks = Array.isArray(input.picks) ? input.picks : [];
   if (!picks.length) return { ok: false, status: 400, error: 'Aucun produit sélectionné' };
@@ -204,14 +208,12 @@ export async function createOfferOrder(input: CreateOrderInput): Promise<CreateO
     return { ok: false, status: 500, error: linesErr };
   }
 
-  // 3. Miroir /admin/requests (les coordonnées sont obligatoires, donc toujours).
-  const requestId = await mirrorOrderToRequest({
-    orderId: orderRow.id,
-    offerTitle: offer.title,
-    clientName,
-    clientPhone,
-    clientEmail,
-  });
+  // 3. Miroir /admin/requests — seulement si le client est déjà connu ; sinon
+  //    la route .../contact le crée quand les coordonnées sont saisies.
+  const requestId =
+    clientName && clientPhone
+      ? await mirrorOrderToRequest({ orderId: orderRow.id, offerTitle: offer.title, clientName, clientPhone, clientEmail })
+      : null;
 
   return {
     ok: true,
