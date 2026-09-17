@@ -12,12 +12,17 @@ export const FX_RATES = {
   XAF: 91, // 1 CNY → FCFA (aligné sur CNY_TO_FCFA d'offer-pricing)
 } as const;
 
+// Séparateur de milliers en-US (virgule) pour toutes les devises : lisible à
+// l'écran et rendu correctement par la police Helvetica du PDF (l'espace fine
+// insécable fr-FR y apparaît comme un slash).
+const TWO_DECIMALS = { minimumFractionDigits: 2, maximumFractionDigits: 2 } as const;
+
 export function formatCNY(amount: number): string {
-  return `¥${amount.toFixed(2)}`;
+  return `¥${amount.toLocaleString('en-US', TWO_DECIMALS)}`;
 }
 
 export function formatUSD(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+  return `$${amount.toLocaleString('en-US', TWO_DECIMALS)}`;
 }
 
 // Use en-US locale for thousand separator (",") so the embedded PDF font
