@@ -120,7 +120,16 @@ export interface PricingResult {
   totalWeight: number | null;
   totalVolume: number | null;
   hasBattery: boolean;
+  /** Tarif aérien STANDARD (par kg) — appliqué aux produits sans batterie. */
   airRate: number;
+  /** Tarif aérien batterie (par kg) — appliqué aux seuls produits avec batterie. */
+  airBatteryRate: number;
+  /** Kilos sans batterie / avec batterie (null si un poids manque). */
+  airWeightStd: number | null;
+  airWeightBattery: number | null;
+  /** Détail du coût aérien : part standard et part batterie. */
+  airCostStd: number | null;
+  airCostBattery: number | null;
   seaRate: number;
   airCost: number | null;
   seaCost: number | null;
@@ -150,6 +159,7 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
   );
 
   let totalWeight = 0;
+  let weightBattery = 0;
   let totalVolume = 0;
   let weightKnown = true;
   let volumeKnown = true;
@@ -157,8 +167,10 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
 
   for (const l of lines) {
     if (l.has_battery) hasBattery = true;
-    if (l.weight != null) totalWeight += l.weight * l.quantity;
-    else weightKnown = false;
+    if (l.weight != null) {
+      totalWeight += l.weight * l.quantity;
+      if (l.has_battery) weightBattery += l.weight * l.quantity;
+    } else weightKnown = false;
     if (l.volume != null) totalVolume += l.volume * l.quantity;
     else volumeKnown = false;
   }
@@ -166,20 +178,17 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
   const airAvailable = weightKnown && totalWeight > 0;
   const seaAvailable = volumeKnown && totalVolume > 0;
 
-  // Calcul aérien : applique le tarif batterie globalement si au moins une ligne
-  // a une batterie (sécurité réglementaire) — la totalité du colis est dangereuse.
-  const defaultAirRate =
-    currency === 'EUR'
-      ? hasBattery
-        ? EUR_AIR_BATTERY_RATE_PER_KG
-        : EUR_AIR_RATE_PER_KG
-      : hasBattery
-        ? AIR_BATTERY_RATE_FCFA_PER_KG
-        : AIR_RATE_FCFA_PER_KG;
+  // Calcul aérien SCINDÉ (décision du 18 sept. 2026) : les kilos des produits
+  // sans batterie au tarif standard, les kilos des produits avec batterie au
+  // tarif batterie — plus de tarif majoré sur tout le panier.
+  const defaultAirRate = currency === 'EUR' ? EUR_AIR_RATE_PER_KG : AIR_RATE_FCFA_PER_KG;
+  const defaultBatteryRate = currency === 'EUR' ? EUR_AIR_BATTERY_RATE_PER_KG : AIR_BATTERY_RATE_FCFA_PER_KG;
   // Tarif imposé par un code promo transport (saisi en FCFA, converti dans la
   // devise de règlement) — jamais plus cher que le tarif normal.
   const promoAir = opts.airRate != null && opts.airRate > 0 ? fromFcfa(opts.airRate, currency) : null;
   const airRate = promoAir != null ? Math.min(promoAir, defaultAirRate) : defaultAirRate;
+  const airBatteryRate = promoAir != null ? Math.min(promoAir, defaultBatteryRate) : defaultBatteryRate;
+  const weightStd = totalWeight - weightBattery;
   // Maritime : en FCFA, tarif dégressif selon le volume total ; en euros, tarif
   // fixe des devis Europe. Un tarif négocié (code promo) s'applique s'il est
   // encore plus bas, jamais au-dessus.
@@ -189,7 +198,9 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
   const seaRate = promoSea != null ? Math.min(promoSea, degressiveSeaRate) : degressiveSeaRate;
   // En euros, coûts et totaux au centime ; en FCFA, inchangés (bruts, comme avant).
   const cents = (n: number) => (currency === 'EUR' ? Math.round(n * 100) / 100 : n);
-  const airCost = airAvailable ? cents(totalWeight * airRate) : null;
+  const airCostStd = airAvailable ? cents(weightStd * airRate) : null;
+  const airCostBattery = airAvailable ? cents(weightBattery * airBatteryRate) : null;
+  const airCost = airAvailable ? cents((airCostStd ?? 0) + (airCostBattery ?? 0)) : null;
   const seaCost = seaAvailable ? cents(totalVolume * seaRate) : null;
 
   // Remise articles (hors transport, saisie en FCFA), bornée au total articles.
@@ -209,6 +220,11 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     totalVolume: volumeKnown ? totalVolume : null,
     hasBattery,
     airRate,
+    airBatteryRate,
+    airWeightStd: weightKnown ? weightStd : null,
+    airWeightBattery: weightKnown ? weightBattery : null,
+    airCostStd,
+    airCostBattery,
     seaRate,
     airCost,
     seaCost,

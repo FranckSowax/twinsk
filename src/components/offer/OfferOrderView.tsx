@@ -35,6 +35,11 @@ interface OrderLine {
 }
 
 interface Pricing {
+  airBatteryRate?: number;
+  airWeightStd?: number | null;
+  airWeightBattery?: number | null;
+  airCostStd?: number | null;
+  airCostBattery?: number | null;
   discountFcfa: number;
   itemsNetFcfa: number;
   itemsTotalCny: number;
@@ -557,7 +562,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           </p>
           {pricing.hasBattery && (
             <p className="col-span-2 text-amber-600">
-              ⚡ Lots contenant des batteries — tarif aérien spécial appliqué.
+              ⚡ Produits avec batterie : en aérien, seuls leurs kilos passent au tarif batterie ({formatSettlementRate(pricing.airBatteryRate ?? 0, 'kg', currency)}), le reste au tarif standard.
             </p>
           )}
         </div>
@@ -624,13 +629,17 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="font-semibold text-slate-900">Fret aérien</p>
               {order.transport_mode === 'air' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
-            <p className="text-xs text-slate-500">
-              {formatSettlementRate(pricing.airRate, 'kg', currency)}
-              {pricing.hasBattery ? ' (avec batteries)' : ''}
-            </p>
+            <p className="text-xs text-slate-500">{formatSettlementRate(pricing.airRate, 'kg', currency)}</p>
             <p className="font-display text-lg font-bold text-emerald-600">
               {fmt(pricing.airCost)}
             </p>
+            {pricing.hasBattery && pricing.airAvailable && (pricing.airWeightBattery ?? 0) > 0 && (
+              <p className="text-[11px] text-slate-500">
+                dont {pricing.airWeightStd?.toFixed(2)} kg standard : {fmt(pricing.airCostStd)}
+                <br />
+                ⚡ {pricing.airWeightBattery?.toFixed(2)} kg avec batterie à {formatSettlementRate(pricing.airBatteryRate ?? 0, 'kg', currency)} : {fmt(pricing.airCostBattery)}
+              </p>
+            )}
             <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
             <p className="text-[10px] text-slate-400">
               Estimation transport seul

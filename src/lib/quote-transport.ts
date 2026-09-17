@@ -33,8 +33,13 @@ export interface QuoteTransportSummary {
   hasBattery: boolean;
   airAvailable: boolean;
   seaAvailable: boolean;
-  /** Tarif aerien applique (par kg, en devise native). */
+  /** Tarif aerien STANDARD (par kg, en devise native) — produits sans batterie. */
   airRatePerKg: number;
+  /** Tarif aerien batterie (par kg, en devise native) — produits avec batterie. */
+  airBatteryRatePerKg: number;
+  /** Kilos sans / avec batterie (null si un poids manque). */
+  airWeightStd: number | null;
+  airWeightBattery: number | null;
   /** Tarif maritime (par m³, en devise native) — utilise uniquement en groupage. */
   seaRatePerCbm: number;
   /** Cout aerien total dans la devise native. */
@@ -72,6 +77,7 @@ export function computeQuoteTransport(
 ): QuoteTransportSummary {
   const dest = resolveDestination(destinationCode);
   let totalWeight = 0;
+  let weightBattery = 0;
   let totalVolume = 0;
   let weightKnown = true;
   let volumeKnown = true;
@@ -79,22 +85,26 @@ export function computeQuoteTransport(
 
   for (const l of lines) {
     if (l.has_battery) hasBattery = true;
-    if (l.weight != null) totalWeight += l.weight * l.quantity;
-    else weightKnown = false;
+    if (l.weight != null) {
+      totalWeight += l.weight * l.quantity;
+      if (l.has_battery) weightBattery += l.weight * l.quantity;
+    } else weightKnown = false;
     if (l.volume != null) totalVolume += l.volume * l.quantity;
     else volumeKnown = false;
   }
 
   const airAvailable = weightKnown && totalWeight > 0;
   const seaAvailable = volumeKnown && totalVolume > 0;
-  const airRatePerKg = hasBattery
-    ? dest.air_battery_rate_per_kg
-    : dest.air_rate_per_kg;
+  // Aérien scindé : kilos sans batterie au tarif standard, kilos avec batterie
+  // au tarif batterie (plus de majoration sur tout le lot).
+  const airRatePerKg = dest.air_rate_per_kg;
+  const airBatteryRatePerKg = dest.air_battery_rate_per_kg;
+  const weightStd = totalWeight - weightBattery;
   // Gabon (FCFA) : grille dégressive au-delà de 2,5 m³ (même règle que le
   // checkout) ; autres destinations : tarif plat de la destination.
   const seaRatePerCbm = dest.currency === 'XAF' ? seaRateForVolume(totalVolume, dest.sea_rate_per_cbm) : dest.sea_rate_per_cbm;
 
-  const airCostNative = airAvailable ? totalWeight * airRatePerKg : null;
+  const airCostNative = airAvailable ? weightStd * airRatePerKg + weightBattery * airBatteryRatePerKg : null;
 
   // Maritime : regle d optimisation conteneur.
   // < 20 CBM        -> groupage (tarif destination)
@@ -147,6 +157,9 @@ export function computeQuoteTransport(
     airAvailable,
     seaAvailable,
     airRatePerKg,
+    airBatteryRatePerKg,
+    airWeightStd: weightKnown ? weightStd : null,
+    airWeightBattery: weightKnown ? weightBattery : null,
     seaRatePerCbm,
     airCostNative,
     seaCostNative,

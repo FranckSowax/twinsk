@@ -565,7 +565,9 @@ export default function QuotePDF({
                     marginTop: 2,
                   }}
                 >
-                  Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg{transport.hasBattery ? ' · avec batterie' : ''})
+                  {transport.hasBattery && (transport.airWeightBattery ?? 0) > 0
+                    ? `Poids total : ${transport.totalWeight!.toFixed(2)} kg — ${transport.airWeightStd!.toFixed(2)} kg standard à ${fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg + ${transport.airWeightBattery!.toFixed(2)} kg avec batterie à ${fmtNativeRate(transport.airBatteryRatePerKg, transport.nativeCurrency)}/kg`
+                    : `Poids total : ${transport.totalWeight!.toFixed(2)} kg (${fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg)`}
                 </Text>
               </View>
               <Text style={[styles.tableCell, styles.colQty]}>1</Text>

@@ -66,3 +66,31 @@ describe('computeOrderPricing — devise de règlement euros (listing affiché e
     expect(r.seaRate).toBe(SEA_RATE_FCFA_PER_M3);
   });
 });
+
+describe('fret aérien scindé standard / batterie (18 sept. 2026)', () => {
+  const std = { unit_price_cny: 10, quantity: 2, weight: 1.5, volume: 0.01, has_battery: false }; // 3 kg
+  const bat = { unit_price_cny: 10, quantity: 1, weight: 2, volume: 0.01, has_battery: true }; // 2 kg
+  it('les kilos sans batterie restent à 13 000, seuls les kilos batterie passent à 18 000', () => {
+    const r = computeOrderPricing([std, bat]);
+    expect(r.hasBattery).toBe(true);
+    expect(r.airRate).toBe(13000);
+    expect(r.airBatteryRate).toBe(18000);
+    expect(r.airWeightStd).toBe(3);
+    expect(r.airWeightBattery).toBe(2);
+    expect(r.airCostStd).toBe(39000);
+    expect(r.airCostBattery).toBe(36000);
+    expect(r.airCost).toBe(75000);
+  });
+  it('sans batterie : tout au tarif standard ; que des batteries : tout au tarif batterie', () => {
+    expect(computeOrderPricing([std]).airCost).toBe(39000);
+    const only = computeOrderPricing([bat]);
+    expect(only.airCost).toBe(36000);
+    expect(only.airWeightStd).toBe(0);
+  });
+  it('un tarif promo négocié s’applique aux deux parts, jamais au-dessus des tarifs normaux', () => {
+    const r = computeOrderPricing([std, bat], { airRate: 12000 });
+    expect(r.airRate).toBe(12000);
+    expect(r.airBatteryRate).toBe(12000);
+    expect(r.airCost).toBe(60000);
+  });
+});

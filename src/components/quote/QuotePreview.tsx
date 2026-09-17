@@ -327,9 +327,16 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         Destination : {destLabel} · Chargement, transport départ, contrôle qualité,
                         douane export, formalités admin Chine
                       </p>
-                      <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg)}/kg{transport.hasBattery ? ' · avec batterie' : ''})
-                      </p>
+                      {transport.hasBattery && (transport.airWeightBattery ?? 0) > 0 ? (
+                        <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Poids total : {transport.totalWeight!.toFixed(2)} kg — {transport.airWeightStd!.toFixed(2)} kg standard à {fmtNativeRate(transport.airRatePerKg)}/kg
+                          {' + '}⚡ {transport.airWeightBattery!.toFixed(2)} kg avec batterie à {fmtNativeRate(transport.airBatteryRatePerKg)}/kg
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg)}/kg)
+                        </p>
+                      )}
                     </>
                   ) : (
                     <p className="text-xs text-slate-400">À calculer — poids unitaire des produits à confirmer</p>

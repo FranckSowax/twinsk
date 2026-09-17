@@ -27,7 +27,7 @@ export default function TransportModeSelector({
       label: '✈️ Aérien',
       icon: Plane,
       detail: transport?.airAvailable && transport.totalWeight != null
-        ? `${transport.totalWeight.toFixed(1)} kg · ${fmt(transport.airCostCny)}${transport.hasBattery ? ' · batterie' : ''}`
+        ? `${transport.totalWeight.toFixed(1)} kg · ${fmt(transport.airCostCny)}${transport.hasBattery && (transport.airWeightBattery ?? 0) > 0 ? ` · dont ${transport.airWeightBattery!.toFixed(1)} kg batterie au tarif majoré` : ''}`
         : 'Poids des produits à compléter',
     },
     {
