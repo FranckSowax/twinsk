@@ -352,7 +352,6 @@ export default function QuotePDF({
       )
     : null;
   const grandTotalCny = itemsTotalCny + (finalTransportCny ?? 0);
-  const hub = transport?.hub || 'LBV';
   const destLabel = transport?.destinationLabel || 'Gabon (Libreville)';
   // Police embarquee pour les lignes contenant du chinois (adresse + footer).
   const cjk = ensureCjkFont();
@@ -588,7 +587,7 @@ export default function QuotePDF({
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Aérien {hub}
+                  Pack Transport Aérien
                 </Text>
                 <Text style={{ fontSize: 8, color: '#475569' }}>
                   Destination : {destLabel} · Chargement, transport départ,
@@ -624,7 +623,7 @@ export default function QuotePDF({
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Aérien {hub}
+                  Pack Transport Aérien
                 </Text>
                 <Text style={{ fontSize: 8, color: '#94a3b8' }}>
                   À calculer — poids unitaire des produits à confirmer
@@ -642,7 +641,7 @@ export default function QuotePDF({
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Maritime {hub} — {transport.seaModeLabel}
+                  Pack Transport Maritime — {transport.seaModeLabel}
                 </Text>
                 <Text style={{ fontSize: 8, color: '#475569' }}>
                   Destination : {destLabel} · Chargement, transport départ,
@@ -684,7 +683,7 @@ export default function QuotePDF({
             <View style={styles.totalRowFinal} wrap={false}>
               <View style={[styles.productCell, styles.colProduct]}>
                 <Text style={styles.productTitleBold}>
-                  Pack Transport Maritime {hub}
+                  Pack Transport Maritime
                 </Text>
                 <Text style={{ fontSize: 8, color: '#94a3b8' }}>
                   À calculer — volume (CBM) des produits à confirmer

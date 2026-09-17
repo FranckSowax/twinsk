@@ -83,7 +83,6 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
   const showSea = transportMode !== 'air';
   const transportCnyPicked: number | null = pickQuoteTransportCny(transport, transportMode);
   const grandTotalCny = itemsTotalCny + (transportCnyPicked ?? 0);
-  const hub = transport.hub;
   const destLabel = transport.destinationLabel;
 
   const fmt = (cny: number) => formatInCurrency(cny, currency);
@@ -165,7 +164,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Conditions</p>
             <p className="mt-1">Devise : <strong>{currency}</strong> · Prix FOB Chine, transport détaillé ci-dessous</p>
             <p>Validité : <strong>15 jours</strong> · Paiement à la commande</p>
-            <p>Destination : <strong>{destLabel}</strong> · Hub {hub}</p>
+            <p>Destination : <strong>{destLabel}</strong></p>
           </div>
         </div>
 
@@ -321,7 +320,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               {showAir && (
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
-                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Aérien {hub}</p>
+                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Aérien</p>
                   {transport.airAvailable && transport.airCostCny != null ? (
                     <>
                       <p className="text-xs text-slate-600">
@@ -352,7 +351,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               <tr className="border-t border-slate-300">
                 <td className="border-r border-slate-300 p-3">
                   <p className="font-bold text-slate-900 dark:text-white">
-                    Pack Transport Maritime {hub}
+                    Pack Transport Maritime
                     {transport.seaModeLabel ? ` — ${transport.seaModeLabel}` : ''}
                   </p>
                   {transport.seaAvailable && transport.seaCostCny != null ? (
