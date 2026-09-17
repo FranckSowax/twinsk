@@ -570,40 +570,6 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         <h2 className="font-semibold text-slate-900">Choisissez votre transport</h2>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {/* Aérien */}
-          <button
-            type="button"
-            onClick={() => pickTransport('air')}
-            disabled={savingTransport === 'air' || !pricing.airAvailable}
-            className={`group flex flex-col items-start gap-2 rounded-2xl border-2 p-4 text-left transition-all ${
-              order.transport_mode === 'air'
-                ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
-                : pricing.airAvailable
-                  ? 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50'
-                  : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Plane className="h-5 w-5 text-emerald-600" />
-              <p className="font-semibold text-slate-900">Fret aérien</p>
-              {order.transport_mode === 'air' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-            </div>
-            <p className="text-xs text-slate-500">
-              {formatSettlementRate(pricing.airRate, 'kg', currency)}
-              {pricing.hasBattery ? ' (avec batteries)' : ''}
-            </p>
-            <p className="font-display text-lg font-bold text-emerald-600">
-              {fmt(pricing.airCost)}
-            </p>
-            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
-            <p className="text-[10px] text-slate-400">
-              Estimation transport seul
-            </p>
-            {!pricing.airAvailable && (
-              <p className="text-[10px] text-amber-600">Poids inconnu</p>
-            )}
-          </button>
-
           {/* Maritime */}
           <button
             type="button"
@@ -637,6 +603,40 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             </p>
             {!pricing.seaAvailable && (
               <p className="text-[10px] text-amber-600">Volume inconnu</p>
+            )}
+          </button>
+
+          {/* Aérien */}
+          <button
+            type="button"
+            onClick={() => pickTransport('air')}
+            disabled={savingTransport === 'air' || !pricing.airAvailable}
+            className={`group flex flex-col items-start gap-2 rounded-2xl border-2 p-4 text-left transition-all ${
+              order.transport_mode === 'air'
+                ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
+                : pricing.airAvailable
+                  ? 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50'
+                  : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Plane className="h-5 w-5 text-emerald-600" />
+              <p className="font-semibold text-slate-900">Fret aérien</p>
+              {order.transport_mode === 'air' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+            </div>
+            <p className="text-xs text-slate-500">
+              {formatSettlementRate(pricing.airRate, 'kg', currency)}
+              {pricing.hasBattery ? ' (avec batteries)' : ''}
+            </p>
+            <p className="font-display text-lg font-bold text-emerald-600">
+              {fmt(pricing.airCost)}
+            </p>
+            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
+            <p className="text-[10px] text-slate-400">
+              Estimation transport seul
+            </p>
+            {!pricing.airAvailable && (
+              <p className="text-[10px] text-amber-600">Poids inconnu</p>
             )}
           </button>
         </div>
