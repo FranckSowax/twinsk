@@ -127,7 +127,8 @@ export async function GET(
       );
       pdfElement = createElement(QuotePDF, {
         quoteId: q.id,
-        quoteDate: dateStr,
+        // Même format que l'aperçu à l'écran (jj/mm/aaaa).
+        quoteDate: new Date(q.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         clientName: req?.client_name || 'Client',
         clientEmail: req?.client_email || '',
         clientPhone: req?.client_phone || '',

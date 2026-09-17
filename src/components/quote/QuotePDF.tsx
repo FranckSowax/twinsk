@@ -27,94 +27,51 @@ const styles = StyleSheet.create({
     color: '#1e293b',
   },
 
-  // Header (logo left, client info right)
+  // En-tête : société à gauche, document à droite, trait épais dessous
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    paddingBottom: 12,
+    marginBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#0f172a',
   },
+  companyRow: { flexDirection: 'row', alignItems: 'flex-start', flexShrink: 1, paddingRight: 12 },
   logoBlock: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 2,
     borderColor: '#0f172a',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
   },
-  logoImage: {
-    width: 92,
-    height: 92,
-    objectFit: 'contain',
-  },
-  logoText: {
-    fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0f172a',
-    letterSpacing: 2,
-  },
-  logoSubText: {
-    fontSize: 6,
-    color: '#475569',
-    marginTop: 2,
-    letterSpacing: 1.5,
-    textAlign: 'center',
-  },
-  logoLine: {
-    width: 60,
-    height: 1,
-    backgroundColor: '#0f172a',
-    marginVertical: 4,
-  },
-  logoSubText2: {
-    fontSize: 6,
-    color: '#475569',
-    letterSpacing: 1,
-    textAlign: 'center',
-  },
-  clientHeader: {
-    alignItems: 'center',
-    flex: 1,
-    paddingLeft: 30,
-    paddingTop: 12,
-  },
-  clientName: {
-    fontSize: 16,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  clientCity: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0f172a',
-  },
+  logoImage: { width: 64, height: 64, objectFit: 'contain' },
+  logoText: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#0f172a', letterSpacing: 1.5 },
+  logoSubText: { fontSize: 5, color: '#475569', marginTop: 2, letterSpacing: 1, textAlign: 'center' },
+  logoLine: { width: 40, height: 1, backgroundColor: '#0f172a', marginVertical: 3 },
+  logoSubText2: { fontSize: 5, color: '#475569', letterSpacing: 1, textAlign: 'center' },
+  companyBlock: { paddingLeft: 10, flexShrink: 1 },
+  companyName: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#0f172a', letterSpacing: 0.5, marginBottom: 1 },
+  companyTagline: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#b45309', letterSpacing: 0.5, marginBottom: 3 },
+  companyLine: { fontSize: 8, color: '#475569', lineHeight: 1.4 },
+  docBlock: { alignItems: 'flex-end', flexShrink: 0 },
+  docTitle: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#0f172a', letterSpacing: 2 },
+  docSubtitle: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#94a3b8', letterSpacing: 2, marginBottom: 6 },
+  docNumber: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
+  docDate: { fontSize: 9, color: '#475569', marginBottom: 6 },
+  transportPill: { backgroundColor: '#f1f5f9', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
+  transportPillText: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#334155' },
 
-  // Meta block (Date + Invoice n°)
-  metaBlock: {
-    marginBottom: 8,
-  },
-  metaLine: {
-    fontSize: 10,
-    color: '#0f172a',
-  },
-  metaLineBold: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0f172a',
-  },
-
-  // Twinsk company info block
-  twinskInfo: {
-    marginBottom: 12,
-  },
-  twinskInfoLine: {
-    fontSize: 9,
-    color: '#1e293b',
-    marginBottom: 2,
-  },
+  // Cartes « Facturé à » / « Conditions »
+  cardsRow: { flexDirection: 'row', marginBottom: 14 },
+  card: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 6, padding: 10, marginRight: 8 },
+  cardLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#64748b', letterSpacing: 0.8, marginBottom: 3 },
+  cardClientName: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#0f172a', marginBottom: 2 },
+  cardLine: { fontSize: 8.5, color: '#475569', lineHeight: 1.45 },
+  cardStrong: { fontFamily: 'Helvetica-Bold', color: '#0f172a' },
 
   // Products table
   table: {
@@ -359,55 +316,62 @@ export default function QuotePDF({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header : logo + client */}
+        {/* En-tête : société (gauche) · document (droite) — même agencement que l'aperçu */}
         <View style={styles.header}>
-          {logoUrl ? (
-            <Image src={logoUrl} style={styles.logoImage} />
-          ) : (
-            <View style={styles.logoBlock}>
-              <Text style={styles.logoSubText2}>TWINSK</Text>
-              <View style={styles.logoLine} />
-              <Text style={styles.logoText}>HONG KONG</Text>
-              <View style={styles.logoLine} />
-              <Text style={styles.logoSubText}>COMPANY LIMITED</Text>
+          <View style={styles.companyRow}>
+            {logoUrl ? (
+              <Image src={logoUrl} style={styles.logoImage} />
+            ) : (
+              <View style={styles.logoBlock}>
+                <Text style={styles.logoSubText2}>TWINSK</Text>
+                <View style={styles.logoLine} />
+                <Text style={styles.logoText}>HONG KONG</Text>
+                <View style={styles.logoLine} />
+                <Text style={styles.logoSubText}>COMPANY LIMITED</Text>
+              </View>
+            )}
+            <View style={styles.companyBlock}>
+              <Text style={styles.companyName}>TWINSK COMPANY LTD</Text>
+              <Text style={styles.companyTagline}>LOGISTICS & SOURCING · HONG KONG · GUANGZHOU</Text>
+              <Text style={styles.companyLine}>Room 506, Tongyue Building, No. 7 Tongya East Street,</Text>
+              <Text style={styles.companyLine}>Xicha Road, Baiyun District, Guangzhou</Text>
+              <Text style={[styles.companyLine, { fontFamily: cjk }]}>广州市白云区西槎路同雅东街7号同粤大厦506</Text>
+              <Text style={[styles.companyLine, { fontFamily: cjk }]}>邓小姐 +86 137 1081 6769 · contact@twinskcompanyltd.com</Text>
             </View>
-          )}
-          <View style={styles.clientHeader}>
-            <Text style={styles.clientName}>{clientName}</Text>
-            <Text style={styles.clientCity}>
-              {clientEmail || clientPhone || 'Client Twinsk'}
-            </Text>
+          </View>
+          <View style={styles.docBlock}>
+            <Text style={styles.docTitle}>FACTURE</Text>
+            <Text style={styles.docSubtitle}>INVOICE</Text>
+            <Text style={styles.docNumber}>N° TWK{quoteId.slice(0, 8).toUpperCase()}</Text>
+            <Text style={styles.docDate}>Date : {quoteDate}</Text>
+            <View style={styles.transportPill}>
+              <Text style={styles.transportPillText}>
+                {mode === 'air' ? 'Transport aérien' : mode === 'sea' ? 'Transport maritime' : 'Transport au choix'} · Door to Door
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Meta : Facture / Invoice + transport retenu */}
-        <View style={styles.metaBlock}>
-          <Text style={[styles.metaLineBold, { fontSize: 14, letterSpacing: 1 }]}>FACTURE · INVOICE</Text>
-          <Text style={styles.metaLineBold}>N° TWK{quoteId.slice(0, 8).toUpperCase()}</Text>
-          <Text style={styles.metaLine}>Date : {quoteDate}</Text>
-          <Text style={styles.metaLine}>
-            Transport : {mode === 'air' ? 'aérien' : mode === 'sea' ? 'maritime' : 'au choix (le moins cher retenu)'} · Door to Door
-          </Text>
-        </View>
-
-        {/* Twinsk company info */}
-        <View style={styles.twinskInfo}>
-          <Text style={[styles.twinskInfoLine, { fontFamily: 'Helvetica-Bold', fontSize: 10, color: '#0f172a' }]}>
-            Twinsk Company Ltd
-          </Text>
-          <Text style={[styles.twinskInfoLine, { color: '#b45309' }]}>Logistics & Sourcing · Hong Kong · Guangzhou</Text>
-          <Text style={styles.twinskInfoLine}>
-            Room 506, Tongyue Building, No. 7 Tongya East Street,
-          </Text>
-          <Text style={styles.twinskInfoLine}>
-            Xicha Road, Baiyun District, Guangzhou
-          </Text>
-          <Text style={[styles.twinskInfoLine, { fontFamily: cjk }]}>
-            广州市白云区西槎路同雅东街7号同粤大厦506
-          </Text>
-          <Text style={[styles.twinskInfoLine, { fontFamily: cjk }]}>
-            邓小姐 13710816769
-          </Text>
+        {/* Client + conditions : deux cartes, comme à l'écran */}
+        <View style={styles.cardsRow}>
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>FACTURÉ À</Text>
+            <Text style={styles.cardClientName}>{clientName || 'Client Twinsk'}</Text>
+            {clientEmail ? <Text style={styles.cardLine}>{clientEmail}</Text> : null}
+            {clientPhone ? <Text style={styles.cardLine}>{clientPhone}</Text> : null}
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>CONDITIONS</Text>
+            <Text style={styles.cardLine}>
+              Devise : <Text style={styles.cardStrong}>{currency}</Text> · Prix FOB Chine, transport détaillé ci-dessous
+            </Text>
+            <Text style={styles.cardLine}>
+              Validité : <Text style={styles.cardStrong}>15 jours</Text> · Paiement à la commande
+            </Text>
+            <Text style={styles.cardLine}>
+              Destination : <Text style={styles.cardStrong}>{destLabel}</Text>
+            </Text>
+          </View>
         </View>
 
         {/* Products table */}
