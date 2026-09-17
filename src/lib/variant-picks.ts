@@ -51,6 +51,8 @@ export interface QuoteLineVariant {
 /** Ligne prête pour le devis / la packing list (une par variante retenue). */
 export interface ResolvedQuoteLine {
   key: string;
+  /** Clé commune aux lignes-variantes d'un même produit (regroupement sur le devis). */
+  product_key: string;
   title: string;
   description: string | null;
   image_url: string;
@@ -133,6 +135,7 @@ export function resolveQuoteLines(r: QuoteSourceResult): ResolvedQuoteLine[] {
   if (picked.length) {
     return picked.map((v, i) => ({
       key: `${base}:${v.id || i}`,
+      product_key: base,
       title: r.title,
       description: r.description ?? null,
       image_url: str(v.image_url) || r.image_url,
@@ -163,6 +166,7 @@ export function resolveQuoteLines(r: QuoteSourceResult): ResolvedQuoteLine[] {
   return [
     {
       key: base,
+      product_key: base,
       title: r.title,
       description: r.description ?? null,
       image_url: r.image_url,

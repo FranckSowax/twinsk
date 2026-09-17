@@ -6,6 +6,7 @@ import {
 import { normalizeQuoteTransportMode, pickQuoteTransportCny, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { ensureCjkFont } from '@/lib/pdf/fonts';
 import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
+import { groupQuoteItems } from '@/lib/quote-groups';
 
 // Nombre max de variantes non retenues listees dans la cellule produit.
 // Au-dela, la ligne devenait plus haute qu une page : react-pdf la renvoyait
@@ -261,6 +262,8 @@ interface QuoteVariant {
 }
 
 interface QuoteItem {
+  /** Clé de regroupement des variantes d'un même produit. */
+  product_key?: string | null;
   title: string;
   /** Renseigné quand la ligne est une variante retenue du produit. */
   variant_name?: string | null;
@@ -426,7 +429,48 @@ export default function QuotePDF({
           </View>
 
           {/* Data rows */}
-          {items.map((item, index) => {
+          {groupQuoteItems(items).map((g, gi) => {
+            if (g.kind === 'variants') {
+              const p = g.product;
+              const description = p.description ? truncateOnWord(stripMarkdown(p.description), DESCRIPTION_MAX_CHARS) : '';
+              return (
+                <View key={`g-${gi}`}>
+                  {/* Produit : titre en gras + description, une seule fois */}
+                  <View style={styles.tableRow}>
+                    <View style={[styles.productCell, styles.colProduct]}>
+                      {p.image_url ? <Image src={p.image_url} style={styles.productImage} /> : null}
+                      <Text style={styles.productTitleBold}>{p.title}</Text>
+                      {description ? <Text style={{ fontSize: 8, color: '#475569', lineHeight: 1.3 }}>{description}</Text> : null}
+                    </View>
+                    <Text style={[styles.tableCell, styles.colQty, { fontSize: 7.5, color: '#94a3b8' }]}>
+                      {g.variants.length} variante{g.variants.length > 1 ? 's' : ''}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.colArea]} />
+                    <Text style={[styles.tableCell, styles.colUnit]} />
+                    <Text style={[styles.tableCell, styles.colTotalLast]} />
+                  </View>
+                  {/* Variantes retenues : nom en gras sur bandeau bleu, prix / quantité / total en face */}
+                  {g.variants.map((v, vi) => {
+                    const finalPrice = v.price * (1 + v.margin_percent / 100);
+                    return (
+                      <View key={`v-${gi}-${vi}`} style={[styles.tableRow, { minHeight: 24, backgroundColor: '#eff6ff' }]}>
+                        <View style={[styles.productCell, styles.colProduct, { paddingLeft: 14, justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#0c4a6e', borderLeftWidth: 3, borderLeftColor: '#0284c7', paddingLeft: 5 }}>
+                            {v.variant_name}
+                          </Text>
+                        </View>
+                        <Text style={[styles.tableCell, styles.colQty, { fontFamily: 'Helvetica-Bold' }]}>{v.quantity}</Text>
+                        <Text style={[styles.tableCell, styles.colArea]}>—</Text>
+                        <Text style={[styles.tableCell, styles.colUnit]}>{fmt(finalPrice, currency)}</Text>
+                        <Text style={[styles.tableCell, styles.colTotalLast, { fontFamily: 'Helvetica-Bold' }]}>{fmt(finalPrice * v.quantity, currency)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            }
+            const item = g.item;
+            const index = gi;
             const unitBase = unitPriceFor(item);
             const finalPrice = unitBase * (1 + item.margin_percent / 100);
             const lineTotal = finalPrice * item.quantity;
@@ -445,11 +489,6 @@ export default function QuotePDF({
                     <Image src={item.image_url} style={styles.productImage} />
                   ) : null}
                   <Text style={styles.productTitleBold}>{item.title}</Text>
-                  {item.variant_name ? (
-                    <Text style={{ fontSize: 8, color: '#4338ca', fontFamily: 'Helvetica-Bold', marginBottom: 2 }}>
-                      Variante : {item.variant_name}
-                    </Text>
-                  ) : null}
                   {description ? (
                     <Text style={{ fontSize: 8, color: '#475569', lineHeight: 1.3 }}>
                       {description}

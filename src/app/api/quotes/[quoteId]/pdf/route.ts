@@ -132,6 +132,7 @@ export async function GET(
         clientEmail: req?.client_email || '',
         clientPhone: req?.client_phone || '',
         items: quoteLines.map((l) => ({
+          product_key: l.product_key,
           title: l.title,
           variant_name: l.variant_name,
           description: l.description,

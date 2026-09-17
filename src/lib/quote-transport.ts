@@ -8,6 +8,7 @@ import {
   CONTAINER_40,
   DEFAULT_DESTINATION,
   GROUPAGE_MAX_CBM,
+  destinationLabel as destinationLabelFor,
   resolveDestination,
   type DestinationCode,
 } from './destinations';
@@ -137,7 +138,7 @@ export function computeQuoteTransport(
 
   return {
     destinationCode: dest.code,
-    destinationLabel: dest.label,
+    destinationLabel: destinationLabelFor(destinationCode), // texte saisi (ville / pays), tarifs du pays reconnu
     hub: dest.hub,
     nativeCurrency: dest.currency,
     totalWeight: weightKnown ? totalWeight : null,

@@ -44,6 +44,7 @@ export interface QuoteVariantDisplay {
 }
 
 interface QuoteItemDisplay {
+  product_key: string;
   title: string;
   variant_name: string | null;
   description: string | null;
@@ -96,6 +97,7 @@ export default function QuotePage() {
 
         setQuoteItems(
           lines.map((l) => ({
+            product_key: l.product_key,
             title: l.title,
             variant_name: l.variant_name,
             description: l.description,

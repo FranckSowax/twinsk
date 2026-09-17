@@ -1,6 +1,8 @@
 'use client';
 
+import { Fragment } from 'react';
 import { motion } from 'framer-motion';
+import { groupQuoteItems } from '@/lib/quote-groups';
 import { Download, Printer } from 'lucide-react';
 import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny } from '@/lib/quote-transport';
@@ -15,6 +17,8 @@ interface QuoteVariantDisplay {
 }
 
 interface QuoteItemDisplay {
+  /** Clé de regroupement des variantes d'un même produit. */
+  product_key?: string | null;
   title: string;
   /** Renseigné quand la ligne est une variante retenue du produit. */
   variant_name?: string | null;
@@ -191,7 +195,48 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => {
+              {groupQuoteItems(items).map((g, gi) => {
+                if (g.kind === 'variants') {
+                  const p = g.product;
+                  return (
+                    <Fragment key={`g-${gi}`}>
+                      {/* Produit : titre en gras + description, une seule fois */}
+                      <tr className="border-t border-slate-300 align-top">
+                        <td className="border-r border-slate-300 p-3">
+                          {p.image_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.image_url} alt={p.title} className="mb-2 h-16 w-16 rounded object-cover" />
+                          )}
+                          <p className="font-bold text-slate-900 dark:text-white">{p.title}</p>
+                          {p.description && (
+                            <p className="mt-1 line-clamp-6 text-xs text-slate-600 dark:text-slate-400">{stripMarkdown(p.description)}</p>
+                          )}
+                        </td>
+                        <td className="border-r border-slate-300 p-3 text-center text-xs text-slate-400">{g.variants.length} variante{g.variants.length > 1 ? 's' : ''}</td>
+                        <td className="border-r border-slate-300 p-3" />
+                        <td className="border-r border-slate-300 p-3" />
+                        <td className="p-3" />
+                      </tr>
+                      {/* Variantes retenues : nom en gras sur bandeau bleu, prix / quantité / total en face */}
+                      {g.variants.map((v, vi) => {
+                        const final = applyMargin(v.price, v.margin_percent);
+                        return (
+                          <tr key={`v-${gi}-${vi}`} className="border-t border-slate-200 bg-sky-50 align-middle dark:bg-sky-900/20">
+                            <td className="border-r border-slate-300 py-2 pl-6 pr-3">
+                              <p className="border-l-4 border-sky-600 pl-2 text-sm font-bold text-sky-900 dark:text-sky-200">{v.variant_name}</p>
+                            </td>
+                            <td className="border-r border-slate-300 p-3 text-center font-semibold">{v.quantity}</td>
+                            <td className="border-r border-slate-300 p-3 text-center text-slate-400">—</td>
+                            <td className="border-r border-slate-300 p-3 text-center">{fmt(final)}</td>
+                            <td className="p-3 text-right font-bold">{fmt(final * v.quantity)}</td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                }
+                const it = g.item;
+                const i = gi;
                 const unitBase = unitPriceFor(it);
                 const final = applyMargin(unitBase, it.margin_percent);
                 const lineTotal = final * it.quantity;
@@ -210,11 +255,6 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         />
                       )}
                       <p className="font-semibold text-slate-900 dark:text-white">{it.title}</p>
-                      {it.variant_name && (
-                        <p className="mt-0.5 inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                          Variante : {it.variant_name}
-                        </p>
-                      )}
                       {it.description && (
                         <p className="mt-1 line-clamp-6 text-xs text-slate-600 dark:text-slate-400">
                           {stripMarkdown(it.description)}
