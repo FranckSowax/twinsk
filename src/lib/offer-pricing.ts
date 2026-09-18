@@ -282,8 +282,10 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     currency === 'EUR' ? EUR_SEA_RATE_PER_M3 : seaAvailable ? seaRateForVolume(totalVolume) : SEA_RATE_FCFA_PER_M3;
   const promoSea = opts.seaRate != null && opts.seaRate > 0 ? fromFcfa(opts.seaRate, currency) : null;
   const seaRate = promoSea != null ? Math.min(promoSea, degressiveSeaRate) : degressiveSeaRate;
-  // En euros, coûts et totaux au centime ; en FCFA, inchangés (bruts, comme avant).
-  const cents = (n: number) => (currency === 'EUR' ? Math.round(n * 100) / 100 : n);
+  // Coûts et totaux au centime (en FCFA aussi : cela ne change rien au montant
+  // et évite le bruit flottant, ex. 20 × 0,07 m³ = 1,4000000000000001 qui
+  // faisait arrondir 336 000 en 336 100 à l'affichage).
+  const cents = (n: number) => Math.round(n * 100) / 100;
   const airCostStd = airAvailable ? cents(weightStd * airRate) : null;
   const airCostBattery = airAvailable ? cents(weightBattery * airBatteryRate) : null;
   const airCost = airAvailable ? cents((airCostStd ?? 0) + (airCostBattery ?? 0)) : null;
