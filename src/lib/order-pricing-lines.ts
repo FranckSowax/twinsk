@@ -4,6 +4,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { settlementCurrencyOf, type OrderLineForPricing, type SettlementCurrency } from '@/lib/offer-pricing';
+import { readOrderSplit } from '@/lib/order-split';
 
 /** Devise de règlement d'un listing (EUR si l'offre est affichée en euros, sinon FCFA). */
 export async function offerSettlementCurrency(offerId: string | null | undefined): Promise<SettlementCurrency> {
@@ -13,6 +14,7 @@ export async function offerSettlementCurrency(offerId: string | null | undefined
 }
 
 interface LineRow {
+  id: string;
   product_id: string | null;
   variant_id: string | null;
   quantity: number;
@@ -25,8 +27,12 @@ interface Vari { id?: string; weight?: number | null; volume?: number | null }
 interface ProductMeta { id: string; weight: number | null; volume: number | null; has_battery: boolean; variants: Vari[] | null }
 
 export async function loadOrderPricingLines(orderId: string): Promise<OrderLineForPricing[]> {
-  const { data: lines } = await supabaseAdmin.from('offer_order_lines').select('*').eq('order_id', orderId);
+  const [{ data: lines }, split] = await Promise.all([
+    supabaseAdmin.from('offer_order_lines').select('*').eq('order_id', orderId),
+    readOrderSplit(orderId),
+  ]);
   const rows = (lines || []) as LineRow[];
+  const hasSplit = Object.keys(split).length > 0;
   const ids = Array.from(new Set(rows.map((l) => l.product_id).filter(Boolean))) as string[];
   const { data: prods } = ids.length
     ? await supabaseAdmin.from('offer_products').select('id, weight, volume, has_battery, variants').in('id', ids)
@@ -41,6 +47,8 @@ export async function loadOrderPricingLines(orderId: string): Promise<OrderLineF
       weight: l.weight ?? vari?.weight ?? meta?.weight ?? null,
       volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
       has_battery: l.has_battery ?? !!meta?.has_battery,
+      // Transport fractionné : unités avion de la ligne (0 = tout en bateau).
+      air_qty: hasSplit ? (split[l.id] ?? 0) : null,
     };
   });
 }

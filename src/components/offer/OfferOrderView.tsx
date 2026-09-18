@@ -15,7 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2 } from 'lucide-react';
 import OrderAddProductModal from '@/components/offer/OrderAddProductModal';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { formatSettlement, formatSettlementRate, roundSettlement, SEA_RATE_FCFA_PER_M3, type SettlementCurrency } from '@/lib/offer-pricing';
+import { formatSettlement, formatSettlementRate, roundSettlement, SEA_RATE_FCFA_PER_M3, transportCostFor, type MixedTransport, type SettlementCurrency } from '@/lib/offer-pricing';
+import TransportSplitEditor from '@/components/offer/TransportSplitEditor';
 import { orderNumber } from '@/lib/order-number';
 import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
 
@@ -32,6 +33,8 @@ interface OrderLine {
   subtotal_cny: number;
   subtotal_fcfa: number;
   price_type?: string | null; // "acompte" → ligne sur devis (hors total)
+  /** Transport fractionné : unités de la ligne qui partent en avion (null = pas de répartition). */
+  air_qty?: number | null;
 }
 
 interface Pricing {
@@ -40,6 +43,7 @@ interface Pricing {
   airWeightBattery?: number | null;
   airCostStd?: number | null;
   airCostBattery?: number | null;
+  mixed?: MixedTransport | null;
   discountFcfa: number;
   itemsNetFcfa: number;
   itemsTotalCny: number;
@@ -64,7 +68,7 @@ interface OrderRow {
   client_name: string;
   client_phone: string;
   client_email: string | null;
-  transport_mode: 'air' | 'sea' | 'quote' | null;
+  transport_mode: 'air' | 'sea' | 'mixed' | 'quote' | null;
   transport_cost: number | null;
   promo: { code: string; kind: string; label: string; discount_fcfa: number; rate: number | null } | null;
   status: string;
@@ -93,9 +97,11 @@ interface Props {
 export default function OfferOrderView({ offerId, orderId, paymentParam }: Props) {
   const [data, setData] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [savingTransport, setSavingTransport] = useState<'air' | 'sea' | 'quote' | null>(
+  const [savingTransport, setSavingTransport] = useState<'air' | 'sea' | 'mixed' | 'quote' | null>(
     null,
   );
+  // Transport fractionné : éditeur ouvert (avion + bateau par produit).
+  const [splitOpen, setSplitOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'ebilling' | 'airtel' | 'cash' | null>(null);
@@ -145,7 +151,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
     if (o.client_email) setContactEmail((v) => v || o.client_email || '');
   }, [data]);
 
-  const pickTransport = async (mode: 'air' | 'sea' | 'quote') => {
+  const pickTransport = async (mode: 'air' | 'sea' | 'mixed' | 'quote', split?: Record<string, number>) => {
     setSavingTransport(mode);
     setError('');
     try {
@@ -154,7 +160,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transport_mode: mode }),
+          body: JSON.stringify({ transport_mode: mode, ...(split ? { split } : {}) }),
         },
       );
       const json = await res.json();
@@ -390,7 +396,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const paymentSubmitted = order.payment_status === 'submitted';
   const cartEditable = !paymentDone && !paymentSubmitted;
   // Total recalculé à chaque affichage (devise du listing), jamais relu tel quel.
-  const transportCostNow = order.transport_mode === 'air' ? pricing.airCost : order.transport_mode === 'sea' ? pricing.seaCost : null;
+  const transportCostNow = transportCostFor(pricing as Parameters<typeof transportCostFor>[0], order.transport_mode);
+  const isMixed = order.transport_mode === 'mixed';
+  const canSplit = lines.length > 0 && (pricing.airAvailable || pricing.seaAvailable);
   const grandTotalFcfa = roundSettlement(pricing.itemsNetFcfa + (transportCostNow || 0), currency);
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
@@ -650,6 +658,40 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           </button>
         </div>
 
+        {/* Fractionner : une partie en avion, le reste en bateau */}
+        {canSplit && (
+          <button
+            type="button"
+            onClick={() => setSplitOpen((v) => !v)}
+            className={`flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3 text-left transition-all ${
+              isMixed ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-200' : 'border-slate-200 bg-white hover:border-violet-400 hover:bg-violet-50'
+            }`}
+          >
+            <span>
+              <span className="flex items-center gap-2 font-semibold text-slate-900">
+                <Plane className="h-4 w-4 text-sky-600" /><Ship className="h-4 w-4 text-blue-600" /> Fractionner : une partie en avion, le reste en bateau
+                {isMixed && <CheckCircle2 className="h-4 w-4 text-violet-600" />}
+              </span>
+              <span className="block text-xs text-slate-500">
+                {isMixed && pricing.mixed
+                  ? `✈️ ${pricing.mixed.airUnits} unité(s) · 🚢 ${pricing.mixed.seaUnits} unité(s) — ${pricing.mixed.available ? fmt(pricing.mixed.cost) : 'à compléter'}`
+                  : 'Ex. : 10 pièces urgentes en avion, les 20 autres en bateau'}
+              </span>
+            </span>
+            <ArrowRight className={`h-4 w-4 text-slate-400 transition-transform ${splitOpen || isMixed ? 'rotate-90' : ''}`} />
+          </button>
+        )}
+        {canSplit && (splitOpen || isMixed) && (
+          <TransportSplitEditor
+            lines={lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty }))}
+            mixed={pricing.mixed}
+            currency={currency}
+            applied={isMixed}
+            busy={savingTransport === 'mixed'}
+            onApply={(split) => pickTransport('mixed', split)}
+          />
+        )}
+
         {!pricing.airAvailable && !pricing.seaAvailable && (
           <button
             type="button"
@@ -676,13 +718,19 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             )}
             <div className="flex items-center justify-between text-sm text-slate-300">
               <span>
-                Transport ({order.transport_mode === 'air' ? 'aérien' : 'maritime'})
+                Transport ({order.transport_mode === 'air' ? 'aérien' : order.transport_mode === 'sea' ? 'maritime' : 'fractionné avion + bateau'})
                 {order.promo && (order.promo.kind === 'air_rate' || order.promo.kind === 'sea_rate') && (
                   <span className="ml-1 text-emerald-300">· tarif {order.promo.code}</span>
                 )}
               </span>
-              <span>{fmt(order.transport_mode === 'air' ? pricing.airCost : pricing.seaCost)}</span>
+              <span>{fmt(transportCostNow)}</span>
             </div>
+            {isMixed && pricing.mixed && (
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>✈️ {pricing.mixed.airUnits} en avion · 🚢 {pricing.mixed.seaUnits} en bateau</span>
+                <span>{fmt(pricing.mixed.airCost)} + {fmt(pricing.mixed.seaCost)}</span>
+              </div>
+            )}
 
             {/* Code promo */}
             {!paymentDone && !paymentSubmitted && (
@@ -715,9 +763,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             <div className="flex items-center justify-between text-base font-bold">
               <span>Total à payer</span>
               <span className="text-emerald-400">
-                {fmt(
-                  order.transport_mode === 'air' ? pricing.airTotal : pricing.seaTotal,
-                )}
+                {fmt(grandTotalFcfa)}
               </span>
             </div>
           </div>

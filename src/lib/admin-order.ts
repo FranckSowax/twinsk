@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing, roundSettlement } from '@/lib/offer-pricing';
-import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
+import { computeOrderPricing, roundSettlement, transportCostFor } from '@/lib/offer-pricing';
+import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 
 // Recalcule et persiste les totaux d'une commande /offer à partir de ses lignes
 // (poids/volume/batterie stockés sur offer_order_lines) et du mode de transport.
@@ -22,25 +22,12 @@ export async function recomputeOrder(orderId: string): Promise<{
   if (!order) return null;
   const currency = await offerSettlementCurrency(order.offer_id);
 
-  const { data: lines } = await supabaseAdmin
-    .from('offer_order_lines')
-    .select('unit_price_cny, quantity, weight, volume, has_battery')
-    .eq('order_id', orderId);
+  // Lignes (snapshot poids/volume/batterie, repli variante/produit) + répartition
+  // avion/bateau éventuelle (transport fractionné).
+  const pricing = computeOrderPricing(await loadOrderPricingLines(orderId), { currency });
 
-  const pricing = computeOrderPricing(
-    (lines || []).map((l) => ({
-      unit_price_cny: Number(l.unit_price_cny) || 0,
-      quantity: Number(l.quantity) || 1,
-      weight: l.weight != null ? Number(l.weight) : null,
-      volume: l.volume != null ? Number(l.volume) : null,
-      has_battery: !!l.has_battery,
-    })),
-    { currency },
-  );
-
-  const mode = order.transport_mode as 'air' | 'sea' | 'quote' | null;
-  const transportCost =
-    mode === 'air' ? pricing.airCost : mode === 'sea' ? pricing.seaCost : null;
+  const mode = order.transport_mode as 'air' | 'sea' | 'mixed' | 'quote' | null;
+  const transportCost = transportCostFor(pricing, mode);
   const grandTotal = roundSettlement(
     pricing.itemsTotalFcfaRounded + (transportCost || 0),
     currency,

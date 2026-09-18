@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SEA_RATE_FCFA_PER_M3, SEA_RATE_FLOOR_FCFA_PER_M3, computeOrderPricing, seaRateForVolume } from './offer-pricing';
+import { SEA_RATE_FCFA_PER_M3, SEA_RATE_FLOOR_FCFA_PER_M3, computeOrderPricing, grandTotalFor, seaRateForVolume, transportCostFor } from './offer-pricing';
 
 const line = (volume: number, weight = 1) => ({ unit_price_cny: 100, quantity: 1, weight, volume, has_battery: false });
 
@@ -92,5 +92,36 @@ describe('fret aérien scindé standard / batterie (18 sept. 2026)', () => {
     expect(r.airRate).toBe(12000);
     expect(r.airBatteryRate).toBe(12000);
     expect(r.airCost).toBe(60000);
+  });
+});
+
+describe('transport fractionné (avion + bateau) — 18 sept. 2026', () => {
+  const l = (quantity: number, air_qty: number | null, weight = 1, volume = 0.05, has_battery = false) => ({ unit_price_cny: 10, quantity, weight, volume, has_battery, air_qty });
+  it('sans répartition, mixed est null ; avec répartition, chaque part est chiffrée à son tarif', () => {
+    expect(computeOrderPricing([l(30, null)]).mixed).toBeNull();
+    const r = computeOrderPricing([l(30, 10)]);
+    expect(r.mixed).not.toBeNull();
+    expect(r.mixed!.airUnits).toBe(10);
+    expect(r.mixed!.seaUnits).toBe(20);
+    expect(r.mixed!.airCost).toBe(10 * 1 * 13000);
+    expect(r.mixed!.seaCost).toBe(20 * 0.05 * 240000); // 1 m³ → plein tarif
+    expect(r.mixed!.cost).toBe(130000 + 240000);
+    expect(r.mixed!.total).toBe(r.itemsNetFcfa + 370000);
+    expect(transportCostFor(r, 'mixed')).toBe(370000);
+    expect(grandTotalFor(r, 'mixed')).toBe(r.mixed!.total);
+  });
+  it('tout en avion ou tout en bateau via la répartition, batterie scindée sur la part avion', () => {
+    const allAir = computeOrderPricing([l(5, 5), l(2, 2, 2, 0.01, true)]);
+    expect(allAir.mixed!.seaUnits).toBe(0);
+    expect(allAir.mixed!.airCostBattery).toBe(4 * 18000);
+    expect(allAir.mixed!.cost).toBe(5 * 13000 + 4 * 18000);
+    const allSea = computeOrderPricing([l(5, 0)]);
+    expect(allSea.mixed!.airUnits).toBe(0);
+    expect(allSea.mixed!.cost).toBe(allSea.seaCost);
+  });
+  it('indisponible si un poids manque côté avion ou un volume côté bateau', () => {
+    expect(computeOrderPricing([l(4, 2, 1, null as unknown as number)]).mixed!.available).toBe(false);
+    expect(computeOrderPricing([l(4, 4, 1, null as unknown as number)]).mixed!.available).toBe(true);
+    expect(computeOrderPricing([l(4, 2, null as unknown as number, 0.05)]).mixed!.available).toBe(false);
   });
 });

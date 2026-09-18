@@ -95,6 +95,33 @@ export interface OrderLineForPricing {
   weight: number | null;
   volume: number | null;
   has_battery: boolean;
+  /** Transport fractionné : unités de la ligne qui partent en AVION (le reste en bateau). */
+  air_qty?: number | null;
+}
+
+/** Mode de transport d'une commande : aérien, maritime, fractionné (avion + bateau), ou sur devis. */
+export type TransportMode = 'air' | 'sea' | 'mixed' | 'quote';
+
+/** Détail d'un transport fractionné : la part avion et la part bateau, chacune à son tarif. */
+export interface MixedTransport {
+  /** Unités qui partent en avion / en bateau. */
+  airUnits: number;
+  seaUnits: number;
+  airWeight: number | null;
+  seaVolume: number | null;
+  airCost: number | null;
+  seaCost: number | null;
+  /** Détail aérien (standard / batterie) de la part avion. */
+  airCostStd: number | null;
+  airCostBattery: number | null;
+  /** Tarif maritime appliqué à la part bateau (grille dégressive sur SON volume). */
+  seaRate: number;
+  /** Coût transport total (avion + bateau). */
+  cost: number | null;
+  /** Total à payer (articles nets + transport). */
+  total: number | null;
+  /** Les deux parts sont chiffrables (poids connus côté avion, volumes connus côté bateau). */
+  available: boolean;
 }
 
 /** Ajustements d'un code promo : tarif transport imposé et/ou remise articles. */
@@ -141,6 +168,65 @@ export interface PricingResult {
   discountFcfa: number;
   /** Total articles après remise — c'est lui qui entre dans le total à payer. */
   itemsNetFcfa: number;
+  /** Transport fractionné (dès qu'une ligne porte un air_qty entre 0 et sa quantité) ; null sinon. */
+  mixed: MixedTransport | null;
+}
+
+/** Unités « avion » d'une ligne en mode fractionné (bornées à la quantité). */
+export function airUnitsOf(l: Pick<OrderLineForPricing, 'quantity' | 'air_qty'>): number {
+  const n = Number(l.air_qty);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(Math.max(1, Math.trunc(l.quantity)), Math.trunc(n));
+}
+
+/**
+ * Transport fractionné : chaque ligne envoie `air_qty` unités en avion et le
+ * reste en bateau. Chaque part est chiffrée par le moteur normal (aérien scindé
+ * standard / batterie ; maritime dégressif sur le volume de la part bateau).
+ */
+function computeMixed(lines: OrderLineForPricing[], opts: PricingOptions, itemsNet: number, cents: (n: number) => number): MixedTransport | null {
+  if (!lines.some((l) => l.air_qty != null)) return null;
+  const airLines = lines.map((l) => ({ ...l, quantity: airUnitsOf(l) })).filter((l) => l.quantity > 0);
+  const seaLines = lines.map((l) => ({ ...l, quantity: Math.trunc(l.quantity) - airUnitsOf(l) })).filter((l) => l.quantity > 0);
+  const sub = { ...opts, currency: opts.currency };
+  const air = airLines.length ? computeOrderPricing(airLines.map((l) => ({ ...l, air_qty: null })), sub) : null;
+  const sea = seaLines.length ? computeOrderPricing(seaLines.map((l) => ({ ...l, air_qty: null })), sub) : null;
+  const airUnits = airLines.reduce((s, l) => s + l.quantity, 0);
+  const seaUnits = seaLines.reduce((s, l) => s + l.quantity, 0);
+  const airOk = !air || air.airAvailable;
+  const seaOk = !sea || sea.seaAvailable;
+  const available = airOk && seaOk && (airUnits + seaUnits) > 0;
+  const airCost = air ? air.airCost : 0;
+  const seaCost = sea ? sea.seaCost : 0;
+  const cost = available && airCost != null && seaCost != null ? cents(airCost + seaCost) : null;
+  return {
+    airUnits,
+    seaUnits,
+    airWeight: air ? air.totalWeight : 0,
+    seaVolume: sea ? sea.totalVolume : 0,
+    airCost: air ? air.airCost : 0,
+    seaCost: sea ? sea.seaCost : 0,
+    airCostStd: air ? air.airCostStd : 0,
+    airCostBattery: air ? air.airCostBattery : 0,
+    seaRate: sea ? sea.seaRate : 0,
+    cost,
+    total: cost != null ? cents(itemsNet + cost) : null,
+    available,
+  };
+}
+
+/** Coût du transport retenu (null si non chiffrable ou sur devis). */
+export function transportCostFor(p: PricingResult, mode: string | null | undefined): number | null {
+  if (mode === 'air') return p.airCost;
+  if (mode === 'sea') return p.seaCost;
+  if (mode === 'mixed') return p.mixed?.cost ?? null;
+  return null;
+}
+
+/** Total à payer pour le mode retenu (articles nets si pas de transport chiffré). */
+export function grandTotalFor(p: PricingResult, mode: string | null | undefined): number {
+  const t = transportCostFor(p, mode);
+  return t != null ? (mode === 'air' ? p.airTotal! : mode === 'sea' ? p.seaTotal! : p.mixed!.total!) : p.itemsNetFcfa;
 }
 
 export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingOptions = {}): PricingResult {
@@ -235,6 +321,7 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     // Total à payer = total produits arrondi (somme des lignes) − remise + transport.
     airTotal: airCost != null ? cents(itemsNetFcfa + airCost) : null,
     seaTotal: seaCost != null ? cents(itemsNetFcfa + seaCost) : null,
+    mixed: computeMixed(lines, opts, itemsNetFcfa, cents),
   };
 }
 

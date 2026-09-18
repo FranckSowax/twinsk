@@ -79,6 +79,7 @@ export const PAY_FALLBACK = { icon: CreditCard, label: 'Non choisi', box: 'bg-sl
 export const TRANSPORT_META: Record<string, { icon: LucideIcon; label: string; box: string }> = {
   air: { icon: Plane, label: 'Aérien', box: 'bg-sky-50 text-sky-600 ring-sky-200' },
   sea: { icon: Ship, label: 'Maritime', box: 'bg-blue-50 text-blue-600 ring-blue-200' },
+  mixed: { icon: Ship, label: 'Fractionné', box: 'bg-violet-50 text-violet-600 ring-violet-200' },
   quote: { icon: FileText, label: 'Sur devis', box: 'bg-slate-50 text-slate-500 ring-slate-200' },
 };
 export const TRANSPORT_FALLBACK = { icon: FileText, label: 'Non choisi', box: 'bg-slate-50 text-slate-400 ring-slate-200' };

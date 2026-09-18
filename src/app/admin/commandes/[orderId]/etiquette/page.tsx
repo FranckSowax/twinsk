@@ -21,6 +21,7 @@ interface LabelOrder {
 const TYPE_LABEL: Record<string, string> = {
   air: 'FRET AÉRIEN',
   sea: 'FRET MARITIME',
+  mixed: 'FRET AÉRIEN + MARITIME',
   quote: 'DEVIS',
 };
 

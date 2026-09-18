@@ -70,6 +70,7 @@ interface OrderDetail {
 const TRANSPORT_KEY: Record<string, TKey> = {
   air: 'orders.transport.air',
   sea: 'orders.transport.sea',
+  mixed: 'orders.transport.mixed',
   quote: 'orders.transport.quote',
 };
 

@@ -4,7 +4,7 @@
 // client ne paie jamais un montant remisé à tort.
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing, toFcfa } from '@/lib/offer-pricing';
+import { computeOrderPricing, grandTotalFor, toFcfa, transportCostFor } from '@/lib/offer-pricing';
 import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { confirmPromoUse, countPromoUses, evaluatePromo, normalizePhone, releasePromoUse, type PromoCode } from '@/lib/promo';
 
@@ -53,8 +53,8 @@ export async function settlePromoForOrder(orderId: string): Promise<SettleResult
         promo_rate: null,
         promo_discount_fcfa: 0,
         items_total_fcfa: pricing.itemsTotalFcfaRounded,
-        transport_cost: mode === 'air' ? pricing.airCost : mode === 'sea' ? pricing.seaCost : null,
-        grand_total_fcfa: (mode === 'air' ? pricing.airTotal : mode === 'sea' ? pricing.seaTotal : null) ?? pricing.itemsNetFcfa,
+        transport_cost: transportCostFor(pricing, mode),
+        grand_total_fcfa: grandTotalFor(pricing, mode),
       })
       .eq('id', orderId);
     return { ok: false, reason: `${reason} Le code a été retiré et votre total mis à jour.` };

@@ -7,10 +7,11 @@
 // avec le bouton « Voir le produit », puis le récap avec « Voir mon panier ».
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, FilePlus2, Loader2, Minus, Pencil, Plus, RefreshCw, Save, Search, Send, ShoppingCart, Trash2 } from 'lucide-react';
+import { ExternalLink, FilePlus2, Loader2, Minus, Pencil, Plane, Plus, RefreshCw, Save, Search, Send, Ship, ShoppingCart, Trash2 } from 'lucide-react';
+import TransportSplitEditor from '@/components/offer/TransportSplitEditor';
 import SmartImage from '@/components/ui/SmartImage';
 import { formatInCurrency } from '@/lib/utils/formatCurrency';
-import { formatSettlement, roundSettlement } from '@/lib/offer-pricing';
+import { formatSettlement, roundSettlement, transportCostFor, grandTotalFor, type MixedTransport, type PricingResult } from '@/lib/offer-pricing';
 import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
@@ -24,9 +25,9 @@ interface SavedCart {
   id: string; offer_id: string; offer_title: string | null; client_name: string; client_phone: string;
   status: string; transport_mode: string | null; items_total_fcfa: number | null; items_count: number; created_at: string; currency?: 'XAF' | 'EUR';
 }
-interface OrderLine { id: string; product_id: string | null; product_title: string | null; variant_name: string | null; product_image: string | null; quantity: number; unit_price_fcfa: number; subtotal_fcfa: number; price_type: string | null }
-interface OrderData { currency?: 'XAF' | 'EUR'; order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; airTotal: number | null; seaTotal: number | null } }
-interface SendResult { order_id: string; order_url: string; items_total_fcfa?: number; sent: number; errors: string[]; success: boolean; saved?: boolean }
+interface OrderLine { id: string; product_id: string | null; product_title: string | null; variant_name: string | null; product_image: string | null; quantity: number; unit_price_fcfa: number; subtotal_fcfa: number; price_type: string | null; air_qty?: number | null }
+interface OrderData { currency?: 'XAF' | 'EUR'; order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; itemsNetFcfa: number; airTotal: number | null; seaTotal: number | null; airCost: number | null; seaCost: number | null; airAvailable: boolean; seaAvailable: boolean; mixed?: MixedTransport | null } }
+interface SendResult { order_id: string; order_url: string; items_total_fcfa?: number; grand_total_fcfa?: number | null; transport_mode?: string | null; sent: number; errors: string[]; success: boolean; saved?: boolean }
 
 const key = (p: string, v: string | null) => `${p}::${v || ''}`;
 // Montants dans la devise de règlement du listing (FCFA, ou euros pour un listing en euros).
@@ -169,6 +170,10 @@ export default function ClientCartPanel() {
   const editQty = (lineId: string, quantity: number) =>
     lineCall(`/lines/${lineId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quantity }) });
   const editRemove = (lineId: string) => lineCall(`/lines/${lineId}`, { method: 'DELETE' });
+  // Transport choisi par l'admin pour le client (aérien, maritime, ou fractionné avion + bateau).
+  const [splitOpen, setSplitOpen] = useState(false);
+  const setTransport = (mode: 'air' | 'sea' | 'mixed', split?: Record<string, number>) =>
+    lineCall('/transport', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transport_mode: mode, ...(split ? { split } : {}) }) });
   const saveContact = async () => {
     if (!editing) return;
     const contact = validateContact(clientName, clientPhone);
@@ -469,13 +474,53 @@ export default function ClientCartPanel() {
                 <span className="text-sm font-bold text-emerald-700">{editing && orderData ? fcfa(orderData.pricing.itemsTotalFcfaRounded, orderData.currency) : formatInCurrency(totalCny, panelCur)}</span>
               </div>
             )}
-            {editing && orderData && (orderData.pricing.airTotal != null || orderData.pricing.seaTotal != null) && (
-              <p className="mt-1 text-[11px] text-slate-500">
-                {orderData.pricing.airTotal != null ? `✈️ ${fcfa(orderData.pricing.airTotal, orderData.currency)}` : ''}{orderData.pricing.airTotal != null && orderData.pricing.seaTotal != null ? ' · ' : ''}{orderData.pricing.seaTotal != null ? `🚢 ${fcfa(orderData.pricing.seaTotal, orderData.currency)}` : ''}
-              </p>
-            )}
+            {editing && orderData && orderData.lines.length > 0 && (() => {
+              const cur = orderData.currency || 'XAF';
+              const mode = orderData.order.transport_mode;
+              const p = orderData.pricing as unknown as PricingResult;
+              const cost = transportCostFor(p, mode);
+              const total = mode && cost != null ? grandTotalFor(p, mode) : null;
+              const btn = (on: boolean, ok: boolean) =>
+                `flex flex-col items-start rounded-xl border-2 px-3 py-2 text-left text-xs ${on ? 'border-[#25D366] bg-[#25D366]/10' : ok ? 'border-slate-200 hover:border-[#25D366]/60 dark:border-slate-600' : 'cursor-not-allowed border-slate-200 opacity-50 dark:border-slate-700'}`;
+              return (
+                <div className="mt-3 space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-600">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Transport pour le client</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setTransport('sea')} disabled={busy !== null || !orderData.pricing.seaAvailable} className={btn(mode === 'sea', orderData.pricing.seaAvailable)}>
+                      <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Ship className="h-3.5 w-3.5 text-blue-600" /> Maritime</span>
+                      <span className="text-slate-600 dark:text-slate-300">{orderData.pricing.seaAvailable ? fcfa(orderData.pricing.seaCost ?? 0, cur) : 'volume manquant'}</span>
+                    </button>
+                    <button type="button" onClick={() => setTransport('air')} disabled={busy !== null || !orderData.pricing.airAvailable} className={btn(mode === 'air', orderData.pricing.airAvailable)}>
+                      <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /> Aérien</span>
+                      <span className="text-slate-600 dark:text-slate-300">{orderData.pricing.airAvailable ? fcfa(orderData.pricing.airCost ?? 0, cur) : 'poids manquant'}</span>
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => setSplitOpen((v) => !v)} disabled={busy !== null} className={`w-full ${btn(mode === 'mixed', true)}`}>
+                    <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /><Ship className="h-3.5 w-3.5 text-blue-600" /> Fractionner : une partie en avion, le reste en bateau</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {mode === 'mixed' && orderData.pricing.mixed ? `✈️ ${orderData.pricing.mixed.airUnits} · 🚢 ${orderData.pricing.mixed.seaUnits} — ${orderData.pricing.mixed.available ? fcfa(orderData.pricing.mixed.cost ?? 0, cur) : 'à compléter'}` : 'répartir produit par produit'}
+                    </span>
+                  </button>
+                  {(splitOpen || mode === 'mixed') && (
+                    <TransportSplitEditor
+                      compact
+                      lines={orderData.lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty }))}
+                      mixed={orderData.pricing.mixed}
+                      currency={cur}
+                      applied={mode === 'mixed'}
+                      busy={busy === 'line'}
+                      onApply={(split) => setTransport('mixed', split)}
+                    />
+                  )}
+                  <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+                    <span>Total à payer{mode ? '' : ' (transport non choisi)'}</span>
+                    <span className="font-bold text-emerald-400">{total != null ? fcfa(total, cur) : fcfa(orderData.pricing.itemsNetFcfa, cur)}</span>
+                  </div>
+                </div>
+              );
+            })()}
             <p className="mt-2 text-[11px] text-slate-500">
-              {editing ? 'Chaque modification est enregistrée immédiatement. Le client devra re-choisir le transport.' : 'Transport et code promo se choisissent sur la page panier envoyée au client.'}
+              {editing ? 'Chaque modification est enregistrée immédiatement. Un changement de produit ou de quantité remet le transport à choisir.' : 'Après « Sauvegarder », vous pourrez choisir le transport (ou le fractionner) avant l’envoi.'}
             </p>
           </div>
 
@@ -522,7 +567,7 @@ export default function ClientCartPanel() {
           {result && (
             <div className={`rounded-2xl border p-4 text-sm ${result.success ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
               <p className="font-semibold">{result.sent > 0 ? (result.success ? '✅ Envoyé sur WhatsApp' : '⚠️ Envoi partiel') : '💾 Panier enregistré'}</p>
-              {result.items_total_fcfa != null && <p className="mt-1">Total articles : {fcfa(result.items_total_fcfa, panelCur)}{result.sent > 0 ? ` · ${result.sent} message(s)` : ''}</p>}
+              {result.items_total_fcfa != null && <p className="mt-1">Total articles : {fcfa(result.items_total_fcfa, panelCur)}{result.grand_total_fcfa != null ? ` · total à payer ${fcfa(result.grand_total_fcfa, panelCur)}` : ''}{result.sent > 0 ? ` · ${result.sent} message(s)` : ''}</p>}
               <a href={result.order_url} target="_blank" rel="noreferrer" className="mt-1 block break-all underline">{result.order_url}</a>
               {result.errors.length > 0 && <ul className="mt-2 list-disc pl-5 text-xs">{result.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
             </div>

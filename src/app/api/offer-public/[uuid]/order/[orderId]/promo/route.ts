@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing, toFcfa } from '@/lib/offer-pricing';
+import { computeOrderPricing, grandTotalFor, toFcfa, transportCostFor } from '@/lib/offer-pricing';
 import {
   MAX_PROMO_ATTEMPTS,
   computeItemsDiscount,
@@ -38,9 +38,8 @@ async function persistTotals(orderId: string, offerId: string, promo: { kind: st
     discountFcfa: promo.discount,
     currency,
   });
-  const transportCost = transportMode === 'air' ? pricing.airCost : transportMode === 'sea' ? pricing.seaCost : null;
-  const grandTotal =
-    transportMode === 'air' ? pricing.airTotal : transportMode === 'sea' ? pricing.seaTotal : pricing.itemsNetFcfa;
+  const transportCost = transportCostFor(pricing, transportMode);
+  const grandTotal = grandTotalFor(pricing, transportMode);
   await supabaseAdmin
     .from('offer_orders')
     .update({
@@ -98,6 +97,7 @@ export async function POST(
   // sans bloquer (le client peut encore changer de transport).
   let notice: string | null = null;
   if (promo.kind === 'air_rate' && order.transport_mode === 'sea') notice = 'Ce code s’applique au fret aérien.';
+  if ((promo.kind === 'air_rate' || promo.kind === 'sea_rate') && order.transport_mode === 'mixed') notice = 'Transport fractionné : le tarif négocié s’applique à la part concernée.';
   if (promo.kind === 'sea_rate' && order.transport_mode === 'air') notice = 'Ce code s’applique au fret maritime.';
 
   const discount = computeItemsDiscount(promo, itemsTotalFcfa);

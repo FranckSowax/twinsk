@@ -4,18 +4,20 @@ import { publicOrigin } from '@/lib/public-origin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing } from '@/lib/offer-pricing';
 import { pricingOptionsFor } from '@/lib/promo';
-import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
+import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
+import { clearOrderSplit, writeOrderSplit } from '@/lib/order-split';
 
-// PATCH: Customer picks a transport mode ('air' | 'sea' | 'quote') and we
+// PATCH: Customer picks a transport mode ('air' | 'sea' | 'mixed' | 'quote') and we
 // persist the corresponding transport_cost + grand_total.
+// Body: { transport_mode, split?: { [lineId]: airQty } } — split requis en mode 'mixed'.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string; orderId: string }> }
 ) {
   const { uuid, orderId } = await params;
   const body = await request.json().catch(() => ({}));
-  const mode = body.transport_mode as 'air' | 'sea' | 'quote' | undefined;
-  if (!mode || !['air', 'sea', 'quote'].includes(mode)) {
+  const mode = body.transport_mode as 'air' | 'sea' | 'mixed' | 'quote' | undefined;
+  if (!mode || !['air', 'sea', 'mixed', 'quote'].includes(mode)) {
     return NextResponse.json({ error: 'Mode invalide' }, { status: 400 });
   }
 
@@ -29,49 +31,27 @@ export async function PATCH(
     return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 });
   }
 
-  type LineRow = {
-    product_id: string | null;
-    variant_id: string | null;
-    quantity: number;
-    unit_price_cny: number;
-    weight: number | null;
-    volume: number | null;
-    has_battery: boolean | null;
-  };
-  // `*` (et non une liste explicite) pour rester résilient si les colonnes snapshot
-  // weight/volume/has_battery (migration 30) manquent encore : elles deviennent alors
-  // `undefined` et le poids/volume est re-résolu depuis la variante ci-dessous.
-  const { data: lines } = await supabaseAdmin
-    .from('offer_order_lines')
-    .select('*')
-    .eq('order_id', orderId);
+  // Transport fractionné : répartition { lineId: unités avion } fournie avec le
+  // mode « mixed » (le reste de chaque ligne part en bateau). Enregistrée dans
+  // wa_settings (pas de colonne), relue par loadOrderPricingLines.
+  if (mode === 'mixed') {
+    const raw = body.split && typeof body.split === 'object' ? (body.split as Record<string, unknown>) : null;
+    if (!raw) return NextResponse.json({ error: 'Répartition avion / bateau manquante' }, { status: 400 });
+    const { data: lineRows } = await supabaseAdmin.from('offer_order_lines').select('id, quantity').eq('order_id', orderId);
+    const split: Record<string, number> = {};
+    for (const l of (lineRows || []) as { id: string; quantity: number }[]) {
+      const n = Math.trunc(Number(raw[l.id]));
+      split[l.id] = Number.isFinite(n) ? Math.min(Math.max(0, n), Number(l.quantity) || 0) : 0;
+    }
+    await writeOrderSplit(orderId, split);
+  } else {
+    await clearOrderSplit(orderId);
+  }
 
-  // Poids/volume/batterie : snapshot LIGNE (variante) → variante produit → produit.
-  type Vari = { id?: string; weight?: number | null; volume?: number | null };
-  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean; variants: Vari[] | null };
-  const ids = Array.from(new Set((lines || []).map((l: LineRow) => l.product_id).filter(Boolean))) as string[];
-  const { data: prods } = await supabaseAdmin
-    .from('offer_products')
-    .select('id, weight, volume, has_battery, variants')
-    .in('id', ids.length ? ids : ['']);
-  const pm = new Map<string, WL>(((prods || []) as WL[]).map((p) => [p.id, p]));
-
-  const pricing = computeOrderPricing(
-    (lines || []).map((l: LineRow) => {
-      const meta = l.product_id ? pm.get(l.product_id) : undefined;
-      const vari = l.variant_id && Array.isArray(meta?.variants)
-        ? meta!.variants.find((v) => v.id === l.variant_id)
-        : undefined;
-      return {
-        unit_price_cny: l.unit_price_cny,
-        quantity: l.quantity,
-        weight: l.weight ?? vari?.weight ?? meta?.weight ?? null,
-        volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
-        has_battery: l.has_battery ?? !!meta?.has_battery,
-      };
-    }),
-    { ...pricingOptionsFor(order), currency: await offerSettlementCurrency(uuid) },
-  );
+  const pricing = computeOrderPricing(await loadOrderPricingLines(orderId), {
+    ...pricingOptionsFor(order),
+    currency: await offerSettlementCurrency(uuid),
+  });
 
   let transportCost: number | null = null;
   let grandTotal: number | null = pricing.itemsNetFcfa;
@@ -93,6 +73,15 @@ export async function PATCH(
     }
     transportCost = pricing.seaCost;
     grandTotal = pricing.seaTotal;
+  } else if (mode === 'mixed') {
+    if (!pricing.mixed || !pricing.mixed.available || pricing.mixed.cost == null) {
+      return NextResponse.json(
+        { error: 'Transport fractionné indisponible : poids manquant côté avion ou volume manquant côté bateau' },
+        { status: 400 },
+      );
+    }
+    transportCost = pricing.mixed.cost;
+    grandTotal = pricing.mixed.total;
   } else {
     // 'quote' = devis sur mesure : pas de transport auto. Le total transport
     // sera fixé par l'admin. On garde le total produits (non-null : la colonne

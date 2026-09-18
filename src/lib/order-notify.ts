@@ -19,6 +19,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 const TRANSPORT_LABEL: Record<string, string> = {
   air: '✈️ Aérien',
   sea: '🚢 Maritime',
+  mixed: '✈️🚢 Fractionné (avion + bateau)',
   quote: '📋 Sur devis',
 };
 

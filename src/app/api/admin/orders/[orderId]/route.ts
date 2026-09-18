@@ -71,7 +71,7 @@ export async function GET(
 // Body: { payment_status?, order_status?, client_name?, client_phone?,
 //         client_email?, transport_mode? ('air'|'sea'|'quote') }
 const ORDER_STATUSES = ['unpaid', 'paid', 'shipped', 'at_agency', 'delivered'] as const;
-const TRANSPORT_MODES = ['air', 'sea', 'quote'] as const;
+const TRANSPORT_MODES = ['air', 'sea', 'mixed', 'quote'] as const;
 
 export async function PATCH(
   request: NextRequest,

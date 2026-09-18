@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { computeOrderPricing } from '@/lib/offer-pricing';
 import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { releasePromoUse } from '@/lib/promo';
+import { clearOrderSplit } from '@/lib/order-split';
 
 export interface EditableOrder {
   id: string;
@@ -45,6 +46,8 @@ export async function recomputeAfterLineChange(order: EditableOrder): Promise<{ 
 
   const promoRemoved = !!order.promo_id;
   if (promoRemoved) await releasePromoUse(order.id);
+  // Répartition avion / bateau caduque : le panier a changé.
+  await clearOrderSplit(order.id);
 
   await supabaseAdmin
     .from('offer_orders')
