@@ -56,7 +56,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
           const air = draft[l.id] || 0;
           return (
             <li key={l.id} className="flex flex-wrap items-center gap-3 py-2">
-              <span className="min-w-0 flex-1 text-sm text-slate-900">
+              <span className="min-w-0 basis-full text-sm text-slate-900 sm:flex-1 sm:basis-0">
                 <span className="line-clamp-2 font-medium">{l.title}</span>
                 {l.variant_name && <span className="block text-xs text-slate-500">{l.variant_name}</span>}
                 <span className="block text-xs text-slate-500">{l.quantity} unité{l.quantity > 1 ? 's' : ''}</span>
