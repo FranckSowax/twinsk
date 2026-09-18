@@ -11,7 +11,7 @@ import { ExternalLink, FilePlus2, Loader2, Minus, Pencil, Plane, Plus, RefreshCw
 import TransportSplitEditor from '@/components/offer/TransportSplitEditor';
 import SmartImage from '@/components/ui/SmartImage';
 import { formatInCurrency } from '@/lib/utils/formatCurrency';
-import { formatSettlement, roundSettlement, transportCostFor, grandTotalFor, type MixedTransport, type PricingResult } from '@/lib/offer-pricing';
+import { computeOrderPricing, formatSettlement, roundSettlement, transportCostFor, grandTotalFor, type MixedTransport, type PricingResult } from '@/lib/offer-pricing';
 import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
@@ -128,6 +128,33 @@ export default function ClientCartPanel() {
     if (!p || p.on_quote || p.price_type === 'acompte') return s;
     return s + unitCny(p, l.variantId) * l.quantity;
   }, 0);
+  // Transport choisi AVANT la sauvegarde (nouveau panier) : calcul local à partir
+  // des poids / volumes du listing, appliqué à la commande à sa création.
+  const [newMode, setNewMode] = useState<'air' | 'sea' | 'mixed' | null>(null);
+  const [newSplit, setNewSplit] = useState<Record<string, number>>({});
+  const draftCurrency: 'XAF' | 'EUR' = data?.offer.currency === 'EUR' ? 'EUR' : 'XAF';
+  const draftPricing = useMemo(
+    () =>
+      computeOrderPricing(
+        lines.map((l) => {
+          const p = byId.get(l.productId);
+          const v = l.variantId ? p?.variants?.find((x) => x.id === l.variantId) : null;
+          const quote = !p || p.on_quote || p.price_type === 'acompte';
+          const k = key(l.productId, l.variantId);
+          return {
+            unit_price_cny: quote ? 0 : unitCny(p, l.variantId),
+            quantity: l.quantity,
+            weight: v?.weight ?? p?.weight ?? null,
+            volume: v?.volume ?? p?.volume ?? null,
+            has_battery: !!p?.has_battery,
+            air_qty: newMode === 'mixed' ? Math.min(l.quantity, newSplit[k] ?? 0) : null,
+          };
+        }),
+        { currency: draftCurrency },
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cart, byId, newMode, newSplit, draftCurrency],
+  );
 
   // ---- Mode édition (commande existante) : tout passe par le serveur ----
   const startEdit = async (c: SavedCart) => {
@@ -170,10 +197,17 @@ export default function ClientCartPanel() {
   const editQty = (lineId: string, quantity: number) =>
     lineCall(`/lines/${lineId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quantity }) });
   const editRemove = (lineId: string) => lineCall(`/lines/${lineId}`, { method: 'DELETE' });
-  // Transport choisi par l'admin pour le client (aérien, maritime, ou fractionné avion + bateau).
+  // Transport choisi par l'admin pour le client (aérien, maritime, ou fractionné
+  // avion + bateau) : sur le serveur en mode édition, en local avant la sauvegarde.
   const [splitOpen, setSplitOpen] = useState(false);
-  const setTransport = (mode: 'air' | 'sea' | 'mixed', split?: Record<string, number>) =>
-    lineCall('/transport', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transport_mode: mode, ...(split ? { split } : {}) }) });
+  const setTransport = (mode: 'air' | 'sea' | 'mixed', split?: Record<string, number>) => {
+    if (!editing) {
+      setNewMode(mode);
+      if (split) setNewSplit(split);
+      return;
+    }
+    return lineCall('/transport', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transport_mode: mode, ...(split ? { split } : {}) }) });
+  };
   const saveContact = async () => {
     if (!editing) return;
     const contact = validateContact(clientName, clientPhone);
@@ -254,7 +288,13 @@ export default function ClientCartPanel() {
           client_phone: clientPhone.trim(),
           message: message.trim() || undefined,
           send,
-          picks: lines.map((l) => ({ product_id: l.productId, variant_id: l.variantId, quantity: l.quantity })),
+          transport_mode: newMode || undefined,
+          picks: lines.map((l) => ({
+            product_id: l.productId,
+            variant_id: l.variantId,
+            quantity: l.quantity,
+            air_qty: newMode === 'mixed' ? Math.min(l.quantity, newSplit[key(l.productId, l.variantId)] ?? 0) : undefined,
+          })),
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -262,6 +302,8 @@ export default function ClientCartPanel() {
       else {
         setResult(d as SendResult);
         setCart({});
+        setNewMode(null);
+        setNewSplit({});
         // Le panier créé devient éditable tout de suite.
         setEditing({ orderId: d.order_id, offerId });
         await loadOrder(d.order_id, offerId);
@@ -474,38 +516,46 @@ export default function ClientCartPanel() {
                 <span className="text-sm font-bold text-emerald-700">{editing && orderData ? fcfa(orderData.pricing.itemsTotalFcfaRounded, orderData.currency) : formatInCurrency(totalCny, panelCur)}</span>
               </div>
             )}
-            {editing && orderData && orderData.lines.length > 0 && (() => {
-              const cur = orderData.currency || 'XAF';
-              const mode = orderData.order.transport_mode;
-              const p = orderData.pricing as unknown as PricingResult;
+            {((editing && orderData && orderData.lines.length > 0) || (!editing && lines.length > 0)) && (() => {
+              const cur: 'XAF' | 'EUR' = editing ? orderData!.currency || 'XAF' : draftCurrency;
+              const mode = editing ? orderData!.order.transport_mode : newMode;
+              const p = editing ? (orderData!.pricing as unknown as PricingResult) : draftPricing;
+              const tLines = editing
+                ? orderData!.lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty }))
+                : lines.map((l) => {
+                    const prod = byId.get(l.productId);
+                    const k = key(l.productId, l.variantId);
+                    const v = l.variantId ? prod?.variants?.find((x) => x.id === l.variantId) : null;
+                    return { id: k, title: prod?.title || 'Produit', variant_name: v?.name ?? null, quantity: l.quantity, air_qty: newMode === 'mixed' ? (newSplit[k] ?? 0) : null };
+                  });
               const cost = transportCostFor(p, mode);
               const total = mode && cost != null ? grandTotalFor(p, mode) : null;
               const btn = (on: boolean, ok: boolean) =>
                 `flex flex-col items-start rounded-xl border-2 px-3 py-2 text-left text-xs ${on ? 'border-[#25D366] bg-[#25D366]/10' : ok ? 'border-slate-200 hover:border-[#25D366]/60 dark:border-slate-600' : 'cursor-not-allowed border-slate-200 opacity-50 dark:border-slate-700'}`;
               return (
                 <div className="mt-3 space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-600">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Transport pour le client</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Transport pour le client{editing ? '' : ' (appliqué à la sauvegarde)'}</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setTransport('sea')} disabled={busy !== null || !orderData.pricing.seaAvailable} className={btn(mode === 'sea', orderData.pricing.seaAvailable)}>
+                    <button type="button" onClick={() => setTransport('sea')} disabled={busy !== null || !p.seaAvailable} className={btn(mode === 'sea', p.seaAvailable)}>
                       <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Ship className="h-3.5 w-3.5 text-blue-600" /> Maritime</span>
-                      <span className="text-slate-600 dark:text-slate-300">{orderData.pricing.seaAvailable ? fcfa(orderData.pricing.seaCost ?? 0, cur) : 'volume manquant'}</span>
+                      <span className="text-slate-600 dark:text-slate-300">{p.seaAvailable ? fcfa(p.seaCost ?? 0, cur) : 'volume manquant'}</span>
                     </button>
-                    <button type="button" onClick={() => setTransport('air')} disabled={busy !== null || !orderData.pricing.airAvailable} className={btn(mode === 'air', orderData.pricing.airAvailable)}>
+                    <button type="button" onClick={() => setTransport('air')} disabled={busy !== null || !p.airAvailable} className={btn(mode === 'air', p.airAvailable)}>
                       <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /> Aérien</span>
-                      <span className="text-slate-600 dark:text-slate-300">{orderData.pricing.airAvailable ? fcfa(orderData.pricing.airCost ?? 0, cur) : 'poids manquant'}</span>
+                      <span className="text-slate-600 dark:text-slate-300">{p.airAvailable ? fcfa(p.airCost ?? 0, cur) : 'poids manquant'}</span>
                     </button>
                   </div>
                   <button type="button" onClick={() => setSplitOpen((v) => !v)} disabled={busy !== null} className={`w-full ${btn(mode === 'mixed', true)}`}>
                     <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /><Ship className="h-3.5 w-3.5 text-blue-600" /> Fractionner : une partie en avion, le reste en bateau</span>
                     <span className="text-slate-600 dark:text-slate-300">
-                      {mode === 'mixed' && orderData.pricing.mixed ? `✈️ ${orderData.pricing.mixed.airUnits} · 🚢 ${orderData.pricing.mixed.seaUnits} — ${orderData.pricing.mixed.available ? fcfa(orderData.pricing.mixed.cost ?? 0, cur) : 'à compléter'}` : 'répartir produit par produit'}
+                      {mode === 'mixed' && p.mixed ? `✈️ ${p.mixed.airUnits} · 🚢 ${p.mixed.seaUnits} — ${p.mixed.available ? fcfa(p.mixed.cost ?? 0, cur) : 'à compléter'}` : 'répartir produit par produit'}
                     </span>
                   </button>
                   {(splitOpen || mode === 'mixed') && (
                     <TransportSplitEditor
                       compact
-                      lines={orderData.lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty }))}
-                      mixed={orderData.pricing.mixed}
+                      lines={tLines}
+                      mixed={p.mixed}
                       currency={cur}
                       applied={mode === 'mixed'}
                       busy={busy === 'line'}
@@ -514,13 +564,13 @@ export default function ClientCartPanel() {
                   )}
                   <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
                     <span>Total à payer{mode ? '' : ' (transport non choisi)'}</span>
-                    <span className="font-bold text-emerald-400">{total != null ? fcfa(total, cur) : fcfa(orderData.pricing.itemsNetFcfa, cur)}</span>
+                    <span className="font-bold text-emerald-400">{total != null ? fcfa(total, cur) : fcfa(p.itemsNetFcfa, cur)}</span>
                   </div>
                 </div>
               );
             })()}
             <p className="mt-2 text-[11px] text-slate-500">
-              {editing ? 'Chaque modification est enregistrée immédiatement. Un changement de produit ou de quantité remet le transport à choisir.' : 'Après « Sauvegarder », vous pourrez choisir le transport (ou le fractionner) avant l’envoi.'}
+              {editing ? 'Chaque modification est enregistrée immédiatement. Un changement de produit ou de quantité remet le transport à choisir.' : 'Le transport choisi ici est appliqué à la commande dès la sauvegarde ; le client le retrouve, avec le total à payer, sur son panier.'}
             </p>
           </div>
 
