@@ -186,9 +186,11 @@ export async function PATCH(
   const becamePaid = patch.payment_status === 'paid' && before?.payment_status !== 'paid';
   const newOrderStatus = typeof patch.order_status === 'string' ? patch.order_status : null;
   if (becamePaid) notifyStatus = 'paid';
+  // Menu de statut : tout passage RÉEL à un nouveau statut prévient le client,
+  // y compris un retour à « payée » après un passage par « non payée ». Seul le
+  // fait de re-sélectionner le statut déjà en place n'envoie rien.
   else if (newOrderStatus && newOrderStatus !== before?.order_status && isNotifiableStatus(newOrderStatus)) {
-    // « paid » choisi dans le menu alors que le paiement est déjà validé : déjà annoncé.
-    if (!(newOrderStatus === 'paid' && before?.payment_status === 'paid')) notifyStatus = newOrderStatus;
+    notifyStatus = newOrderStatus;
   }
   const clientNotified = notifyStatus
     ? await notifyClientOrderStatus({ orderId, status: notifyStatus, origin: publicOrigin(request), actor: actor.role === 'collab' ? actor.collaborator.name : 'admin' })
