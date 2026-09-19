@@ -169,15 +169,25 @@ export default function AdminOrdersPage() {
     load();
   }, [load]);
 
+  // Retour de la confirmation WhatsApp envoyée au client à chaque changement de statut.
+  const [notice, setNotice] = useState<string | null>(null);
+  const showNotified = (d: { client_notified?: { sent: boolean; reason?: string } | null } | null, name: string) => {
+    const n = d?.client_notified;
+    if (!n) return;
+    setNotice(n.sent ? `✅ ${name} a été prévenu(e) sur WhatsApp.` : `⚠️ ${name} n'a pas pu être prévenu(e) sur WhatsApp : ${n.reason || 'envoi refusé'}.`);
+    window.setTimeout(() => setNotice(null), 7000);
+  };
+
   const validate = async (o: Order) => {
     if (!window.confirm(`${t('orders.confirmValidate')} ${o.client_name} (${fmt(o.grand_total_fcfa || o.items_total_fcfa, o.currency)}) ?`)) return;
     setBusy(o.id);
     try {
-      await fetch(`/api/admin/orders/${o.id}`, {
+      const res = await fetch(`/api/admin/orders/${o.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payment_status: 'paid' }),
       });
+      showNotified(await res.json().catch(() => null), o.client_name);
       await load();
       if (detail?.order.id === o.id) {
         setDetail((d) => (d ? { ...d, order: { ...d.order, payment_status: 'paid', status: 'paid', order_status: 'paid' } } : d));
@@ -190,11 +200,12 @@ export default function AdminOrdersPage() {
   const changeStatus = async (id: string, order_status: string) => {
     setBusy(id);
     try {
-      await fetch(`/api/admin/orders/${id}`, {
+      const res = await fetch(`/api/admin/orders/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_status }),
       });
+      showNotified(await res.json().catch(() => null), orders.find((o) => o.id === id)?.client_name || 'Le client');
       // Optimiste : maj locale immédiate (liste + modal), sans recharger si filtre actif.
       setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, order_status } : o)));
       setDetail((d) => (d && d.order.id === id ? { ...d, order: { ...d.order, order_status } } : d));
@@ -304,6 +315,11 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      {notice && (
+        <div className={`fixed bottom-5 left-1/2 z-50 w-[min(92vw,32rem)] -translate-x-1/2 rounded-2xl px-4 py-3 text-sm font-medium shadow-xl ${notice.startsWith('✅') ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
+          {notice}
+        </div>
+      )}
       {/* En-tête + recherche */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">

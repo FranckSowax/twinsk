@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getAgent, canAdvanceTo, AgentOrderStatus } from '@/lib/agent';
-import { logAgentAction, notifyClient } from '@/lib/agent-actions';
-import { orderNumber } from '@/lib/order-number';
+import { logAgentAction } from '@/lib/agent-actions';
+import { notifyClientOrderStatus } from '@/lib/order-status-notify';
+import { publicOrigin } from '@/lib/public-origin';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const agent = await getAgent(request);
@@ -16,6 +17,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { error: updErr } = await supabaseAdmin.from('offer_orders').update({ order_status: 'delivered' }).eq('id', id);
   if (updErr) return NextResponse.json({ error: 'Échec mise à jour' }, { status: 500 });
   await logAgentAction(agent.id, id, 'deliver', {});
-  await notifyClient(order.client_phone, `🤝 Votre commande ${orderNumber(id)} vous a été *remise*. Merci de votre confiance !`);
+  await notifyClientOrderStatus({ orderId: id, status: 'delivered', origin: publicOrigin(request), actor: `agent:${agent.id}` });
   return NextResponse.json({ success: true, order_status: 'delivered' });
 }

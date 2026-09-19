@@ -5,6 +5,8 @@ import { CNY_TO_EUR, CNY_TO_FCFA, roundSettlement } from '@/lib/offer-pricing';
 import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { recomputeOrder } from '@/lib/admin-order';
 import { sendWhapiText } from '@/lib/whapi';
+import { publicOrigin } from '@/lib/public-origin';
+import { isNotifiableStatus, notifyClientOrderStatus, type NotifiableStatus } from '@/lib/order-status-notify';
 
 // GET: détail complet d'une commande (admin ou collaborateur "commandes") — pour le modal.
 export async function GET(
@@ -127,6 +129,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Rien à mettre à jour' }, { status: 400 });
   }
 
+  // État avant modification : le client n'est prévenu que sur une vraie
+  // transition (pas de doublon si l'admin re-sélectionne le même statut).
+  const { data: before } = await supabaseAdmin
+    .from('offer_orders')
+    .select('payment_status, order_status')
+    .eq('id', orderId)
+    .single();
+
   const { error } = await supabaseAdmin.from('offer_orders').update(patch).eq('id', orderId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -169,5 +179,20 @@ export async function PATCH(
   }
 
   const totals = needRecompute ? await recomputeOrder(orderId) : null;
-  return NextResponse.json({ success: true, totals });
+
+  // Confirmation WhatsApp au client : paiement validé, puis chaque étape
+  // (expédiée, arrivée à l'agence, remise). Un seul message par transition.
+  let notifyStatus: NotifiableStatus | null = null;
+  const becamePaid = patch.payment_status === 'paid' && before?.payment_status !== 'paid';
+  const newOrderStatus = typeof patch.order_status === 'string' ? patch.order_status : null;
+  if (becamePaid) notifyStatus = 'paid';
+  else if (newOrderStatus && newOrderStatus !== before?.order_status && isNotifiableStatus(newOrderStatus)) {
+    // « paid » choisi dans le menu alors que le paiement est déjà validé : déjà annoncé.
+    if (!(newOrderStatus === 'paid' && before?.payment_status === 'paid')) notifyStatus = newOrderStatus;
+  }
+  const clientNotified = notifyStatus
+    ? await notifyClientOrderStatus({ orderId, status: notifyStatus, origin: publicOrigin(request), actor: actor.role === 'collab' ? actor.collaborator.name : 'admin' })
+    : null;
+
+  return NextResponse.json({ success: true, totals, client_notified: clientNotified });
 }
