@@ -11,7 +11,7 @@ import { ExternalLink, FilePlus2, Loader2, Minus, Pencil, Plane, Plus, RefreshCw
 import TransportSplitEditor from '@/components/offer/TransportSplitEditor';
 import SmartImage from '@/components/ui/SmartImage';
 import { formatInCurrency } from '@/lib/utils/formatCurrency';
-import { computeOrderPricing, formatSettlement, roundSettlement, transportCostFor, grandTotalFor, type MixedTransport, type PricingResult } from '@/lib/offer-pricing';
+import { computeOrderPricing, isAirOversize, formatSettlement, roundSettlement, transportCostFor, grandTotalFor, type MixedTransport, type PricingResult } from '@/lib/offer-pricing';
 import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
@@ -25,7 +25,7 @@ interface SavedCart {
   id: string; offer_id: string; offer_title: string | null; client_name: string; client_phone: string;
   status: string; transport_mode: string | null; items_total_fcfa: number | null; items_count: number; created_at: string; currency?: 'XAF' | 'EUR';
 }
-interface OrderLine { id: string; product_id: string | null; product_title: string | null; variant_name: string | null; product_image: string | null; quantity: number; unit_price_fcfa: number; subtotal_fcfa: number; price_type: string | null; air_qty?: number | null }
+interface OrderLine { id: string; product_id: string | null; product_title: string | null; variant_name: string | null; product_image: string | null; quantity: number; unit_price_fcfa: number; subtotal_fcfa: number; price_type: string | null; air_qty?: number | null; air_blocked?: boolean }
 interface OrderData { currency?: 'XAF' | 'EUR'; order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; itemsNetFcfa: number; airTotal: number | null; seaTotal: number | null; airCost: number | null; seaCost: number | null; airAvailable: boolean; seaAvailable: boolean; mixed?: MixedTransport | null } }
 interface SendResult { order_id: string; order_url: string; items_total_fcfa?: number; grand_total_fcfa?: number | null; transport_mode?: string | null; sent: number; errors: string[]; success: boolean; saved?: boolean }
 
@@ -521,12 +521,12 @@ export default function ClientCartPanel() {
               const mode = editing ? orderData!.order.transport_mode : newMode;
               const p = editing ? (orderData!.pricing as unknown as PricingResult) : draftPricing;
               const tLines = editing
-                ? orderData!.lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty }))
+                ? orderData!.lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty, air_blocked: !!l.air_blocked }))
                 : lines.map((l) => {
                     const prod = byId.get(l.productId);
                     const k = key(l.productId, l.variantId);
                     const v = l.variantId ? prod?.variants?.find((x) => x.id === l.variantId) : null;
-                    return { id: k, title: prod?.title || 'Produit', variant_name: v?.name ?? null, quantity: l.quantity, air_qty: newMode === 'mixed' ? (newSplit[k] ?? 0) : null };
+                    return { id: k, title: prod?.title || 'Produit', variant_name: v?.name ?? null, quantity: l.quantity, air_qty: newMode === 'mixed' ? (newSplit[k] ?? 0) : null, air_blocked: isAirOversize(v?.volume ?? prod?.volume ?? null) };
                   });
               const cost = transportCostFor(p, mode);
               const total = mode && cost != null ? grandTotalFor(p, mode) : null;
@@ -542,15 +542,17 @@ export default function ClientCartPanel() {
                     </button>
                     <button type="button" onClick={() => setTransport('air')} disabled={busy !== null || !p.airAvailable} className={btn(mode === 'air', p.airAvailable)}>
                       <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /> Aérien</span>
-                      <span className="text-slate-600 dark:text-slate-300">{p.airAvailable ? fcfa(p.airCost ?? 0, cur) : 'poids manquant'}</span>
+                      <span className="text-slate-600 dark:text-slate-300">{p.airAvailable ? fcfa(p.airCost ?? 0, cur) : p.airOversize ? 'impossible : un article dépasse 1,5 m³' : 'poids manquant'}</span>
                     </button>
                   </div>
+                  {tLines.reduce((n, l) => n + l.quantity, 0) > 1 && tLines.some((l) => !l.air_blocked) && (
                   <button type="button" onClick={() => setSplitOpen((v) => !v)} disabled={busy !== null} className={`w-full ${btn(mode === 'mixed', true)}`}>
                     <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /><Ship className="h-3.5 w-3.5 text-blue-600" /> Fractionner : une partie en avion, le reste en bateau</span>
                     <span className="text-slate-600 dark:text-slate-300">
                       {mode === 'mixed' && p.mixed ? `✈️ ${p.mixed.airUnits} · 🚢 ${p.mixed.seaUnits} — ${p.mixed.available ? fcfa(p.mixed.cost ?? 0, cur) : 'à compléter'}` : 'répartir produit par produit'}
                     </span>
                   </button>
+                  )}
                   {(splitOpen || mode === 'mixed') && (
                     <TransportSplitEditor
                       compact

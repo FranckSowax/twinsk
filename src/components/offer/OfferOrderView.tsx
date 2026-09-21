@@ -35,6 +35,8 @@ interface OrderLine {
   price_type?: string | null; // "acompte" → ligne sur devis (hors total)
   /** Transport fractionné : unités de la ligne qui partent en avion (null = pas de répartition). */
   air_qty?: number | null;
+  /** Article de plus de 1,5 m³ : bateau uniquement. */
+  air_blocked?: boolean;
 }
 
 interface Pricing {
@@ -46,6 +48,9 @@ interface Pricing {
   mixed?: MixedTransport | null;
   /** Volume > 20 m³ : conteneur dédié sur devis (contact WhatsApp). */
   seaOverLimit?: boolean;
+  /** Un article dépasse 1,5 m³ : pas d'envoi aérien. */
+  airOversize?: boolean;
+  totalUnits?: number;
   discountFcfa: number;
   itemsNetFcfa: number;
   itemsTotalCny: number;
@@ -400,7 +405,13 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   // Total recalculé à chaque affichage (devise du listing), jamais relu tel quel.
   const transportCostNow = transportCostFor(pricing as Parameters<typeof transportCostFor>[0], order.transport_mode);
   const isMixed = order.transport_mode === 'mixed';
-  const canSplit = lines.length > 0 && (pricing.airAvailable || pricing.seaAvailable);
+  // Fractionner n'a de sens qu'avec au moins 2 unités dans le panier, dont une
+  // au moins peut prendre l'avion (les articles de plus de 1,5 m³ restent en bateau).
+  const totalUnits = pricing.totalUnits ?? lines.reduce((s, l) => s + l.quantity, 0);
+  const canSplit =
+    totalUnits > 1 &&
+    lines.some((l) => !l.air_blocked) &&
+    (pricing.airAvailable || pricing.seaAvailable || !!pricing.airOversize);
   const grandTotalFcfa = roundSettlement(pricing.itemsNetFcfa + (transportCostNow || 0), currency);
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
@@ -663,10 +674,16 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="font-semibold text-slate-900">Fret aérien</p>
               {order.transport_mode === 'air' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             </div>
-            <p className="text-xs text-slate-500">{formatSettlementRate(pricing.airRate, 'kg', currency)}</p>
-            <p className="font-display text-lg font-bold text-emerald-600">
-              {fmt(pricing.airCost)}
-            </p>
+            {pricing.airOversize ? (
+              <p className="text-xs font-medium text-slate-600">
+                Envoi aérien impossible : un article de votre panier dépasse 1,5 m³ (trop volumineux pour l’avion). Il part en bateau.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-slate-500">{formatSettlementRate(pricing.airRate, 'kg', currency)}</p>
+                <p className="font-display text-lg font-bold text-emerald-600">{fmt(pricing.airCost)}</p>
+              </>
+            )}
             {pricing.hasBattery && pricing.airAvailable && (pricing.airWeightBattery ?? 0) > 0 && (
               <p className="text-[11px] text-slate-500">
                 dont {pricing.airWeightStd?.toFixed(2)} kg standard : {fmt(pricing.airCostStd)}
@@ -674,11 +691,13 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                 ⚡ {pricing.airWeightBattery?.toFixed(2)} kg avec batterie à {formatSettlementRate(pricing.airBatteryRate ?? 0, 'kg', currency)} : {fmt(pricing.airCostBattery)}
               </p>
             )}
-            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
-            <p className="text-[10px] text-slate-400">
-              Estimation transport seul
-            </p>
-            {!pricing.airAvailable && (
+            {!pricing.airOversize && (
+              <>
+                <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
+                <p className="text-[10px] text-slate-400">Estimation transport seul</p>
+              </>
+            )}
+            {!pricing.airAvailable && !pricing.airOversize && (
               <p className="text-[10px] text-amber-600">Poids inconnu</p>
             )}
           </button>
@@ -709,7 +728,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         )}
         {canSplit && (splitOpen || isMixed) && (
           <TransportSplitEditor
-            lines={lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty }))}
+            lines={lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty, air_blocked: !!l.air_blocked }))}
             mixed={pricing.mixed}
             currency={currency}
             applied={isMixed}

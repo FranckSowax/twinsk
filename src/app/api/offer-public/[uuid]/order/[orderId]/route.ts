@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { computeOrderPricing, CNY_TO_EUR, CNY_TO_FCFA } from '@/lib/offer-pricing';
+import { computeOrderPricing, CNY_TO_EUR, CNY_TO_FCFA, isAirOversize } from '@/lib/offer-pricing';
 import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { readOrderSplit } from '@/lib/order-split';
 import { describePromo, pricingOptionsFor, type PromoKind } from '@/lib/promo';
@@ -119,13 +119,20 @@ export async function GET(
         : null,
     },
     // Montants de ligne dans la devise de règlement (noms historiques « fcfa »).
-    lines: lines.map((l) => ({
+    lines: lines.map((l) => {
+      const meta = l.product_id ? prodMap.get(l.product_id) : undefined;
+      const vari = l.variant_id && Array.isArray(meta?.variants) ? meta!.variants.find((v) => v.id === l.variant_id) : undefined;
+      const unitVolume = l.volume ?? vari?.volume ?? meta?.volume ?? null;
+      return {
       ...l,
+      // Article de plus de 1,5 m³ : jamais en avion (bateau uniquement dans la répartition).
+      air_blocked: isAirOversize(unitVolume),
       unit_price_fcfa: l.unit_price_cny * lineRate,
       subtotal_fcfa: l.subtotal_cny * lineRate,
       // Transport fractionné : unités avion de la ligne (null = pas de répartition).
       air_qty: hasSplit ? (split[l.id] ?? 0) : null,
-    })),
+      };
+    }),
     pricing,
     // Numéro Airtel Money affiché dans les instructions de paiement :
     // celui de l'affilié (marque blanche) si la vente lui est attribuée, sinon Twinsk (env).

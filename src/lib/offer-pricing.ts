@@ -76,6 +76,17 @@ export const SEA_MAX_GROUPAGE_M3 = SEA_DEGRESSIVE_TO_M3;
 /** Numéro WhatsApp Oh My Gab (chiffres seuls) — contact pour un conteneur dédié. */
 export const OMG_WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_OMG_WHATSAPP_NUMBER || '24107425560').replace(/\D/g, '');
 
+/**
+ * Volume unitaire maximum accepté en fret aérien (m³). Au-delà — fauteuil, canapé,
+ * gros meuble — l'article ne part qu'en bateau (décision du 21 sept. 2026).
+ */
+export const AIR_MAX_UNIT_VOLUME_M3 = Number(process.env.AIR_MAX_UNIT_VOLUME_M3) || 1.5;
+
+/** Article trop volumineux pour l'avion (volume unitaire connu et > 1,5 m³). */
+export function isAirOversize(unitVolumeM3: number | null | undefined): boolean {
+  return unitVolumeM3 != null && Number.isFinite(unitVolumeM3) && unitVolumeM3 > AIR_MAX_UNIT_VOLUME_M3 + 1e-9;
+}
+
 /** Au-delà du groupage : conteneur dédié, prix sur devis. */
 export function isSeaOverLimit(volumeM3: number | null | undefined): boolean {
   return volumeM3 != null && Number.isFinite(volumeM3) && volumeM3 > SEA_MAX_GROUPAGE_M3 + 1e-9;
@@ -177,6 +188,10 @@ export interface PricingResult {
   seaAvailable: boolean;
   /** Volume > 20 m³ : conteneur dédié sur devis — le maritime n'est plus chiffré automatiquement. */
   seaOverLimit: boolean;
+  /** Au moins un article dépasse 1,5 m³ à lui seul : pas d'envoi aérien pour la commande entière. */
+  airOversize: boolean;
+  /** Nombre total d'unités du panier (le fractionnement n'a de sens qu'à partir de 2). */
+  totalUnits: number;
   airTotal: number | null;
   seaTotal: number | null;
   /** Remise articles appliquée (code promo), déjà déduite des totaux. */
@@ -188,7 +203,9 @@ export interface PricingResult {
 }
 
 /** Unités « avion » d'une ligne en mode fractionné (bornées à la quantité). */
-export function airUnitsOf(l: Pick<OrderLineForPricing, 'quantity' | 'air_qty'>): number {
+export function airUnitsOf(l: Pick<OrderLineForPricing, 'quantity' | 'air_qty'> & { volume?: number | null }): number {
+  // Un article trop volumineux pour l'avion part toujours en bateau, quoi que dise la répartition.
+  if (isAirOversize(l.volume)) return 0;
   const n = Number(l.air_qty);
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(Math.max(1, Math.trunc(l.quantity)), Math.trunc(n));
@@ -277,7 +294,10 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     else volumeKnown = false;
   }
 
-  const airAvailable = weightKnown && totalWeight > 0;
+  // Un seul article de plus de 1,5 m³ interdit l'aérien pour la commande entière
+  // (le fractionnement reste possible : cet article part alors en bateau).
+  const airOversize = lines.some((l) => isAirOversize(l.volume));
+  const airAvailable = weightKnown && totalWeight > 0 && !airOversize;
   // Au-delà de 20 m³ : conteneur dédié sur devis (contact WhatsApp), pas de prix automatique.
   const seaOverLimit = volumeKnown && isSeaOverLimit(totalVolume);
   const seaAvailable = volumeKnown && totalVolume > 0 && !seaOverLimit;
@@ -337,6 +357,8 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     airAvailable,
     seaAvailable,
     seaOverLimit,
+    airOversize,
+    totalUnits: lines.reduce((s, l) => s + Math.max(0, Math.trunc(l.quantity)), 0),
     discountFcfa,
     itemsNetFcfa,
     // Total à payer = total produits arrondi (somme des lignes) − remise + transport.

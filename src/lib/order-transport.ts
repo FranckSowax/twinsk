@@ -55,6 +55,7 @@ export async function applyOrderTransport(args: {
   let transportCost: number | null = null;
   let grandTotal: number | null = pricing.itemsNetFcfa;
   if (mode === 'air') {
+    if (pricing.airOversize) return { ok: false, status: 400, error: 'Envoi aérien impossible : un article dépasse 1,5 m³. Choisissez le maritime, ou fractionnez (cet article partira en bateau).' };
     if (!pricing.airAvailable) return { ok: false, status: 400, error: 'Fret aérien indisponible (poids manquant)' };
     transportCost = pricing.airCost;
     grandTotal = pricing.airTotal;

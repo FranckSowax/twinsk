@@ -15,6 +15,8 @@ export interface SplitLine {
   variant_name?: string | null;
   quantity: number;
   air_qty?: number | null;
+  /** Article de plus de 1,5 m³ : bateau uniquement (champ avion verrouillé à 0). */
+  air_blocked?: boolean;
 }
 
 interface Props {
@@ -40,7 +42,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
   }
   const fmt = (n: number | null | undefined) => formatSettlement(n, currency);
   const setAir = (id: string, qty: number, v: number) => setDraft((d) => ({ ...d, [id]: Math.min(qty, Math.max(0, Math.trunc(v) || 0)) }));
-  const airUnits = lines.reduce((s, l) => s + (draft[l.id] || 0), 0);
+  const airUnits = lines.reduce((s, l) => s + (l.air_blocked ? 0 : draft[l.id] || 0), 0);
   const seaUnits = lines.reduce((s, l) => s + l.quantity, 0) - airUnits;
   const dirty = lines.some((l) => (draft[l.id] || 0) !== Math.min(l.quantity, Math.max(0, Number(l.air_qty) || 0))) || !applied;
   const input = `${compact ? 'w-14' : 'w-16'} rounded-lg border border-slate-300 bg-white px-2 py-1 text-center text-sm font-semibold tabular-nums text-slate-900`;
@@ -53,7 +55,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
       </p>
       <ul className="divide-y divide-violet-100">
         {lines.map((l) => {
-          const air = draft[l.id] || 0;
+          const air = l.air_blocked ? 0 : draft[l.id] || 0;
           return (
             <li key={l.id} className="flex flex-wrap items-center gap-3 py-2">
               <span className="min-w-0 basis-full text-sm text-slate-900 sm:flex-1 sm:basis-0">
@@ -63,7 +65,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
               </span>
               <label className="flex items-center gap-1.5 text-xs text-slate-700">
                 <Plane className="h-3.5 w-3.5 text-sky-600" />
-                <input type="number" min={0} max={l.quantity} value={air} onChange={(e) => setAir(l.id, l.quantity, Number(e.target.value))} className={input} />
+                <input type="number" min={0} max={l.quantity} value={air} disabled={l.air_blocked} onChange={(e) => setAir(l.id, l.quantity, Number(e.target.value))} className={`${input} ${l.air_blocked ? 'cursor-not-allowed bg-slate-100 text-slate-400' : ''}`} />
                 avion
               </label>
               <span className="flex items-center gap-1.5 text-xs text-slate-700">
@@ -71,7 +73,8 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
                 <span className="w-8 text-center font-semibold tabular-nums text-slate-900">{l.quantity - air}</span>
                 bateau
               </span>
-              <div className="flex gap-1">
+              {l.air_blocked && <span className="basis-full text-[11px] font-medium text-amber-700">Plus de 1,5 m³ : trop volumineux pour l’avion, bateau uniquement.</span>}
+              <div className={`flex gap-1 ${l.air_blocked ? 'hidden' : ''}`}>
                 <button type="button" onClick={() => setAir(l.id, l.quantity, l.quantity)} className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50">tout avion</button>
                 <button type="button" onClick={() => setAir(l.id, l.quantity, 0)} className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50">tout bateau</button>
               </div>
@@ -85,7 +88,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
         </p>
         <button
           type="button"
-          onClick={() => onApply(draft)}
+          onClick={() => onApply(Object.fromEntries(lines.map((l) => [l.id, l.air_blocked ? 0 : draft[l.id] || 0])))}
           disabled={busy || (!dirty && applied)}
           className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >

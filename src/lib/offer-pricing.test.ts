@@ -38,7 +38,7 @@ describe('seaRateForVolume — grille dégressive maritime (21 sept. 2026)', () 
     expect(promoTooHigh.seaRate).toBe(205000);
   });
   it('au-delà de 20 m³ : conteneur dédié sur devis, plus de prix maritime automatique', () => {
-    const r = computeOrderPricing([line(14), line(14)]);
+    const r = computeOrderPricing([{ ...line(1), quantity: 28 }]); // 28 unités de 1 m³ (chacune accepte l'avion)
     expect(r.seaOverLimit).toBe(true);
     expect(r.seaAvailable).toBe(false);
     expect(r.seaCost).toBeNull();
@@ -140,5 +140,32 @@ describe('transport fractionné (avion + bateau) — 18 sept. 2026', () => {
     expect(computeOrderPricing([l(4, 2, 1, null as unknown as number)]).mixed!.available).toBe(false);
     expect(computeOrderPricing([l(4, 4, 1, null as unknown as number)]).mixed!.available).toBe(true);
     expect(computeOrderPricing([l(4, 2, null as unknown as number, 0.05)]).mixed!.available).toBe(false);
+  });
+});
+
+describe('article trop volumineux pour l’avion (> 1,5 m³ l’unité) — 21 sept. 2026', () => {
+  const sofa = { unit_price_cny: 900, quantity: 1, weight: 45, volume: 1.8, has_battery: false };
+  const lamp = { unit_price_cny: 40, quantity: 4, weight: 1, volume: 0.01, has_battery: false };
+  it('un seul article de plus de 1,5 m³ : pas d’aérien, aucun prix, le maritime reste proposé', () => {
+    const r = computeOrderPricing([sofa]);
+    expect(r.airOversize).toBe(true);
+    expect(r.airAvailable).toBe(false);
+    expect(r.airCost).toBeNull();
+    expect(r.airTotal).toBeNull();
+    expect(r.seaAvailable).toBe(true);
+    expect(r.totalUnits).toBe(1);
+  });
+  it('1,5 m³ pile reste accepté en avion ; volume inconnu ne bloque pas', () => {
+    expect(computeOrderPricing([{ ...sofa, volume: 1.5 }]).airOversize).toBe(false);
+    expect(computeOrderPricing([{ ...sofa, volume: null }]).airOversize).toBe(false);
+  });
+  it('fractionné : l’article trop volumineux part toujours en bateau, le reste peut prendre l’avion', () => {
+    const r = computeOrderPricing([{ ...sofa, air_qty: 1 }, { ...lamp, air_qty: 4 }]);
+    expect(r.airOversize).toBe(true);
+    expect(r.totalUnits).toBe(5);
+    expect(r.mixed!.airUnits).toBe(4); // les lampes
+    expect(r.mixed!.seaUnits).toBe(1); // le canapé, malgré air_qty = 1
+    expect(r.mixed!.available).toBe(true);
+    expect(r.mixed!.airCost).toBe(4 * 13000);
   });
 });
