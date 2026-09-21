@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import BusinessKpis from '@/components/admin/BusinessKpis';
 import {
   Package,
   Ship,
@@ -154,6 +155,9 @@ export default function AdminDashboard() {
         </h1>
         <p className="mt-1 text-slate-500">Vue d&apos;ensemble des demandes, services et équipe.</p>
       </div>
+
+      {/* Activité commerciale : CA, marge produits, transport (commandes payées) */}
+      <BusinessKpis />
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
