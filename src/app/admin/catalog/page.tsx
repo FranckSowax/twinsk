@@ -34,6 +34,11 @@ interface CatalogItem {
   search_count: number;
   last_seen_at: string;
   created_at: string;
+  /** 'catalog' = rencontré au sourcing · 'offer' = produit d'un listing B2C/B2B. */
+  origin?: 'catalog' | 'offer';
+  offer_id?: string | null;
+  offer_title?: string | null;
+  offer_status?: string | null;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -41,9 +46,12 @@ const SOURCE_BADGE: Record<string, string> = {
   '1688': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   factory: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   manual: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  b2c: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300',
+  b2b: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
 };
 const SOURCE_LABEL: Record<string, string> = {
   taobao: 'Taobao', '1688': '1688', factory: 'Usine', manual: 'Manuel',
+  b2c: 'Listing B2C', b2b: 'Listing B2B',
 };
 const SORT_OPTIONS = [
   { value: 'search_count', label: 'Plus sourcés' },
@@ -269,6 +277,9 @@ export default function CatalogPage() {
                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
                   >
                     <option value="">Toutes</option>
+                    <option value="offer">Listings (B2C + B2B)</option>
+                    <option value="b2c">Listings B2C</option>
+                    <option value="b2b">Listings B2B</option>
                     <option value="taobao">Taobao</option>
                     <option value="1688">1688</option>
                     <option value="factory">Usines</option>
@@ -452,6 +463,12 @@ export default function CatalogPage() {
                               {item.title_original}
                             </p>
                           )}
+                          {item.offer_title && (
+                            <p className="max-w-[250px] truncate text-[10px] text-slate-500" title={item.offer_title}>
+                              📗 {item.offer_title}
+                              {item.offer_status !== 'published' && ' (brouillon)'}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -470,9 +487,13 @@ export default function CatalogPage() {
                       {item.seller || '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                        {item.search_count}×
-                      </span>
+                      {item.origin === 'offer' ? (
+                        <span className="text-xs text-slate-400">—</span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                          {item.search_count}×
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-400">
                       {new Date(item.last_seen_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
@@ -484,9 +505,19 @@ export default function CatalogPage() {
                             <ExternalLink className="h-4 w-4" />
                           </a>
                         )}
-                        <button type="button" onClick={() => handleDelete(item.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500">
-                          <X className="h-4 w-4" />
-                        </button>
+                        {item.origin === 'offer' ? (
+                          <a
+                            href={`/admin/${item.source === 'b2b' ? 'offer-b2b' : 'offer'}/${item.offer_id}`}
+                            className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500"
+                            title="Ouvrir le listing"
+                          >
+                            <Package className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <button type="button" onClick={() => handleDelete(item.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500" title="Retirer du catalogue">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

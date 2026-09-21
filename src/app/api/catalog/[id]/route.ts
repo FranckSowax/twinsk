@@ -68,6 +68,20 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Un produit affiché depuis un listing n'appartient pas à la table catalog :
+    // le supprimer ici le retirerait de l'offre en ligne. On refuse.
+    const { data: inOffer } = await supabaseAdmin
+      .from('offer_products')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+    if (inOffer) {
+      return NextResponse.json(
+        { error: 'Ce produit appartient à un listing : retirez-le depuis la page du listing.' },
+        { status: 409 },
+      );
+    }
+
     const { error } = await supabaseAdmin
       .from('catalog')
       .delete()
