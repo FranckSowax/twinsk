@@ -4,6 +4,7 @@ import { resolveActor } from '@/lib/collab';
 import { settlementCurrencyOf } from '@/lib/offer-pricing';
 import {
   byListing,
+  effectiveCurrency,
   byTransport,
   monthlySeries,
   totalsInFcfa,
@@ -90,6 +91,9 @@ export async function GET(request: NextRequest) {
 
   const paid = rows.filter((o) => o.payment_status === 'paid').map(toBusiness);
   const engaged = rows.filter((o) => o.payment_status === 'submitted').map(toBusiness);
+  // Devise du listing changée après la commande : montants figés dans l'ancienne
+  // devise. Le calcul s'y adapte, mais il faut le signaler.
+  const currencyMismatch = [...paid, ...engaged].filter((o) => effectiveCurrency(o) !== o.currency).length;
 
   return NextResponse.json({
     currency: 'XAF',
@@ -100,5 +104,6 @@ export async function GET(request: NextRequest) {
     transport: byTransport(paid),
     // Lignes dont le produit a disparu du catalogue : marge inconnue, comptée à 0.
     lines_without_margin: linesWithoutMargin,
+    currency_mismatch: currencyMismatch,
   });
 }

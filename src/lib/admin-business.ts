@@ -54,9 +54,21 @@ export interface OrderMargin {
 /** Taux de conversion CNY → devise de règlement de la commande. */
 const rateFor = (c: SettlementCurrency) => (c === 'EUR' ? 1 / 7.7 : 91);
 
+/**
+ * Devise RÉELLE des montants stockés sur la commande. La devise d'un listing
+ * peut être changée après coup : les montants déjà enregistrés restent alors
+ * dans l'ancienne devise. On retient celle qui colle au total des lignes (CNY).
+ */
+export function effectiveCurrency(o: BusinessOrder): SettlementCurrency {
+  const sellCny = o.lines.reduce((s, l) => s + l.unit_price_cny * l.quantity, 0);
+  if (sellCny <= 0 || !o.items_total) return o.currency;
+  const gap = (c: SettlementCurrency) => Math.abs(o.items_total - sellCny * rateFor(c)) / Math.max(1, o.items_total);
+  return gap('EUR') < gap('XAF') ? 'EUR' : 'XAF';
+}
+
 /** Marge d'une commande, dans SA devise de règlement. */
 export function orderMargin(o: BusinessOrder): OrderMargin {
-  const fx = rateFor(o.currency);
+  const fx = rateFor(effectiveCurrency(o));
   // Commission de l'affilié ramenée en pourcentage du prix d'achat majoré :
   // elle est déjà incluse dans unit_price_cny, il faut la retirer du coût.
   const sellCny = o.lines.reduce((s, l) => s + l.unit_price_cny * l.quantity, 0);
@@ -71,7 +83,9 @@ export function orderMargin(o: BusinessOrder): OrderMargin {
     return s + base * l.quantity;
   }, 0);
 
-  const revenue = Math.max(0, o.items_total - o.discount);
+  // Chiffre d'affaires reconstruit depuis les lignes (source de vérité, en CNY) :
+  // insensible à un changement de devise du listing après la commande.
+  const revenue = Math.max(0, (sellCny > 0 ? sellCny * fx : o.items_total) - o.discount);
   const cost = costCny * fx;
   const margin = revenue - cost - o.commission;
   return {
@@ -96,7 +110,7 @@ export function totalsInFcfa(orders: BusinessOrder[]): BusinessTotals {
   const acc = orders.reduce(
     (a, o) => {
       const m = orderMargin(o);
-      const f = (v: number) => toFcfa(v, o.currency);
+      const f = (v: number) => toFcfa(v, effectiveCurrency(o));
       a.revenue += f(m.revenue);
       a.cost += f(m.cost);
       a.margin += f(m.margin);
@@ -126,10 +140,11 @@ export interface Bucket {
 
 function push(map: Map<string, Bucket>, key: string, label: string, o: BusinessOrder) {
   const m = orderMargin(o);
+  const cur = effectiveCurrency(o);
   const b = map.get(key) || { key, label, revenue: 0, margin: 0, transport: 0, orders: 0 };
-  b.revenue += toFcfa(m.revenue, o.currency);
-  b.margin += toFcfa(m.margin, o.currency);
-  b.transport += toFcfa(m.transport, o.currency);
+  b.revenue += toFcfa(m.revenue, cur);
+  b.margin += toFcfa(m.margin, cur);
+  b.transport += toFcfa(m.transport, cur);
   b.orders += 1;
   map.set(key, b);
 }

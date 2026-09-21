@@ -33,6 +33,7 @@ interface Data {
   listings: Bucket[];
   transport: Bucket[];
   lines_without_margin: number;
+  currency_mismatch: number;
 }
 
 const fcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
@@ -128,6 +129,7 @@ export default function BusinessKpis() {
         de chaque produit) et moins la commission des affiliés. Le transport est refacturé au barème : il est suivi à part et n’entre
         pas dans la marge.
         {data.lines_without_margin > 0 && ` ${data.lines_without_margin} ligne(s) dont le produit n’est plus au catalogue sont comptées sans marge.`}
+        {data.currency_mismatch > 0 && ` ${data.currency_mismatch} commande(s) sur un listing dont la devise a changé depuis : les montants sont lus dans leur devise d’origine.`}
       </p>
     </section>
   );
