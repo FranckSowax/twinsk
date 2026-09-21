@@ -100,7 +100,7 @@ export function computeQuoteTransport(
   const airRatePerKg = dest.air_rate_per_kg;
   const airBatteryRatePerKg = dest.air_battery_rate_per_kg;
   const weightStd = totalWeight - weightBattery;
-  // Gabon (FCFA) : grille dégressive au-delà de 2,5 m³ (même règle que le
+  // Gabon (FCFA) : grille dégressive de 3 à 20 m³, 240 000 → 205 000 (même règle que le
   // checkout) ; autres destinations : tarif plat de la destination.
   const seaRatePerCbm = dest.currency === 'XAF' ? seaRateForVolume(totalVolume, dest.sea_rate_per_cbm) : dest.sea_rate_per_cbm;
 

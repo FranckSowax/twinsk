@@ -538,7 +538,7 @@ export default function ClientCartPanel() {
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => setTransport('sea')} disabled={busy !== null || !p.seaAvailable} className={btn(mode === 'sea', p.seaAvailable)}>
                       <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Ship className="h-3.5 w-3.5 text-blue-600" /> Maritime</span>
-                      <span className="text-slate-600 dark:text-slate-300">{p.seaAvailable ? fcfa(p.seaCost ?? 0, cur) : 'volume manquant'}</span>
+                      <span className="text-slate-600 dark:text-slate-300">{p.seaAvailable ? fcfa(p.seaCost ?? 0, cur) : p.seaOverLimit ? 'plus de 20 m³ : conteneur sur devis' : 'volume manquant'}</span>
                     </button>
                     <button type="button" onClick={() => setTransport('air')} disabled={busy !== null || !p.airAvailable} className={btn(mode === 'air', p.airAvailable)}>
                       <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-100"><Plane className="h-3.5 w-3.5 text-sky-600" /> Aérien</span>

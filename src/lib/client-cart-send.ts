@@ -148,6 +148,7 @@ export async function sendClientCartWhatsapp(args: {
     const transport: string[] = [];
     if (pricing.airTotal != null) transport.push(`✈️ Aérien : ${fcfa(pricing.airTotal)} (8 à 14 jours)`);
     if (pricing.seaTotal != null) transport.push(`🚢 Maritime : ${fcfa(pricing.seaTotal)} (60 à 85 jours)`);
+    else if (pricing.seaOverLimit) transport.push(`🚢 Maritime : plus de 20 m³, conteneur dédié sur devis — écrivez-nous ici`);
     transportBlock =
       (transport.length ? `\n\nEstimation avec transport :\n${transport.join('\n')}` : '') +
       `\n\nOuvrez votre panier pour choisir le transport, ajouter un code promo et payer (Airtel Money ou espèces).`;

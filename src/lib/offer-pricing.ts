@@ -1,7 +1,8 @@
 // Transport pricing for /offer/[uuid] checkout.
 // Tarifs Twinsk fournis par l'admin :
 //  - Aérien : 13 000 FCFA / kg (18 000 FCFA / kg si batterie au lithium)
-//  - Maritime : 240 000 FCFA / m³ (260 000 jusqu’au 10 sept. 2026)
+//  - Maritime : 240 000 FCFA / m³ jusqu'à 3 m³, dégressif jusqu'à 205 000 FCFA / m³ à 20 m³,
+//    conteneur dédié SUR DEVIS au-delà de 20 m³ (grille du 21 sept. 2026)
 // Devise de règlement : FCFA par défaut ; quand le listing est affiché en euros
 // (offer_currency = EUR), la commande se règle en euros avec les tarifs
 // transport des devis Europe (10 €/kg, 390 €/m³, pas de grille dégressive).
@@ -63,18 +64,28 @@ export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 
 export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_FCFA_PER_KG) || 18000;
 export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 240000;
 
-// Grille dégressive maritime (décision du 10 sept. 2026) : plein tarif jusqu'à
-// 2,5 m³, puis le tarif au m³ baisse linéairement jusqu'à 28 m³ = 5 000 000 FCFA
-// (≈ 178 571 FCFA / m³). Au-delà de 28 m³, le tarif plancher s'applique.
-export const SEA_DEGRESSIVE_FROM_M3 = 2.5;
-export const SEA_DEGRESSIVE_TO_M3 = 28;
-export const SEA_DEGRESSIVE_TO_TOTAL_FCFA = 5_000_000;
-export const SEA_RATE_FLOOR_FCFA_PER_M3 = SEA_DEGRESSIVE_TO_TOTAL_FCFA / SEA_DEGRESSIVE_TO_M3;
+// Grille dégressive maritime (décision du 21 sept. 2026, remplace celle du 10 sept.) :
+// plein tarif jusqu'à 3 m³, puis le tarif au m³ baisse linéairement jusqu'à
+// 205 000 FCFA / m³ à 20 m³. AU-DELÀ de 20 m³ : plus de prix automatique, c'est un
+// conteneur dédié sur devis — le client contacte Oh My Gab sur WhatsApp.
+export const SEA_DEGRESSIVE_FROM_M3 = 3;
+export const SEA_DEGRESSIVE_TO_M3 = 20;
+export const SEA_RATE_FLOOR_FCFA_PER_M3 = Number(process.env.SEA_RATE_FLOOR_FCFA_PER_M3) || 205000;
+/** Volume maximum chiffré automatiquement en groupage maritime (m³). */
+export const SEA_MAX_GROUPAGE_M3 = SEA_DEGRESSIVE_TO_M3;
+/** Numéro WhatsApp Oh My Gab (chiffres seuls) — contact pour un conteneur dédié. */
+export const OMG_WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_OMG_WHATSAPP_NUMBER || '24107425560').replace(/\D/g, '');
+
+/** Au-delà du groupage : conteneur dédié, prix sur devis. */
+export function isSeaOverLimit(volumeM3: number | null | undefined): boolean {
+  return volumeM3 != null && Number.isFinite(volumeM3) && volumeM3 > SEA_MAX_GROUPAGE_M3 + 1e-9;
+}
 
 /**
  * Tarif maritime au m³ pour un volume de commande donné (FCFA / m³, non arrondi).
- * ≤ 2,5 m³ → tarif de base ; 2,5 → 28 m³ → interpolation linéaire vers le plancher ;
- * ≥ 28 m³ → plancher. Le total (volume × tarif) reste croissant sur toute la plage.
+ * ≤ 3 m³ → tarif de base ; 3 → 20 m³ → interpolation linéaire vers 205 000 ;
+ * > 20 m³ → plancher (indicatif : la commande passe alors sur devis conteneur).
+ * Le total (volume × tarif) reste croissant sur toute la plage.
  */
 export function seaRateForVolume(volumeM3: number, baseRate: number = SEA_RATE_FCFA_PER_M3): number {
   if (!Number.isFinite(volumeM3) || volumeM3 <= SEA_DEGRESSIVE_FROM_M3) return baseRate;
@@ -122,6 +133,8 @@ export interface MixedTransport {
   total: number | null;
   /** Les deux parts sont chiffrables (poids connus côté avion, volumes connus côté bateau). */
   available: boolean;
+  /** La part bateau dépasse 20 m³ : conteneur dédié sur devis. */
+  seaOverLimit: boolean;
 }
 
 /** Ajustements d'un code promo : tarif transport imposé et/ou remise articles. */
@@ -162,6 +175,8 @@ export interface PricingResult {
   seaCost: number | null;
   airAvailable: boolean;
   seaAvailable: boolean;
+  /** Volume > 20 m³ : conteneur dédié sur devis — le maritime n'est plus chiffré automatiquement. */
+  seaOverLimit: boolean;
   airTotal: number | null;
   seaTotal: number | null;
   /** Remise articles appliquée (code promo), déjà déduite des totaux. */
@@ -212,6 +227,7 @@ function computeMixed(lines: OrderLineForPricing[], opts: PricingOptions, itemsN
     cost,
     total: cost != null ? cents(itemsNet + cost) : null,
     available,
+    seaOverLimit: !!sea?.seaOverLimit,
   };
 }
 
@@ -262,7 +278,9 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
   }
 
   const airAvailable = weightKnown && totalWeight > 0;
-  const seaAvailable = volumeKnown && totalVolume > 0;
+  // Au-delà de 20 m³ : conteneur dédié sur devis (contact WhatsApp), pas de prix automatique.
+  const seaOverLimit = volumeKnown && isSeaOverLimit(totalVolume);
+  const seaAvailable = volumeKnown && totalVolume > 0 && !seaOverLimit;
 
   // Calcul aérien SCINDÉ (décision du 18 sept. 2026) : les kilos des produits
   // sans batterie au tarif standard, les kilos des produits avec batterie au
@@ -318,6 +336,7 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     seaCost,
     airAvailable,
     seaAvailable,
+    seaOverLimit,
     discountFcfa,
     itemsNetFcfa,
     // Total à payer = total produits arrondi (somme des lignes) − remise + transport.

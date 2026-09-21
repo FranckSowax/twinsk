@@ -105,7 +105,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
             {mixed.seaVolume != null ? ` · ${mixed.seaVolume.toFixed(4)} m³` : ''} — <strong>{mixed.seaUnits ? fmt(mixed.seaCost) : '—'}</strong>
           </p>
           <p className="font-semibold text-slate-900 sm:col-span-2">
-            Transport total : {mixed.available ? fmt(mixed.cost) : 'non chiffrable (poids ou volume manquant)'}
+            Transport total : {mixed.available ? fmt(mixed.cost) : mixed.seaOverLimit ? 'la part bateau dépasse 20 m³ : conteneur dédié sur devis, contactez-nous sur WhatsApp' : 'non chiffrable (poids ou volume manquant)'}
           </p>
         </div>
       )}

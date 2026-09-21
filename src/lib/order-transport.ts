@@ -59,10 +59,14 @@ export async function applyOrderTransport(args: {
     transportCost = pricing.airCost;
     grandTotal = pricing.airTotal;
   } else if (mode === 'sea') {
+    if (pricing.seaOverLimit) return { ok: false, status: 400, error: 'Au-delà de 20 m³, le maritime part en conteneur dédié sur devis : contactez Oh My Gab sur WhatsApp.' };
     if (!pricing.seaAvailable) return { ok: false, status: 400, error: 'Fret maritime indisponible (volume manquant)' };
     transportCost = pricing.seaCost;
     grandTotal = pricing.seaTotal;
   } else if (mode === 'mixed') {
+    if (pricing.mixed?.seaOverLimit) {
+      return { ok: false, status: 400, error: 'La part bateau dépasse 20 m³ : conteneur dédié sur devis, contactez Oh My Gab sur WhatsApp.' };
+    }
     if (!pricing.mixed || !pricing.mixed.available || pricing.mixed.cost == null) {
       return { ok: false, status: 400, error: 'Transport fractionné indisponible : poids manquant côté avion ou volume manquant côté bateau' };
     }

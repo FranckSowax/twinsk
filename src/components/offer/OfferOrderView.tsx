@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2 } from 'lucide-react';
 import OrderAddProductModal from '@/components/offer/OrderAddProductModal';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
-import { formatSettlement, formatSettlementRate, roundSettlement, SEA_RATE_FCFA_PER_M3, transportCostFor, type MixedTransport, type SettlementCurrency } from '@/lib/offer-pricing';
+import { formatSettlement, formatSettlementRate, roundSettlement, OMG_WHATSAPP_NUMBER, SEA_MAX_GROUPAGE_M3, SEA_RATE_FCFA_PER_M3, transportCostFor, type MixedTransport, type SettlementCurrency } from '@/lib/offer-pricing';
 import TransportSplitEditor from '@/components/offer/TransportSplitEditor';
 import { orderNumber } from '@/lib/order-number';
 import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
@@ -44,6 +44,8 @@ interface Pricing {
   airCostStd?: number | null;
   airCostBattery?: number | null;
   mixed?: MixedTransport | null;
+  /** Volume > 20 m³ : conteneur dédié sur devis (contact WhatsApp). */
+  seaOverLimit?: boolean;
   discountFcfa: number;
   itemsNetFcfa: number;
   itemsTotalCny: number;
@@ -583,7 +585,30 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         <h2 className="font-semibold text-slate-900">Choisissez votre transport</h2>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {/* Maritime */}
+          {/* Maritime — au-delà de 20 m³ : conteneur dédié sur devis, contact WhatsApp */}
+          {pricing.seaOverLimit ? (
+            <div className="flex flex-col items-start gap-2 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 text-left">
+              <div className="flex items-center gap-2">
+                <Ship className="h-5 w-5 text-blue-600" />
+                <p className="font-semibold text-slate-900">Fret maritime — conteneur dédié</p>
+              </div>
+              <p className="text-xs text-slate-700">
+                Votre commande fait <strong>{pricing.totalVolume?.toFixed(2)} m³</strong>, soit plus de {SEA_MAX_GROUPAGE_M3} m³ :
+                elle part dans un <strong>conteneur rien que pour vous</strong>. Le prix se fait sur devis, avec un meilleur tarif qu’en groupage.
+              </p>
+              <a
+                href={`https://wa.me/${OMG_WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                  `Bonjour Oh My Gab, je souhaite un devis conteneur pour ma commande ${orderNumber(order.id)} (${pricing.totalVolume?.toFixed(2)} m³).\n${typeof window !== 'undefined' ? window.location.href : ''}`,
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25"
+              >
+                <MessageCircle className="h-4 w-4" /> Demander mon devis conteneur sur WhatsApp
+              </a>
+              <p className="text-[10px] text-slate-500">🚚 Livraison 60 à 85 jours · réponse sous 48 h</p>
+            </div>
+          ) : (
           <button
             type="button"
             onClick={() => pickTransport('sea')}
@@ -618,6 +643,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="text-[10px] text-amber-600">Volume inconnu</p>
             )}
           </button>
+          )}
 
           {/* Aérien */}
           <button
