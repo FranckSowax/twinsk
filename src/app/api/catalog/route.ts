@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         .from('offer_products')
         .select(
           'id, title, title_original, description, price, image_url, main_image_url, seller, product_url, moq, created_at, ' +
-            'offer_items!inner(offer_id, offers!inner(title, offer_type, status))',
+            'offer_items!inner(offer_id, description, offers!inner(title, offer_type, status))',
           { count: 'exact' },
         );
       if (q) qb = qb.or(search(['title', 'title_original', 'description', 'seller']));

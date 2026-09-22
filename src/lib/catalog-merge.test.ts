@@ -7,7 +7,7 @@ const cat = fromCatalogTable({
 });
 const b2c = fromOfferProduct({
   id: 'p1', title: 'Set vaisselle', price: 260, created_at: '2026-08-01T00:00:00Z',
-  offer_items: { offer_id: 'o1', offers: { title: 'Set Vaisselle', offer_type: 'b2c', status: 'published' } },
+  offer_items: { offer_id: 'o1', description: 'Sets de vaisselle — porcelaine, carafe incluse', offers: { title: 'Set Vaisselle', offer_type: 'b2c', status: 'published' } },
 });
 const b2b = fromOfferProduct({
   id: 'p2', title: 'Four à pizza', price: 3400, created_at: '2026-09-10T00:00:00Z',
@@ -19,6 +19,7 @@ describe('catalogue unifié : sourcing + produits des listings', () => {
     expect(b2c.origin).toBe('offer');
     expect(b2c.source).toBe('b2c');
     expect(b2c.offer_title).toBe('Set Vaisselle');
+    expect(b2c.category).toBe('Sets de vaisselle'); // titre court, sans les précisions
     expect(b2b.source).toBe('b2b');
     expect(b2b.offer_status).toBe('draft');   // la jointure marche aussi en tableau
     expect(b2b.offer_id).toBe('o2');
@@ -27,6 +28,8 @@ describe('catalogue unifié : sourcing + produits des listings', () => {
     expect(cat.origin).toBe('catalog');
     expect(cat.source).toBe('1688');
     expect(cat.search_count).toBe(7);
+    expect(cat.category).toBeNull();  // le sourcing ne range pas par catégorie
+    expect(b2b.category).toBeNull();  // catégorie sans titre
     expect(fromOfferProduct({ id: 'x', title: 't', created_at: '' }).search_count).toBe(0);
   });
   it('fusionne et trie les deux sources ensemble', () => {

@@ -3,6 +3,8 @@
 // B2B). Aucune duplication en base : les deux sources sont lues puis fusionnées
 // à la volée, donc le catalogue reflète toujours l'état réel des listings.
 
+import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
+
 export type CatalogOrigin = 'catalog' | 'offer';
 
 export interface CatalogRow {
@@ -22,6 +24,8 @@ export interface CatalogRow {
   search_count: number;
   last_seen_at: string;
   created_at: string;
+  /** Catégorie du produit : titre court de sa catégorie dans le listing. */
+  category: string | null;
   /** Listing d'origine (produits de listing uniquement). */
   offer_id?: string | null;
   offer_title?: string | null;
@@ -49,11 +53,15 @@ export function fromCatalogTable(r: Record<string, unknown>): CatalogRow {
     search_count: Number(r.search_count) || 0,
     last_seen_at: s('last_seen_at') || s('created_at') || '',
     created_at: s('created_at') || '',
+    // La table `catalog` ne range pas les produits par catégorie.
+    category: null,
   };
 }
 
 interface OfferJoin {
   offer_id?: string | null;
+  /** Titre de la catégorie, sous la forme « Court — précisions ». */
+  description?: string | null;
   offers?: { title?: string | null; offer_type?: string | null; status?: string | null } | { title?: string | null; offer_type?: string | null; status?: string | null }[] | null;
 }
 
@@ -81,6 +89,7 @@ export function fromOfferProduct(r: Record<string, unknown>): CatalogRow {
     search_count: 0, // notion propre au sourcing
     last_seen_at: created,
     created_at: created,
+    category: splitCategoryTitle(item?.description).short || null,
     offer_id: item?.offer_id ?? null,
     offer_title: off?.title ?? null,
     offer_status: off?.status ?? null,

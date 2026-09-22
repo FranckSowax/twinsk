@@ -39,6 +39,7 @@ interface CatalogItem {
   offer_id?: string | null;
   offer_title?: string | null;
   offer_status?: string | null;
+  category?: string | null;
 }
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -402,6 +403,7 @@ export default function CatalogPage() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800/50">
                   <th className="px-4 py-3">Produit</th>
+                  <th className="px-4 py-3">Catégorie</th>
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3 text-right">
                     <button
@@ -471,6 +473,15 @@ export default function CatalogPage() {
                           )}
                         </div>
                       </div>
+                    </td>
+                    <td className="max-w-[170px] px-4 py-3">
+                      {item.category ? (
+                        <span className="line-clamp-2 text-xs text-slate-600 dark:text-slate-300" title={item.category}>
+                          {item.category}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SOURCE_BADGE[item.source] || SOURCE_BADGE.taobao}`}>
