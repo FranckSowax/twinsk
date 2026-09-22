@@ -1,7 +1,7 @@
 'use client';
 
 // Vitrine « lien en bio » d'Oh My Gab : trafic WhatsApp et réseaux, donc mobile
-// d'abord. En-tête collant, hero avec compteurs animés, filtre segmenté
+// d'abord. En-tête collant, hero avec visuel de marque, filtre segmenté
 // Tous / Confort / Pro à indicateur coulissant, grille de vignettes (vidéo 1:1
 // du listing en boucle muette, sinon la cover), « Comment ça marche »,
 // contacts, bouton WhatsApp flottant. Animations Framer Motion (déjà dans le
@@ -9,7 +9,7 @@
 
 import './bio.css';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, MotionConfig, motion, useInView, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'framer-motion';
 import { Package } from 'lucide-react';
 import type { BioConfig, BioFilter } from '@/lib/bio-page';
 import { bioSummary, waLink } from '@/lib/bio-page';
@@ -61,36 +61,6 @@ function formatWaNumber(n: string): string {
   const d = n.replace(/\D/g, '');
   if (!d.startsWith('241')) return `+${d}`;
   return `+241 ${d.slice(3).replace(/(\d{2})(?=\d)/g, '$1 ')}`;
-}
-
-/** Compteur animé (ease-out cubique, ~1,1 s) déclenché à l'entrée dans l'écran.
- *  Le HTML serveur porte déjà la vraie valeur : lisible avant l'hydratation
- *  (connexion lente, partage WhatsApp), l'animation part de 0 quand la
- *  pastille devient visible. */
-function CountUp({ value, suffix = '', duration = 1100 }: { value: number; suffix?: string; duration?: number }) {
-  const ref = useRef<HTMLElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.6 });
-  const reduced = useReducedMotion();
-  const [n, setN] = useState(value);
-  useEffect(() => {
-    if (!inView || reduced) return;
-    let raf = 0;
-    let t0: number | null = null;
-    const tick = (t: number) => {
-      if (t0 === null) t0 = t;
-      const p = Math.min((t - t0) / duration, 1);
-      setN(Math.round(value * (1 - Math.pow(1 - p, 3))));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, value, duration, reduced]);
-  return (
-    <b ref={ref} className="block text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">
-      {(reduced ? value : n).toLocaleString('fr-FR')}
-      {suffix}
-    </b>
-  );
 }
 
 /** Vignette : vidéo carrée du listing en boucle muette (jouée seulement à l'écran), sinon la cover. */
@@ -221,26 +191,22 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
               <span className="bio-dot h-[7px] w-[7px] rounded-full bg-(--green)" />
               Commandes ouvertes — réponse en &lt; 1 h sur WhatsApp
             </motion.span>
-            <motion.h1 {...rise(0.08)} className="mx-auto mt-[18px] max-w-[640px] text-[clamp(30px,6vw,48px)] font-extrabold leading-[1.06] tracking-[-0.035em]">
-              La Chine livrée à <span className="bio-grad">Libreville</span>,<br />
-              sans stress.
+            <motion.h1 {...rise(0.08)} className="mx-auto mt-[18px] max-w-[680px] text-[clamp(30px,6vw,48px)] font-extrabold leading-[1.06] tracking-[-0.035em]">
+              Votre projet et vos envies livrés à <span className="bio-grad">Libreville</span> !
             </motion.h1>
             <motion.p {...rise(0.16)} className="mx-auto mt-3.5 max-w-[520px] text-[clamp(14px,2.4vw,16.5px)] font-medium leading-[1.55] text-(--ink-60)">
               Choisissez un catalogue, ajoutez au panier, payez en FCFA par Airtel Money ou cash. On s’occupe du reste — suivi WhatsApp jusqu’à votre porte.
             </motion.p>
-            <motion.div {...rise(0.24)} className="mx-auto mt-[26px] flex flex-wrap justify-center gap-2.5">
-              {[
-                { node: <CountUp value={summary.products} />, label: 'Produits' },
-                { node: <CountUp value={summary.categories} />, label: 'Catégories' },
-                { node: <CountUp value={8} suffix="-14 j" />, label: 'Livraison aérienne' },
-                { node: <b className="block text-[19px] font-extrabold tracking-[-0.02em]">FCFA</b>, label: 'Prix nets' },
-              ].map((s) => (
-                <div key={s.label} className={`min-w-[104px] rounded-[14px] px-[18px] py-2.5 ${card}`}>
-                  {s.node}
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-(--ink-40)">{s.label}</span>
-                </div>
-              ))}
-            </motion.div>
+            {/* Visuel de marque (public/bio/top-bio-web.jpg, 1600 px, 82 Ko) à la place des indicateurs. */}
+            <motion.img
+              {...rise(0.24)}
+              src="/bio/top-bio-web.jpg"
+              alt="L’équipe Oh My Gab tient le logo OhMyGab!"
+              width={1600}
+              height={686}
+              fetchPriority="high"
+              className="mx-auto mt-6 w-full max-w-[720px] rounded-(--radius)"
+            />
           </section>
 
           {/* Filtre segmenté, collé sous l'en-tête */}
