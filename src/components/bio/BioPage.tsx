@@ -105,8 +105,10 @@ function CardMedia({ card }: { card: BioOfferCard }) {
     v.muted = true;
     v.defaultMuted = true;
     const io = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) v.play().catch(() => undefined);
+      (entries) => {
+        // Plusieurs entrées peuvent arriver d'un coup (hors-écran puis à l'écran) : seule la dernière compte.
+        const last = entries[entries.length - 1];
+        if (last.isIntersecting) v.play().catch(() => undefined);
         else v.pause();
       },
       { threshold: 0.25 },
@@ -311,18 +313,21 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
                     <div className="relative aspect-square overflow-hidden bg-[#e9e6e0]">
                       <CardMedia card={l} />
                       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_55%,rgba(11,27,43,.35))]" />
-                      <span
-                        className={`absolute left-2.5 top-2.5 z-[2] inline-flex items-center gap-1 rounded-full px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white backdrop-blur-[6px] ${
-                          l.tab === 'pro' ? 'bg-[rgba(245,158,11,.94)]' : 'bg-[rgba(30,154,240,.92)]'
-                        }`}
-                      >
-                        {l.tab === 'pro' ? '💼 Pro' : '🏠 Confort'}
-                      </span>
-                      {badge && (
-                        <span className="absolute right-2.5 top-2.5 z-[2] rounded-full bg-[rgba(11,27,43,.85)] px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white backdrop-blur-[6px]">
-                          {badge}
+                      {/* Badges : sur une carte étroite (2 colonnes mobile), « Nouveau » passe à la ligne au lieu de chevaucher. */}
+                      <div className="absolute inset-x-2.5 top-2.5 z-[2] flex flex-wrap items-start justify-between gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white backdrop-blur-[6px] ${
+                            l.tab === 'pro' ? 'bg-[rgba(245,158,11,.94)]' : 'bg-[rgba(30,154,240,.92)]'
+                          }`}
+                        >
+                          {l.tab === 'pro' ? '💼 Pro' : '🏠 Confort'}
                         </span>
-                      )}
+                        {badge && (
+                          <span className="rounded-full bg-[rgba(11,27,43,.85)] px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white backdrop-blur-[6px]">
+                            {badge}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="px-3.5 pb-3.5 pt-[13px]">
                       <h2 className="line-clamp-2 min-h-[2.56em] text-[14.5px] font-extrabold leading-[1.28] tracking-[-0.015em]">{l.title}</h2>
