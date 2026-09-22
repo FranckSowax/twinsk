@@ -1,221 +1,435 @@
 'use client';
 
-// Vitrine « lien en bio » : mobile d'abord (colonne ≤ 28 rem centrée), onglets
-// Confort / Pro, cartes listing → page listing (panier + commande), carrousel
-// « Comment ça marche » (défilement horizontal avec accroche), contacts.
+// Vitrine « lien en bio » d'Oh My Gab : trafic WhatsApp et réseaux, donc mobile
+// d'abord. En-tête collant, hero avec compteurs animés, filtre segmenté
+// Tous / Confort / Pro à indicateur coulissant, grille de vignettes (vidéo 1:1
+// du listing en boucle muette, sinon la cover), « Comment ça marche »,
+// contacts, bouton WhatsApp flottant. Animations Framer Motion (déjà dans le
+// projet) sur transform/opacity uniquement ; `prefers-reduced-motion` respecté.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, Facebook, Instagram, Mail, MessageCircle, Radio, Users, Youtube } from 'lucide-react';
-import type { BioConfig, BioTab } from '@/lib/bio-page';
-import { waLink } from '@/lib/bio-page';
+import './bio.css';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion, useInView, useReducedMotion } from 'framer-motion';
+import { Package } from 'lucide-react';
+import type { BioConfig, BioFilter } from '@/lib/bio-page';
+import { bioSummary, waLink } from '@/lib/bio-page';
 import type { BioOfferCard } from '@/lib/bio-page-data';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 
-const TABS: { key: BioTab; label: string; hint: string; emoji: string }[] = [
-  { key: 'confort', label: 'Confort', hint: 'Maison & famille', emoji: '🏠' },
-  { key: 'pro', label: 'Pro', hint: 'Business clé en main', emoji: '💼' },
-];
+const EASE = [0.22, 1, 0.36, 1] as const;
 
-/** Vignette d'un listing : vidéo carrée en boucle (muette) si disponible, sinon la cover. */
+const FILTERS: { key: BioFilter; label: string; emoji: string }[] = [
+  { key: 'all', label: 'Tous', emoji: '✨' },
+  { key: 'confort', label: 'Confort', emoji: '🏠' },
+  { key: 'pro', label: 'Pro', emoji: '💼' },
+];
+const INDICATOR_BG: Record<BioFilter, string> = {
+  all: 'var(--ink)',
+  confort: 'linear-gradient(120deg, var(--blue), var(--blue-dark))',
+  pro: 'linear-gradient(120deg, #F59E0B, #D97706)',
+};
+const INDICATOR_SHADOW: Record<BioFilter, string> = {
+  all: '0 4px 14px rgba(11,27,43,.25)',
+  confort: '0 4px 16px rgba(30,154,240,.4)',
+  pro: '0 4px 16px rgba(245,158,11,.4)',
+};
+
+function WaIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm0 18.13c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.26 8.26 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 4.54 0 8.24 3.7 8.24 8.24 0 4.55-3.7 8.24-8.24 8.24zm4.52-6.16c-.25-.13-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.43.13-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.13.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.14-1.18-.06-.1-.22-.16-.47-.29z" />
+    </svg>
+  );
+}
+function ArrowIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={className} aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={className} aria-hidden="true">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/** « 24107425560 » → « +241 07 42 55 60 ». */
+function formatWaNumber(n: string): string {
+  const d = n.replace(/\D/g, '');
+  if (!d.startsWith('241')) return `+${d}`;
+  return `+241 ${d.slice(3).replace(/(\d{2})(?=\d)/g, '$1 ')}`;
+}
+
+/** Compteur animé (ease-out cubique, ~1,1 s) déclenché à l'entrée dans l'écran. */
+function CountUp({ value, suffix = '', duration = 1100 }: { value: number; suffix?: string; duration?: number }) {
+  const ref = useRef<HTMLElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.6 });
+  const reduced = useReducedMotion();
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!inView || reduced) return;
+    let raf = 0;
+    let t0: number | null = null;
+    const tick = (t: number) => {
+      if (t0 === null) t0 = t;
+      const p = Math.min((t - t0) / duration, 1);
+      setN(Math.round(value * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, value, duration, reduced]);
+  return (
+    <b ref={ref} className="block text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">
+      {(reduced ? value : n).toLocaleString('fr-FR')}
+      {suffix}
+    </b>
+  );
+}
+
+/** Vignette : vidéo carrée du listing en boucle muette (jouée seulement à l'écran), sinon la cover. */
 function CardMedia({ card }: { card: BioOfferCard }) {
   const [videoFailed, setVideoFailed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const video = card.mobile_video_url && !videoFailed ? card.mobile_video_url : null;
   const poster = card.cover_image_url ? proxyImageUrl(card.cover_image_url) : undefined;
-  // React ne pose pas l'attribut `muted` dans le HTML rendu : on force la
-  // propriété puis on relance la lecture, sinon iOS/Chrome bloquent l'autoplay.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+    // React ne pose pas `muted` dans le HTML : on force la propriété, sinon
+    // iOS/Chrome refusent l'autoplay. Lecture uniquement quand la vignette est
+    // visible pour ménager batterie et données (jusqu'à 16 vidéos par page).
     v.muted = true;
     v.defaultMuted = true;
-    v.play().catch(() => undefined);
-  }, [video]);
-  if (video) {
-    return (
-      <video
-        ref={videoRef}
-        src={video}
-        poster={poster}
-        muted
-        autoPlay
-        loop
-        playsInline
-        preload="metadata"
-        onError={() => setVideoFailed(true)}
-        className="h-full w-full object-cover"
-      />
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) v.play().catch(() => undefined);
+        else v.pause();
+      },
+      { threshold: 0.25 },
     );
+    io.observe(v);
+    return () => io.disconnect();
+  }, [video]);
+  const media = 'h-full w-full object-cover transition-transform duration-[800ms] ease-(--ease) group-hover:scale-[1.07]';
+  if (video) {
+    return <video ref={videoRef} src={video} poster={poster} muted autoPlay loop playsInline preload="metadata" onError={() => setVideoFailed(true)} className={media} />;
   }
   if (poster) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={poster} alt={card.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />;
+    return <img src={poster} alt="" loading="lazy" className={media} />;
   }
-  return <div className="flex h-full w-full items-center justify-center text-5xl">{card.tab === 'pro' ? '💼' : '🏠'}</div>;
-}
-
-function TikTokIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M16.5 3c.4 2.2 1.8 3.7 4 3.9v3.1c-1.5 0-2.9-.5-4-1.3v6.1a5.9 5.9 0 1 1-5.9-5.9c.3 0 .7 0 1 .1v3.2a2.8 2.8 0 1 0 1.9 2.6V3h3z" />
-    </svg>
-  );
+  return <div className="flex h-full w-full items-center justify-center bg-(--blue-soft) text-5xl">{card.tab === 'pro' ? '💼' : '🏠'}</div>;
 }
 
 export default function BioPage({ config, listings }: { config: BioConfig; listings: BioOfferCard[] }) {
-  const counts = useMemo(() => ({ confort: listings.filter((l) => l.tab === 'confort').length, pro: listings.filter((l) => l.tab === 'pro').length }), [listings]);
-  const [tab, setTab] = useState<BioTab>(() => (counts.confort === 0 && counts.pro > 0 ? 'pro' : 'confort'));
-  const shown = listings.filter((l) => l.tab === tab);
+  const summary = useMemo(() => bioSummary(listings), [listings]);
+  const [filter, setFilter] = useState<BioFilter>('all');
+  const shown = filter === 'all' ? listings : listings.filter((l) => l.tab === filter);
+  const reduced = useReducedMotion();
 
-  // Carrousel « Comment ça marche » : position courante pour les points + flèches.
-  const railRef = useRef<HTMLDivElement>(null);
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    const el = railRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      const w = el.firstElementChild ? (el.firstElementChild as HTMLElement).offsetWidth + 12 : el.clientWidth;
-      setStep(Math.round(el.scrollLeft / Math.max(1, w)));
+  // Indicateur coulissant du filtre : mesuré sur le segment actif, remesuré au redimensionnement.
+  const segRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [indicator, setIndicator] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = segRefs.current[filter];
+      if (el) setIndicator({ x: el.offsetLeft, w: el.offsetWidth });
     };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, []);
-  const scrollTo = (i: number) => {
-    const el = railRef.current;
-    if (!el || !el.firstElementChild) return;
-    const w = (el.firstElementChild as HTMLElement).offsetWidth + 12;
-    el.scrollTo({ left: Math.max(0, Math.min(config.steps.length - 1, i)) * w, behavior: 'smooth' });
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [filter]);
+  const onFilterKey = (e: React.KeyboardEvent) => {
+    const i = FILTERS.findIndex((f) => f.key === filter);
+    if (e.key === 'ArrowRight') setFilter(FILTERS[(i + 1) % FILTERS.length].key);
+    if (e.key === 'ArrowLeft') setFilter(FILTERS[(i + FILTERS.length - 1) % FILTERS.length].key);
   };
 
   const c = config.contacts;
+  const wa = c.whatsapp_number ? waLink(c.whatsapp_number) : null;
   const contacts = [
-    c.whatsapp_number && { href: waLink(c.whatsapp_number, 'Bonjour Oh My Gab, je souhaite des informations.'), label: 'Écrire sur WhatsApp', sub: `+${c.whatsapp_number}`, icon: <MessageCircle className="h-5 w-5" />, cls: 'bg-[#25D366] text-white' },
-    c.whatsapp_group && { href: c.whatsapp_group, label: 'Groupe WhatsApp', sub: 'Le Salon Oh My : questions et échanges', icon: <Users className="h-5 w-5" />, cls: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' },
-    c.whatsapp_channel && { href: c.whatsapp_channel, label: 'Chaîne WhatsApp', sub: 'Nouveautés et promos chaque heure', icon: <Radio className="h-5 w-5" />, cls: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' },
-    c.tiktok && { href: c.tiktok, label: 'TikTok', sub: 'Vidéos produits', icon: <TikTokIcon className="h-5 w-5" />, cls: 'bg-slate-900 text-white' },
-    c.facebook && { href: c.facebook, label: 'Facebook', sub: 'Page Oh My Gab', icon: <Facebook className="h-5 w-5" />, cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
-    c.instagram && { href: c.instagram, label: 'Instagram', sub: 'Stories et coulisses', icon: <Instagram className="h-5 w-5" />, cls: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
-    c.youtube && { href: c.youtube, label: 'YouTube', sub: 'Guides et présentations', icon: <Youtube className="h-5 w-5" />, cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
-    c.email && { href: `mailto:${c.email}`, label: 'E-mail', sub: c.email, icon: <Mail className="h-5 w-5" />, cls: 'bg-slate-100 text-slate-800 ring-1 ring-slate-200' },
-  ].filter(Boolean) as { href: string; label: string; sub: string; icon: React.ReactNode; cls: string }[];
+    c.whatsapp_number && { href: waLink(c.whatsapp_number, 'Bonjour Oh My Gab, je souhaite des informations.'), label: 'WhatsApp', sub: formatWaNumber(c.whatsapp_number), emoji: '💬', bg: 'rgba(37,211,102,.14)' },
+    c.whatsapp_group && { href: c.whatsapp_group, label: 'Groupe WhatsApp', sub: 'Le Salon Oh My — échanges', emoji: '👥', bg: 'rgba(37,211,102,.14)' },
+    c.whatsapp_channel && { href: c.whatsapp_channel, label: 'Chaîne WhatsApp', sub: 'Nouveautés & promos', emoji: '📢', bg: 'rgba(37,211,102,.14)' },
+    c.tiktok && { href: c.tiktok, label: 'TikTok', sub: 'Vidéos produits', emoji: '🎵', bg: 'var(--blue-soft)' },
+    c.facebook && { href: c.facebook, label: 'Facebook', sub: 'Page Oh My Gab', emoji: '📘', bg: 'var(--blue-soft)' },
+    c.instagram && { href: c.instagram, label: 'Instagram', sub: 'Stories & coulisses', emoji: '📸', bg: 'var(--blue-soft)' },
+    c.youtube && { href: c.youtube, label: 'YouTube', sub: 'Guides et présentations', emoji: '▶️', bg: 'rgba(239,68,68,.12)' },
+    c.email && { href: `mailto:${c.email}`, label: 'E-mail', sub: c.email, emoji: '✉️', bg: 'var(--blue-soft)' },
+  ].filter(Boolean) as { href: string; label: string; sub: string; emoji: string; bg: string }[];
+
+  const rise = (delay: number) => ({
+    initial: { opacity: 0, y: 18 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.7, ease: EASE, delay },
+  });
+  const reveal = (i: number) => ({
+    initial: { opacity: 0, y: 18 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true, margin: '0px 0px -30px 0px' },
+    transition: { duration: 0.5, ease: EASE, delay: reduced ? 0 : Math.min(i, 6) * 0.08 },
+  });
+  const card = 'rounded-(--radius) border border-(--line) bg-(--card) shadow-(--shadow-sm)';
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(120%_60%_at_50%_-10%,#dbeafe_0%,#f8fafc_55%)] text-slate-900">
-      <main className="mx-auto w-full max-w-md px-4 pb-12 pt-6 sm:max-w-lg">
-        {/* En-tête */}
-        <header className="text-center">
-          {config.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={config.logo_url} alt={config.title} className="mx-auto h-32 w-32 rounded-[2rem] object-cover shadow-xl shadow-blue-500/15 sm:h-36 sm:w-36" />
-          ) : (
-            <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-[2rem] bg-gradient-to-br from-sky-400 to-blue-600 text-6xl shadow-xl shadow-blue-500/20 sm:h-36 sm:w-36">🛒</div>
-          )}
-          <h1 className="mt-4 font-display text-3xl font-bold uppercase tracking-tight sm:text-4xl">{config.title}</h1>
-          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">{config.tagline}</p>
+    <MotionConfig reducedMotion="user">
+      <div className="bio-root min-h-screen">
+        {/* En-tête collant */}
+        <header className="sticky top-0 z-50 border-b border-(--line) bg-[rgba(247,246,243,.82)] backdrop-blur-[14px] backdrop-saturate-[160%]">
+          <div className="mx-auto flex max-w-[1120px] items-center gap-3.5 px-5 py-3">
+            <a href="#top" className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-[42px] w-[42px] flex-shrink-0 place-items-center overflow-hidden rounded-[13px] bg-(--ink) shadow-(--shadow-sm)">
+                {config.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={config.logo_url} alt={config.title} className="h-[86%] w-[86%] object-contain" />
+                ) : (
+                  <span className="text-xl">🛒</span>
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block whitespace-nowrap text-[17px] font-extrabold leading-[1.1] tracking-[-0.02em]">{config.title}</span>
+                <span className="block truncate text-[11.5px] font-medium text-(--ink-60)">{config.tagline}</span>
+              </span>
+            </a>
+            {wa && (
+              <a
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-(--ink) px-4 py-2.5 text-[13.5px] font-bold text-white shadow-(--shadow-sm) transition-[transform,box-shadow,background-color] duration-250 ease-(--ease) hover:-translate-y-px hover:bg-(--blue) hover:shadow-[0_8px_20px_rgba(30,154,240,.35)] active:scale-[.96]"
+              >
+                <WaIcon className="h-4 w-4" />
+                WhatsApp
+              </a>
+            )}
+          </div>
         </header>
 
-        {/* Onglets */}
-        <div className="mt-6 grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
-          {TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={`rounded-xl px-3 py-2.5 text-left transition ${active ? 'bg-[#0047FF] text-white shadow-md shadow-[#0047FF]/30' : 'text-slate-600 hover:bg-slate-50'}`}
-              >
-                <span className="block text-sm font-bold">{t.emoji} {t.label} <span className={`ml-1 rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{counts[t.key]}</span></span>
-                <span className={`block text-[11px] ${active ? 'text-white/70' : 'text-slate-400'}`}>{t.hint}</span>
-              </button>
-            );
-          })}
-        </div>
+        <main id="top">
+          {/* Hero */}
+          <section className="mx-auto max-w-[1120px] px-5 pb-2 pt-11 text-center">
+            <motion.span {...rise(0)} className={`inline-flex items-center gap-2 rounded-full px-3.5 py-[7px] text-[12.5px] font-semibold text-(--ink-60) ${card}`}>
+              <span className="bio-dot h-[7px] w-[7px] rounded-full bg-(--green)" />
+              Commandes ouvertes — réponse en &lt; 1 h sur WhatsApp
+            </motion.span>
+            <motion.h1 {...rise(0.08)} className="mx-auto mt-[18px] max-w-[640px] text-[clamp(30px,6vw,48px)] font-extrabold leading-[1.06] tracking-[-0.035em]">
+              La Chine livrée à <span className="bio-grad">Libreville</span>,<br />
+              sans stress.
+            </motion.h1>
+            <motion.p {...rise(0.16)} className="mx-auto mt-3.5 max-w-[520px] text-[clamp(14px,2.4vw,16.5px)] font-medium leading-[1.55] text-(--ink-60)">
+              Choisissez un catalogue, ajoutez au panier, payez en FCFA par Airtel Money ou cash. On s’occupe du reste — suivi WhatsApp jusqu’à votre porte.
+            </motion.p>
+            <motion.div {...rise(0.24)} className="mx-auto mt-[26px] flex flex-wrap justify-center gap-2.5">
+              {[
+                { node: <CountUp value={summary.products} />, label: 'Produits' },
+                { node: <CountUp value={summary.categories} />, label: 'Catégories' },
+                { node: <CountUp value={8} suffix="-14 j" />, label: 'Livraison aérienne' },
+                { node: <b className="block text-[19px] font-extrabold tracking-[-0.02em]">FCFA</b>, label: 'Prix nets' },
+              ].map((s) => (
+                <div key={s.label} className={`min-w-[104px] rounded-[14px] px-[18px] py-2.5 ${card}`}>
+                  {s.node}
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-(--ink-40)">{s.label}</span>
+                </div>
+              ))}
+            </motion.div>
+          </section>
 
-        {/* Listings */}
-        <section className="mt-4 space-y-4" aria-live="polite">
-          {shown.length === 0 && (
-            <p className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-6 text-center text-sm text-slate-500">Aucun listing dans cet onglet pour le moment.</p>
-          )}
-          {shown.map((l) => (
-            <a
-              key={l.id}
-              href={`/offer/${l.id}?utm_source=bio&utm_medium=link&utm_campaign=${l.tab}`}
-              className="group block overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-900/5 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-lg"
+          {/* Filtre segmenté, collé sous l'en-tête */}
+          <div className="sticky top-(--header-h) z-40 mx-auto mt-[26px] max-w-[1120px] px-5 pb-1.5 max-[480px]:px-3">
+            <motion.div
+              {...rise(0.3)}
+              role="tablist"
+              aria-label="Filtrer les catalogues"
+              onKeyDown={onFilterKey}
+              className={`bio-filter relative mx-auto flex w-max max-w-full items-center gap-1.5 rounded-full p-1.5 ${card}`}
             >
-              <div className={`relative w-full bg-slate-100 ${l.mobile_video_url ? 'aspect-square' : 'aspect-[16/9]'}`}>
-                <CardMedia card={l} />
-                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-900/70 to-transparent" />
-                <div className="absolute left-3 top-3 flex gap-2">
-                  {l.theme && <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-800 backdrop-blur">{l.theme}</span>}
-                  {l.badge && <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">{l.badge}</span>}
-                </div>
-                <h2 className="absolute bottom-3 left-3 right-3 font-display text-xl font-bold uppercase leading-tight text-white drop-shadow sm:text-2xl">{l.title}</h2>
-              </div>
-              <div className="space-y-2.5 px-4 pb-4 pt-3">
-                <span className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md shadow-emerald-500/30 transition group-hover:bg-emerald-600">
-                  Voir & commander <ArrowRight className="h-4 w-4" />
-                </span>
-                {l.description && (
-                  <p className="line-clamp-2 text-sm leading-relaxed text-slate-600">{l.description}</p>
-                )}
-                <p className="text-xs font-medium text-slate-500">
-                  {l.products > 0 ? `${l.products} produits` : 'Sélection'}{l.categories > 0 ? ` · ${l.categories} catégories` : ''}
-                </p>
-              </div>
-            </a>
-          ))}
-        </section>
+              {indicator && (
+                <motion.span
+                  aria-hidden
+                  initial={false}
+                  animate={{ x: indicator.x, width: indicator.w }}
+                  transition={{ duration: 0.45, ease: EASE }}
+                  className="absolute left-0 top-1.5 z-[1] h-[calc(100%-12px)] rounded-full transition-[background,box-shadow] duration-[450ms] ease-(--ease)"
+                  style={{ background: INDICATOR_BG[filter], boxShadow: INDICATOR_SHADOW[filter] }}
+                />
+              )}
+              {FILTERS.map((f) => {
+                const active = filter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    ref={(el) => {
+                      segRefs.current[f.key] = el;
+                    }}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    tabIndex={active ? 0 : -1}
+                    onClick={() => setFilter(f.key)}
+                    className={`bio-seg relative z-[2] flex items-center gap-[7px] whitespace-nowrap rounded-full px-[18px] py-2.5 text-[13.5px] font-bold transition-colors duration-300 ${
+                      active ? 'text-white' : 'text-(--ink-60) hover:text-(--ink)'
+                    }`}
+                  >
+                    <span className="text-[15px] max-[480px]:text-[13px]">{f.emoji}</span>
+                    {f.label}
+                    <span
+                      className={`rounded-full border px-[7px] py-0.5 text-[10.5px] font-extrabold transition-colors duration-300 max-[480px]:px-1.5 max-[480px]:py-px ${
+                        active ? 'border-transparent bg-white/20 text-white' : 'border-(--line) bg-(--bg) text-(--ink-40)'
+                      }`}
+                    >
+                      {summary.counts[f.key]}
+                    </span>
+                  </button>
+                );
+              })}
+            </motion.div>
+          </div>
 
-        {/* Comment ça marche */}
-        <section className="mt-10">
-          <div className="flex items-end justify-between">
-            <h2 className="font-display text-2xl font-bold uppercase tracking-tight">Comment ça marche</h2>
-            <div className="hidden gap-1 sm:flex">
-              <button type="button" onClick={() => scrollTo(step - 1)} aria-label="Précédent" className="rounded-full bg-white p-1.5 text-slate-600 shadow ring-1 ring-slate-200"><ChevronLeft className="h-4 w-4" /></button>
-              <button type="button" onClick={() => scrollTo(step + 1)} aria-label="Suivant" className="rounded-full bg-white p-1.5 text-slate-600 shadow ring-1 ring-slate-200"><ChevronRight className="h-4 w-4" /></button>
+          {/* Grille de vignettes */}
+          <section className="mx-auto mt-[18px] grid max-w-[1120px] grid-cols-2 gap-4 px-5 pb-2.5 min-[720px]:grid-cols-3 min-[720px]:gap-5 min-[1024px]:grid-cols-4" aria-live="polite">
+            <AnimatePresence mode="popLayout">
+              {shown.map((l, i) => {
+                const badge = l.badge || (l.is_new ? 'Nouveau' : null);
+                return (
+                  <motion.a
+                    key={l.id}
+                    layout
+                    href={`/offer/${l.id}?utm_source=bio&utm_medium=link&utm_campaign=${l.tab}`}
+                    initial={{ opacity: 0, y: 22, scale: 0.97 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true, margin: '0px 0px -30px 0px' }}
+                    exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.26, ease: EASE } }}
+                    whileHover={{ y: -5 }}
+                    transition={{ duration: 0.45, ease: EASE, delay: reduced ? 0 : Math.min(i, 6) * 0.07, layout: { duration: 0.4, ease: EASE } }}
+                    className={`group relative block overflow-hidden transition-shadow duration-[400ms] ease-(--ease) hover:shadow-(--shadow-md) ${card}`}
+                  >
+                    {/* Vidéo 1:1 du listing (ou cover) */}
+                    <div className="relative aspect-square overflow-hidden bg-[#e9e6e0]">
+                      <CardMedia card={l} />
+                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_55%,rgba(11,27,43,.35))]" />
+                      <span
+                        className={`absolute left-2.5 top-2.5 z-[2] inline-flex items-center gap-1 rounded-full px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white backdrop-blur-[6px] ${
+                          l.tab === 'pro' ? 'bg-[rgba(245,158,11,.94)]' : 'bg-[rgba(30,154,240,.92)]'
+                        }`}
+                      >
+                        {l.tab === 'pro' ? '💼 Pro' : '🏠 Confort'}
+                      </span>
+                      {badge && (
+                        <span className="absolute right-2.5 top-2.5 z-[2] rounded-full bg-[rgba(11,27,43,.85)] px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white backdrop-blur-[6px]">
+                          {badge}
+                        </span>
+                      )}
+                    </div>
+                    <div className="px-3.5 pb-3.5 pt-[13px]">
+                      <h2 className="line-clamp-2 min-h-[2.56em] text-[14.5px] font-extrabold leading-[1.28] tracking-[-0.015em]">{l.title}</h2>
+                      <p className="mt-[7px] flex items-center gap-1.5 text-[11.5px] font-semibold text-(--ink-40)">
+                        <Package className="h-[13px] w-[13px] flex-shrink-0" strokeWidth={2} />
+                        {l.products > 0 ? `${l.products.toLocaleString('fr-FR')} produits` : 'Sélection'}
+                        {l.categories > 0 ? ` · ${l.categories} catégorie${l.categories > 1 ? 's' : ''}` : ''}
+                      </p>
+                      <span className="mt-[11px] flex w-full items-center justify-center gap-[7px] rounded-[11px] bg-(--blue-soft) px-3 py-2.5 text-[12.5px] font-extrabold text-(--blue-dark) transition-colors duration-300 ease-(--ease) group-hover:bg-(--blue) group-hover:text-white">
+                        Voir &amp; commander
+                        <ArrowIcon className="h-3.5 w-3.5 transition-transform duration-300 ease-(--ease) group-hover:translate-x-[3px]" />
+                      </span>
+                    </div>
+                  </motion.a>
+                );
+              })}
+            </AnimatePresence>
+            {shown.length === 0 && (
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="col-span-full px-5 py-12 text-center text-sm font-semibold text-(--ink-40)">
+                Aucun catalogue dans cette catégorie pour le moment — revenez vite !
+              </motion.p>
+            )}
+          </section>
+
+          {/* Comment ça marche */}
+          <section className="mx-auto mt-14 max-w-[1120px] px-5" id="steps">
+            <div className="mb-[18px] flex flex-wrap items-baseline gap-3">
+              <span className="rounded-full bg-(--blue-soft) px-[11px] py-[5px] text-[11px] font-extrabold uppercase tracking-[0.1em] text-(--blue)">Simple &amp; rapide</span>
+              <h2 className="text-[clamp(20px,3.4vw,26px)] font-extrabold tracking-[-0.025em]">Comment ça marche</h2>
             </div>
-          </div>
-          <div ref={railRef} className="-mx-4 mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {config.steps.map((s, i) => (
-              <article key={i} className="w-[78%] flex-shrink-0 snap-center rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5 ring-1 ring-slate-200 sm:w-[60%]">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-2xl">{s.emoji}</span>
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-sky-600">Étape {i + 1}</span>
-                </div>
-                <h3 className="mt-3 text-base font-bold text-slate-900">{s.title}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">{s.text}</p>
-              </article>
-            ))}
-          </div>
-          <div className="mt-2 flex justify-center gap-1.5">
-            {config.steps.map((_, i) => (
-              <button key={i} type="button" onClick={() => scrollTo(i)} aria-label={`Étape ${i + 1}`} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-slate-900' : 'w-1.5 bg-slate-300'}`} />
-            ))}
-          </div>
-        </section>
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+              {config.steps.map((s, i) => (
+                <motion.div
+                  key={i}
+                  {...reveal(i)}
+                  whileHover={{ y: -4 }}
+                  className={`relative overflow-hidden px-4 py-[18px] transition-shadow duration-[350ms] ease-(--ease) hover:shadow-(--shadow-md) ${card}`}
+                >
+                  <span className="bio-step-num pointer-events-none absolute -top-3.5 right-0.5">{i + 1}</span>
+                  <span className="mb-[11px] grid h-[38px] w-[38px] place-items-center rounded-xl bg-(--blue-soft) text-lg">{s.emoji}</span>
+                  <b className="mb-[5px] block text-sm font-extrabold tracking-[-0.01em]">{s.title}</b>
+                  <p className="text-[12.5px] font-medium leading-[1.5] text-(--ink-60)">{s.text}</p>
+                </motion.div>
+              ))}
+            </div>
+          </section>
 
-        {/* Contact */}
-        <section className="mt-10">
-          <h2 className="font-display text-2xl font-bold uppercase tracking-tight">Nous contacter</h2>
-          <div className="mt-3 space-y-2">
-            {contacts.map((k) => (
-              <a key={k.label} href={k.href} target="_blank" rel="noreferrer" className={`flex items-center gap-3 rounded-2xl px-4 py-3 shadow-sm transition hover:-translate-y-0.5 ${k.cls}`}>
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/30">{k.icon}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold">{k.label}</span>
-                  <span className="block truncate text-xs opacity-80">{k.sub}</span>
-                </span>
-                <ArrowRight className="h-4 w-4 flex-shrink-0 opacity-70" />
-              </a>
-            ))}
-          </div>
-        </section>
+          {/* Contact */}
+          <section className="mx-auto mt-14 max-w-[1120px] px-5" id="contact">
+            <div className="mb-[18px] flex flex-wrap items-baseline gap-3">
+              <span className="rounded-full bg-(--blue-soft) px-[11px] py-[5px] text-[11px] font-extrabold uppercase tracking-[0.1em] text-(--blue)">On est là</span>
+              <h2 className="text-[clamp(20px,3.4vw,26px)] font-extrabold tracking-[-0.025em]">Nous contacter</h2>
+            </div>
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
+              {contacts.map((k, i) => (
+                <motion.a
+                  key={k.label}
+                  {...reveal(i)}
+                  whileHover={{ y: -4 }}
+                  href={k.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`group flex items-center gap-3 px-4 py-[15px] transition-[box-shadow,border-color] duration-[350ms] ease-(--ease) hover:border-[rgba(30,154,240,.35)] hover:shadow-(--shadow-md) ${card}`}
+                >
+                  <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl text-lg" style={{ background: k.bg }}>
+                    {k.emoji}
+                  </span>
+                  <span className="min-w-0">
+                    <b className="block text-[13.5px] font-extrabold tracking-[-0.01em]">{k.label}</b>
+                    <span className="mt-0.5 block truncate text-[11.5px] font-semibold leading-[1.35] text-(--ink-40)">{k.sub}</span>
+                  </span>
+                  <ChevronIcon className="ml-auto h-4 w-4 flex-shrink-0 text-(--ink-40) transition-[transform,color] duration-300 ease-(--ease) group-hover:translate-x-[3px] group-hover:text-(--blue)" />
+                </motion.a>
+              ))}
+            </div>
+          </section>
+        </main>
 
-        <footer className="mt-10 text-center text-[11px] text-slate-400">
-          Prix en FCFA · Airtel Money ou cash · Livraison à Libreville · Propulsé par Twinsk
+        <footer className="mx-auto mt-14 flex max-w-[1120px] flex-wrap justify-center gap-x-[18px] gap-y-2 border-t border-(--line) px-5 pb-[110px] pt-[26px] text-center text-xs font-semibold text-(--ink-40)">
+          <span>Prix en FCFA</span>
+          <span className="opacity-40">·</span>
+          <span>Airtel Money ou cash</span>
+          <span className="opacity-40">·</span>
+          <span>Livraison à Libreville</span>
+          <span className="opacity-40">·</span>
+          <span>Propulsé par Twinsk</span>
         </footer>
-      </main>
-    </div>
+
+        {/* Bouton WhatsApp flottant */}
+        {wa && (
+          <motion.a
+            href={wa}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Commander sur WhatsApp"
+            initial={{ opacity: 0, y: 30, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.8, ease: EASE, delay: 1 }}
+            whileHover={{ y: -3, scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            className="fixed bottom-[18px] right-[18px] z-[60] flex items-center gap-2.5 rounded-full bg-[#25D366] px-5 py-3.5 text-sm font-extrabold text-white shadow-[0_10px_28px_rgba(37,211,102,.45),0_2px_8px_rgba(11,27,43,.15)] transition-shadow duration-300 hover:shadow-[0_16px_36px_rgba(37,211,102,.55)] max-[480px]:p-[15px]"
+          >
+            <WaIcon className="h-5 w-5" />
+            <span className="max-[480px]:hidden">Commander</span>
+          </motion.a>
+        )}
+      </div>
+    </MotionConfig>
   );
 }

@@ -2,7 +2,7 @@
 // listings publiés à afficher. Serveur uniquement (supabaseAdmin).
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { BIO_SETTING_KEY, normalizeBioConfig, tabForOfferType, type BioConfig, type BioTab } from '@/lib/bio-page';
+import { BIO_SETTING_KEY, isRecentListing, normalizeBioConfig, tabForOfferType, type BioConfig, type BioTab } from '@/lib/bio-page';
 
 export async function readBioConfig(): Promise<BioConfig> {
   const { data } = await supabaseAdmin.from('wa_settings').select('value').eq('key', BIO_SETTING_KEY).maybeSingle();
@@ -27,6 +27,8 @@ export interface BioOfferCard {
   offer_type: 'b2c' | 'b2b';
   tab: BioTab;
   badge: string | null;
+  /** Publié depuis moins de 21 jours → pastille « Nouveau » si pas de badge admin. */
+  is_new: boolean;
   categories: number;
   products: number;
 }
@@ -40,6 +42,7 @@ interface OfferRow {
   mobile_video_url: string | null;
   offer_type: string | null;
   updated_at: string | null;
+  created_at: string | null;
   offer_items: { offer_products: { count: number }[] | null }[] | null;
 }
 
@@ -47,7 +50,7 @@ interface OfferRow {
 export async function loadBioListings(cfg: BioConfig): Promise<BioOfferCard[]> {
   let q = supabaseAdmin
     .from('offers')
-    .select('id, title, theme, description, cover_image_url, mobile_video_url, offer_type, updated_at, offer_items(offer_products(count))')
+    .select('id, title, theme, description, cover_image_url, mobile_video_url, offer_type, updated_at, created_at, offer_items(offer_products(count))')
     .eq('status', 'published')
     .is('archived_at', null);
   if (cfg.listings.length) q = q.in('id', cfg.listings.map((l) => l.offer_id));
@@ -66,6 +69,7 @@ export async function loadBioListings(cfg: BioConfig): Promise<BioOfferCard[]> {
       offer_type: r.offer_type === 'b2b' ? 'b2b' : 'b2c',
       tab,
       badge,
+      is_new: isRecentListing(r.created_at),
       categories: items.length,
       products: items.reduce((s, it) => s + (it.offer_products?.[0]?.count || 0), 0),
     };

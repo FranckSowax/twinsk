@@ -134,3 +134,27 @@ export function waLink(number: string, text?: string): string {
 export function tabForOfferType(offerType: string | null | undefined): BioTab {
   return offerType === 'b2b' ? 'pro' : 'confort';
 }
+
+export type BioFilter = 'all' | BioTab;
+
+/** Un listing publié depuis moins de 21 jours porte la pastille « Nouveau » (sauf badge admin). */
+export const BIO_NEW_DAYS = 21;
+export function isRecentListing(createdAt: string | null | undefined, now: Date = new Date()): boolean {
+  if (!createdAt) return false;
+  const t = Date.parse(createdAt);
+  if (Number.isNaN(t)) return false;
+  return now.getTime() - t < BIO_NEW_DAYS * 86_400_000;
+}
+
+/** Compteurs du filtre Tous / Confort / Pro et totaux du hero, calculés depuis les listings affichés. */
+export function bioSummary(listings: { tab: BioTab; products: number; categories: number }[]) {
+  const counts: Record<BioFilter, number> = { all: listings.length, confort: 0, pro: 0 };
+  let products = 0;
+  let categories = 0;
+  for (const l of listings) {
+    counts[l.tab] += 1;
+    products += Math.max(0, l.products || 0);
+    categories += Math.max(0, l.categories || 0);
+  }
+  return { counts, products, categories };
+}
