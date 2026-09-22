@@ -63,12 +63,15 @@ function formatWaNumber(n: string): string {
   return `+241 ${d.slice(3).replace(/(\d{2})(?=\d)/g, '$1 ')}`;
 }
 
-/** Compteur animé (ease-out cubique, ~1,1 s) déclenché à l'entrée dans l'écran. */
+/** Compteur animé (ease-out cubique, ~1,1 s) déclenché à l'entrée dans l'écran.
+ *  Le HTML serveur porte déjà la vraie valeur : lisible avant l'hydratation
+ *  (connexion lente, partage WhatsApp), l'animation part de 0 quand la
+ *  pastille devient visible. */
 function CountUp({ value, suffix = '', duration = 1100 }: { value: number; suffix?: string; duration?: number }) {
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.6 });
   const reduced = useReducedMotion();
-  const [n, setN] = useState(0);
+  const [n, setN] = useState(value);
   useEffect(() => {
     if (!inView || reduced) return;
     let raf = 0;
