@@ -12,7 +12,9 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { clearStoredOrderId } from '@/lib/offer-cart-session';
+import { Smartphone, Upload, Clock, Banknote, FileText, Minus, Plus, Trash2, ArrowLeft } from 'lucide-react';
 import OrderAddProductModal from '@/components/offer/OrderAddProductModal';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { formatSettlement, formatSettlementRate, roundSettlement, OMG_WHATSAPP_NUMBER, SEA_MAX_GROUPAGE_M3, SEA_RATE_FCFA_PER_M3, transportCostFor, type MixedTransport, type SettlementCurrency } from '@/lib/offer-pricing';
@@ -374,6 +376,12 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
     }
   };
 
+  // Paiement engagé : cette commande n'est plus le panier du listing.
+  const settled = data?.order.payment_status === 'paid' || data?.order.payment_status === 'submitted';
+  useEffect(() => {
+    if (settled) clearStoredOrderId(offerId);
+  }, [settled, offerId]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -427,6 +435,16 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+      {/* Retour au listing : le panier reste ouvert, on peut y ajouter d'autres produits. */}
+      {cartEditable && (
+        <Link
+          href={`/offer/${offerId}`}
+          className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Continuer mes achats
+        </Link>
+      )}
       {/* Header */}
       <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-6">
         <div className="flex items-start gap-3">

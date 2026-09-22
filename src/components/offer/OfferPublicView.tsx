@@ -1,11 +1,10 @@
 'use client';
 
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
 import {
   Check,
   Loader2,
   Plus,
-  Send,
   ShoppingBag,
   Sparkles,
   Tag,
@@ -13,6 +12,15 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  cartKey,
+  clearStoredOrderId,
+  isOrderOpen,
+  linesToCart,
+  readStoredOrderId,
+  writeStoredOrderId,
+  type CartLine,
+} from '@/lib/offer-cart-session';
 import SmartImage from '@/components/ui/SmartImage';
 import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
@@ -103,12 +111,6 @@ interface Props {
   affiliate?: { ref: string; shopName: string };
 }
 
-interface CartLine {
-  productId: string;
-  variantId: string | null;
-  quantity: number;
-}
-
 // Description de catégorie repliée à 2 lignes avec « Voir plus » (mobile surtout).
 // Le bouton n'apparaît que si le texte déborde réellement du clamp.
 function CategoryDescription({ text }: { text: string }) {
@@ -165,12 +167,28 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
   // Formate une valeur DÉJÀ dans la devise choisie (pour les totaux sommés).
   const fmtPrimaryValue = (v: number) =>
     currency === 'CNY' ? formatCNY(v) : currency === 'USD' ? formatUSD(v) : currency === 'EUR' ? formatEUR(v) : formatXAF(v);
+  // Le panier est la commande ouverte (voir offer-cart-session) : `cart` en est
+  // le miroir local, pour les pastilles des cartes et le compteur de la barre.
   const [cart, setCart] = useState<Record<string, CartLine>>({});
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  // Animation d'ajout : pastille qui vole du bouton vers l'icône panier, puis rebond de l'icône.
+  const [cartFly, setCartFly] = useState<{ from: { x: number; y: number }; to: { x: number; y: number }; image: string | null } | null>(null);
+  const cartIconRef = useRef<HTMLButtonElement>(null);
+  const cartBump = useAnimationControls();
+  // Ombre de la barre supérieure une fois la page défilée.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const [activeProduct, setActiveProduct] = useState<OfferProduct | null>(null);
   const [selectedVariantForActive, setSelectedVariantForActive] = useState<
     string | null
   >(null);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
   // B2B : vue « liste » par défaut ; B2C : vue « grille ».
   const [viewMode, setViewMode] = useState<'list' | 'grid'>(offer.offer_type === 'b2b' ? 'list' : 'grid');
   // Sur smartphone, on force la vue « grille » (galerie horizontale par catégorie).
@@ -191,9 +209,6 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     volume: number | null;
     dimensions: string | null;
   } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-
   // Recherche dynamique : filtre les produits (titre, description, catégorie)
   // à la frappe, côté client — les catégories vides sont masquées.
   const [searchQuery, setSearchQuery] = useState('');
@@ -314,29 +329,43 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     return { cny, count, primary, acompteCount, allAcompte: count > 0 && acompteCount === count };
   }, [cartLines, allProducts, currency]);
 
-  const cartKey = (productId: string, variantId: string | null) =>
-    `${productId}::${variantId || ''}`;
-
   const inCart = (productId: string, variantId: string | null) => {
     return !!cart[cartKey(productId, variantId)];
   };
 
-  const updateCartLine = (
-    productId: string,
-    variantId: string | null,
-    quantity: number,
-  ) => {
-    const key = cartKey(productId, variantId);
-    setCart((prev) => {
-      const next = { ...prev };
-      if (quantity <= 0) {
-        delete next[key];
-      } else {
-        next[key] = { productId, variantId, quantity };
-      }
-      return next;
-    });
+  // Au retour sur le listing : la commande mémorisée redevient le panier si
+  // elle est encore ouverte (ni payée, ni en vérification) ; sinon on l'oublie.
+  useEffect(() => {
+    const stored = readStoredOrderId(offerId);
+    if (!stored) return;
+    let cancelled = false;
+    fetch(`/api/offer-public/${offerId}/order/${stored}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.order && isOrderOpen(data.order)) {
+          setOrderId(stored);
+          setCart(linesToCart(data.lines || []));
+        } else {
+          clearStoredOrderId(offerId);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [offerId]);
+
+  const orderPageUrl = (id: string) => `/offer/${offerId}/order/${id}`;
+  const goToCart = () => {
+    if (orderId) router.push(orderPageUrl(orderId));
+    else setToast({ kind: 'ok', text: 'Votre panier est vide : ajoutez un produit.' });
   };
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2400);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   // Lien profond : ?p=<id produit> ouvre directement la fiche (modale, variantes,
   // panier). On tient l'URL à jour à l'ouverture/fermeture pour qu'un partage
@@ -376,45 +405,73 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, items]);
 
-  const addToCart = (p: OfferProduct) => {
+  // Ajout au panier = la commande est créée (ou complétée) tout de suite, et le
+  // client arrive sur l'écran produit + transport. Pas d'étape intermédiaire.
+  const addToCart = async (p: OfferProduct, fromEl?: HTMLElement | null) => {
+    if (adding) return;
     const variantId = selectedVariantForActive;
     if (p.variants && p.variants.length > 0 && !variantId) return;
-    const existing = cart[cartKey(p.id, variantId)];
-    const qty = existing ? existing.quantity + 1 : 1;
-    updateCartLine(p.id, variantId, qty);
-    closeProduct();
-  };
+    const pick = { product_id: p.id, variant_id: variantId, quantity: 1 };
 
-  const submitOrder = async () => {
-    if (!cartLines.length) {
-      setSubmitError('Panier vide');
-      return;
-    }
-    setSubmitting(true);
-    setSubmitError('');
-    try {
-      const res = await fetch(`/api/offer-public/${offerId}/order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          affiliate_ref: affiliate?.ref,
-          picks: cartLines.map((l) => ({
-            product_id: l.productId,
-            variant_id: l.variantId,
-            quantity: l.quantity,
-          })),
-        }),
+    // Animation : la vignette vole du bouton vers l'icône panier, qui rebondit à l'arrivée.
+    const from = fromEl?.getBoundingClientRect();
+    const to = cartIconRef.current?.getBoundingClientRect();
+    if (from && to) {
+      setCartFly({
+        from: { x: from.left + from.width / 2, y: from.top + from.height / 2 },
+        to: { x: to.left + to.width / 2, y: to.top + to.height / 2 },
+        image: variantOfActive(p, variantId)?.image_url || p.thumbnail_url || p.image_url || null,
       });
-      const data = await res.json();
-      if (!res.ok || !data?.order_id) {
-        setSubmitError(data?.error || 'Erreur enregistrement');
-        return;
+      setTimeout(() => {
+        cartBump.start({ scale: [1, 1.35, 0.9, 1.12, 1], rotate: [0, -14, 10, -5, 0], transition: { duration: 0.55 } });
+        setCartFly(null);
+      }, 520);
+    }
+    // Miroir local immédiat (compteur, pastilles).
+    setCart((prev) => {
+      const key = cartKey(p.id, variantId);
+      return { ...prev, [key]: { productId: p.id, variantId, quantity: (prev[key]?.quantity || 0) + 1 } };
+    });
+    closeProduct();
+    setAdding(true);
+
+    try {
+      let id = orderId;
+      // Commande ouverte → on y ajoute la ligne (même produit + variante : quantité cumulée).
+      if (id) {
+        const r = await fetch(`/api/offer-public/${offerId}/order/${id}/lines`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pick),
+        });
+        if (!r.ok) {
+          // Commande payée entre-temps, ou disparue : on repart sur une nouvelle.
+          if (r.status === 409 || r.status === 404) {
+            clearStoredOrderId(offerId);
+            setOrderId(null);
+            id = null;
+          } else {
+            const d = await r.json().catch(() => ({}));
+            throw new Error(d?.error || 'Ajout impossible');
+          }
+        }
       }
-      router.push(`/offer/${offerId}/order/${data.order_id}`);
-    } catch {
-      setSubmitError('Erreur réseau');
-    } finally {
-      setSubmitting(false);
+      if (!id) {
+        const r = await fetch(`/api/offer-public/${offerId}/order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ affiliate_ref: affiliate?.ref, picks: [pick] }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d?.order_id) throw new Error(d?.error || 'Enregistrement impossible');
+        id = d.order_id as string;
+        writeStoredOrderId(offerId, id);
+        setOrderId(id);
+      }
+      router.push(orderPageUrl(id));
+    } catch (e) {
+      setAdding(false);
+      setToast({ kind: 'error', text: e instanceof Error ? e.message : 'Erreur réseau, réessayez.' });
     }
   };
 
@@ -423,8 +480,156 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
     return p.variants.find((v) => v.id === variantId) || null;
   };
 
+  const cartCount = total.count;
+
   return (
-    <div className="mx-auto max-w-5xl px-4 pt-6 pb-28 sm:px-6 sm:pt-10">
+    <>
+      {/* Barre supérieure : une seule, collée en haut, pleine largeur — marque,
+          recherche et panier, puis les phases B2B en seconde ligne. Les cartes
+          flottantes séparées (recherche, phases) donnaient un rendu décousu au défilement. */}
+      <header
+        className={`sticky top-0 z-40 border-b bg-white/95 backdrop-blur-md transition-shadow ${
+          scrolled ? 'border-slate-200 shadow-md shadow-slate-900/5' : 'border-transparent'
+        }`}
+      >
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="flex h-14 items-center gap-2 sm:gap-3">
+            {/* Marque */}
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex min-w-0 flex-shrink items-center gap-2"
+              title="Haut de page"
+            >
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 text-white">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <span className={`truncate text-sm font-bold text-slate-900 ${totalProducts >= 5 ? 'hidden md:inline' : ''}`}>
+                {affiliate?.shopName || offer.theme || offer.title}
+              </span>
+            </button>
+
+            {/* Recherche (dès 5 produits) */}
+            {totalProducts >= 5 && (
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher un produit…"
+                  aria-label="Rechercher un produit"
+                  className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 [&::-webkit-search-cancel-button]:hidden"
+                />
+                {searchQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Effacer la recherche"
+                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+            {totalProducts < 5 && <div className="flex-1" />}
+
+            {/* Bascule liste / grille (desktop) */}
+            <div className="hidden flex-shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5 sm:flex">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                title="Vue liste"
+                className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                  viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <ListIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                title="Vue grille"
+                className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                  viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Panier : icône fixe, compteur, rebond à l'ajout */}
+            <motion.button
+              ref={cartIconRef}
+              type="button"
+              onClick={goToCart}
+              animate={cartBump}
+              whileTap={{ scale: 0.92 }}
+              aria-label={cartCount > 0 ? `Panier : ${cartCount} article${cartCount > 1 ? 's' : ''}` : 'Panier vide'}
+              className={`relative flex h-10 flex-shrink-0 items-center gap-2 rounded-full pl-3 pr-3 text-sm font-semibold transition-colors ${
+                cartCount > 0
+                  ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {adding ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingBag className="h-5 w-5" />}
+              {cartCount > 0 && !total.allAcompte && (
+                <span className="hidden tabular-nums sm:inline">{fmtPrimaryValue(total.primary)}</span>
+              )}
+              <AnimatePresence>
+                {cartCount > 0 && (
+                  <motion.span
+                    key={cartCount}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.4, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                    className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[11px] font-bold text-white ring-2 ring-white"
+                  >
+                    {cartCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          </div>
+
+          {/* Phases B2B : puces défilantes, phase courante en sombre */}
+          {phaseNav.length > 0 && !searchQuery.trim() && (
+            <nav aria-label="Phases du listing" className="-mx-4 sm:-mx-6">
+              <div
+                ref={phaseBarRef}
+                className="flex snap-x gap-2 overflow-x-auto px-4 pb-2.5 pt-0.5 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden"
+              >
+                {phaseNav.map((ph, i) => {
+                  const active = activePhase === ph.id;
+                  return (
+                    <button
+                      key={ph.id}
+                      type="button"
+                      data-phase-btn={ph.id}
+                      onClick={() => jumpTo(`phase-${ph.id}`)}
+                      className={`flex flex-shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                        active ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span className={`flex h-4.5 w-4.5 items-center justify-center rounded-full text-[10px] font-bold ${active ? 'bg-white/20 text-white' : 'bg-slate-900 text-white'}`}>{i + 1}</span>
+                      <span className="max-w-[12rem] truncate">{ph.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
+          {searchQuery.trim() && (
+            <p className="pb-2 text-xs font-medium text-slate-500">
+              {filteredCount} produit{filteredCount > 1 ? 's' : ''} trouvé{filteredCount > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+      </header>
+
+    <div className="mx-auto max-w-5xl px-4 pt-5 pb-16 sm:px-6 sm:pt-8">
       {/* Vidéo carrée 1:1 en tête — MOBILE uniquement (autoplay + boucle) */}
       {offer.mobile_video_url && (
         <div className="mb-6 overflow-hidden rounded-3xl bg-black sm:hidden">
@@ -438,52 +643,6 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
           />
         </div>
       )}
-
-      {/* En-tête (non flottant) : titre + thème + bascule de vue */}
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6">
-        {/* Ligne 1 : titre + thème + bascule de vue */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 text-white">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <p className="truncate text-sm font-bold text-slate-900">{affiliate?.shopName || offer.theme || offer.title}</p>
-            {offer.theme && (
-              <span className="hidden sm:inline-flex min-w-0 max-w-[24rem] items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
-                <Tag className="h-2.5 w-2.5 flex-shrink-0" />
-                <span className="truncate">{offer.title}</span>
-              </span>
-            )}
-          </div>
-          {/* View toggle */}
-          <div className="hidden sm:flex flex-shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              title="Vue liste"
-              className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <ListIcon className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              title="Vue grille"
-              className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* En-tête : badge thème, H1 = titre du listing, sous-titre = thème (inversé le 5 sept.) */}
       <div className="mb-4">
@@ -542,70 +701,6 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
           </div>
         )}
       </div>
-
-      {/* Barre de recherche dynamique (dès 5 produits) — sticky pendant le scroll */}
-      {totalProducts >= 5 && (
-        <div className="sticky top-2 z-30 mb-6">
-          <div className="relative rounded-2xl border border-slate-200 bg-white/95 shadow-lg shadow-slate-900/15 backdrop-blur-md transition-shadow">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher un produit… (ex : four, lit, chaise)"
-              className="w-full rounded-2xl border-0 bg-transparent py-3.5 pl-12 pr-24 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 sm:text-base [&::-webkit-search-cancel-button]:hidden"
-            />
-            <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-              {searchQuery.trim() && (
-                <>
-                  <span className="hidden whitespace-nowrap text-xs font-semibold text-emerald-600 sm:inline">
-                    {filteredCount} produit(s)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    aria-label="Effacer la recherche"
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-          {searchQuery.trim() && (
-            <p className="mt-1.5 px-1 text-xs font-medium text-slate-500 sm:hidden">
-              {filteredCount} produit(s) trouvé(s)
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Sommaire B2B : barre de phases collante (défilement horizontal, phase active soulignée) */}
-      {phaseNav.length > 0 && !searchQuery.trim() && (
-        <nav aria-label="Phases du listing" className={`sticky z-20 mb-6 ${totalProducts >= 5 ? 'top-[4.6rem]' : 'top-2'}`}>
-          <div ref={phaseBarRef} className="-mx-4 flex snap-x gap-2 overflow-x-auto rounded-none bg-slate-50/95 px-4 py-2 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:rounded-2xl sm:border sm:border-slate-200 sm:bg-white/95 sm:px-2">
-            {phaseNav.map((ph, i) => {
-              const active = activePhase === ph.id;
-              return (
-                <button
-                  key={ph.id}
-                  type="button"
-                  data-phase-btn={ph.id}
-                  onClick={() => jumpTo(`phase-${ph.id}`)}
-                  className={`flex flex-shrink-0 snap-start items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold transition ${
-                    active ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:ring-slate-400'
-                  }`}
-                >
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/20 text-white' : 'bg-slate-900 text-white'}`}>{i + 1}</span>
-                  <span className="max-w-[14rem] truncate">{ph.title}</span>
-                  <span className={`text-[11px] font-medium ${active ? 'text-white/70' : 'text-slate-400'}`}>{ph.categories.length}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      )}
 
       {/* Best sellers : galerie horizontale en tête, cartes à cadre rouge animé */}
       {bestSellers.length > 0 && !searchQuery.trim() && (
@@ -906,7 +1001,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="min-h-full w-full overflow-hidden rounded-none bg-white shadow-2xl sm:my-8 sm:min-h-0 sm:max-w-xl sm:rounded-3xl"
+              className="min-h-full w-full overflow-clip rounded-none bg-white shadow-2xl sm:my-8 sm:min-h-0 sm:max-w-xl sm:rounded-3xl"
             >
               <div className="relative">
                 {(() => {
@@ -996,6 +1091,92 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                     </div>
                   );
                 })()}
+
+                {/* Variants */}
+                {activeProduct.variants && activeProduct.variants.length > 0 && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                      Choisissez une variante
+                    </p>
+                    {activeProduct.variants_total != null &&
+                      activeProduct.variants_total > activeProduct.variants.length && (
+                        <p className="mb-3 text-xs text-slate-500">
+                          {activeProduct.variants_total} variantes disponibles — échantillon représentatif affiché
+                        </p>
+                      )}
+                    <div className="space-y-2">
+                      {activeProduct.variants.map((v) => {
+                        const active = v.id === selectedVariantForActive;
+                        return (
+                          <button
+                            key={v.id || v.name}
+                            type="button"
+                            onClick={() =>
+                              setSelectedVariantForActive(active ? null : v.id)
+                            }
+                            className={`block w-full rounded-xl border-2 p-3 text-left text-sm transition-all ${
+                              active
+                                ? 'border-emerald-500 bg-emerald-100 ring-2 ring-emerald-200'
+                                : 'border-emerald-200/60 bg-white hover:border-emerald-400 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 font-semibold text-slate-900">
+                                {v.image_url ? (
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setVariantLightbox({
+                                        image: v.image_url as string,
+                                        name: v.name,
+                                        description: activeProduct.description,
+                                        price: v.price ?? null,
+                                        moq: v.moq ?? null,
+                                        capacity: v.capacity ?? null,
+                                        weight: v.weight ?? null,
+                                        volume: v.volume ?? null,
+                                        dimensions: v.dimensions ?? null,
+                                      });
+                                    }}
+                                    className="group relative h-10 w-10 flex-shrink-0 cursor-zoom-in overflow-hidden rounded-md ring-1 ring-emerald-200"
+                                    title="Voir l'image"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={v.image_url} alt={v.name} className="h-full w-full object-cover" />
+                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/25">
+                                      <Search className="h-3.5 w-3.5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                    </span>
+                                  </span>
+                                ) : null}
+                                {active && <Check className="h-4 w-4 text-emerald-600" />}
+                                <span>{v.name}</span>
+                              </div>
+                              {v.price != null && (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  {isAcompteLine(activeProduct, v) && (
+                                    <span className="inline-flex items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                                      {ACOMPTE_BADGE}
+                                    </span>
+                                  )}
+                                  <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} only />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                              {v.moq != null && <span>MOQ : {v.moq}</span>}
+                              {v.capacity && <span>Capacité : {v.capacity}</span>}
+                              {v.weight != null && <span>Poids : {v.weight} kg</span>}
+                              {v.volume != null && <span>Vol : {v.volume} m³</span>}
+                              {v.dimensions && <span>Dim : {v.dimensions}</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Paliers de prix par quantité (v3.1) — sans objet pour un acompte */}
                 {!isAcompte(activeProduct.price_type) && activeProduct.price_tiers && activeProduct.price_tiers.length > 0 && (
@@ -1128,93 +1309,8 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   </p>
                 )}
 
-                {/* Variants */}
-                {activeProduct.variants && activeProduct.variants.length > 0 && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                      Choisissez une variante
-                    </p>
-                    {activeProduct.variants_total != null &&
-                      activeProduct.variants_total > activeProduct.variants.length && (
-                        <p className="mb-3 text-xs text-slate-500">
-                          {activeProduct.variants_total} variantes disponibles — échantillon représentatif affiché
-                        </p>
-                      )}
-                    <div className="space-y-2">
-                      {activeProduct.variants.map((v) => {
-                        const active = v.id === selectedVariantForActive;
-                        return (
-                          <button
-                            key={v.id || v.name}
-                            type="button"
-                            onClick={() =>
-                              setSelectedVariantForActive(active ? null : v.id)
-                            }
-                            className={`block w-full rounded-xl border-2 p-3 text-left text-sm transition-all ${
-                              active
-                                ? 'border-emerald-500 bg-emerald-100 ring-2 ring-emerald-200'
-                                : 'border-emerald-200/60 bg-white hover:border-emerald-400 hover:bg-emerald-50'
-                            }`}
-                          >
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 font-semibold text-slate-900">
-                                {v.image_url ? (
-                                  <span
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setVariantLightbox({
-                                        image: v.image_url as string,
-                                        name: v.name,
-                                        description: activeProduct.description,
-                                        price: v.price ?? null,
-                                        moq: v.moq ?? null,
-                                        capacity: v.capacity ?? null,
-                                        weight: v.weight ?? null,
-                                        volume: v.volume ?? null,
-                                        dimensions: v.dimensions ?? null,
-                                      });
-                                    }}
-                                    className="group relative h-10 w-10 flex-shrink-0 cursor-zoom-in overflow-hidden rounded-md ring-1 ring-emerald-200"
-                                    title="Voir l'image"
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={v.image_url} alt={v.name} className="h-full w-full object-cover" />
-                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/25">
-                                      <Search className="h-3.5 w-3.5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
-                                    </span>
-                                  </span>
-                                ) : null}
-                                {active && <Check className="h-4 w-4 text-emerald-600" />}
-                                <span>{v.name}</span>
-                              </div>
-                              {v.price != null && (
-                                <div className="flex flex-col items-end gap-0.5">
-                                  {isAcompteLine(activeProduct, v) && (
-                                    <span className="inline-flex items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
-                                      {ACOMPTE_BADGE}
-                                    </span>
-                                  )}
-                                  <MultiCurrencyPrice amountCny={v.price} variant="stacked" primary={currency} only />
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                              {v.moq != null && <span>MOQ : {v.moq}</span>}
-                              {v.capacity && <span>Capacité : {v.capacity}</span>}
-                              {v.weight != null && <span>Poids : {v.weight} kg</span>}
-                              {v.volume != null && <span>Vol : {v.volume} m³</span>}
-                              {v.dimensions && <span>Dim : {v.dimensions}</span>}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 {(() => {
+                  const sel = variantOfActive(activeProduct, selectedVariantForActive);
                   const needsVariant =
                     !!activeProduct.variants &&
                     activeProduct.variants.length > 0 &&
@@ -1222,48 +1318,57 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   const existing = inCart(activeProduct.id, selectedVariantForActive);
                   // Acompte : le CTA d'achat devient « Demander un devis » (le produit
                   // rejoint quand même le panier → coordonnées récoltées au checkout).
-                  const acompte = isAcompteLine(
-                    activeProduct,
-                    variantOfActive(activeProduct, selectedVariantForActive),
-                  );
+                  const acompte = isAcompteLine(activeProduct, sel);
+                  const unit = sel?.price ?? activeProduct.price ?? (activeProduct.from_price > 0 ? activeProduct.from_price : null);
                   return (
-                    <motion.button
-                      type="button"
-                      onClick={() => addToCart(activeProduct)}
-                      disabled={needsVariant}
-                      whileHover={!needsVariant ? { scale: 1.02 } : undefined}
-                      whileTap={!needsVariant ? { scale: 0.98 } : undefined}
-                      className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-semibold transition-colors ${
-                        needsVariant
-                          ? 'cursor-not-allowed bg-slate-100 text-slate-400'
-                          : acompte
-                            ? existing
-                              ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600'
-                              : 'border-2 border-amber-400 bg-white text-amber-700 hover:bg-amber-50'
-                            : existing
-                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600'
-                              : 'border-2 border-emerald-400 bg-white text-emerald-700 hover:bg-emerald-50'
-                      }`}
-                    >
-                      {needsVariant ? (
-                        <>Choisissez d&apos;abord une variante</>
-                      ) : acompte ? (
-                        <>
-                          <FileText className="h-5 w-5" />
-                          {existing ? 'Ajouté — demander le devis' : 'Demander un devis'}
-                        </>
-                      ) : existing ? (
-                        <>
-                          <Plus className="h-5 w-5" />
-                          Ajouter encore +1
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag className="h-5 w-5" />
-                          Ajouter au panier
-                        </>
-                      )}
-                    </motion.button>
+                    // Collé en bas de la fiche : toujours à portée, même avec dix variantes.
+                    <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur-md">
+                      <div className="flex items-center gap-3">
+                        {!needsVariant && (sel || unit != null) && (
+                          <div className="hidden min-w-0 sm:block">
+                            {sel && <p className="truncate text-xs font-semibold text-emerald-700">{sel.name}</p>}
+                            {unit != null && !acompte && (
+                              <p className="text-sm font-bold tabular-nums text-slate-900">{fmtPrice(unit)}</p>
+                            )}
+                          </div>
+                        )}
+                        <motion.button
+                          type="button"
+                          onClick={(e) => addToCart(activeProduct, e.currentTarget)}
+                          disabled={needsVariant || adding}
+                          whileHover={!needsVariant ? { scale: 1.02 } : undefined}
+                          whileTap={!needsVariant ? { scale: 0.98 } : undefined}
+                          className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-semibold transition-colors ${
+                            needsVariant
+                              ? 'cursor-not-allowed bg-slate-100 text-slate-400'
+                              : acompte
+                                ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600'
+                                : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600'
+                          }`}
+                        >
+                          {adding ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : needsVariant ? (
+                            <>Choisissez une variante ci-dessus</>
+                          ) : acompte ? (
+                            <>
+                              <FileText className="h-5 w-5" />
+                              Demander un devis
+                            </>
+                          ) : existing ? (
+                            <>
+                              <Plus className="h-5 w-5" />
+                              Ajouter encore +1
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingBag className="h-5 w-5" />
+                              Ajouter au panier
+                            </>
+                          )}
+                        </motion.button>
+                      </div>
+                    </div>
                   );
                 })()}
               </div>
@@ -1272,196 +1377,45 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
         )}
       </AnimatePresence>
 
-      {/* Cart / checkout modal */}
+      {/* Vignette qui vole vers l'icône panier à l'ajout */}
       <AnimatePresence>
-        {checkoutOpen && (
+        {cartFly && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            key="fly"
+            initial={{ left: cartFly.from.x, top: cartFly.from.y, scale: 1, opacity: 1 }}
+            animate={{ left: cartFly.to.x, top: cartFly.to.y, scale: 0.25, opacity: 0.9 }}
             exit={{ opacity: 0 }}
-            onClick={() => !submitting && setCheckoutOpen(false)}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-0 backdrop-blur-sm sm:p-4"
+            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+            className="pointer-events-none fixed z-[70] -ml-7 -mt-7 h-14 w-14 overflow-hidden rounded-full bg-emerald-500 shadow-xl ring-2 ring-white"
+            aria-hidden
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="min-h-full w-full overflow-hidden rounded-none bg-white shadow-2xl sm:my-8 sm:min-h-0 sm:max-w-md sm:rounded-3xl"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
-                  <ShoppingBag className="h-5 w-5 text-emerald-500" />
-                  Valider mon panier
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setCheckoutOpen(false)}
-                  disabled={submitting}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4 p-5">
-                {/* Cart lines */}
-                {cartLines.length === 0 ? (
-                  <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                    Votre panier est vide.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {cartLines.map((line) => {
-                      const p = allProducts.find((pp) => pp.id === line.productId);
-                      if (!p) return null;
-                      const variant = line.variantId
-                        ? p.variants?.find((v) => v.id === line.variantId)
-                        : null;
-                      const unit = variant && variant.price != null ? variant.price : p.price ?? p.from_price;
-                      const acompte = isAcompteLine(p, variant);
-                      const key = cartKey(line.productId, line.variantId);
-                      return (
-                        <div
-                          key={key}
-                          className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3"
-                        >
-                          <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                            <SmartImage
-                              src={p.image_url}
-                              fallbackSrc={p.thumbnail_url}
-                              alt={p.title}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-slate-900" title={p.title}>{shortenTitle(p.title)}</p>
-                            {variant && (
-                              <p className="text-xs text-emerald-600">{variant.name}</p>
-                            )}
-                            <p className="text-xs text-slate-500">
-                              {acompte
-                                ? `${ACOMPTE_LABEL} × ${line.quantity}`
-                                : unit > 0
-                                  ? `${fmtPrice(unit)} × ${line.quantity}`
-                                  : `Sur devis × ${line.quantity}`}
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <p className={`text-sm font-bold ${acompte ? 'text-amber-600' : 'text-emerald-600'}`}>
-                              {acompte ? 'Sur devis' : unit > 0 ? fmtPrice(unit * line.quantity) : 'Sur devis'}
-                            </p>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateCartLine(line.productId, line.variantId, line.quantity - 1)
-                                }
-                                className="flex h-6 w-6 items-center justify-center rounded bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              >
-                                −
-                              </button>
-                              <span className="w-6 text-center text-xs font-semibold">{line.quantity}</span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateCartLine(line.productId, line.variantId, line.quantity + 1)
-                                }
-                                className="flex h-6 w-6 items-center justify-center rounded bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Total (les lignes acompte/devis n'entrent pas dans le total). */}
-                {cartLines.length > 0 && (
-                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                    <p className="text-sm font-semibold text-emerald-700">
-                      {total.allAcompte ? 'Sur devis' : 'Total panier'}
-                    </p>
-                    {total.allAcompte ? (
-                      <span className="text-sm font-bold text-amber-600">Devis à établir</span>
-                    ) : (
-                      <MultiCurrencyPrice amountCny={total.cny} xafOverrideFcfa={currency === "XAF" ? total.primary : undefined} variant="stacked" primary={currency} only />
-                    )}
-                  </div>
-                )}
-                {cartLines.length > 0 && total.acompteCount > 0 && !total.allAcompte && (
-                  <p className="rounded-xl bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-700">
-                    Dont {total.acompteCount} article{total.acompteCount > 1 ? 's' : ''} sur devis (acompte usine, non inclus dans le total).
-                  </p>
-                )}
-
-                {/* Parcours : transport et total d'abord, coordonnées ensuite (page commande). */}
-                {cartLines.length > 0 && (
-                  <p className="rounded-xl bg-slate-50 px-4 py-2.5 text-[12px] text-slate-600">
-                    {total.allAcompte
-                      ? 'Étape suivante : vos coordonnées, puis notre équipe vous envoie le devis sur WhatsApp.'
-                      : 'Étape suivante : choix du transport et total, puis vos coordonnées et le paiement.'}
-                  </p>
-                )}
-
-                {submitError && (
-                  <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{submitError}</p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setCheckoutOpen(false)}
-                  disabled={submitting}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Continuer mes achats
-                </button>
-                <motion.button
-                  type="button"
-                  onClick={submitOrder}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={submitting || cartLines.length === 0}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-60"
-                >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : total.allAcompte ? <FileText className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-                  {total.allAcompte ? 'Demander un devis' : 'Valider et choisir le transport'}
-                </motion.button>
-              </div>
-            </motion.div>
+            {cartFly.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={cartFly.image} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-white"><ShoppingBag className="h-6 w-6" /></span>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Barre panier fixée en bas (pleine largeur, ancrée — pas flottante) */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur">
-        <div className="mx-auto max-w-5xl">
-          <motion.button
-            type="button"
-            onClick={() => setCheckoutOpen(true)}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            disabled={!cartLines.length}
-            className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+      {/* Message bref sous la barre (panier vide, erreur réseau) */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key="toast"
+            role="status"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className={`fixed inset-x-4 top-16 z-[65] mx-auto max-w-md rounded-xl px-4 py-2.5 text-center text-sm font-medium shadow-lg ${
+              toast.kind === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
+            }`}
           >
-            <ShoppingBag className="h-4 w-4 flex-shrink-0" />
-            {total.count > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <span className="tabular-nums">{total.count} article{total.count > 1 ? 's' : ''}</span>
-                <span className="opacity-70">·</span>
-                <span className="tabular-nums">{total.allAcompte ? 'Demander un devis' : fmtPrimaryValue(total.primary)}</span>
-              </span>
-            ) : (
-              'Voir le panier'
-            )}
-          </motion.button>
-        </div>
-      </div>
+            {toast.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Lightbox variante : image + description (au-dessus du modal produit) */}
       <AnimatePresence>
@@ -1520,5 +1474,6 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
         )}
       </AnimatePresence>
     </div>
+    </>
   );
 }
