@@ -9,6 +9,7 @@ import {
   describeMessage,
   isIgnoredType,
   isPrivateChat,
+  mergeReceipt,
   messageSentAt,
   normalizeQuickReplies,
   phoneFromChatId,
@@ -45,6 +46,8 @@ export interface ConversationRow {
   assigned_at: string | null;
   note: string | null;
   created_at: string;
+  /** Coches de notre dernier message (migration 60 ; absent avant). */
+  last_outbound_status?: string | null;
 }
 export interface MessageRow {
   id: string;
@@ -58,6 +61,8 @@ export interface MessageRow {
   sender_name: string | null;
   sent_by: string | null;
   sent_at: string;
+  /** Accusé WhatsApp de nos messages (migration 60 ; absent avant). */
+  status?: string | null;
 }
 
 /**
@@ -117,6 +122,34 @@ export async function ingestInboxMessage(m: InboxMessageIn): Promise<void> {
     { onConflict: 'id', ignoreDuplicates: true },
   );
   if (msgErr) console.error('[inbox] message non enregistré :', msgErr.message);
+  if (m.from_me && m.status) await applyReceipt(m.id, m.status);
+}
+
+/**
+ * Accusé WhatsApp d'un de nos messages : jamais de recul (voir mergeReceipt),
+ * coches de la liste mises à jour si c'est notre dernier message. Sans la
+ * migration 60, les mises à jour échouent en silence (coche simple affichée).
+ */
+export async function applyReceipt(messageId: string, incoming: unknown, at?: string): Promise<void> {
+  const { data: msg } = await supabaseAdmin.from('wa_messages').select('*').eq('id', messageId).maybeSingle();
+  if (!msg || !msg.from_me) return;
+  const current = (msg as { status?: string | null }).status ?? null;
+  const next = mergeReceipt(current, incoming);
+  if (!next || next === current) return;
+  const { error } = await supabaseAdmin.from('wa_messages').update({ status: next, status_at: at || new Date().toISOString() }).eq('id', messageId);
+  if (error) return; // colonne absente (migration 60) : rien de plus à faire
+  await supabaseAdmin
+    .from('wa_conversations')
+    .update({ last_outbound_status: next })
+    .eq('id', msg.conversation_id)
+    .lte('last_outbound_at', msg.sent_at);
+}
+
+/** Événement WHAPI `statuses` : seuls les accusés des conversations privées sont suivis. */
+export async function applyStatusEvent(st: { id?: string; status?: string; recipient_id?: string; timestamp?: string | number }): Promise<void> {
+  if (!st?.id || !st.status || !isPrivateChat(st.recipient_id)) return;
+  const t = Number(st.timestamp);
+  await applyReceipt(st.id, st.status, Number.isFinite(t) && t > 1_000_000_000 ? new Date(t * 1000).toISOString() : undefined);
 }
 
 export async function listConversations(filter: InboxFilter, actor: InboxActor, q = ''): Promise<ConversationRow[]> {
@@ -152,7 +185,8 @@ export async function getConversation(id: string): Promise<ConversationRow | nul
 export async function listMessages(conversationId: string, limit = 300): Promise<MessageRow[]> {
   const { data } = await supabaseAdmin
     .from('wa_messages')
-    .select('id, conversation_id, from_me, type, text, media_url, media_kind, filename, sender_name, sent_by, sent_at')
+    // `*` : inclut `status` dès que la migration 60 est appliquée, sans casser avant.
+    .select('*')
     .eq('conversation_id', conversationId)
     .order('sent_at', { ascending: true })
     .limit(limit);
@@ -234,7 +268,9 @@ export async function sendInboxReply(conversationId: string, actor: InboxActor, 
   };
   if (!conv.assigned_to) Object.assign(patch, { assigned_to: actor.id, assigned_name: actor.name, assigned_at: now });
   await supabaseAdmin.from('wa_conversations').update(patch).eq('id', conv.id);
-  return { ok: true, message: row as MessageRow };
+  // Accepté par WhatsApp : 1 coche ; « reçu » et « lu » arrivent ensuite par le webhook.
+  await applyReceipt(row.id, 'sent');
+  return { ok: true, message: { ...row, status: 'sent' } as MessageRow };
 }
 
 /**
@@ -280,6 +316,28 @@ export async function syncConversationHistory(conversationId: string): Promise<{
   }
   const all = await listMessages(conv.id, 1000);
   const added = Math.max(0, all.length - before);
+
+  // Accusés de nos messages tels que WhatsApp les connaît (reçu, lu…), regroupés par statut.
+  const byId = new Map(all.map((x) => [x.id, x]));
+  const updates = new Map<string, string[]>();
+  for (const raw of r.messages || []) {
+    const m = raw as InboxMessageIn;
+    if (!m.id || !m.from_me || !m.status) continue;
+    const cur = byId.get(m.id);
+    if (!cur) continue;
+    const next = mergeReceipt(cur.status ?? null, m.status);
+    if (next && next !== (cur.status ?? null)) {
+      updates.set(next, [...(updates.get(next) || []), m.id]);
+      cur.status = next;
+    }
+  }
+  let receiptsOk = true;
+  for (const [status, ids] of updates) {
+    const { error } = await supabaseAdmin.from('wa_messages').update({ status, status_at: new Date().toISOString() }).in('id', ids);
+    if (error) receiptsOk = false;
+  }
+  const lastOut = [...all].reverse().find((x) => x.from_me);
+  if (receiptsOk && lastOut?.status) await supabaseAdmin.from('wa_conversations').update({ last_outbound_status: lastOut.status }).eq('id', conv.id);
   const summary = summarizeThread(all, conv.status);
   if (summary && added > 0) {
     const patch: Record<string, unknown> = { ...summary, updated_at: new Date().toISOString() };

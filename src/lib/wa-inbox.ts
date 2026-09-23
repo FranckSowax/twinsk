@@ -15,6 +15,8 @@ export interface InboxMessageIn {
   from_me?: boolean;
   from_name?: string;
   timestamp?: number;
+  /** Statut WhatsApp d'un message envoyé (pending, sent, delivered, read, played…). */
+  status?: string;
   text?: { body?: string };
   image?: { caption?: string; link?: string; preview?: string };
   video?: { caption?: string; link?: string; preview?: string };
@@ -270,4 +272,28 @@ export function formatPhone(phone: string | null | undefined): string {
   if (!d) return '';
   if (d.startsWith('241')) return `+241 ${d.slice(3).replace(/(\d{2})(?=\d)/g, '$1 ')}`;
   return `+${d}`;
+}
+
+// ---- Accusés de réception (coches WhatsApp) ----
+export type ReceiptStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'played' | 'failed';
+const RECEIPT_RANK: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 3, played: 4 };
+
+/** Statut WHAPI utile, ou null (deleted, inconnu…). */
+export function normalizeReceipt(v: unknown): ReceiptStatus | null {
+  return typeof v === 'string' && (v in RECEIPT_RANK || v === 'failed') ? (v as ReceiptStatus) : null;
+}
+
+/**
+ * Nouveau statut d'un message : un accusé ne recule jamais (un « lu » arrivé
+ * avant le « reçu » reste « lu ») ; un échec ne remplace qu'un message pas
+ * encore parvenu.
+ */
+export function mergeReceipt(current: string | null | undefined, incoming: unknown): ReceiptStatus | null {
+  const inc = normalizeReceipt(incoming);
+  const cur = normalizeReceipt(current);
+  if (!inc) return cur;
+  if (!cur) return inc;
+  if (inc === 'failed') return (RECEIPT_RANK[cur] ?? 0) <= RECEIPT_RANK.sent ? 'failed' : cur;
+  if (cur === 'failed') return inc;
+  return RECEIPT_RANK[inc] > RECEIPT_RANK[cur] ? inc : cur;
 }

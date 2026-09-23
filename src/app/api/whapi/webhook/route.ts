@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { handleWhatsappCart } from '@/lib/whapi-cart';
 import { extractInboundImage, extractInboundText, isSalonCandidate, type InboundMessage } from '@/lib/salon';
 import { createSalonRequest, readSalonConfig, sendSalonAck } from '@/lib/salon-data';
-import { ingestInboxMessage } from '@/lib/wa-inbox-data';
+import { applyStatusEvent, ingestInboxMessage } from '@/lib/wa-inbox-data';
 import { isPrivateChat, type InboxMessageIn } from '@/lib/wa-inbox';
 
 // Webhook WHAPI (appelé par les serveurs WHAPI). PUBLIC mais protégé par un secret
@@ -27,8 +27,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'forbidden' }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { messages?: WhapiMessage[] };
+  const body = (await request.json().catch(() => ({}))) as {
+    messages?: WhapiMessage[];
+    statuses?: { id?: string; status?: string; recipient_id?: string; timestamp?: string | number }[];
+  };
   const messages = Array.isArray(body.messages) ? body.messages : [];
+
+  // Accusés de réception (reçu, lu) de nos messages : coches de la messagerie.
+  for (const st of Array.isArray(body.statuses) ? body.statuses : []) {
+    await applyStatusEvent(st).catch((e) => console.error('[inbox] accusé :', e));
+  }
 
   // Groupe « Oh My Recherche » : chaque message client devient une demande
   // numérotée, avec accusé de réception dans le groupe (config lue une fois par lot).

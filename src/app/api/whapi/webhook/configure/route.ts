@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
   }
 
   const webhookUrl = `${origin}/api/whapi/webhook?secret=${encodeURIComponent(secret)}`;
-  const res = await setWhapiWebhook(webhookUrl, ['messages']);
+  // messages : messagerie, paniers, votes ; statuses : accusés « reçu » / « lu » de la messagerie.
+  const res = await setWhapiWebhook(webhookUrl, ['messages', 'statuses']);
   if (!res.ok) return NextResponse.json({ error: res.error || 'Échec' }, { status: 502 });
   return NextResponse.json({ success: true, webhookUrl });
 }

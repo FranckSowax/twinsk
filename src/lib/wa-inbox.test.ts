@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationPatch, describeMessage, fillTemplate, formatPhone, isIgnoredType, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText, splitLinks, summarizeThread } from './wa-inbox';
+import { conversationPatch, describeMessage, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isIgnoredType, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText, splitLinks, summarizeThread } from './wa-inbox';
 
 describe('isPrivateChat — seules les conversations clients entrent dans la messagerie', () => {
   it('accepte un numéro, refuse groupes, chaînes et vide', () => {
@@ -99,5 +99,22 @@ describe('summarizeThread — résumé recalculé après récupération de l’h
     expect(summarizeThread([msg(false, 'a'), msg(true, 'b')], 'open')).toMatchObject({ unread_count: 0, status: 'replied' });
     expect(summarizeThread([msg(true, 'a'), msg(false, 'b')], 'closed')).toMatchObject({ unread_count: 0, status: 'closed' });
     expect(summarizeThread([], 'open')).toBeNull();
+  });
+});
+
+describe('mergeReceipt — coches WhatsApp', () => {
+  it('progresse envoyé → reçu → lu, sans jamais reculer', () => {
+    expect(mergeReceipt(null, 'sent')).toBe('sent');
+    expect(mergeReceipt('sent', 'delivered')).toBe('delivered');
+    expect(mergeReceipt('delivered', 'read')).toBe('read');
+    expect(mergeReceipt('read', 'delivered')).toBe('read'); // accusés arrivés dans le désordre
+    expect(mergeReceipt('read', 'played')).toBe('played');
+  });
+  it('échec : seulement si le message n’est pas parvenu ; inconnus ignorés', () => {
+    expect(mergeReceipt('sent', 'failed')).toBe('failed');
+    expect(mergeReceipt('delivered', 'failed')).toBe('delivered');
+    expect(mergeReceipt('failed', 'sent')).toBe('sent');
+    expect(mergeReceipt('read', 'deleted')).toBe('read');
+    expect(normalizeReceipt('deleted')).toBeNull();
   });
 });

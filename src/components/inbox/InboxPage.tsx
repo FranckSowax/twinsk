@@ -8,7 +8,7 @@
 // interrogation régulière (liste 10 s, fil 6 s).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, FileText, History, Image as ImageIcon, Link2, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, FileText, History, Image as ImageIcon, Link2, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
 import { fillTemplate, formatPhone, splitLinks, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
@@ -59,6 +59,15 @@ interface InboxPageProps {
   hideTitle?: boolean;
   /** Compteur « à répondre », pour la pastille de la barre latérale de l'hôte. */
   onCounts?: (c: { todo: number; mine: number }) => void;
+}
+
+/** Coches WhatsApp : 1 grise = envoyé, 2 grises = reçu, 2 bleues = lu. Sans accusé connu : 1 coche. */
+function Receipt({ status, className = 'h-3.5 w-3.5' }: { status?: string | null; className?: string }) {
+  if (status === 'read' || status === 'played') return <CheckCheck className={`${className} text-[#53bdeb]`} aria-label="Lu" />;
+  if (status === 'delivered') return <CheckCheck className={`${className} opacity-70`} aria-label="Reçu" />;
+  if (status === 'pending') return <Clock className={`${className} opacity-70`} aria-label="En attente" />;
+  if (status === 'failed') return <AlertCircle className={`${className} text-red-500`} aria-label="Échec d’envoi" />;
+  return <Check className={`${className} opacity-70`} aria-label="Envoyé" />;
 }
 
 /** Texte d'un message : liens cliquables, retour à la ligne même au milieu d'une longue URL. */
@@ -345,14 +354,18 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                       <span className="flex-shrink-0 text-[11px] text-slate-400">{relTime(c.last_message_at)}</span>
                     </span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className={`truncate text-xs ${c.unread_count > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-slate-500'}`}>{c.last_message_preview || '—'}</span>
+                      <span className={`flex min-w-0 items-center gap-1 text-xs ${c.unread_count > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-slate-500'}`}>
+                        {c.last_outbound_at && c.last_message_at && c.last_outbound_at >= c.last_message_at && (
+                          <span className="flex-shrink-0 text-slate-500"><Receipt status={c.last_outbound_status} /></span>
+                        )}
+                        <span className="truncate">{c.last_message_preview || '—'}</span>
+                      </span>
                       {c.unread_count > 0 && <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread_count}</span>}
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-1">
                       {c.name && <span className="text-[10px] text-slate-400">{formatPhone(c.phone)}</span>}
                       <AssigneeChip c={c} actor={actor} />
                       {c.status === 'closed' && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">Clôturée</span>}
-                      {c.status === 'replied' && c.unread_count === 0 && <CheckCheck className="h-3.5 w-3.5 text-emerald-500" />}
                     </span>
                   </span>
                 </button>
@@ -422,7 +435,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                         {m.from_me && (m.sender_name ? <span className="font-semibold">{m.sender_name}</span> : <span className="flex items-center gap-0.5"><Smartphone className="h-3 w-3" /> téléphone</span>)}
                         {!m.from_me && m.sender_name && <span className="font-semibold">{m.sender_name}</span>}
                         <span>{new Date(m.sent_at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                        {m.from_me && <Check className="h-3 w-3" />}
+                        {m.from_me && <Receipt status={m.status} />}
                       </p>
                     </div>
                   </div>

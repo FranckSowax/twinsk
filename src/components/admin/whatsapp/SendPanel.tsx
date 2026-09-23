@@ -269,7 +269,7 @@ export default function SendPanel({
         body: JSON.stringify({ origin: window.location.origin }),
       });
       const data = await res.json();
-      setWebhookMsg(res.ok ? '✅ Webhook configuré — les votes seront suivis ici' : `❌ ${data.error || 'Échec'}`);
+      setWebhookMsg(res.ok ? '✅ Webhook configuré — messages, accusés de lecture et votes suivis' : `❌ ${data.error || 'Échec'}`);
     } finally {
       setWebhookBusy(false);
     }
