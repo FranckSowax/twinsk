@@ -19,7 +19,7 @@ import {
   type DripConfig,
 } from '@/lib/wa-drip';
 import { buildMediaBatch } from '@/lib/wa-media';
-import { listDripCampaigns, readDripConfig, readMediaLibrary, writeDripConfig } from '@/lib/wa-drip-run';
+import { deleteDripConfig, listDripCampaigns, readDripConfig, readMediaLibrary, writeDripConfig } from '@/lib/wa-drip-run';
 
 // Réglage du goutte-à-goutte multi-canal (admin only).
 // GET  → config, disponibilité des canaux, groupes (avec cache si WHAPI est
@@ -93,6 +93,14 @@ export async function GET(request: NextRequest) {
     next_batch: nextBatch,
     recent: log.data || [],
   });
+}
+
+// DELETE ?slot=N : supprime la campagne (config, curseur, verrou). Le journal est conservé.
+export async function DELETE(request: NextRequest) {
+  if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const slot = parseDripSlot(request.nextUrl.searchParams.get('slot'));
+  await deleteDripConfig(slot);
+  return NextResponse.json({ success: true, slot });
 }
 
 export async function POST(request: NextRequest) {

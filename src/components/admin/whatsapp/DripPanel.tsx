@@ -8,7 +8,7 @@
 // Tout se règle ici : pause/reprise, listing, créneaux, médiathèque, aperçu, journal.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Pause, Play, Send, Eye, Square, Film, LayoutList } from 'lucide-react';
+import { Loader2, Pause, Play, Send, Eye, Square, Film, LayoutList, Trash2 } from 'lucide-react';
 import type { GroupRow } from './types';
 import DripMediaLibrary, { type MediaRow } from './DripMediaLibrary';
 
@@ -62,7 +62,7 @@ interface State {
 }
 interface Offer { id: string; title: string; status: string; archived_at?: string | null }
 
-export default function DripPanel({ groups, slot = 1, onChanged }: { groups: GroupRow[]; slot?: number; onChanged?: () => void }) {
+export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { groups: GroupRow[]; slot?: number; onChanged?: () => void; onDeleted?: () => void }) {
   const [state, setState] = useState<State | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [draft, setDraft] = useState<Partial<Config>>({});
@@ -92,6 +92,22 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
         per_channel: { ...state.config.per_channel, ...(draft.per_channel || {}) },
       }
     : null;
+
+  const remove = async () => {
+    if (!window.confirm(`Supprimer la campagne ${slot} ? Sa configuration et sa position seront effacées (le journal est conservé).`)) return;
+    setBusy('delete');
+    try {
+      const res = await fetch(`/api/whapi/drip?slot=${slot}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setMessage(`⚠️ ${d.error || 'Suppression impossible'}`);
+        return;
+      }
+      onDeleted?.();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const save = async (patch: Partial<Config> & { reset_cursor?: boolean }, label = 'Enregistré') => {
     setBusy('save');
@@ -196,15 +212,27 @@ export default function DripPanel({ groups, slot = 1, onChanged }: { groups: Gro
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => save({ enabled: !cfg.enabled }, cfg.enabled ? 'Diffusion en pause' : 'Diffusion reprise')}
-          disabled={busy !== null}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${cfg.enabled ? 'bg-amber-500' : 'bg-[#25D366]'}`}
-        >
-          {cfg.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          {cfg.enabled ? 'Mettre en pause' : 'Reprendre'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => save({ enabled: !cfg.enabled }, cfg.enabled ? 'Diffusion en pause' : 'Diffusion reprise')}
+            disabled={busy !== null}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${cfg.enabled ? 'bg-amber-500' : 'bg-[#25D366]'}`}
+          >
+            {cfg.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {cfg.enabled ? 'Mettre en pause' : 'Reprendre'}
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={busy !== null}
+            title="Supprimer cette campagne"
+            className="flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:hover:bg-red-950/30"
+          >
+            <Trash2 className="h-4 w-4" />
+            Supprimer
+          </button>
+        </div>
       </div>
 
       {message && <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm dark:bg-slate-700">{message}</p>}

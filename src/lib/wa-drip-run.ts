@@ -51,6 +51,8 @@ export async function writeMediaLibrary(items: MediaItem[]): Promise<void> {
 
 export interface DripCampaignSummary {
   slot: number;
+  /** Une ligne existe en base : la campagne a été créée. */
+  configured: boolean;
   mode: DripConfig['mode'];
   enabled: boolean;
   offer_id: string | null;
@@ -61,19 +63,26 @@ export interface DripCampaignSummary {
 }
 
 /** Résumé de toutes les campagnes (barre d'onglets de l'admin). */
+/** Supprime une campagne : sa ligne wa_settings (config, curseur, verrou) disparaît ; le journal reste. */
+export async function deleteDripConfig(slot: number): Promise<void> {
+  await supabaseAdmin.from('wa_settings').delete().eq('key', dripSettingKey(slot));
+}
+
 export async function listDripCampaigns(): Promise<DripCampaignSummary[]> {
   const keys = Array.from({ length: MAX_DRIP_SLOTS }, (_, i) => dripSettingKey(i + 1));
   const { data } = await supabaseAdmin.from('wa_settings').select('key, value').in('key', keys);
   const byKey = new Map((data || []).map((r) => [r.key as string, r.value]));
-  const cfgs = keys.map((k, i) => ({ slot: i + 1, cfg: normalizeDripConfig(byKey.get(k)) }));
+  // `configured` : une ligne existe en base (campagne créée) — les emplacements vides n'apparaissent pas dans l'admin.
+  const cfgs = keys.map((k, i) => ({ slot: i + 1, configured: byKey.has(k), cfg: normalizeDripConfig(byKey.get(k)) }));
   const offerIds = Array.from(new Set(cfgs.map((c) => c.cfg.offer_id).filter((x): x is string => !!x)));
   const titles = new Map<string, string>();
   if (offerIds.length) {
     const { data: offers } = await supabaseAdmin.from('offers').select('id, title').in('id', offerIds);
     for (const o of offers || []) titles.set(o.id as string, o.title as string);
   }
-  return cfgs.map(({ slot, cfg }) => ({
+  return cfgs.map(({ slot, configured, cfg }) => ({
     slot,
+    configured,
     mode: cfg.mode,
     enabled: cfg.enabled,
     offer_id: cfg.offer_id,

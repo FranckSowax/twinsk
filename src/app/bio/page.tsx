@@ -14,13 +14,21 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '
 export async function generateMetadata(): Promise<Metadata> {
   const cfg = await readBioConfig();
   const title = `${cfg.title} — Listings, commande et contact`;
-  const image = cfg.logo_url || `${PUBLIC_ORIGIN_FALLBACK}/twinsk-logo.jpg`;
+  // Aperçu de partage (WhatsApp, réseaux) : le visuel de marque du hero,
+  // 1600 × 686, versionné dans public/bio.
+  const image = `${PUBLIC_ORIGIN_FALLBACK}/bio/top-bio-web.jpg`;
   return {
     title,
     description: cfg.tagline,
     robots: { index: true, follow: true },
-    openGraph: { title, description: cfg.tagline, url: `${PUBLIC_ORIGIN_FALLBACK}/bio`, type: 'website', images: [{ url: image }] },
-    twitter: { card: 'summary', title, description: cfg.tagline, images: [image] },
+    openGraph: {
+      title,
+      description: cfg.tagline,
+      url: `${PUBLIC_ORIGIN_FALLBACK}/bio`,
+      type: 'website',
+      images: [{ url: image, width: 1600, height: 686, alt: 'Oh My Gab ! — la Chine livrée à Libreville' }],
+    },
+    twitter: { card: 'summary_large_image', title, description: cfg.tagline, images: [image] },
   };
 }
 

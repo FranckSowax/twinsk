@@ -16,7 +16,13 @@ export const DRIP_SETTING_KEY = 'category_drip';
  * config, son curseur, son verrou horaire et son journal — elles n'interfèrent
  * pas. L'emplacement 1 garde la clé historique `category_drip`.
  */
-export const MAX_DRIP_SLOTS = 3;
+export const MAX_DRIP_SLOTS = 6;
+/** Premier emplacement libre pour « Nouvelle campagne » (null si tout est pris). */
+export function nextFreeDripSlot(configured: number[]): number | null {
+  const used = new Set(configured);
+  for (let s = 1; s <= MAX_DRIP_SLOTS; s++) if (!used.has(s)) return s;
+  return null;
+}
 export function parseDripSlot(v: unknown): number {
   const n = Number(v);
   return Number.isInteger(n) && n >= 1 && n <= MAX_DRIP_SLOTS ? n : 1;

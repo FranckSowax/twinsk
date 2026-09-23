@@ -19,6 +19,7 @@ import {
   dripSettingKey,
   parseDripSlot,
 } from './wa-drip';
+import { MAX_DRIP_SLOTS, nextFreeDripSlot } from './wa-drip';
 
 type Product = PublicOfferData['items'][number]['products'][number];
 
@@ -190,5 +191,16 @@ describe('campagnes simultanées (emplacements)', () => {
     expect(parseDripSlot(0)).toBe(1);
     expect(parseDripSlot(99)).toBe(1);
     expect(parseDripSlot('abc')).toBe(1);
+  });
+});
+
+describe('nextFreeDripSlot — « Nouvelle campagne »', () => {
+  it('prend le premier emplacement libre, même au milieu', () => {
+    expect(nextFreeDripSlot([])).toBe(1);
+    expect(nextFreeDripSlot([1, 2, 3])).toBe(4);
+    expect(nextFreeDripSlot([1, 3])).toBe(2);
+  });
+  it('null quand les six emplacements sont pris', () => {
+    expect(nextFreeDripSlot(Array.from({ length: MAX_DRIP_SLOTS }, (_, i) => i + 1))).toBeNull();
   });
 });
