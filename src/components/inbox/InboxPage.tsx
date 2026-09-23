@@ -8,9 +8,11 @@
 // interrogation régulière (liste 10 s, fil 6 s).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, FileText, History, Image as ImageIcon, Link2, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, FileText, History, Image as ImageIcon, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
-import { fillTemplate, formatPhone, splitLinks, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
+import QuickRepliesEditor from './QuickRepliesEditor';
+import { EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText } from './inbox-ui';
+import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
 
 interface MediaItem { id: string; url: string; kind: 'image' | 'video'; title: string; caption: string; active: boolean }
@@ -70,42 +72,6 @@ function Receipt({ status, className = 'h-3.5 w-3.5' }: { status?: string | null
   return <Check className={`${className} opacity-70`} aria-label="Envoyé" />;
 }
 
-/** Texte d'un message : liens cliquables, retour à la ligne même au milieu d'une longue URL. */
-function MessageText({ text, mine }: { text: string; mine: boolean }) {
-  return (
-    <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-      {splitLinks(text).map((part, i) =>
-        part.href ? (
-          <a key={i} href={part.href} target="_blank" rel="noopener noreferrer" className={`underline underline-offset-2 ${mine ? 'text-emerald-800 dark:text-emerald-100' : 'text-sky-700 dark:text-sky-300'}`}>
-            {part.text}
-          </a>
-        ) : (
-          <span key={i}>{part.text}</span>
-        ),
-      )}
-    </p>
-  );
-}
-
-/** Carte d'aperçu d'un message-lien (titre de la page + domaine). */
-function LinkCard({ url, title }: { url: string; title: string | null }) {
-  let host = url;
-  try {
-    host = new URL(url).host.replace(/^www\./, '');
-  } catch {
-    /* URL illisible : on affiche telle quelle */
-  }
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="mb-1.5 flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10 dark:bg-white/10">
-      <Link2 className="h-4 w-4 flex-shrink-0 opacity-60" />
-      <span className="min-w-0">
-        {title && <span className="block truncate text-xs font-bold">{title}</span>}
-        <span className="block truncate text-[11px] opacity-70">{host}</span>
-      </span>
-    </a>
-  );
-}
-
 export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]', hideTitle = false, onCounts }: InboxPageProps = {}) {
   // Toutes les requêtes de la messagerie : identité explicite dans l'espace agents.
   const api = useCallback(
@@ -130,12 +96,37 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [mediaCaption, setMediaCaption] = useState('');
   const [uploading, setUploading] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
-  const [editingQuick, setEditingQuick] = useState<QuickReply[] | null>(null);
+  const [quickEditor, setQuickEditor] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   // Historique WhatsApp récupéré une fois par conversation et par session.
   const synced = useRef<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // Coches de la liste : les conversations dont notre dernier message n'a pas
+  // encore d'accusé connu sont relues chez WhatsApp, une à une, une fois par
+  // session. Seulement si la colonne existe (migration 60 appliquée).
+  const receiptQueue = useRef<Set<string>>(new Set());
+  const receiptRunning = useRef(false);
+  const queueReceiptSync = useCallback(
+    (list: ConversationRow[]) => {
+      for (const c of list) {
+        if ('last_outbound_status' in c && !c.last_outbound_status && c.last_outbound_at) receiptQueue.current.add(c.id);
+      }
+      if (receiptRunning.current) return;
+      receiptRunning.current = true;
+      (async () => {
+        for (const id of Array.from(receiptQueue.current).slice(0, 40)) {
+          receiptQueue.current.delete(id);
+          if (synced.current.has(id)) continue;
+          synced.current.add(id);
+          await api(`/api/inbox/conversations/${id}/sync`, { method: 'POST' }).catch(() => undefined);
+        }
+        receiptRunning.current = false;
+      })();
+    },
+    [api],
+  );
 
   // ---- Liste ----
   const loadList = useCallback(async () => {
@@ -149,10 +140,11 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
     }
     setListError('');
     setConversations(d.conversations || []);
+    queueReceiptSync(d.conversations || []);
     setCounts(d.counts || { todo: 0, mine: 0 });
     onCounts?.(d.counts || { todo: 0, mine: 0 });
     if (d.actor) setActor(d.actor);
-  }, [filter, q, api, onCounts]);
+  }, [filter, q, api, onCounts, queueReceiptSync]);
   useEffect(() => {
     loadList();
     const t = setInterval(loadList, 10_000);
@@ -282,15 +274,6 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
     } finally {
       setUploading(false);
     }
-  };
-  const saveQuick = async () => {
-    if (!editingQuick) return;
-    const r = await api('/api/inbox/quick-replies', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: editingQuick }) });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) {
-      setQuick(d.items || []);
-      setEditingQuick(null);
-    } else setError(d.error || 'Enregistrement impossible');
   };
 
   const mine = !!(conv && actor && conv.assigned_to === actor.id);
@@ -429,7 +412,10 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                       {(m.media_kind === 'document' || m.media_kind === 'sticker') && m.media_url && (
                         <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-2 rounded-lg bg-black/5 px-2 py-1.5 text-xs font-semibold underline"><Paperclip className="h-3.5 w-3.5" /> {m.filename || (m.media_kind === 'sticker' ? 'Sticker' : 'Fichier')}</a>
                       )}
-                      {m.type === 'link_preview' && m.media_url && <LinkCard url={m.media_url} title={m.filename} />}
+                      {(() => {
+                        const url = m.type === 'link_preview' && m.media_url ? m.media_url : firstUrl(m.text);
+                        return url ? <LinkPreviewCard url={url} fallbackTitle={m.type === 'link_preview' ? m.filename : null} fetcher={api} /> : null;
+                      })()}
                       {m.text && <MessageText text={m.text} mine={m.from_me} />}
                       <p className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${m.from_me ? 'text-emerald-800/70 dark:text-emerald-100/70' : 'text-slate-400'}`}>
                         {m.from_me && (m.sender_name ? <span className="font-semibold">{m.sender_name}</span> : <span className="flex items-center gap-0.5"><Smartphone className="h-3 w-3" /> téléphone</span>)}
@@ -447,32 +433,15 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
               {/* Panneaux outils */}
               {panel === 'quick' && (
                 <div className="max-h-64 overflow-y-auto border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
-                  {editingQuick ? (
-                    <div className="space-y-2">
-                      {editingQuick.map((r, i) => (
-                        <div key={i} className="flex gap-2">
-                          <input value={r.label} onChange={(e) => setEditingQuick((l) => l!.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Titre" className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800" />
-                          <input value={r.text} onChange={(e) => setEditingQuick((l) => l!.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} placeholder="Texte ({nom}, {prenom}, {numero})" className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800" />
-                          <button type="button" onClick={() => setEditingQuick((l) => l!.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-500"><X className="h-4 w-4" /></button>
-                        </div>
-                      ))}
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => setEditingQuick((l) => [...l!, { id: `q${Date.now()}`, label: '', text: '' }])} className={btn}>+ Ajouter</button>
-                        <button type="button" onClick={saveQuick} className={`${btn} bg-slate-900 text-white dark:bg-white dark:text-slate-900`}>Enregistrer</button>
-                        <button type="button" onClick={() => setEditingQuick(null)} className={btn}>Annuler</button>
-                      </div>
-                    </div>
-                  ) : (
                     <div className="flex flex-wrap gap-2">
                       {quick.map((r) => (
                         <button key={r.id} type="button" onClick={() => insertQuick(r)} title={r.text} className="max-w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-left text-xs dark:border-slate-600 dark:bg-slate-800">
                           <span className="block font-bold text-slate-900 dark:text-white">⚡ {r.label}</span>
-                          <span className="block max-w-[16rem] truncate text-slate-500">{r.text}</span>
+                          <span className="block max-w-[16rem] truncate text-slate-500">{r.text.replace(/\s+/g, ' ')}</span>
                         </button>
                       ))}
-                      {actor?.role === 'admin' && <button type="button" onClick={() => setEditingQuick(quick)} className={btn}>Gérer les phrases</button>}
+                      {actor?.role === 'admin' && <button type="button" onClick={() => setQuickEditor(true)} className={btn}>Gérer les phrases</button>}
                     </div>
-                  )}
                 </div>
               )}
               {panel === 'media' && (
@@ -503,11 +472,20 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
               {/* Composer */}
               <div className="border-t border-slate-200 p-3 dark:border-slate-700">
                 {error && <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+                {firstUrl(draft) && (
+                  <div className="mb-2 max-w-md text-slate-900 dark:text-white">
+                    <LinkPreviewCard url={firstUrl(draft)!} fetcher={api} compact />
+                  </div>
+                )}
                 <div className="flex items-end gap-2">
                   <div className="flex gap-1">
                     <button type="button" onClick={() => setPanel(panel === 'quick' ? null : 'quick')} className={tool(panel === 'quick')} title="Phrases rapides"><Zap className="h-5 w-5" /></button>
                     <button type="button" onClick={() => setPanel(panel === 'media' ? null : 'media')} className={tool(panel === 'media')} title="Médiathèque et fichiers"><ImageIcon className="h-5 w-5" /></button>
                     <button type="button" onClick={() => setPanel(panel === 'cart' ? null : 'cart')} className={tool(panel === 'cart')} title="Créer un panier depuis un listing"><ShoppingCart className="h-5 w-5" /></button>
+                    <span className="hidden sm:flex">
+                      <EmojiPicker onPick={(e) => insertAtCursor(textRef.current, draft, e, setDraft)} />
+                      <LinkInsertMenu fetcher={api} onPick={(u) => insertAtCursor(textRef.current, draft, u, setDraft)} />
+                    </span>
                   </div>
                   <textarea
                     ref={textRef}
@@ -532,6 +510,18 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
           )}
         </section>
       </div>
+
+      {quickEditor && (
+        <QuickRepliesEditor
+          initial={quick}
+          fetcher={api}
+          onClose={() => setQuickEditor(false)}
+          onSaved={(items) => {
+            setQuick(items);
+            setQuickEditor(false);
+          }}
+        />
+      )}
 
       {/* Panier client : le panneau complet de /admin/whatsapp, pré-rempli avec ce client */}
       {panel === 'cart' && conv && (
