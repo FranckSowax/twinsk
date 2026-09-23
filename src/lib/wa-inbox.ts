@@ -25,6 +25,23 @@ export interface InboxMessageIn {
   location?: { name?: string; address?: string; latitude?: number; longitude?: number };
   contact?: { name?: string };
   order?: { id?: string; item_count?: number };
+  /** Message avec lien : `body` = texte complet (lien compris), `url`, `title` de l'aperçu. */
+  link_preview?: { body?: string; url?: string; title?: string; description?: string };
+  gif?: { caption?: string; link?: string };
+  short?: { caption?: string; link?: string };
+  live_location?: { caption?: string };
+  contact_list?: { list?: unknown[] };
+  reply?: { type?: string; buttons_reply?: { id?: string; title?: string }; list_reply?: { title?: string } };
+  interactive?: { body?: { text?: string } };
+  hsm?: { body?: string };
+  product?: { product_id?: string };
+}
+
+/** Types sans place dans un fil (réactions, modifications, appels, statuts, système…). */
+const IGNORED_TYPES = new Set(['action', 'system', 'call', 'story', 'poll_update', 'album', 'unknown', 'group_invite', 'admin_invite', 'catalog', 'carousel', 'reaction', 'revoked', 'deleted']);
+/** Vrai si le type est volontairement ignoré (sinon un type inattendu mérite d'être journalisé). */
+export function isIgnoredType(type: string | null | undefined): boolean {
+  return IGNORED_TYPES.has(type || '');
 }
 
 export interface MessageDescription {
@@ -76,14 +93,100 @@ export function describeMessage(m: InboxMessageIn): MessageDescription | null {
       return { type, text: m.contact?.name ? `Contact : ${m.contact.name}` : 'Contact partagé', media_url: null, media_kind: null, filename: null };
     case 'order':
       return { type, text: `Panier WhatsApp (${m.order?.item_count ?? '?'} article(s))`, media_url: null, media_kind: null, filename: null };
-    default:
+    // Message avec lien (catalogue, panier…) : le texte complet contient le lien ;
+    // l'URL et le titre de l'aperçu sont gardés dans media_url / filename.
+    case 'link_preview': {
+      const lp = m.link_preview || {};
+      const text = (lp.body || lp.url || '').trim();
+      if (!text) return null;
+      return { type, text, media_url: lp.url || null, media_kind: null, filename: (lp.title || '').trim().slice(0, 200) || null };
+    }
+    case 'gif':
+    case 'short': {
+      const v = m[type] || {};
+      return { type: 'video', text: (v.caption || '').trim(), media_url: v.link || null, media_kind: 'video', filename: null };
+    }
+    case 'live_location':
+      return { type: 'location', text: (m.live_location?.caption || '').trim() || 'Position en direct partagée', media_url: null, media_kind: null, filename: null };
+    case 'contact_list':
+      return { type: 'contact', text: `${m.contact_list?.list?.length || 'Plusieurs'} contacts partagés`, media_url: null, media_kind: null, filename: null };
+    case 'reply': {
+      const t = m.reply?.buttons_reply?.title || m.reply?.list_reply?.title || '';
+      return t ? { type: 'text', text: t.trim(), media_url: null, media_kind: null, filename: null } : null;
+    }
+    case 'interactive':
+    case 'hsm': {
+      const t = type === 'hsm' ? m.hsm?.body : m.interactive?.body?.text;
+      return t ? { type: 'text', text: t.trim(), media_url: null, media_kind: null, filename: null } : null;
+    }
+    case 'product':
+      return { type: 'text', text: '🛍️ Produit du catalogue WhatsApp', media_url: null, media_kind: null, filename: null };
+    default: {
+      if (isIgnoredType(type)) return null;
+      // Type non prévu : on garde son texte s'il en a un plutôt que de perdre le message.
+      const o = (m as unknown as Record<string, unknown>)[type];
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>;
+        const t = [r.body, r.caption, r.text].find((x): x is string => typeof x === 'string' && x.trim() !== '');
+        if (t) return { type: 'text', text: t.trim(), media_url: null, media_kind: null, filename: null };
+      }
       return null;
+    }
   }
+}
+
+/** Liens http(s) d'un texte, pour les rendre cliquables (ponctuation finale exclue). */
+export const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]}»]/g;
+export function splitLinks(text: string): { text: string; href?: string }[] {
+  const out: { text: string; href?: string }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    const i = m.index ?? 0;
+    if (i > last) out.push({ text: text.slice(last, i) });
+    out.push({ text: m[0], href: m[0] });
+    last = i + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+export interface ThreadMessage {
+  from_me: boolean;
+  sent_at: string;
+  type: string;
+  text: string | null;
+  media_url: string | null;
+  media_kind: InboxMediaKind | null;
+  filename: string | null;
+}
+/**
+ * Résumé d'une conversation recalculé depuis tout son fil (après une
+ * récupération d'historique) : dernier message, non-lus = messages du client
+ * depuis notre dernière réponse, statut.
+ */
+export function summarizeThread(messages: ThreadMessage[], currentStatus: InboxStatus): Record<string, unknown> | null {
+  if (!messages.length) return null;
+  const sorted = [...messages].sort((a, b) => a.sent_at.localeCompare(b.sent_at));
+  const lastMsg = sorted[sorted.length - 1];
+  const lastIn = [...sorted].reverse().find((m) => !m.from_me);
+  const lastOut = [...sorted].reverse().find((m) => m.from_me);
+  // Une conversation clôturée le reste : seul un nouveau message en direct (webhook) la rouvre.
+  const closed = currentStatus === 'closed';
+  const unread = closed ? 0 : sorted.filter((m) => !m.from_me && (!lastOut || m.sent_at > lastOut.sent_at)).length;
+  const status: InboxStatus = closed ? 'closed' : unread > 0 ? 'open' : 'replied';
+  return {
+    last_message_at: lastMsg.sent_at,
+    last_message_preview: previewText({ type: lastMsg.type, text: lastMsg.text || '', media_url: lastMsg.media_url, media_kind: lastMsg.media_kind, filename: lastMsg.filename }),
+    last_inbound_at: lastIn?.sent_at ?? null,
+    last_outbound_at: lastOut?.sent_at ?? null,
+    unread_count: unread,
+    status,
+  };
 }
 
 /** Aperçu court pour la liste des conversations. */
 export function previewText(d: MessageDescription): string {
-  const icon: Record<string, string> = { image: '📷 Photo', video: '🎬 Vidéo', audio: '🎤 Vocal', document: '📎 Fichier', sticker: '🙂 Sticker', location: '📍', contact: '👤', order: '🛒' };
+  const icon: Record<string, string> = { image: '📷 Photo', video: '🎬 Vidéo', audio: '🎤 Vocal', document: '📎 Fichier', sticker: '🙂 Sticker', location: '📍', contact: '👤', order: '🛒', link_preview: '🔗' };
   const head = icon[d.media_kind || d.type] || '';
   const t = d.text.replace(/\s+/g, ' ').trim();
   const body = t.length > 90 ? `${t.slice(0, 89)}…` : t;

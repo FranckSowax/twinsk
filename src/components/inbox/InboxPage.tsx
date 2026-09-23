@@ -8,9 +8,9 @@
 // interrogation régulière (liste 10 s, fil 6 s).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, FileText, Image as ImageIcon, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, FileText, History, Image as ImageIcon, Link2, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
-import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
+import { fillTemplate, formatPhone, splitLinks, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
 
 interface MediaItem { id: string; url: string; kind: 'image' | 'video'; title: string; caption: string; active: boolean }
@@ -61,6 +61,42 @@ interface InboxPageProps {
   onCounts?: (c: { todo: number; mine: number }) => void;
 }
 
+/** Texte d'un message : liens cliquables, retour à la ligne même au milieu d'une longue URL. */
+function MessageText({ text, mine }: { text: string; mine: boolean }) {
+  return (
+    <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+      {splitLinks(text).map((part, i) =>
+        part.href ? (
+          <a key={i} href={part.href} target="_blank" rel="noopener noreferrer" className={`underline underline-offset-2 ${mine ? 'text-emerald-800 dark:text-emerald-100' : 'text-sky-700 dark:text-sky-300'}`}>
+            {part.text}
+          </a>
+        ) : (
+          <span key={i}>{part.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
+/** Carte d'aperçu d'un message-lien (titre de la page + domaine). */
+function LinkCard({ url, title }: { url: string; title: string | null }) {
+  let host = url;
+  try {
+    host = new URL(url).host.replace(/^www\./, '');
+  } catch {
+    /* URL illisible : on affiche telle quelle */
+  }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="mb-1.5 flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10 dark:bg-white/10">
+      <Link2 className="h-4 w-4 flex-shrink-0 opacity-60" />
+      <span className="min-w-0">
+        {title && <span className="block truncate text-xs font-bold">{title}</span>}
+        <span className="block truncate text-[11px] opacity-70">{host}</span>
+      </span>
+    </a>
+  );
+}
+
 export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]', hideTitle = false, onCounts }: InboxPageProps = {}) {
   // Toutes les requêtes de la messagerie : identité explicite dans l'espace agents.
   const api = useCallback(
@@ -87,6 +123,9 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [noteDraft, setNoteDraft] = useState('');
   const [editingQuick, setEditingQuick] = useState<QuickReply[] | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // Historique WhatsApp récupéré une fois par conversation et par session.
+  const synced = useRef<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   // ---- Liste ----
@@ -127,8 +166,10 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
     setPanel(null);
     setError('');
     loadThread(selectedId, true);
+    if (!synced.current.has(selectedId)) syncHistory(selectedId);
     const t = setInterval(() => loadThread(selectedId), 6_000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, loadThread]);
   const messageCount = thread?.messages.length || 0;
   useEffect(() => {
@@ -140,6 +181,22 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
     if (panel === 'quick' && !quick.length) api('/api/inbox/quick-replies').then((r) => r.json()).then((d) => setQuick(d.items || [])).catch(() => undefined);
     if (panel === 'media' && !media.length) api('/api/inbox/media').then((r) => r.json()).then((d) => setMedia(d.items || [])).catch(() => undefined);
   }, [panel, quick.length, media.length, api]);
+
+  // Messages manquants (liens envoyés avant leur prise en charge, historique antérieur).
+  const syncHistory = async (id: string) => {
+    synced.current.add(id);
+    setSyncing(true);
+    try {
+      const r = await api(`/api/inbox/conversations/${id}/sync`, { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.added > 0) {
+        await loadThread(id, true);
+        loadList();
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const conv = thread?.conversation || conversations.find((c) => c.id === selectedId) || null;
   const client = useMemo(() => ({ name: conv?.name || null, phone: conv?.phone || null }), [conv?.name, conv?.phone]);
@@ -323,6 +380,9 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                     {conv.assigned_name ? ` · ${conv.assigned_to === actor?.id ? 'attribuée à vous' : `suivie par ${conv.assigned_name}`}` : ' · non attribuée'}
                   </p>
                 </div>
+                <button type="button" onClick={() => syncHistory(conv.id)} disabled={syncing} className={btn} title="Récupérer l’historique WhatsApp">
+                  {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
+                </button>
                 <a href={`https://wa.me/${conv.phone}`} target="_blank" rel="noopener noreferrer" className={btn} title="Ouvrir dans WhatsApp"><Smartphone className="h-3.5 w-3.5" /></a>
                 {mine ? (
                   <button type="button" onClick={() => patchConv({ assign: null })} className={btn} title="Libérer la conversation"><Unlock className="h-3.5 w-3.5" /> Libérer</button>
@@ -346,7 +406,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#efeae2] px-3 py-4 dark:bg-slate-900/60">
                 {thread?.messages.map((m) => (
                   <div key={m.id} className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.from_me ? 'rounded-br-sm bg-[#d9fdd3] text-slate-900 dark:bg-emerald-800 dark:text-white' : 'rounded-bl-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-white'}`}>
+                    <div className={`min-w-0 max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.from_me ? 'rounded-br-sm bg-[#d9fdd3] text-slate-900 dark:bg-emerald-800 dark:text-white' : 'rounded-bl-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-white'}`}>
                       {m.media_kind === 'image' && m.media_url && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <a href={m.media_url} target="_blank" rel="noopener noreferrer"><img src={m.media_url} alt="" className="mb-1 max-h-64 rounded-lg object-cover" loading="lazy" /></a>
@@ -356,7 +416,8 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                       {(m.media_kind === 'document' || m.media_kind === 'sticker') && m.media_url && (
                         <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-2 rounded-lg bg-black/5 px-2 py-1.5 text-xs font-semibold underline"><Paperclip className="h-3.5 w-3.5" /> {m.filename || (m.media_kind === 'sticker' ? 'Sticker' : 'Fichier')}</a>
                       )}
-                      {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
+                      {m.type === 'link_preview' && m.media_url && <LinkCard url={m.media_url} title={m.filename} />}
+                      {m.text && <MessageText text={m.text} mine={m.from_me} />}
                       <p className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${m.from_me ? 'text-emerald-800/70 dark:text-emerald-100/70' : 'text-slate-400'}`}>
                         {m.from_me && (m.sender_name ? <span className="font-semibold">{m.sender_name}</span> : <span className="flex items-center gap-0.5"><Smartphone className="h-3 w-3" /> téléphone</span>)}
                         {!m.from_me && m.sender_name && <span className="font-semibold">{m.sender_name}</span>}

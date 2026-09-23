@@ -781,6 +781,13 @@ export async function sendWhapiVideo(
   return whapiPost('/messages/video', { to, media: mediaUrl, caption });
 }
 
+/** Historique d'une conversation (GET /messages/list/{ChatID}), du plus récent au plus ancien. */
+export async function listWhapiChatMessages(chatId: string, count = 100): Promise<{ ok: boolean; messages?: Record<string, unknown>[]; error?: string }> {
+  const r = await whapiGet<{ messages?: Record<string, unknown>[] }>(`/messages/list/${chatId}?count=${Math.min(500, Math.max(1, count))}`);
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, messages: Array.isArray(r.data?.messages) ? r.data!.messages : [] };
+}
+
 /** Envoie un document (PDF, etc.) — media = URL publique, nom de fichier optionnel. */
 export async function whapiSendDocument(
   mediaUrl: string,

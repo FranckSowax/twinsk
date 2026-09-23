@@ -3,10 +3,11 @@
 // rapides. Tables wa_conversations / wa_messages (migration 59).
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { sendWhapiImage, sendWhapiText, sendWhapiVideo, whapiSendDocument } from '@/lib/whapi';
+import { listWhapiChatMessages, sendWhapiImage, sendWhapiText, sendWhapiVideo, whapiSendDocument } from '@/lib/whapi';
 import {
   conversationPatch,
   describeMessage,
+  isIgnoredType,
   isPrivateChat,
   messageSentAt,
   normalizeQuickReplies,
@@ -14,6 +15,7 @@ import {
   previewText,
   QUICK_REPLIES_KEY,
   DEFAULT_QUICK_REPLIES,
+  summarizeThread,
   type InboxFilter,
   type InboxMediaKind,
   type InboxMessageIn,
@@ -67,7 +69,11 @@ export async function ingestInboxMessage(m: InboxMessageIn): Promise<void> {
   const chatId = m.chat_id || (m.from ? `${String(m.from).replace(/\D/g, '')}@s.whatsapp.net` : '');
   if (!isPrivateChat(chatId) || !m.id) return;
   const d = describeMessage(m);
-  if (!d) return;
+  if (!d) {
+    // Type inattendu : visible dans les journaux Railway pour l'ajouter ensuite.
+    if (!isIgnoredType(m.type)) console.warn(`[inbox] message ignoré, type « ${m.type} » (clés : ${Object.keys(m).join(', ')})`);
+    return;
+  }
   const sentAt = messageSentAt(m);
 
   const { data: existing } = await supabaseAdmin
@@ -229,6 +235,58 @@ export async function sendInboxReply(conversationId: string, actor: InboxActor, 
   if (!conv.assigned_to) Object.assign(patch, { assigned_to: actor.id, assigned_name: actor.name, assigned_at: now });
   await supabaseAdmin.from('wa_conversations').update(patch).eq('id', conv.id);
   return { ok: true, message: row as MessageRow };
+}
+
+/**
+ * Récupère l'historique d'une conversation chez WHAPI (100 derniers messages) :
+ * messages manquants ajoutés (antérieurs à la messagerie ou d'un type qu'elle
+ * ignorait, comme les liens avant le 24 sept. 2026), sans toucher à ceux déjà
+ * enregistrés (auteur conservé). Le résumé de la conversation est ensuite
+ * recalculé depuis le fil complet.
+ */
+export async function syncConversationHistory(conversationId: string): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
+  const conv = await getConversation(conversationId);
+  if (!conv) return { ok: false, error: 'Conversation introuvable' };
+  const r = await listWhapiChatMessages(conv.chat_id, 100);
+  if (!r.ok) return { ok: false, error: r.error || 'Historique WhatsApp indisponible' };
+
+  const rows = [];
+  let name: string | null = null;
+  for (const raw of r.messages || []) {
+    const m = raw as InboxMessageIn;
+    if (!m.id) continue;
+    const d = describeMessage(m);
+    if (!d) continue;
+    if (!m.from_me && m.from_name && !name) name = m.from_name;
+    rows.push({
+      id: m.id,
+      conversation_id: conv.id,
+      chat_id: conv.chat_id,
+      from_me: !!m.from_me,
+      type: d.type,
+      text: d.text || null,
+      media_url: d.media_url,
+      media_kind: d.media_kind,
+      filename: d.filename,
+      sender_name: m.from_me ? null : m.from_name || null,
+      sent_by: null,
+      sent_at: messageSentAt(m),
+    });
+  }
+  const before = (await supabaseAdmin.from('wa_messages').select('id', { count: 'exact', head: true }).eq('conversation_id', conv.id)).count || 0;
+  if (rows.length) {
+    const { error } = await supabaseAdmin.from('wa_messages').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) return { ok: false, error: error.message };
+  }
+  const all = await listMessages(conv.id, 1000);
+  const added = Math.max(0, all.length - before);
+  const summary = summarizeThread(all, conv.status);
+  if (summary && added > 0) {
+    const patch: Record<string, unknown> = { ...summary, updated_at: new Date().toISOString() };
+    if (!conv.name && name) patch.name = name.trim().slice(0, 120);
+    await supabaseAdmin.from('wa_conversations').update(patch).eq('id', conv.id);
+  }
+  return { ok: true, added };
 }
 
 // ---- Phrases rapides ----

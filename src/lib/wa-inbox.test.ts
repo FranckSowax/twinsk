@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationPatch, describeMessage, fillTemplate, formatPhone, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText } from './wa-inbox';
+import { conversationPatch, describeMessage, fillTemplate, formatPhone, isIgnoredType, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText, splitLinks, summarizeThread } from './wa-inbox';
 
 describe('isPrivateChat — seules les conversations clients entrent dans la messagerie', () => {
   it('accepte un numéro, refuse groupes, chaînes et vide', () => {
@@ -57,5 +57,47 @@ describe('phrases rapides et modèles', () => {
   it('formate un numéro gabonais', () => {
     expect(formatPhone('24106871309')).toBe('+241 06 87 13 09');
     expect(formatPhone('33612345678')).toBe('+33612345678');
+  });
+});
+
+describe('messages avec lien et autres types (24 sept. 2026)', () => {
+  it('link_preview : texte complet avec le lien, URL et titre gardés', () => {
+    const d = describeMessage({
+      type: 'link_preview',
+      link_preview: { body: 'Notre catalogue : https://twinsk-production.up.railway.app/offer/e577', url: 'https://twinsk-production.up.railway.app/offer/e577', title: 'Canapés Salon Collection Fin 2026' },
+    });
+    expect(d).toMatchObject({ type: 'link_preview', text: 'Notre catalogue : https://twinsk-production.up.railway.app/offer/e577', media_url: 'https://twinsk-production.up.railway.app/offer/e577', filename: 'Canapés Salon Collection Fin 2026' });
+    expect(previewText(d!)).toMatch(/^🔗 Notre catalogue/);
+  });
+  it('lien seul sans texte : le lien devient le texte', () => {
+    expect(describeMessage({ type: 'link_preview', link_preview: { url: 'https://x.io/a' } })?.text).toBe('https://x.io/a');
+  });
+  it('gif, réponse à bouton, type inconnu avec texte ; réactions ignorées', () => {
+    expect(describeMessage({ type: 'gif', gif: { link: 'https://x/a.mp4' } })).toMatchObject({ type: 'video', media_kind: 'video' });
+    expect(describeMessage({ type: 'reply', reply: { buttons_reply: { title: 'Oui, je commande' } } })?.text).toBe('Oui, je commande');
+    expect(describeMessage({ type: 'nouveau_type', ...({ nouveau_type: { body: 'texte' } } as object) })?.text).toBe('texte');
+    expect(describeMessage({ type: 'action' })).toBeNull();
+    expect(isIgnoredType('action')).toBe(true);
+    expect(isIgnoredType('nouveau_type')).toBe(false);
+  });
+});
+
+describe('splitLinks — liens cliquables dans les bulles', () => {
+  it('isole les liens, sans la ponctuation finale', () => {
+    expect(splitLinks('Voir https://a.io/x?p=1. Merci')).toEqual([{ text: 'Voir ' }, { text: 'https://a.io/x?p=1', href: 'https://a.io/x?p=1' }, { text: '. Merci' }]);
+    expect(splitLinks('sans lien')).toEqual([{ text: 'sans lien' }]);
+  });
+});
+
+describe('summarizeThread — résumé recalculé après récupération de l’historique', () => {
+  const msg = (from_me: boolean, sent_at: string, text = 'x') => ({ from_me, sent_at, type: 'text', text, media_url: null, media_kind: null, filename: null });
+  it('non-lus = messages client après notre dernière réponse', () => {
+    const r = summarizeThread([msg(false, '2026-09-23T10:00'), msg(true, '2026-09-23T10:05'), msg(false, '2026-09-23T10:10', 'Et le prix ?'), msg(false, '2026-09-23T10:11', 'Allô')], 'replied');
+    expect(r).toMatchObject({ unread_count: 2, status: 'open', last_message_preview: 'Allô', last_inbound_at: '2026-09-23T10:11', last_outbound_at: '2026-09-23T10:05' });
+  });
+  it('dernier mot à nous : répondue ; clôturée : reste clôturée, sans non-lus', () => {
+    expect(summarizeThread([msg(false, 'a'), msg(true, 'b')], 'open')).toMatchObject({ unread_count: 0, status: 'replied' });
+    expect(summarizeThread([msg(true, 'a'), msg(false, 'b')], 'closed')).toMatchObject({ unread_count: 0, status: 'closed' });
+    expect(summarizeThread([], 'open')).toBeNull();
   });
 });
