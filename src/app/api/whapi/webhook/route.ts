@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { handleWhatsappCart } from '@/lib/whapi-cart';
 import { extractInboundImage, extractInboundText, isSalonCandidate, type InboundMessage } from '@/lib/salon';
 import { createSalonRequest, readSalonConfig, sendSalonAck } from '@/lib/salon-data';
+import { ingestInboxMessage } from '@/lib/wa-inbox-data';
+import { isPrivateChat, type InboxMessageIn } from '@/lib/wa-inbox';
 
 // Webhook WHAPI (appelé par les serveurs WHAPI). PUBLIC mais protégé par un secret
 // passé en query (?secret=WHAPI_WEBHOOK_SECRET). Capte les votes de sondage (poll_update).
@@ -33,6 +35,11 @@ export async function POST(request: NextRequest) {
   const salon = messages.length ? await readSalonConfig() : null;
 
   for (const m of messages) {
+    // Messagerie /admin/inbox : toute conversation privée (client ↔ numéro),
+    // dans les deux sens, est suivie. Ne bloque jamais le reste du webhook.
+    if (isPrivateChat(m.chat_id || (m.from ? `${m.from}@s.whatsapp.net` : ''))) {
+      await ingestInboxMessage(m as InboxMessageIn).catch((e) => console.error('[inbox] ingestion :', e));
+    }
     if (salon?.enabled && isSalonCandidate(m as InboundMessage, salon.group_id) && m.id) {
       const im = m as InboundMessage;
       const phone = String(im.from || '').replace(/\D/g, '');

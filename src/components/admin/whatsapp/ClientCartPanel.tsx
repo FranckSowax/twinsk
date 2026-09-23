@@ -33,7 +33,7 @@ const key = (p: string, v: string | null) => `${p}::${v || ''}`;
 // Montants dans la devise de règlement du listing (FCFA, ou euros pour un listing en euros).
 const fcfa = (n: number, currency: 'XAF' | 'EUR' = 'XAF') => formatSettlement(n, currency);
 
-export default function ClientCartPanel() {
+export default function ClientCartPanel({ initialName = '', initialPhone = '' }: { initialName?: string; initialPhone?: string } = {}) {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerId, setOfferId] = useState('');
   const [data, setData] = useState<PublicOfferData | null>(null);
@@ -42,8 +42,8 @@ export default function ClientCartPanel() {
   const [category, setCategory] = useState('');
   const [variantPick, setVariantPick] = useState<Record<string, string>>({});
   const [cart, setCart] = useState<Record<string, CartLine>>({});
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
+  const [clientName, setClientName] = useState(initialName);
+  const [clientPhone, setClientPhone] = useState(initialPhone);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');

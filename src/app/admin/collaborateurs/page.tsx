@@ -57,6 +57,7 @@ const ROLE_BADGE: Record<CollabRole, string> = {
   production: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   commandes: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   sourcing: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+  whatsapp: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
 };
 
 function fmtDate(s: string) {

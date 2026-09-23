@@ -781,6 +781,16 @@ export async function sendWhapiVideo(
   return whapiPost('/messages/video', { to, media: mediaUrl, caption });
 }
 
+/** Envoie un document (PDF, etc.) — media = URL publique, nom de fichier optionnel. */
+export async function whapiSendDocument(
+  mediaUrl: string,
+  caption: string | undefined,
+  to: string = DEFAULT_GROUP_ID,
+  filename?: string,
+): Promise<WhapiResult> {
+  return whapiPost('/messages/document', { to, media: mediaUrl, caption, ...(filename ? { filename } : {}) });
+}
+
 /**
  * Publie une story (statut WhatsApp) photo/vidéo avec légende sur le numéro
  * connecté. Disparaît après 24 h. Media = URL publique (ou base64).
