@@ -270,3 +270,52 @@ export function LinkInsertMenu({ onPick, fetcher }: { onPick: (url: string) => v
     </div>
   );
 }
+
+// ---- Contexte : pub d'origine, message cité ----
+/** Libellé de la plateforme d'une pub (« FB_Ads » → Facebook). */
+export function adPlatformLabel(platform: string | null | undefined): string {
+  const p = (platform || '').toLowerCase();
+  if (p.includes('ig') || p.includes('insta')) return 'Publicité Instagram';
+  if (p.includes('fb') || p.includes('facebook')) return 'Publicité Facebook';
+  return 'Publicité';
+}
+
+/** Carte de la pub par laquelle le client est arrivé, comme dans WhatsApp. */
+export function AdCard({ ad }: { ad: import('@/lib/wa-inbox').AdContext }) {
+  const [imgOk, setImgOk] = useState(true);
+  const Wrapper = ad.url ? 'a' : 'div';
+  return (
+    <Wrapper
+      {...(ad.url ? { href: ad.url, target: '_blank', rel: 'noopener noreferrer' } : {})}
+      className="mb-1.5 block overflow-hidden rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10"
+    >
+      {ad.image && imgOk && (
+        <span className="relative block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={ad.image} alt="" onError={() => setImgOk(false)} className="max-h-48 w-full object-cover" loading="lazy" />
+          {ad.media_type === 'video' && (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/80 text-lg text-slate-800">▶</span>
+            </span>
+          )}
+        </span>
+      )}
+      <span className="block px-2.5 py-2">
+        <span className="mb-0.5 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">📣 {adPlatformLabel(ad.platform)}</span>
+        {ad.title && <span className="block text-xs font-bold">{ad.title}</span>}
+        {ad.body && <span className="mt-0.5 line-clamp-2 block whitespace-pre-line text-[11px] opacity-75">{ad.body}</span>}
+        {ad.url && <span className="mt-0.5 block truncate text-[11px] opacity-60">{ad.url.replace(/^https?:\/\//, '')}</span>}
+      </span>
+    </Wrapper>
+  );
+}
+
+/** Message auquel le client (ou nous) répond : bandeau cité au-dessus du texte. */
+export function QuotedBlock({ author, text }: { author: string; text: string }) {
+  return (
+    <span className="mb-1.5 block rounded-lg border-l-4 border-emerald-500 bg-black/5 px-2.5 py-1.5 dark:bg-white/10">
+      <span className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-300">{author}</span>
+      <span className="line-clamp-3 block whitespace-pre-line text-[12px] opacity-80">{text}</span>
+    </span>
+  );
+}

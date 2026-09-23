@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationPatch, describeMessage, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isIgnoredType, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText, splitLinks, summarizeThread } from './wa-inbox';
+import { conversationPatch, describeMessage, extractContext, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isIgnoredType, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText, splitLinks, summarizeThread } from './wa-inbox';
 
 describe('isPrivateChat — seules les conversations clients entrent dans la messagerie', () => {
   it('accepte un numéro, refuse groupes, chaînes et vide', () => {
@@ -116,5 +116,42 @@ describe('mergeReceipt — coches WhatsApp', () => {
     expect(mergeReceipt('failed', 'sent')).toBe('sent');
     expect(mergeReceipt('read', 'deleted')).toBe('read');
     expect(normalizeReceipt('deleted')).toBeNull();
+  });
+});
+
+describe('extractContext — d’où vient le client, à quoi il répond', () => {
+  it('pub Facebook « Envoyer un message WhatsApp » : titre, texte, image, lien, id', () => {
+    const ctx = extractContext({
+      context: {
+        conversion: { source: 'FB_Ads' },
+        ad: {
+          title: 'Pizzeria clé en main — Libreville',
+          body: '🍕 Ajoutez une pizzeria dans votre quartier !',
+          media_type: 'video',
+          preview_url: 'https://scontent.xx.fbcdn.net/p.jpg',
+          media_url: 'https://facebook.com/ads/v',
+          source: { id: '120253338342900019', type: 'ad', url: 'https://fb.me/6q1KgsrDN' },
+        },
+      },
+    });
+    expect(ctx?.ad).toEqual({
+      title: 'Pizzeria clé en main — Libreville',
+      body: '🍕 Ajoutez une pizzeria dans votre quartier !',
+      image: 'https://scontent.xx.fbcdn.net/p.jpg',
+      media_type: 'video',
+      url: 'https://fb.me/6q1KgsrDN',
+      ad_id: '120253338342900019',
+      platform: 'FB_Ads',
+    });
+    expect(sourceFromContext(ctx, '2026-09-24T01:10:00Z')).toMatchObject({ type: 'ad', title: 'Pizzeria clé en main — Libreville', ad_id: '120253338342900019', url: 'https://fb.me/6q1KgsrDN' });
+  });
+  it('message cité : texte, légende ou type à défaut', () => {
+    expect(extractContext({ context: { quoted_id: 'q1', quoted_author: '24106', quoted_content: { body: 'Le canapé gris ?' }, quoted_type: 'text' } })?.quoted).toEqual({ id: 'q1', author: '24106', text: 'Le canapé gris ?', type: 'text' });
+    expect(extractContext({ context: { quoted_id: 'q2', quoted_type: 'image', quoted_content: {} } })?.quoted?.text).toBe('📷 Photo');
+  });
+  it('sans contexte utile : null ; pas de pub, pas d’origine', () => {
+    expect(extractContext({})).toBeNull();
+    expect(extractContext({ context: {} })).toBeNull();
+    expect(sourceFromContext(null, 't')).toBeNull();
   });
 });

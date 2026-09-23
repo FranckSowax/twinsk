@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, FileText, History, Image as ImageIcon, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
 import QuickRepliesEditor from './QuickRepliesEditor';
-import { EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText } from './inbox-ui';
+import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
 import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
 
@@ -103,15 +103,18 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [syncing, setSyncing] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
-  // Coches de la liste : les conversations dont notre dernier message n'a pas
-  // encore d'accusé connu sont relues chez WhatsApp, une à une, une fois par
-  // session. Seulement si la colonne existe (migration 60 appliquée).
+  // Coches et origine dans la liste : les conversations dont notre dernier
+  // message n'a pas d'accusé connu (migration 60) ou dont l'origine n'est pas
+  // encore connue (migration 61) sont relues chez WhatsApp, une à une, une fois
+  // par session.
   const receiptQueue = useRef<Set<string>>(new Set());
   const receiptRunning = useRef(false);
   const queueReceiptSync = useCallback(
     (list: ConversationRow[]) => {
       for (const c of list) {
-        if ('last_outbound_status' in c && !c.last_outbound_status && c.last_outbound_at) receiptQueue.current.add(c.id);
+        const needsReceipts = 'last_outbound_status' in c && !c.last_outbound_status && !!c.last_outbound_at;
+        const needsSource = 'source' in c && !c.source; // migration 61 : origine (pub ou direct) pas encore connue
+        if (needsReceipts || needsSource) receiptQueue.current.add(c.id);
       }
       if (receiptRunning.current) return;
       receiptRunning.current = true;
@@ -347,6 +350,11 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-1">
                       {c.name && <span className="text-[10px] text-slate-400">{formatPhone(c.phone)}</span>}
+                      {c.source?.type === 'ad' && (
+                        <span className="inline-flex max-w-[10rem] items-center gap-0.5 truncate rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" title={c.source.title || 'Publicité'}>
+                          📣 <span className="truncate">{c.source.title || 'Pub'}</span>
+                        </span>
+                      )}
                       <AssigneeChip c={c} actor={actor} />
                       {c.status === 'closed' && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">Clôturée</span>}
                     </span>
@@ -375,6 +383,11 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                     {conv.status === 'closed' ? 'Clôturée' : conv.status === 'replied' ? 'Répondue' : 'À répondre'}
                     {conv.assigned_name ? ` · ${conv.assigned_to === actor?.id ? 'attribuée à vous' : `suivie par ${conv.assigned_name}`}` : ' · non attribuée'}
                   </p>
+                  {conv.source?.type === 'ad' && (
+                    <a href={conv.source.url || undefined} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:ring-blue-800">
+                      📣 <span className="truncate">Via {adPlatformLabel(conv.source.platform).toLowerCase()} : {conv.source.title || 'pub'}</span>
+                    </a>
+                  )}
                 </div>
                 <button type="button" onClick={() => syncHistory(conv.id)} disabled={syncing} className={btn} title="Récupérer l’historique WhatsApp">
                   {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
@@ -412,7 +425,16 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                       {(m.media_kind === 'document' || m.media_kind === 'sticker') && m.media_url && (
                         <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-2 rounded-lg bg-black/5 px-2 py-1.5 text-xs font-semibold underline"><Paperclip className="h-3.5 w-3.5" /> {m.filename || (m.media_kind === 'sticker' ? 'Sticker' : 'Fichier')}</a>
                       )}
-                      {(() => {
+                      {m.context?.ad && <AdCard ad={m.context.ad} />}
+                      {m.context?.quoted &&
+                        (() => {
+                          const q = m.context.quoted;
+                          const orig = q.id ? thread?.messages.find((x) => x.id === q.id) : undefined;
+                          const author = orig ? (orig.from_me ? orig.sender_name || 'Vous' : conv.name || formatPhone(conv.phone)) : q.author ? (q.author.replace(/\D/g, '') === conv.phone ? conv.name || formatPhone(conv.phone) : 'Vous') : 'Message cité';
+                          return <QuotedBlock author={author} text={orig?.text || q.text} />;
+                        })()}
+                      {m.context?.forwarded && <p className="mb-1 text-[10px] italic opacity-60">↪ Transféré</p>}
+                      {!m.context?.ad && (() => {
                         const url = m.type === 'link_preview' && m.media_url ? m.media_url : firstUrl(m.text);
                         return url ? <LinkPreviewCard url={url} fallbackTitle={m.type === 'link_preview' ? m.filename : null} fetcher={api} /> : null;
                       })()}

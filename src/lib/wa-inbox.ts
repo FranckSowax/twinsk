@@ -27,6 +27,23 @@ export interface InboxMessageIn {
   location?: { name?: string; address?: string; latitude?: number; longitude?: number };
   contact?: { name?: string };
   order?: { id?: string; item_count?: number };
+  /** Pub d'origine (clic « Envoyer un message WhatsApp ») et message cité. */
+  context?: {
+    quoted_id?: string;
+    quoted_author?: string;
+    quoted_content?: unknown;
+    quoted_type?: string;
+    forwarded?: boolean;
+    ad?: {
+      title?: string;
+      body?: string;
+      media_type?: string;
+      preview_url?: string;
+      media_url?: string;
+      source?: { id?: string; type?: string; url?: string };
+    };
+    conversion?: { source?: string };
+  };
   /** Message avec lien : `body` = texte complet (lien compris), `url`, `title` de l'aperçu. */
   link_preview?: { body?: string; url?: string; title?: string; description?: string };
   gif?: { caption?: string; link?: string };
@@ -296,4 +313,83 @@ export function mergeReceipt(current: string | null | undefined, incoming: unkno
   if (inc === 'failed') return (RECEIPT_RANK[cur] ?? 0) <= RECEIPT_RANK.sent ? 'failed' : cur;
   if (cur === 'failed') return inc;
   return RECEIPT_RANK[inc] > RECEIPT_RANK[cur] ? inc : cur;
+}
+
+// ---- Contexte : publicité d'origine, message cité ----
+export interface AdContext {
+  title: string | null;
+  body: string | null;
+  image: string | null;
+  media_type: string | null;
+  url: string | null;
+  ad_id: string | null;
+  platform: string | null;
+}
+export interface QuotedContext {
+  id: string | null;
+  author: string | null;
+  text: string;
+  type: string | null;
+}
+export interface MessageContext {
+  ad?: AdContext;
+  quoted?: QuotedContext;
+  forwarded?: boolean;
+}
+/** Origine d'une conversation (dernière pub par laquelle le client est arrivé). */
+export interface ConversationSource {
+  /** 'ad' : arrivé par une pub ; 'direct' : historique relu, aucune pub trouvée. */
+  type: 'ad' | 'direct';
+  title: string | null;
+  ad_id: string | null;
+  url: string | null;
+  image: string | null;
+  platform: string | null;
+  at: string;
+}
+
+const str = (v: unknown, max = 1000) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+
+/** Texte lisible d'un contenu cité (texte, légende de photo/vidéo, nom de fichier…). */
+function quotedText(content: unknown, type: string | null): string {
+  if (typeof content === 'string') return content.trim();
+  if (content && typeof content === 'object') {
+    const c = content as Record<string, unknown>;
+    const t = str(c.body) || str(c.caption) || str(c.text) || str(c.title) || str(c.filename);
+    if (t) return t;
+  }
+  const label: Record<string, string> = { image: '📷 Photo', video: '🎬 Vidéo', audio: '🎤 Vocal', voice: '🎤 Vocal', document: '📎 Fichier', sticker: '🙂 Sticker', link_preview: '🔗 Lien' };
+  return label[type || ''] || 'Message';
+}
+
+/** Contexte utile d'un message WHAPI, ou null s'il n'en a pas. */
+export function extractContext(m: Pick<InboxMessageIn, 'context'>): MessageContext | null {
+  const c = m.context;
+  if (!c || typeof c !== 'object') return null;
+  const out: MessageContext = {};
+  if (c.ad && typeof c.ad === 'object') {
+    const a = c.ad;
+    const ad: AdContext = {
+      title: str(a.title, 200),
+      body: str(a.body, 600),
+      image: str(a.preview_url, 2000),
+      media_type: str(a.media_type, 20),
+      url: str(a.source?.url, 500) || str(a.media_url, 500),
+      ad_id: str(a.source?.id, 80),
+      platform: str(c.conversion?.source, 40),
+    };
+    if (ad.title || ad.body || ad.url || ad.ad_id) out.ad = ad;
+  }
+  if (c.quoted_id || c.quoted_content) {
+    const type = str(c.quoted_type, 30);
+    out.quoted = { id: str(c.quoted_id, 120), author: str(c.quoted_author, 60), text: quotedText(c.quoted_content, type).slice(0, 500), type };
+  }
+  if (c.forwarded) out.forwarded = true;
+  return out.ad || out.quoted || out.forwarded ? out : null;
+}
+
+/** Origine de la conversation à partir de la pub d'un message client. */
+export function sourceFromContext(ctx: MessageContext | null, at: string): ConversationSource | null {
+  if (!ctx?.ad) return null;
+  return { type: 'ad', title: ctx.ad.title, ad_id: ctx.ad.ad_id, url: ctx.ad.url, image: ctx.ad.image, platform: ctx.ad.platform, at };
 }

@@ -7,8 +7,10 @@ import { listWhapiChatMessages, sendWhapiImage, sendWhapiText, sendWhapiVideo, w
 import {
   conversationPatch,
   describeMessage,
+  extractContext,
   isIgnoredType,
   isPrivateChat,
+  sourceFromContext,
   mergeReceipt,
   messageSentAt,
   normalizeQuickReplies,
@@ -21,6 +23,8 @@ import {
   type InboxMediaKind,
   type InboxMessageIn,
   type InboxStatus,
+  type ConversationSource,
+  type MessageContext,
   type QuickReply,
 } from '@/lib/wa-inbox';
 
@@ -48,6 +52,8 @@ export interface ConversationRow {
   created_at: string;
   /** Coches de notre dernier message (migration 60 ; absent avant). */
   last_outbound_status?: string | null;
+  /** Dernière pub par laquelle le client est arrivé (migration 61 ; absent avant). */
+  source?: ConversationSource | null;
 }
 export interface MessageRow {
   id: string;
@@ -63,6 +69,8 @@ export interface MessageRow {
   sent_at: string;
   /** Accusé WhatsApp de nos messages (migration 60 ; absent avant). */
   status?: string | null;
+  /** Pub d'origine, message cité (migration 61 ; absent avant). */
+  context?: MessageContext | null;
 }
 
 /**
@@ -123,6 +131,21 @@ export async function ingestInboxMessage(m: InboxMessageIn): Promise<void> {
   );
   if (msgErr) console.error('[inbox] message non enregistré :', msgErr.message);
   if (m.from_me && m.status) await applyReceipt(m.id, m.status);
+  await applyContext(conversationId, m, sentAt);
+}
+
+/**
+ * Contexte d'un message (pub d'origine, message cité) et origine de la
+ * conversation si le client arrive d'une pub. Mises à jour séparées : sans la
+ * migration 61 elles échouent en silence et le reste de l'ingestion tient.
+ */
+async function applyContext(conversationId: string, m: InboxMessageIn, sentAt: string): Promise<void> {
+  const ctx = extractContext(m);
+  if (!ctx || !m.id) return;
+  const { error } = await supabaseAdmin.from('wa_messages').update({ context: ctx }).eq('id', m.id);
+  if (error) return; // colonne absente (migration 61)
+  const source = m.from_me ? null : sourceFromContext(ctx, sentAt);
+  if (source) await supabaseAdmin.from('wa_conversations').update({ source }).eq('id', conversationId);
 }
 
 /**
@@ -336,6 +359,18 @@ export async function syncConversationHistory(conversationId: string): Promise<{
     const { error } = await supabaseAdmin.from('wa_messages').update({ status, status_at: new Date().toISOString() }).in('id', ids);
     if (error) receiptsOk = false;
   }
+  // Contexte (pub d'origine, citations) des messages relus, dans l'ordre : la pub la plus récente l'emporte.
+  const withCtx = (r.messages || [])
+    .map((raw) => raw as InboxMessageIn)
+    .filter((m) => m.id && m.context && byId.has(m.id))
+    .sort((a, b) => messageSentAt(a).localeCompare(messageSentAt(b)));
+  for (const m of withCtx) await applyContext(conv.id, m, messageSentAt(m));
+  // Aucune pub dans l'historique : conversation « directe », pour ne plus la relire à chaque session.
+  if ('source' in conv && !conv.source && !withCtx.some((m) => !m.from_me && extractContext(m)?.ad)) {
+    const direct: ConversationSource = { type: 'direct', title: null, ad_id: null, url: null, image: null, platform: null, at: new Date().toISOString() };
+    await supabaseAdmin.from('wa_conversations').update({ source: direct }).eq('id', conv.id).is('source', null);
+  }
+
   const lastOut = [...all].reverse().find((x) => x.from_me);
   if (receiptsOk && lastOut?.status) await supabaseAdmin.from('wa_conversations').update({ last_outbound_status: lastOut.status }).eq('id', conv.id);
   const summary = summarizeThread(all, conv.status);
