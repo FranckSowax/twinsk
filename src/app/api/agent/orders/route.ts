@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getAgent } from '@/lib/agent';
 import { orderNumber } from '@/lib/order-number';
+import { AGENT_VISIBLE_PAYMENT } from '@/lib/agent-orders';
 
 export async function GET(request: NextRequest) {
   const agent = await getAgent(request);
@@ -14,6 +15,8 @@ export async function GET(request: NextRequest) {
     .from('offer_orders')
     .select('id, client_name, client_phone, grand_total_fcfa, items_total_fcfa, payment_method, payment_status, order_status, transport_mode, created_at, status, offer_order_lines(product_image, quantity)')
     .neq('status', 'cart') // on ignore les paniers abandonnés
+    // Payées ou paiement engagé seulement : les paniers ouverts n'intéressent pas l'agent.
+    .in('payment_status', [...AGENT_VISIBLE_PAYMENT])
     .order('created_at', { ascending: false })
     .limit(200);
 

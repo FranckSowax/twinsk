@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import AgentLogin from './AgentLogin';
-import AgentOrders from './AgentOrders';
+import AgentShell from './AgentShell';
 
 type Agent = { id: string; name: string };
 
@@ -31,5 +31,5 @@ export default function AgentApp() {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-emerald-500" /></div>;
   }
   if (!agent) return <AgentLogin onAuthed={setAgent} />;
-  return <AgentOrders agent={agent} onLogout={logout} />;
+  return <AgentShell agent={agent} onLogout={logout} />;
 }

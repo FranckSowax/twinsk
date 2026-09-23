@@ -24,7 +24,7 @@ import {
 export interface InboxActor {
   id: string; // 'admin' ou id collaborateur
   name: string;
-  role: 'admin' | 'collab';
+  role: 'admin' | 'collab' | 'agent';
 }
 
 export interface ConversationRow {

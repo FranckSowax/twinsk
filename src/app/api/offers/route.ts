@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor } from '@/lib/collab';
 import { COLLAB_ROLES } from '@/lib/collab-roles';
+import { getAgent } from '@/lib/agent';
 
 function isAdmin(request: NextRequest): boolean {
   const cookie = request.cookies.get('admin_token');
@@ -10,8 +11,8 @@ function isAdmin(request: NextRequest): boolean {
 
 // GET: List all offers (admin OU collaborateur)
 export async function GET(request: NextRequest) {
-  // Lecture des listings ouverte à tous les rôles (messagerie : paniers clients).
-  if (!(await resolveActor(request, COLLAB_ROLES))) {
+  // Lecture des listings ouverte à tous les rôles et aux agents (messagerie : paniers clients).
+  if (!(await resolveActor(request, COLLAB_ROLES)) && !(await getAgent(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
   const { data, error } = await supabaseAdmin

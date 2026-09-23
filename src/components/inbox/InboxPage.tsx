@@ -50,7 +50,24 @@ function AssigneeChip({ c, actor }: { c: ConversationRow; actor: InboxActor | nu
   );
 }
 
-export default function InboxPage() {
+interface InboxPageProps {
+  /** Espace agents : les requêtes partent au nom de l'agent connecté. */
+  as?: 'agent';
+  /** Hauteur du bloc (dépend de la mise en page qui l'accueille). */
+  heightClass?: string;
+  /** Titre masqué quand la page hôte a déjà le sien. */
+  hideTitle?: boolean;
+  /** Compteur « à répondre », pour la pastille de la barre latérale de l'hôte. */
+  onCounts?: (c: { todo: number; mine: number }) => void;
+}
+
+export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]', hideTitle = false, onCounts }: InboxPageProps = {}) {
+  // Toutes les requêtes de la messagerie : identité explicite dans l'espace agents.
+  const api = useCallback(
+    (url: string, init: RequestInit = {}) =>
+      fetch(url, as === 'agent' ? { ...init, headers: { ...(init.headers || {}), 'x-inbox-as': 'agent' } } : init),
+    [as],
+  );
   const [actor, setActor] = useState<InboxActor | null>(null);
   const [filter, setFilter] = useState<InboxFilter>('todo');
   const [q, setQ] = useState('');
@@ -76,7 +93,7 @@ export default function InboxPage() {
   const loadList = useCallback(async () => {
     const params = new URLSearchParams({ filter });
     if (q.trim()) params.set('q', q.trim());
-    const r = await fetch(`/api/inbox/conversations?${params}`);
+    const r = await api(`/api/inbox/conversations?${params}`);
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       setListError(d.error || 'Chargement impossible');
@@ -85,8 +102,9 @@ export default function InboxPage() {
     setListError('');
     setConversations(d.conversations || []);
     setCounts(d.counts || { todo: 0, mine: 0 });
+    onCounts?.(d.counts || { todo: 0, mine: 0 });
     if (d.actor) setActor(d.actor);
-  }, [filter, q]);
+  }, [filter, q, api, onCounts]);
   useEffect(() => {
     loadList();
     const t = setInterval(loadList, 10_000);
@@ -95,13 +113,13 @@ export default function InboxPage() {
 
   // ---- Fil ----
   const loadThread = useCallback(async (id: string, scroll = false) => {
-    const r = await fetch(`/api/inbox/conversations/${id}`);
+    const r = await api(`/api/inbox/conversations/${id}`);
     if (!r.ok) return;
     const d = await r.json();
     setThread(d);
     setNoteDraft(d.conversation?.note || '');
     if (scroll) setTimeout(() => endRef.current?.scrollIntoView({ block: 'end' }), 50);
-  }, []);
+  }, [api]);
   useEffect(() => {
     if (!selectedId) return;
     setThread(null);
@@ -119,16 +137,16 @@ export default function InboxPage() {
 
   // ---- Phrases rapides + médiathèque (à l'ouverture des panneaux) ----
   useEffect(() => {
-    if (panel === 'quick' && !quick.length) fetch('/api/inbox/quick-replies').then((r) => r.json()).then((d) => setQuick(d.items || [])).catch(() => undefined);
-    if (panel === 'media' && !media.length) fetch('/api/inbox/media').then((r) => r.json()).then((d) => setMedia(d.items || [])).catch(() => undefined);
-  }, [panel, quick.length, media.length]);
+    if (panel === 'quick' && !quick.length) api('/api/inbox/quick-replies').then((r) => r.json()).then((d) => setQuick(d.items || [])).catch(() => undefined);
+    if (panel === 'media' && !media.length) api('/api/inbox/media').then((r) => r.json()).then((d) => setMedia(d.items || [])).catch(() => undefined);
+  }, [panel, quick.length, media.length, api]);
 
   const conv = thread?.conversation || conversations.find((c) => c.id === selectedId) || null;
   const client = useMemo(() => ({ name: conv?.name || null, phone: conv?.phone || null }), [conv?.name, conv?.phone]);
 
   const patchConv = async (body: Record<string, unknown>) => {
     if (!conv) return;
-    const r = await fetch(`/api/inbox/conversations/${conv.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await api(`/api/inbox/conversations/${conv.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       setError(d.error || 'Mise à jour impossible');
@@ -143,7 +161,7 @@ export default function InboxPage() {
     setSending(true);
     setError('');
     try {
-      const r = await fetch(`/api/inbox/conversations/${conv.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const r = await api(`/api/inbox/conversations/${conv.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
         setError(d.error || 'Envoi impossible');
@@ -201,7 +219,7 @@ export default function InboxPage() {
   };
   const saveQuick = async () => {
     if (!editingQuick) return;
-    const r = await fetch('/api/inbox/quick-replies', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: editingQuick }) });
+    const r = await api('/api/inbox/quick-replies', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: editingQuick }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
       setQuick(d.items || []);
@@ -214,9 +232,9 @@ export default function InboxPage() {
   const tool = (active: boolean) => `flex h-9 w-9 items-center justify-center rounded-xl transition ${active ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`;
 
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] min-h-[32rem] flex-col gap-3">
+    <div className={`flex ${heightClass} min-h-[26rem] flex-col gap-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-slate-900 dark:text-white">Messagerie WhatsApp</h1>
+        {!hideTitle && <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-slate-900 dark:text-white">Messagerie WhatsApp</h1>}
         <p className="text-xs text-slate-500">
           {actor ? `Connecté : ${actor.name}` : ''} · {counts.todo} à répondre · {counts.mine} attribuée{counts.mine > 1 ? 's' : ''} à vous
         </p>

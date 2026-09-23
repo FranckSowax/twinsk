@@ -4,6 +4,7 @@ import { getAgent } from '@/lib/agent';
 import { orderNumber } from '@/lib/order-number';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 import { readPhotos } from '@/lib/order-photos';
+import { isAgentVisible } from '@/lib/agent-orders';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const agent = await getAgent(request);
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     )
     .eq('id', id)
     .single();
-  if (!order) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
+  // Même règle que la liste : un panier jamais payé n'est pas consultable par l'agent.
+  if (!order || !isAgentVisible(order.payment_status)) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
 
   const { data: actions } = await supabaseAdmin
     .from('agent_actions')

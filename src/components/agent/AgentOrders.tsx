@@ -1,7 +1,9 @@
 'use client';
 
-// Dashboard agents Gabon — sidebar (desktop), KPIs, table pro (desktop) / cartes (mobile).
-// Une seule requête (filter=all) : onglets, KPIs et recherche sont dérivés côté client.
+// Commandes de l'espace agents : payées ou au paiement engagé (filtré côté serveur).
+// KPIs, puis filtres et recherche en tête de table, table (desktop) / cartes (mobile).
+// Une seule requête (filter=all) : filtres, KPIs et recherche sont dérivés côté client.
+// La barre latérale (Messagerie / Commandes) appartient à AgentShell.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2,
@@ -11,7 +13,6 @@ import {
   HandHeart,
   LayoutList,
   Loader2,
-  LogOut,
   Package,
   PackageSearch,
   Plane,
@@ -61,7 +62,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 const EMPTY_COPY: Record<TabKey, string> = {
-  to_collect: 'Rien à encaisser. Tout est à jour.',
+  to_collect: 'Rien à encaisser ni à valider. Tout est à jour.',
   to_ship: 'Aucune commande payée en attente d’expédition.',
   to_receive: 'Aucun colis en route vers l’agence.',
   to_deliver: 'Aucun colis à remettre.',
@@ -113,7 +114,7 @@ function nextStep(o: Row): { path: string; label: string; cls: string; confirm?:
   return null;
 }
 
-export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogout: () => void }) {
+export default function AgentOrders({ onTodoCount }: { agent: Agent; onLogout: () => void; onTodoCount?: (n: number) => void }) {
   const [tab, setTab] = useState<TabKey>('to_collect');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,6 +141,12 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
     for (const t of TABS) c[t.key] = rows.filter((o) => inTab(t.key, o)).length;
     return c;
   }, [rows]);
+
+  // Pastille « Commandes » de la barre latérale : tout ce qui attend une action.
+  const todo = counts.to_collect + counts.to_ship + counts.to_receive + counts.to_deliver;
+  useEffect(() => {
+    onTodoCount?.(todo);
+  }, [todo, onTodoCount]);
 
   const toCollectAmount = useMemo(
     () => rows.filter((o) => inTab('to_collect', o)).reduce((s, o) => s + (total(o) || 0), 0),
@@ -197,56 +204,8 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
   ];
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      {/* Sidebar (desktop) */}
-      <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col bg-slate-900 text-slate-300 lg:flex">
-        <div className="px-5 py-6">
-          <p className="font-display text-lg font-bold tracking-tight text-white">TWINSK</p>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400">Agents Gabon</p>
-        </div>
-        <nav className="flex-1 space-y-1 px-3">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const active = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active ? 'bg-emerald-500/15 text-emerald-300' : 'hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="flex-1 text-left">{t.label}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                    active ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-300'
-                  }`}
-                >
-                  {counts[t.key]}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-        <div className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 font-bold text-white">
-              {agent.name.charAt(0).toUpperCase()}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{agent.name}</p>
-              <p className="text-[11px] text-slate-400">Agent</p>
-            </div>
-            <button onClick={onLogout} title="Se déconnecter" className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white">
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </aside>
+    <div>
 
-      {/* Contenu */}
-      <div className="min-w-0 flex-1">
         {/* Topbar */}
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
@@ -254,21 +213,9 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
               <p className="font-display text-sm font-bold leading-tight text-slate-900">TWINSK</p>
               <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-600">Agents</p>
             </div>
-            <h1 className="hidden font-display text-lg font-bold text-slate-900 lg:block">Commandes</h1>
-            <div className="relative ml-auto w-full max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="N°, client, téléphone…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:border-emerald-400 focus:bg-white focus:outline-none"
-              />
-            </div>
-            <button onClick={load} title="Actualiser" className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50">
+            <h1 className="font-display text-lg font-bold text-slate-900 max-lg:ml-auto max-lg:text-base">Commandes</h1>
+            <button onClick={load} title="Actualiser" className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 lg:ml-auto">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button onClick={onLogout} title="Se déconnecter" className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 lg:hidden">
-              <LogOut className="h-4 w-4" />
             </button>
           </div>
         </header>
@@ -294,22 +241,39 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
             })}
           </div>
 
-          {/* Onglets (mobile / tablette — la sidebar les porte en desktop) */}
-          <div className="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6 lg:hidden">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ${
-                  tab === t.key ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
-                }`}
-              >
-                {t.label}
-                <span className={`rounded-full px-1.5 text-[11px] font-bold ${tab === t.key ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                  {counts[t.key]}
-                </span>
-              </button>
-            ))}
+          {/* Filtres et recherche, en tête de table */}
+          <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2 sm:flex-row sm:items-center">
+            <div className="no-scrollbar flex flex-1 gap-1.5 overflow-x-auto" role="tablist" aria-label="Filtrer les commandes">
+              {TABS.map((t) => {
+                const Icon = t.icon;
+                const active = tab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTab(t.key)}
+                    className={`flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                      active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {t.label}
+                    <span className={`rounded-full px-1.5 text-[11px] font-bold ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{counts[t.key]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="N°, client, téléphone…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:border-emerald-400 focus:bg-white focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Liste */}
@@ -325,7 +289,7 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
           ) : (
             <>
               {/* Table (desktop) */}
-              <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
+              <div className="mt-3 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -404,7 +368,7 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
               </div>
 
               {/* Cartes (mobile) */}
-              <ul className="mt-4 space-y-3 md:hidden">
+              <ul className="mt-3 space-y-3 md:hidden">
                 {visible.map((o) => {
                   const step = nextStep(o);
                   const stage = stageOf(o.payment_status, o.order_status);
@@ -456,7 +420,6 @@ export default function AgentOrders({ agent, onLogout }: { agent: Agent; onLogou
             </>
           )}
         </main>
-      </div>
     </div>
   );
 }

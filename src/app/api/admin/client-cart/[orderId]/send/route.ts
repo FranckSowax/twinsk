@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveActor } from '@/lib/collab';
-import { INBOX_ROLES } from '@/lib/collab-roles';
+import { canBuildCarts } from '@/lib/inbox-actor';
 import { publicOrigin } from '@/lib/public-origin';
 import { sendClientCartWhatsapp } from '@/lib/client-cart-send';
 
@@ -9,7 +8,7 @@ import { sendClientCartWhatsapp } from '@/lib/client-cart-send';
 export const maxDuration = 180;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
-  if (!(await resolveActor(request, INBOX_ROLES))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (!(await canBuildCarts(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { orderId } = await params;
   const body = (await request.json().catch(() => ({}))) as { message?: string };
   const r = await sendClientCartWhatsapp({ orderId, origin: publicOrigin(request), message: body.message });

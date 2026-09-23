@@ -7,6 +7,14 @@ import type { InboxFilter } from '@/lib/wa-inbox';
 export async function GET(request: NextRequest) {
   const actor = await inboxActor(request);
   if (!actor) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  // ?only=counts : compteurs seuls, pour la pastille de la barre latérale.
+  if (request.nextUrl.searchParams.get('only') === 'counts') {
+    try {
+      return NextResponse.json({ counts: await inboxCounts(actor), actor });
+    } catch {
+      return NextResponse.json({ counts: { todo: 0, mine: 0 }, actor });
+    }
+  }
   const f = request.nextUrl.searchParams.get('filter') || 'todo';
   const filter: InboxFilter = f === 'mine' || f === 'all' || f === 'closed' ? f : 'todo';
   try {

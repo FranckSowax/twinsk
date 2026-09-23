@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { resolveActor } from '@/lib/collab';
-import { INBOX_ROLES } from '@/lib/collab-roles';
+import { canBuildCarts } from '@/lib/inbox-actor';
 import { validateContact } from '@/lib/contact-validation';
 import { createOfferOrder, type OrderPick } from '@/lib/offer-order-create';
 import { publicOrigin } from '@/lib/public-origin';
@@ -18,7 +17,7 @@ import { settlementCurrencyOf } from '@/lib/offer-pricing';
 export const maxDuration = 180;
 
 export async function GET(request: NextRequest) {
-  if (!(await resolveActor(request, INBOX_ROLES))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (!(await canBuildCarts(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { data, error } = await supabaseAdmin
     .from('offer_orders')
     .select('id, offer_id, client_name, client_phone, status, payment_status, transport_mode, items_total_fcfa, grand_total_fcfa, created_at, offers(title, offer_currency), offer_order_lines(quantity)')
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await resolveActor(request, INBOX_ROLES))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (!(await canBuildCarts(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const body = (await request.json().catch(() => ({}))) as {
     offer_id?: string;
     client_name?: string;
