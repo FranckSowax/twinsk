@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   ExternalLink,
 } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 interface JournalEntry {
   offer_id: string;
@@ -109,7 +110,7 @@ function toDemandeMd(demandes: SupplierRequest[]): string {
   let md = '# Données de colisage à demander aux fournisseurs\n\n';
   md += `${demandes.length} fiche(s). Message à coller dans le chat 1688 (旺旺), un envoi par fournisseur :\n\n`;
   md += '```\n' + DEMANDE_MSG + '\n```\n\n';
-  md += '(FR : bonjour, nous prévoyons un achat en gros pour export vers le Gabon. Merci de fournir poids brut par carton, dimensions du carton en cm, nombre d’unités par carton / CBM par unité, et si la machine peut être démontée pour réduire le volume.)\n\n';
+  md += '(FR : bonjour, nous prévoyons un achat en gros pour export vers ' + COUNTRY.nameWithArticle + '. Merci de fournir poids brut par carton, dimensions du carton en cm, nombre d’unités par carton / CBM par unité, et si la machine peut être démontée pour réduire le volume.)\n\n';
   md += '| offer_id | manque | titre | fiche |\n|---|---|---|---|\n';
   for (const d of demandes) md += `| \`${d.offer_id}\` | ${d.manque} | ${d.titre.replace(/\|/g, '/')} | ${d.url} |\n`;
   return md;

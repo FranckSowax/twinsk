@@ -8,6 +8,9 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
 import { formatSettlement, settlementCurrencyOf, type SettlementCurrency } from '@/lib/offer-pricing';
+import { COUNTRY } from '@/config/countries';
+import { transitLabel } from '@/lib/country';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 export type NotifiableStatus = 'paid' | 'shipped' | 'at_agency' | 'delivered';
 export const NOTIFIABLE_STATUSES: NotifiableStatus[] = ['paid', 'shipped', 'at_agency', 'delivered'];
@@ -28,16 +31,16 @@ export interface StatusMessageInput {
 }
 
 const DELAY: Record<string, string> = {
-  air: '8 à 14 jours (fret aérien)',
-  sea: '60 à 85 jours (fret maritime)',
-  mixed: '8 à 14 jours pour la partie avion, 60 à 85 jours pour la partie bateau',
+  air: `${transitLabel(COUNTRY.transit.air)} (fret aérien)`,
+  sea: `${transitLabel(COUNTRY.transit.sea)} (fret maritime)`,
+  mixed: `${transitLabel(COUNTRY.transit.air)} pour la partie avion, ${transitLabel(COUNTRY.transit.sea)} pour la partie bateau`,
 };
 
 /** Message envoyé au client pour un statut donné (pur, testé). */
 export function buildStatusMessage(i: StatusMessageInput): string {
   const num = orderNumber(i.orderId);
   const hello = i.clientName?.trim() ? `Bonjour ${i.clientName.trim()}, ` : 'Bonjour, ';
-  const total = i.total != null && i.total > 0 ? formatSettlement(i.total, i.currency || 'XAF') : null;
+  const total = i.total != null && i.total > 0 ? formatSettlement(i.total, i.currency || LOCAL_CURRENCY) : null;
   const recap = i.recapUrl ? `\n\n🔗 Suivi de votre commande : ${i.recapUrl}` : '';
   switch (i.status) {
     case 'paid':
@@ -59,7 +62,7 @@ export function buildStatusMessage(i: StatusMessageInput): string {
     case 'at_agency':
       return (
         `🎉 *Votre colis est arrivé* — Commande ${num}\n\n` +
-        `${hello}votre commande est disponible à l'agence TWINSK. Présentez le numéro *${num}* pour la retirer.` +
+        `${hello}votre commande est disponible à l'${COUNTRY.agency.name}. Présentez le numéro *${num}* pour la retirer.` +
         recap
       );
     case 'delivered':

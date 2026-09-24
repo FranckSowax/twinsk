@@ -5,6 +5,7 @@ import { settlePromoForOrder } from '@/lib/promo-settle';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
 import { notifyOrdersGroup } from '@/lib/order-notify';
+import { COUNTRY } from '@/config/countries';
 
 // POST: le client choisit de payer CASH en agence.
 // - Réserve la commande (payment_method='cash', payment_status='submitted').
@@ -67,7 +68,7 @@ export async function POST(
         `🧾 *Commande ${num}* — TWINSK\n` +
           `Bonjour ${order.client_name || ''}, votre commande est *réservée*.\n\n` +
           `💵 Montant : *${totalStr}*\n` +
-          `À régler en *espèces* à l'agence TWINSK la plus proche, *sous 48h*.\n\n` +
+          `À régler en *espèces* à l'${COUNTRY.agency.name} la plus proche, *sous 48h*.\n\n` +
           `🔗 Récapitulatif : ${recapUrl}\n\n` +
           `Présentez votre numéro de commande *${num}* en agence. À bientôt !`,
         clientChat,

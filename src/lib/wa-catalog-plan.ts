@@ -15,6 +15,7 @@
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import type { WhapiProductInput } from '@/lib/whapi';
 import { FX_RATES, roundXafUp } from '@/lib/utils/formatCurrency';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 /** WhatsApp accepte jusqu'à 10 images par fiche ; on reste prudent. */
 export const MAX_IMAGES = 8;
@@ -115,7 +116,7 @@ function collectionName(raw: string | null | undefined, fallback: string): strin
 }
 
 export function buildCatalogPlan(data: PublicOfferData, opts: PlanOptions): CatalogPlan {
-  const currency = opts.currency || 'XAF';
+  const currency = opts.currency || LOCAL_CURRENCY;
   const perCategory = Math.max(1, opts.perCategory ?? 1);
   const groupedBy: CatalogPlan['groupedBy'] = data.phases.length ? 'phase' : 'listing';
   const phaseTitles = new Map(data.phases.map((ph) => [ph.id, ph.title]));

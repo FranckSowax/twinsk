@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import type { CommunityState, DestOption } from './types';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 interface PubOffer {
   id: string;
@@ -509,7 +510,7 @@ export default function SendPanel({
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</p>
                   {p.price != null && (
                     <p className="text-xs text-slate-500">
-                      {Math.round(p.price).toLocaleString('fr-FR')} {p.currency || 'XAF'}
+                      {Math.round(p.price).toLocaleString('fr-FR')} {p.currency || LOCAL_CURRENCY}
                     </p>
                   )}
                 </div>

@@ -10,6 +10,8 @@ export const FX_RATES = {
   USD: 1 / 7.1, // 1 CNY → USD
   EUR: 1 / 7.7, // 1 CNY → EUR
   XAF: 91, // 1 CNY → FCFA (aligné sur CNY_TO_FCFA d'offer-pricing)
+  // Franc CFA d'Afrique de l'Ouest (Côte d'Ivoire) : même parité que le XAF.
+  XOF: 91,
 } as const;
 
 // Séparateur de milliers en-US (virgule) pour toutes les devises : lisible à
@@ -90,7 +92,7 @@ export function calculateLineTotal(price: number, quantity: number, marginPercen
   return applyMargin(price, marginPercent) * quantity;
 }
 
-export type CurrencyCode = 'CNY' | 'USD' | 'EUR' | 'XAF';
+export type CurrencyCode = 'CNY' | 'USD' | 'EUR' | 'XAF' | 'XOF';
 
 /** Format an amount given in CNY into the requested currency. */
 export function formatInCurrency(amountCny: number, currency: CurrencyCode): string {
@@ -103,6 +105,7 @@ export function formatInCurrency(amountCny: number, currency: CurrencyCode): str
     case 'EUR':
       return formatEUR(converted);
     case 'XAF':
+    case 'XOF':
       return formatXAF(converted);
   }
 }

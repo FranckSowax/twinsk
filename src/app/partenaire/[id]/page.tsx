@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   ExternalLink,
 } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 interface PartnerProduct {
   id: string;
@@ -200,11 +201,11 @@ function ShopProfile({ data, onSaved }: { data: PartnerData; onSaved: () => void
       </label>
       <label className="block">
         <span className="mb-1 block text-sm font-semibold text-slate-700">Numéro Airtel Money (encaissement)</span>
-        <input value={airtel} onChange={(e) => setAirtel(e.target.value)} placeholder="+241 …" className={inputCls} />
+        <input value={airtel} onChange={(e) => setAirtel(e.target.value)} placeholder={`${COUNTRY.phonePrefix} …`} className={inputCls} />
       </label>
       <label className="block">
         <span className="mb-1 block text-sm font-semibold text-slate-700">Numéro WhatsApp (notifications de vente)</span>
-        <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+241 …" className={inputCls} />
+        <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder={`${COUNTRY.phonePrefix} …`} className={inputCls} />
       </label>
       <button
         onClick={save}

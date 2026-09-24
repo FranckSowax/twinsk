@@ -8,6 +8,8 @@
 import { useState } from 'react';
 import { Loader2, Plane, Ship } from 'lucide-react';
 import { formatSettlement, type MixedTransport, type SettlementCurrency } from '@/lib/offer-pricing';
+import { COUNTRY } from '@/config/countries';
+import { transitLabel } from '@/lib/country';
 
 export interface SplitLine {
   id: string;
@@ -51,7 +53,7 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
     <div className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-slate-900">
       <p className="text-sm font-semibold text-slate-900">Répartir chaque produit entre l’avion et le bateau</p>
       <p className="text-xs text-slate-700">
-        Indiquez le nombre d’unités qui partent <strong>en avion</strong> (8 à 14 jours) ; le reste part <strong>en bateau</strong> (60 à 85 jours).
+        Indiquez le nombre d’unités qui partent <strong>en avion</strong> ({transitLabel(COUNTRY.transit.air)}) ; le reste part <strong>en bateau</strong> ({transitLabel(COUNTRY.transit.sea)}).
       </p>
       <ul className="divide-y divide-violet-100">
         {lines.map((l) => {

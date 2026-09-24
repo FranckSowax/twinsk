@@ -6,11 +6,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, ImagePlus, Link2, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
 import { DEFAULT_BIO_STEPS, type BioConfig, type BioContacts, type BioListing, type BioStep } from '@/lib/bio-page';
+import { COUNTRY } from '@/config/countries';
 
 interface OfferRow { id: string; title: string; theme: string | null; offer_type: string | null; cover_image_url: string | null }
 
 const CONTACT_FIELDS: { key: keyof BioContacts; label: string; placeholder: string }[] = [
-  { key: 'whatsapp_number', label: 'Numéro WhatsApp (chiffres, avec indicatif)', placeholder: '24107425560' },
+  { key: 'whatsapp_number', label: 'Numéro WhatsApp (chiffres, avec indicatif)', placeholder: COUNTRY.supportWhatsapp || `${COUNTRY.phonePrefix.slice(1)}…` },
   { key: 'whatsapp_channel', label: 'Chaîne WhatsApp (lien)', placeholder: 'https://whatsapp.com/channel/…' },
   { key: 'whatsapp_group', label: 'Groupe WhatsApp (lien d’invitation)', placeholder: 'https://chat.whatsapp.com/…' },
   { key: 'instagram', label: 'Instagram', placeholder: 'https://www.instagram.com/…' },

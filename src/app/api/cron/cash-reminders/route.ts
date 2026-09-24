@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
+import { CONTENT } from '@/content';
 
 // GET/POST: relance des commandes CASH non réglées après ~36h (à appeler par un
 // cron externe/Railway toutes les 10-30 min). Sécurisé par CRON_SECRET.
@@ -43,8 +44,7 @@ async function handle(request: NextRequest) {
           `⏰ *Rappel — Commande ${num}*\n` +
             `Bonjour ${o.client_name || ''}, votre commande de *${totalStr}* vous attend.\n` +
             `Il vous reste peu de temps pour régler en *espèces à l'agence* (48h).\n\n` +
-            `💡 Plus rapide : payez par *Airtel Money*` +
-            (airtel ? ` au *${airtel}*` : '') +
+            CONTENT.payment.cashReminderFaster(airtel) +
             ` puis validez ici :\n${recapUrl}`,
           chat,
         );

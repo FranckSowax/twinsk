@@ -10,6 +10,7 @@ import SmartImage from '@/components/ui/SmartImage';
 import { SALON_MAX_PRODUCTS, type SalonConfig } from '@/lib/salon';
 import type { SalonProductHit, SalonRequestRow } from '@/lib/salon-data';
 import type { GroupRow } from './types';
+import { COUNTRY } from '@/config/countries';
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   submitted: { label: 'À traiter', cls: 'bg-amber-50 text-amber-700' },
@@ -190,7 +191,7 @@ export default function SalonPanel({ groups }: { groups: GroupRow[] }) {
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.label}</span>
                       </div>
                       <p className="mt-0.5 line-clamp-2 text-sm text-slate-700 dark:text-slate-300">{r.items[0]?.description || '—'}</p>
-                      <p className="text-[11px] text-slate-500">{r.client_name} · {r.client_phone} · {new Date(r.created_at).toLocaleString('fr-FR', { timeZone: 'Africa/Libreville', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-[11px] text-slate-500">{r.client_name} · {r.client_phone} · {new Date(r.created_at).toLocaleString('fr-FR', { timeZone: COUNTRY.timezone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                     </button>
                   </li>
                 );

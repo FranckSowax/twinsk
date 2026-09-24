@@ -8,13 +8,15 @@
 // transport des devis Europe (10 €/kg, 390 €/m³, pas de grille dégressive).
 import { FX_RATES, roundXafUp } from '@/lib/utils/formatCurrency';
 import { DESTINATIONS } from '@/lib/destinations';
+import { COUNTRY, type LocalCurrency } from '@/config/countries';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
-/** Devise dans laquelle une commande /offer est chiffrée et réglée. */
-export type SettlementCurrency = 'XAF' | 'EUR';
+/** Devise dans laquelle une commande /offer est chiffrée et réglée : franc CFA du pays, ou euro. */
+export type SettlementCurrency = LocalCurrency | 'EUR';
 
 /** Devise de règlement d'un listing : EUR si l'admin affiche l'offre en euros, sinon FCFA. */
 export function settlementCurrencyOf(offerCurrency: unknown): SettlementCurrency {
-  return offerCurrency === 'EUR' ? 'EUR' : 'XAF';
+  return offerCurrency === 'EUR' ? 'EUR' : LOCAL_CURRENCY;
 }
 
 // Tarifs euros = ceux des devis Europe (source unique : destinations.france).
@@ -59,10 +61,10 @@ export function formatSettlementRate(rate: number, unit: 'kg' | 'm³', currency:
 }
 
 // Tarifs configurables via variables d'environnement (défauts Twinsk).
-export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || 13000;
+export const AIR_RATE_FCFA_PER_KG = Number(process.env.AIR_RATE_FCFA_PER_KG) || COUNTRY.freight.airRatePerKg;
 // Tarif aérien spécial pour les produits AVEC batterie (lithium — dangereux).
-export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_FCFA_PER_KG) || 18000;
-export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 240000;
+export const AIR_BATTERY_RATE_FCFA_PER_KG = Number(process.env.AIR_BATTERY_RATE_FCFA_PER_KG) || COUNTRY.freight.airBatteryRatePerKg;
+export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || COUNTRY.freight.seaRatePerM3;
 
 // Grille dégressive maritime (décision du 21 sept. 2026, remplace celle du 10 sept.) :
 // plein tarif jusqu'à 3 m³, puis le tarif au m³ baisse linéairement jusqu'à
@@ -70,11 +72,11 @@ export const SEA_RATE_FCFA_PER_M3 = Number(process.env.SEA_RATE_FCFA_PER_M3) || 
 // conteneur dédié sur devis — le client contacte Oh My Gab sur WhatsApp.
 export const SEA_DEGRESSIVE_FROM_M3 = 3;
 export const SEA_DEGRESSIVE_TO_M3 = 20;
-export const SEA_RATE_FLOOR_FCFA_PER_M3 = Number(process.env.SEA_RATE_FLOOR_FCFA_PER_M3) || 205000;
+export const SEA_RATE_FLOOR_FCFA_PER_M3 = Number(process.env.SEA_RATE_FLOOR_FCFA_PER_M3) || COUNTRY.freight.seaRateFloorPerM3;
 /** Volume maximum chiffré automatiquement en groupage maritime (m³). */
 export const SEA_MAX_GROUPAGE_M3 = SEA_DEGRESSIVE_TO_M3;
-/** Numéro WhatsApp Oh My Gab (chiffres seuls) — contact pour un conteneur dédié. */
-export const OMG_WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_OMG_WHATSAPP_NUMBER || '24107425560').replace(/\D/g, '');
+/** Numéro WhatsApp de la marque (chiffres seuls) — contact pour un conteneur dédié. */
+export const OMG_WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_OMG_WHATSAPP_NUMBER || COUNTRY.supportWhatsapp).replace(/\D/g, '');
 
 /**
  * Volume unitaire maximum accepté en fret aérien (m³). Au-delà — fauteuil, canapé,
@@ -263,7 +265,7 @@ export function grandTotalFor(p: PricingResult, mode: string | null | undefined)
 }
 
 export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingOptions = {}): PricingResult {
-  const currency: SettlementCurrency = opts.currency === 'EUR' ? 'EUR' : 'XAF';
+  const currency: SettlementCurrency = opts.currency === 'EUR' ? 'EUR' : LOCAL_CURRENCY;
   const rate = currency === 'EUR' ? CNY_TO_EUR : CNY_TO_FCFA;
   const itemsTotalCny = lines.reduce(
     (s, l) => s + l.unit_price_cny * l.quantity,

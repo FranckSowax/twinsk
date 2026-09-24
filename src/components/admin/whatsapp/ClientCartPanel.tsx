@@ -15,6 +15,9 @@ import { computeOrderPricing, isAirOversize, formatSettlement, roundSettlement, 
 import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
+import type { SettlementCurrency } from '@/lib/offer-pricing';
+import { COUNTRY } from '@/config/countries';
 
 const catTitle = (d: string | null | undefined) => splitCategoryTitle(d).short || d || 'Sans titre';
 
@@ -23,15 +26,15 @@ interface Offer { id: string; title: string; status: string; archived_at?: strin
 interface CartLine { productId: string; variantId: string | null; quantity: number }
 interface SavedCart {
   id: string; offer_id: string; offer_title: string | null; client_name: string; client_phone: string;
-  status: string; transport_mode: string | null; items_total_fcfa: number | null; items_count: number; created_at: string; currency?: 'XAF' | 'EUR';
+  status: string; transport_mode: string | null; items_total_fcfa: number | null; items_count: number; created_at: string; currency?: SettlementCurrency;
 }
 interface OrderLine { id: string; product_id: string | null; product_title: string | null; variant_name: string | null; product_image: string | null; quantity: number; unit_price_fcfa: number; subtotal_fcfa: number; price_type: string | null; air_qty?: number | null; air_blocked?: boolean }
-interface OrderData { currency?: 'XAF' | 'EUR'; order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; itemsNetFcfa: number; airTotal: number | null; seaTotal: number | null; airCost: number | null; seaCost: number | null; airAvailable: boolean; seaAvailable: boolean; mixed?: MixedTransport | null } }
+interface OrderData { currency?: SettlementCurrency; order: { id: string; client_name: string; client_phone: string; status: string; transport_mode: string | null }; lines: OrderLine[]; pricing: { itemsTotalFcfaRounded: number; itemsNetFcfa: number; airTotal: number | null; seaTotal: number | null; airCost: number | null; seaCost: number | null; airAvailable: boolean; seaAvailable: boolean; mixed?: MixedTransport | null } }
 interface SendResult { order_id: string; order_url: string; items_total_fcfa?: number; grand_total_fcfa?: number | null; transport_mode?: string | null; sent: number; errors: string[]; success: boolean; saved?: boolean }
 
 const key = (p: string, v: string | null) => `${p}::${v || ''}`;
 // Montants dans la devise de règlement du listing (FCFA, ou euros pour un listing en euros).
-const fcfa = (n: number, currency: 'XAF' | 'EUR' = 'XAF') => formatSettlement(n, currency);
+const fcfa = (n: number, currency: SettlementCurrency = LOCAL_CURRENCY) => formatSettlement(n, currency);
 
 export default function ClientCartPanel({ initialName = '', initialPhone = '' }: { initialName?: string; initialPhone?: string } = {}) {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -132,7 +135,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
   // des poids / volumes du listing, appliqué à la commande à sa création.
   const [newMode, setNewMode] = useState<'air' | 'sea' | 'mixed' | null>(null);
   const [newSplit, setNewSplit] = useState<Record<string, number>>({});
-  const draftCurrency: 'XAF' | 'EUR' = data?.offer.currency === 'EUR' ? 'EUR' : 'XAF';
+  const draftCurrency: SettlementCurrency = data?.offer.currency === 'EUR' ? 'EUR' : LOCAL_CURRENCY;
   const draftPricing = useMemo(
     () =>
       computeOrderPricing(
@@ -320,7 +323,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
   const label = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500';
   const offerTitle = offers.find((o) => o.id === offerId)?.title || data?.offer.title || '';
   // Devise du listing choisi : les prix du panneau et le panier envoyé la suivent.
-  const panelCur: 'XAF' | 'EUR' = orderData?.currency || (data?.offer.currency === 'EUR' ? 'EUR' : 'XAF');
+  const panelCur: SettlementCurrency = orderData?.currency || (data?.offer.currency === 'EUR' ? 'EUR' : LOCAL_CURRENCY);
 
   return (
     <div className="space-y-5">
@@ -470,7 +473,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
                           <button type="button" onClick={() => editQty(l.id, l.quantity + 1)} disabled={busy !== null} className="p-1.5 text-slate-700 disabled:opacity-30 dark:text-slate-200"><Plus className="h-3 w-3" /></button>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{l.price_type === 'acompte' ? 'Sur devis' : fcfa(roundSettlement(l.subtotal_fcfa, orderData?.currency || 'XAF'), orderData?.currency)}</span>
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{l.price_type === 'acompte' ? 'Sur devis' : fcfa(roundSettlement(l.subtotal_fcfa, orderData?.currency || LOCAL_CURRENCY), orderData?.currency)}</span>
                           <button type="button" onClick={() => { if (orderData.lines.length > 1 && confirm('Retirer ce produit ?')) editRemove(l.id); }} disabled={busy !== null || orderData.lines.length <= 1} className="rounded p-1 text-red-500 hover:bg-red-50 disabled:opacity-30" title="Retirer"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                       </div>
@@ -517,7 +520,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
               </div>
             )}
             {((editing && orderData && orderData.lines.length > 0) || (!editing && lines.length > 0)) && (() => {
-              const cur: 'XAF' | 'EUR' = editing ? orderData!.currency || 'XAF' : draftCurrency;
+              const cur: SettlementCurrency = editing ? orderData!.currency || LOCAL_CURRENCY : draftCurrency;
               const mode = editing ? orderData!.order.transport_mode : newMode;
               const p = editing ? (orderData!.pricing as unknown as PricingResult) : draftPricing;
               const tLines = editing
@@ -584,7 +587,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
             </div>
             <div>
               <label className={label}>Numéro WhatsApp</label>
-              <input className={field} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+241 07 42 75 60" inputMode="tel" />
+              <input className={field} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={COUNTRY.phoneExample} inputMode="tel" />
             </div>
             {editing && (
               <button type="button" onClick={saveContact} disabled={busy !== null} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200">

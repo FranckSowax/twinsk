@@ -3,6 +3,9 @@
 // webhook, aperçus, mise à jour d'une conversation, phrases rapides.
 
 export type InboxStatus = 'open' | 'replied' | 'closed';
+import { CONTENT } from '@/content';
+import { PUBLIC_ORIGIN_FALLBACK } from '@/lib/public-origin';
+import { formatPhone as formatCountryPhone } from '@/lib/phone';
 export type InboxFilter = 'todo' | 'mine' | 'all' | 'closed';
 export type InboxMediaKind = 'image' | 'video' | 'audio' | 'document' | 'sticker';
 
@@ -249,12 +252,8 @@ export interface QuickReply {
   label: string;
   text: string;
 }
-export const DEFAULT_QUICK_REPLIES: QuickReply[] = [
-  { id: 'hello', label: 'Bonjour', text: 'Bonjour {nom} 👋 Merci de contacter Oh My Gab ! Comment pouvons-nous vous aider ?' },
-  { id: 'delais', label: 'Délais', text: 'Nos délais de livraison à Libreville : 8 à 14 jours par avion, 60 à 85 jours par bateau. Le transport est calculé automatiquement dans votre panier.' },
-  { id: 'paiement', label: 'Paiement', text: 'Vous pouvez régler par Airtel Money ou en espèces à notre agence. Les prix affichés sont en FCFA, sans négociation.' },
-  { id: 'catalogues', label: 'Catalogues', text: 'Retrouvez tous nos catalogues ici : https://twinsk-production.up.railway.app/bio — choisissez, ajoutez au panier, et on s’occupe du reste.' },
-];
+/** Phrases par défaut : propres à chaque pays (src/content/<code>). */
+export const DEFAULT_QUICK_REPLIES: QuickReply[] = CONTENT.quickReplies(PUBLIC_ORIGIN_FALLBACK);
 export function normalizeQuickReplies(raw: unknown): QuickReply[] {
   const out: QuickReply[] = [];
   const seen = new Set<string>();
@@ -285,10 +284,7 @@ export function fillTemplate(text: string, client: { name?: string | null; phone
 
 /** « 24106871309 » → « +241 06 87 13 09 » ; autres pays : « +33 6… » sans regroupement. */
 export function formatPhone(phone: string | null | undefined): string {
-  const d = (phone || '').replace(/\D/g, '');
-  if (!d) return '';
-  if (d.startsWith('241')) return `+241 ${d.slice(3).replace(/(\d{2})(?=\d)/g, '$1 ')}`;
-  return `+${d}`;
+  return formatCountryPhone(phone);
 }
 
 // ---- Accusés de réception (coches WhatsApp) ----

@@ -46,6 +46,7 @@ import BulkImportModal from '@/components/admin/BulkImportModal';
 import CatalogueImportModal from '@/components/admin/CatalogueImportModal';
 import ImportFromOfferModal from '@/components/admin/ImportFromOfferModal';
 import { useAdminT } from '@/components/admin/LocaleProvider';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 interface OfferRow {
   id: string;
@@ -204,7 +205,7 @@ export default function AdminOfferDetailPage() {
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [sentCollabIds, setSentCollabIds] = useState<Set<string>>(new Set());
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
-  const [offerCurrency, setOfferCurrency] = useState<ProposalCurrency>('XAF');
+  const [offerCurrency, setOfferCurrency] = useState<ProposalCurrency>(LOCAL_CURRENCY);
   const [phases, setPhases] = useState<OfferPhase[]>([]);
   const [targetPhaseId, setTargetPhaseId] = useState<string>(''); // phase cible pour import / ajout
 

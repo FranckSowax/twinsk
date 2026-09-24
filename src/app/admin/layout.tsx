@@ -38,6 +38,8 @@ import {
   collabCanAccessPath,
   type CollabRole,
 } from '@/lib/collab-roles';
+import { COUNTRY } from '@/config/countries';
+import { isAdminNavEnabled } from '@/lib/modules';
 
 const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin', key: 'nav.dashboard', icon: LayoutDashboard },
@@ -206,9 +208,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const collabHrefs = new Set(COLLAB_ROLE_NAV[collabRole]);
   const navItems =
     role === 'collab'
-      ? NAV_ITEMS.filter((i) => collabHrefs.has(i.href))
+      ? NAV_ITEMS.filter((i) => collabHrefs.has(i.href) && isAdminNavEnabled(i.href))
       : [
-          ...NAV_ITEMS,
+          // Sections Twinsk masquées dans les pays où cette partie n'est pas déployée.
+          ...NAV_ITEMS.filter((i) => isAdminNavEnabled(i.href)),
           { href: '/admin/collaborateurs', key: 'nav.collaborators' as TKey, icon: Users },
           { href: '/admin/agents', key: 'nav.agents' as TKey, icon: Smartphone },
         ];
@@ -267,8 +270,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {/* Create dropdown (admin uniquement) */}
-          {role === 'admin' && (
+          {/* Create dropdown (admin uniquement) — sourcing et fret : partie Twinsk */}
+          {role === 'admin' && COUNTRY.modules.twinsk && (
           <div className="relative mb-5">
             <button
               type="button"

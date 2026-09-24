@@ -1,6 +1,6 @@
 'use client';
 
-// Espace agents Gabon : deux rubriques, Messagerie (réponses aux clients
+// Espace agents du pays : deux rubriques, Messagerie (réponses aux clients
 // WhatsApp, au nom de l'agent) et Commandes (payées ou au paiement engagé).
 // Barre latérale en desktop, barre d'onglets en bas sur mobile. Les deux vues
 // restent montées : on retrouve sa conversation ou son filtre en revenant.
@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { LogOut, MessagesSquare, ShoppingBag } from 'lucide-react';
 import InboxPage from '@/components/inbox/InboxPage';
 import AgentOrders from './AgentOrders';
+import { COUNTRY } from '@/config/countries';
 
 type Agent = { id: string; name: string };
 type View = 'messagerie' | 'commandes';
@@ -49,7 +50,7 @@ export default function AgentShell({ agent, onLogout }: { agent: Agent; onLogout
       <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col bg-slate-900 text-slate-300 lg:flex">
         <div className="px-5 py-6">
           <p className="font-display text-lg font-bold tracking-tight text-white">TWINSK</p>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400">Agents Gabon</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400">Agents {COUNTRY.name}</p>
         </div>
         <nav className="flex-1 space-y-1 px-3">
           {NAV.map((n) => {

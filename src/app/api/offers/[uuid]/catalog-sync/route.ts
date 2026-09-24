@@ -11,6 +11,7 @@ import {
   updateWhapiCollection,
   updateWhapiProduct,
 } from '@/lib/whapi';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 // La synchro appelle WHAPI fiche par fiche (throttle anti-spam).
 export const maxDuration = 300;
@@ -100,7 +101,7 @@ export async function POST(
 
   const plan = buildCatalogPlan(data, {
     offerUrl: `${origin}/offer/${uuid}`,
-    currency: 'XAF', // catalogue destiné aux clients Gabon
+    currency: LOCAL_CURRENCY, // catalogue WhatsApp : franc CFA du pays (XAF au Gabon, XOF en Côte d'Ivoire)
     perCategory: body.perCategory,
     groupIds,
   });

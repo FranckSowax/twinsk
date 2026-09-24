@@ -8,6 +8,7 @@ import { computeOrderPricing, type PricingResult, type TransportMode } from '@/l
 import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { clearOrderSplit, writeOrderSplit } from '@/lib/order-split';
 import { pricingOptionsFor } from '@/lib/promo';
+import { COUNTRY } from '@/config/countries';
 
 export const TRANSPORT_MODES: TransportMode[] = ['air', 'sea', 'mixed', 'quote'];
 
@@ -60,13 +61,13 @@ export async function applyOrderTransport(args: {
     transportCost = pricing.airCost;
     grandTotal = pricing.airTotal;
   } else if (mode === 'sea') {
-    if (pricing.seaOverLimit) return { ok: false, status: 400, error: 'Au-delà de 20 m³, le maritime part en conteneur dédié sur devis : contactez Oh My Gab sur WhatsApp.' };
+    if (pricing.seaOverLimit) return { ok: false, status: 400, error: `Au-delà de 20 m³, le maritime part en conteneur dédié sur devis : contactez ${COUNTRY.brand} sur WhatsApp.` };
     if (!pricing.seaAvailable) return { ok: false, status: 400, error: 'Fret maritime indisponible (volume manquant)' };
     transportCost = pricing.seaCost;
     grandTotal = pricing.seaTotal;
   } else if (mode === 'mixed') {
     if (pricing.mixed?.seaOverLimit) {
-      return { ok: false, status: 400, error: 'La part bateau dépasse 20 m³ : conteneur dédié sur devis, contactez Oh My Gab sur WhatsApp.' };
+      return { ok: false, status: 400, error: `La part bateau dépasse 20 m³ : conteneur dédié sur devis, contactez ${COUNTRY.brand} sur WhatsApp.` };
     }
     if (!pricing.mixed || !pricing.mixed.available || pricing.mixed.cost == null) {
       return { ok: false, status: 400, error: 'Transport fractionné indisponible : poids manquant côté avion ou volume manquant côté bateau' };

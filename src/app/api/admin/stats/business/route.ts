@@ -11,6 +11,7 @@ import {
   type BusinessLine,
   type BusinessOrder,
 } from '@/lib/admin-business';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 // GET : indicateurs commerciaux du tableau de bord — CA, marge produits,
 // transport facturé, sur les commandes PAYÉES (et, à part, celles dont le
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
   const currencyMismatch = [...paid, ...engaged].filter((o) => effectiveCurrency(o) !== o.currency).length;
 
   return NextResponse.json({
-    currency: 'XAF',
+    currency: LOCAL_CURRENCY,
     totals: totalsInFcfa(paid),
     engaged: totalsInFcfa(engaged),
     monthly: monthlySeries(paid, months),

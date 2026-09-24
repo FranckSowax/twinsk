@@ -11,6 +11,7 @@
 // isoler ce qui vient réellement de la vente.
 
 import { toFcfa, type SettlementCurrency } from '@/lib/offer-pricing';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 export interface BusinessLine {
   product_id: string | null;
@@ -63,7 +64,7 @@ export function effectiveCurrency(o: BusinessOrder): SettlementCurrency {
   const sellCny = o.lines.reduce((s, l) => s + l.unit_price_cny * l.quantity, 0);
   if (sellCny <= 0 || !o.items_total) return o.currency;
   const gap = (c: SettlementCurrency) => Math.abs(o.items_total - sellCny * rateFor(c)) / Math.max(1, o.items_total);
-  return gap('EUR') < gap('XAF') ? 'EUR' : 'XAF';
+  return gap('EUR') < gap(LOCAL_CURRENCY) ? 'EUR' : LOCAL_CURRENCY;
 }
 
 /** Marge d'une commande, dans SA devise de règlement. */

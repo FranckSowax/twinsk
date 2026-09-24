@@ -9,6 +9,9 @@ import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pric
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import { listingTagline, productDeepLink } from '@/lib/wa-drip';
 import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiText } from '@/lib/whapi';
+import { COUNTRY } from '@/config/countries';
+import { CONTENT } from '@/content';
+import { transitLabel } from '@/lib/country';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -88,7 +91,7 @@ export async function sendClientCartWhatsapp(args: {
 
   const intro =
     `Bonjour ${o.client_name} 👋\n\n` +
-    `Voici la sélection préparée pour vous par *Oh My Gab*\n🛍️ ${tagline}\n\n` +
+    `Voici la sélection préparée pour vous par *${COUNTRY.brand}*\n🛍️ ${tagline}\n\n` +
     (args.message?.trim() ? `${args.message.trim()}\n\n` : '') +
     `Les fiches produits suivent, puis le récapitulatif de votre panier.`;
   const hello = await sendWhapiText(intro, to);
@@ -135,23 +138,23 @@ export async function sendClientCartWhatsapp(args: {
   if (mode && chosenCost != null && grandTotal != null) {
     const label =
       mode === 'air'
-        ? `✈️ Aérien (8 à 14 jours) : ${fcfa(chosenCost)}`
+        ? `✈️ Aérien (${transitLabel(COUNTRY.transit.air)}) : ${fcfa(chosenCost)}`
         : mode === 'sea'
-          ? `🚢 Maritime (60 à 85 jours) : ${fcfa(chosenCost)}`
+          ? `🚢 Maritime (${transitLabel(COUNTRY.transit.sea)}) : ${fcfa(chosenCost)}`
           : `✈️🚢 Fractionné : ✈️ ${pricing.mixed!.airUnits} unité(s) en avion ${fcfa(pricing.mixed!.airCost ?? 0)} · 🚢 ${pricing.mixed!.seaUnits} unité(s) en bateau ${fcfa(pricing.mixed!.seaCost ?? 0)} = ${fcfa(chosenCost)}`;
     transportBlock =
       `\n\n🚚 *Transport choisi*\n${label}` +
       (pricing.discountFcfa > 0 ? `\n🎁 Remise${o.promo_code ? ` ${o.promo_code}` : ''} : − ${fcfa(pricing.discountFcfa)}` : '') +
       `\n\n💰 *Total à payer : ${fcfa(grandTotal)}*` +
-      `\n\nVous pouvez encore modifier votre panier ou le transport, puis payer (Airtel Money ou espèces).`;
+      `\n\nVous pouvez encore modifier votre panier ou le transport, puis payer (${CONTENT.payment.cartShort}).`;
   } else {
     const transport: string[] = [];
-    if (pricing.airTotal != null) transport.push(`✈️ Aérien : ${fcfa(pricing.airTotal)} (8 à 14 jours)`);
-    if (pricing.seaTotal != null) transport.push(`🚢 Maritime : ${fcfa(pricing.seaTotal)} (60 à 85 jours)`);
+    if (pricing.airTotal != null) transport.push(`✈️ Aérien : ${fcfa(pricing.airTotal)} (${transitLabel(COUNTRY.transit.air)})`);
+    if (pricing.seaTotal != null) transport.push(`🚢 Maritime : ${fcfa(pricing.seaTotal)} (${transitLabel(COUNTRY.transit.sea)})`);
     else if (pricing.seaOverLimit) transport.push(`🚢 Maritime : plus de 20 m³, conteneur dédié sur devis — écrivez-nous ici`);
     transportBlock =
       (transport.length ? `\n\nEstimation avec transport :\n${transport.join('\n')}` : '') +
-      `\n\nOuvrez votre panier pour choisir le transport, ajouter un code promo et payer (Airtel Money ou espèces).`;
+      `\n\nOuvrez votre panier pour choisir le transport, ajouter un code promo et payer (${CONTENT.payment.cartShort}).`;
   }
   const recap =
     `🧾 *Récapitulatif de votre panier*\n\n${recapLines.join('\n')}\n\n` +

@@ -6,6 +6,7 @@ import { EMPTY_BEST_SELLERS, normalizeBestSellers, type BestSellers } from '@/li
 import { supabaseAdmin } from './supabase/server';
 import { sanitizeForPublic } from './utils/shortenTitle';
 import { isAcompte, variantIsAcompte, PRICE_TYPE_ACOMPTE } from './acompte';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 interface RawProduct {
   id: string;
@@ -59,7 +60,7 @@ export interface PublicOfferData {
     cover_video_url: string | null; // cover vidéo mp4 (prioritaire sur l'image)
     mobile_video_url: string | null; // vidéo carrée 1:1 en tête sur mobile (autoplay/boucle)
     note: string | null; // meta.note — chapô/contexte (safe côté client)
-    currency: 'CNY' | 'USD' | 'EUR' | 'XAF'; // devise affichée (défaut XAF)
+    currency: 'CNY' | 'USD' | 'EUR' | 'XAF' | 'XOF'; // devise affichée (défaut : franc CFA du pays)
     offer_type: 'b2c' | 'b2b'; // B2B → vue liste par défaut
     best_sellers: BestSellers; // galerie en tête (migration 57)
   };
@@ -284,7 +285,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
       cover_video_url: (offer as { cover_video_url?: string | null }).cover_video_url || null,
       mobile_video_url: (offer as { mobile_video_url?: string | null }).mobile_video_url || null,
       note: sanitizeForPublic((offer as { note?: string | null }).note) || null,
-      currency: ((offer as { offer_currency?: string }).offer_currency as 'CNY' | 'USD' | 'EUR' | 'XAF') || 'XAF',
+      currency: ((offer as { offer_currency?: string }).offer_currency as 'CNY' | 'USD' | 'EUR' | 'XAF' | 'XOF') || LOCAL_CURRENCY,
       offer_type: ((offer as { offer_type?: string }).offer_type as 'b2c' | 'b2b') || 'b2c',
       best_sellers: bestSellers,
     },

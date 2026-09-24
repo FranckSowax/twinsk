@@ -3,8 +3,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, X } from 'lucide-react';
 import { useState } from 'react';
+import { COUNTRY } from '@/config/countries';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
-export type ProposalCurrency = 'CNY' | 'USD' | 'EUR' | 'XAF';
+export type ProposalCurrency = 'CNY' | 'USD' | 'EUR' | 'XAF' | 'XOF';
 
 interface Option {
   code: ProposalCurrency;
@@ -18,7 +20,7 @@ const OPTIONS: Option[] = [
   { code: 'CNY', label: 'Yuan chinois', flag: '🇨🇳', hint: 'Prix d\'achat brut', color: 'amber' },
   { code: 'USD', label: 'Dollar US', flag: '🇺🇸', hint: 'International', color: 'blue' },
   { code: 'EUR', label: 'Euro', flag: '🇪🇺', hint: 'Europe', color: 'indigo' },
-  { code: 'XAF', label: 'Franc CFA', flag: '🇨🇲', hint: 'Afrique centrale (par défaut)', color: 'emerald' },
+  { code: LOCAL_CURRENCY, label: 'Franc CFA', flag: COUNTRY.currencyFlag, hint: `${COUNTRY.currencyRegionLabel} (par défaut)`, color: 'emerald' },
 ];
 
 interface ProposalCurrencyModalProps {

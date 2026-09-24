@@ -9,6 +9,7 @@ import SmartImage from '@/components/ui/SmartImage';
 import { formatInCurrency } from '@/lib/utils/formatCurrency';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 const catTitle = (d: string | null | undefined) => splitCategoryTitle(d).short || d || 'Sans titre';
 
@@ -125,7 +126,7 @@ export default function OrderAddProductModal({
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium text-slate-900" title={p.title}>{p.title}</p>
                       <p className="truncate text-[11px] text-slate-500">{cat}</p>
-                      <p className="text-sm font-bold text-emerald-600">{quote ? 'Sur devis' : formatInCurrency(unit, 'XAF')}</p>
+                      <p className="text-sm font-bold text-emerald-600">{quote ? 'Sur devis' : formatInCurrency(unit, LOCAL_CURRENCY)}</p>
                       {variants.length > 0 && (
                         <select
                           className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
@@ -133,7 +134,7 @@ export default function OrderAddProductModal({
                           onChange={(e) => setVariantPick((s) => ({ ...s, [p.id]: e.target.value }))}
                         >
                           {variants.map((x) => (
-                            <option key={x.id} value={x.id}>{x.name}{x.price != null ? ` — ${formatInCurrency(x.price, 'XAF')}` : ''}</option>
+                            <option key={x.id} value={x.id}>{x.name}{x.price != null ? ` — ${formatInCurrency(x.price, LOCAL_CURRENCY)}` : ''}</option>
                           ))}
                         </select>
                       )}

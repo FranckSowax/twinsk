@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus, Power, Ticket, Trash2, Users } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 type Kind = 'items_percent' | 'items_fixed' | 'air_rate' | 'sea_rate';
 const KIND_LABEL: Record<Kind, string> = {
@@ -61,7 +62,7 @@ const EMPTY = {
 };
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n).toLocaleString('fr-FR')} FCFA`);
-const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString('fr-FR', { timeZone: 'Africa/Libreville', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString('fr-FR', { timeZone: COUNTRY.timezone, day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const describe = (p: Promo) => {
   const v = Math.round(p.value).toLocaleString('fr-FR');
   if (p.kind === 'items_percent') return `−${p.value} % articles`;
@@ -202,7 +203,7 @@ export default function AdminPromosPage() {
           </div>
           <div>
             <label className={label}>Code personnel — numéro du client</label>
-            <input className={field} value={form.client_phone} onChange={(e) => setForm({ ...form, client_phone: e.target.value })} placeholder="+241 07 … (vide = tout le monde)" />
+            <input className={field} value={form.client_phone} onChange={(e) => setForm({ ...form, client_phone: e.target.value })} placeholder={`${COUNTRY.phonePrefix} 07 … (vide = tout le monde)`} />
           </div>
           <div>
             <label className={label}>Minimum d’articles (FCFA)</label>

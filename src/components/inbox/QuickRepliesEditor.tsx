@@ -9,8 +9,9 @@ import { useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { fillTemplate, type QuickReply } from '@/lib/wa-inbox';
 import { EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, type Fetcher } from './inbox-ui';
+import { CONTENT } from '@/content';
 
-const SAMPLE = { name: 'Hermine Prisca', phone: '24106871309' };
+const SAMPLE = { name: 'Hermine Prisca', phone: CONTENT.sampleClientPhone };
 
 export default function QuickRepliesEditor({ initial, fetcher, onClose, onSaved }: { initial: QuickReply[]; fetcher: Fetcher; onClose: () => void; onSaved: (items: QuickReply[]) => void }) {
   const [items, setItems] = useState<QuickReply[]>(initial.length ? initial : [{ id: `q${Date.now()}`, label: '', text: '' }]);

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { COUNTRIES } from '@/config/countries';
 import {
   normalizePhone, signAgentToken, parseAgentToken,
   generateOtpCode, hashOtp, verifyOtpHash, otpRateLimited, canAdvanceTo, phoneCandidates,
@@ -70,5 +71,16 @@ describe('phoneCandidates', () => {
   it('ignore les saisies trop courtes', () => {
     expect(phoneCandidates('12')).toEqual([]);
     expect(phoneCandidates('')).toEqual([]);
+  });
+});
+
+describe('phoneCandidates — Côte d’Ivoire (numéro national à 10 chiffres)', () => {
+  it('formes avec et sans 225, le 0 initial conservé', () => {
+    expect(phoneCandidates('07 07 07 07 07', COUNTRIES.CI).sort()).toEqual(['0707070707', '2250707070707']);
+    expect(phoneCandidates('+225 07 07 07 07 07', COUNTRIES.CI).sort()).toEqual(['0707070707', '2250707070707']);
+  });
+  it('Gabon : candidats d’origine inchangés', () => {
+    expect(phoneCandidates('06871309', COUNTRIES.GA)).toEqual(phoneCandidates('06871309'));
+    expect(phoneCandidates('06871309', COUNTRIES.GA)).toContain('24106871309');
   });
 });

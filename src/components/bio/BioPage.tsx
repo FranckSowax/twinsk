@@ -15,6 +15,9 @@ import type { BioConfig, BioFilter } from '@/lib/bio-page';
 import { bioSummary, waLink } from '@/lib/bio-page';
 import type { BioOfferCard } from '@/lib/bio-page-data';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
+import { COUNTRY } from '@/config/countries';
+import { CONTENT } from '@/content';
+import { formatPhone } from '@/lib/phone';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -56,12 +59,6 @@ function ChevronIcon({ className }: { className?: string }) {
   );
 }
 
-/** « 24107425560 » → « +241 07 42 55 60 ». */
-function formatWaNumber(n: string): string {
-  const d = n.replace(/\D/g, '');
-  if (!d.startsWith('241')) return `+${d}`;
-  return `+241 ${d.slice(3).replace(/(\d{2})(?=\d)/g, '$1 ')}`;
-}
 
 /** Vignette : vidéo carrée du listing en boucle muette (jouée seulement à l'écran), sinon la cover. */
 function CardMedia({ card }: { card: BioOfferCard }) {
@@ -127,11 +124,11 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
   const c = config.contacts;
   const wa = c.whatsapp_number ? waLink(c.whatsapp_number) : null;
   const contacts = [
-    c.whatsapp_number && { href: waLink(c.whatsapp_number, 'Bonjour Oh My Gab, je souhaite des informations.'), label: 'WhatsApp', sub: formatWaNumber(c.whatsapp_number), emoji: '💬', bg: 'rgba(37,211,102,.14)' },
+    c.whatsapp_number && { href: waLink(c.whatsapp_number, `Bonjour ${COUNTRY.brand}, je souhaite des informations.`), label: 'WhatsApp', sub: formatPhone(c.whatsapp_number), emoji: '💬', bg: 'rgba(37,211,102,.14)' },
     c.whatsapp_group && { href: c.whatsapp_group, label: 'Groupe WhatsApp', sub: 'Le Salon Oh My — échanges', emoji: '👥', bg: 'rgba(37,211,102,.14)' },
     c.whatsapp_channel && { href: c.whatsapp_channel, label: 'Chaîne WhatsApp', sub: 'Nouveautés & promos', emoji: '📢', bg: 'rgba(37,211,102,.14)' },
     c.tiktok && { href: c.tiktok, label: 'TikTok', sub: 'Vidéos produits', emoji: '🎵', bg: 'var(--blue-soft)' },
-    c.facebook && { href: c.facebook, label: 'Facebook', sub: 'Page Oh My Gab', emoji: '📘', bg: 'var(--blue-soft)' },
+    c.facebook && { href: c.facebook, label: 'Facebook', sub: `Page ${COUNTRY.brand}`, emoji: '📘', bg: 'var(--blue-soft)' },
     c.instagram && { href: c.instagram, label: 'Instagram', sub: 'Stories & coulisses', emoji: '📸', bg: 'var(--blue-soft)' },
     c.youtube && { href: c.youtube, label: 'YouTube', sub: 'Guides et présentations', emoji: '▶️', bg: 'rgba(239,68,68,.12)' },
     c.email && { href: `mailto:${c.email}`, label: 'E-mail', sub: c.email, emoji: '✉️', bg: 'var(--blue-soft)' },
@@ -192,16 +189,16 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
               Commandes ouvertes — réponse en &lt; 1 h sur WhatsApp
             </motion.span>
             <motion.h1 {...rise(0.08)} className="mx-auto mt-[18px] max-w-[680px] text-[clamp(30px,6vw,48px)] font-extrabold leading-[1.06] tracking-[-0.035em]">
-              Votre projet et vos envies livrés à <span className="bio-grad">Libreville</span> !
+              Votre projet et vos envies livrés à <span className="bio-grad">{COUNTRY.mainCity}</span> !
             </motion.h1>
             <motion.p {...rise(0.16)} className="mx-auto mt-3.5 max-w-[520px] text-[clamp(14px,2.4vw,16.5px)] font-medium leading-[1.55] text-(--ink-60)">
-              Choisissez un catalogue, ajoutez au panier, payez en FCFA par Airtel Money ou cash. On s’occupe du reste — suivi WhatsApp jusqu’à votre porte.
+              {CONTENT.bio.heroText}
             </motion.p>
-            {/* Visuel de marque (public/bio/top-bio-web.jpg, 1600 px, 82 Ko) à la place des indicateurs. */}
+            {/* Visuel de marque du pays (public/brands/<code>/top-bio-web.jpg, 1600 px) à la place des indicateurs. */}
             <motion.img
               {...rise(0.24)}
-              src="/bio/top-bio-web.jpg"
-              alt="L’équipe Oh My Gab tient le logo OhMyGab!"
+              src={`/brands/${COUNTRY.code}/top-bio-web.jpg`}
+              alt={`L’équipe ${COUNTRY.brand} tient le logo ${COUNTRY.brand.replace(/\s/g, '')}!`}
               width={1600}
               height={686}
               fetchPriority="high"
@@ -378,9 +375,9 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
         <footer className="mx-auto mt-14 flex max-w-[1120px] flex-wrap justify-center gap-x-[18px] gap-y-2 border-t border-(--line) px-5 pb-[110px] pt-[26px] text-center text-xs font-semibold text-(--ink-40)">
           <span>Prix en FCFA</span>
           <span className="opacity-40">·</span>
-          <span>Airtel Money ou cash</span>
+          <span>{CONTENT.bio.footerPayment}</span>
           <span className="opacity-40">·</span>
-          <span>Livraison à Libreville</span>
+          <span>Livraison à {COUNTRY.mainCity}</span>
           <span className="opacity-40">·</span>
           <span>Propulsé par Twinsk</span>
         </footer>

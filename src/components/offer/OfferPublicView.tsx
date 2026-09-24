@@ -28,6 +28,7 @@ import { roundXafUp, formatXAF, formatCNY, formatUSD, formatEUR, formatInCurrenc
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText } from 'lucide-react';
 import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
+import { LOCAL_CURRENCY, isLocalCurrency } from '@/lib/local-currency';
 
 // Normalisation pour la recherche : minuscules + sans accents (« telephone » trouve « Téléphone »).
 function normalizeSearch(s: string): string {
@@ -150,7 +151,7 @@ function CategoryDescription({ text }: { text: string }) {
 export default function OfferPublicView({ offerId, offer, items, phases, affiliate }: Props) {
   const router = useRouter();
   // Devise affichée au client (défaut FCFA). Les autres devises restent en conversion (≈).
-  const currency: CurrencyCode = offer.currency || 'XAF';
+  const currency: CurrencyCode = offer.currency || LOCAL_CURRENCY;
   const fmtPrice = (cny: number) => formatInCurrency(cny, currency);
   // Acompte : montant présenté comme « Acompte usine » (jamais comme prix de vente).
   const isAcompteLine = (p: OfferProduct, variant?: OfferVariant | null) =>
@@ -323,7 +324,7 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
       const lineCny = unit * line.quantity;
       cny += lineCny;
       const v = convertFromCny(lineCny, currency);
-      primary += currency === 'XAF' ? roundXafUp(v) : Math.round(v * 100) / 100;
+      primary += isLocalCurrency(currency) ? roundXafUp(v) : Math.round(v * 100) / 100;
     }
     // allAcompte : le panier ne contient que des demandes de devis (aucun prix).
     return { cny, count, primary, acompteCount, allAcompte: count > 0 && acompteCount === count };

@@ -3,6 +3,7 @@
 // Ajouter une clé = l'ajouter dans `fr` ET `zh`.
 
 export type Locale = 'fr' | 'zh';
+import { COUNTRY } from '@/config/countries';
 
 export const DICT = {
   fr: {
@@ -27,7 +28,7 @@ export const DICT = {
     'nav.promos': 'Codes promo',
     'nav.bio': 'Page lien bio',
     'nav.revisions': 'À réviser',
-    'nav.agents': 'Agents Gabon',
+    'nav.agents': `Agents ${COUNTRY.name}`,
     // Révisions collaborateurs
     'action.sendToCollab': 'Envoyer aux collaborateurs',
     'action.sent': 'Envoyée ✓',
@@ -251,7 +252,7 @@ export const DICT = {
     'nav.promos': '优惠码',
     'nav.bio': '链接页',
     'nav.revisions': '待审核',
-    'nav.agents': '加蓬代理',
+    'nav.agents': `${COUNTRY.nameZh}代理`,
     // 协作者审核
     'action.sendToCollab': '发送给协作者',
     'action.sent': '已发送 ✓',

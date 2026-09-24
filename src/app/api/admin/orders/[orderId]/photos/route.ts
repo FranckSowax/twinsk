@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor, logCollabAction } from '@/lib/collab';
 import { addParcelPhotos, isPhotoStage } from '@/lib/order-photos';
+import { COUNTRY } from '@/config/countries';
 
 // POST: un collaborateur "commandes" (Anna en Chine) ajoute des photos de colis.
 // Body: { urls: string[], stage?: 'china' | 'gabon' }
@@ -27,7 +28,7 @@ export async function POST(
     action: 'order_photos',
     target_type: 'order',
     target_id: orderId,
-    description: `${urls.length} photo(s) — ${stage === 'china' ? 'Chine' : 'Gabon'}`,
+    description: `${urls.length} photo(s) — ${stage === 'china' ? 'Chine' : COUNTRY.name}`,
   });
   return NextResponse.json({ success: true, parcel_photos: photos });
 }

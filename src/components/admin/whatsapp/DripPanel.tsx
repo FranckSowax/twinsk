@@ -11,6 +11,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Pause, Play, Send, Eye, Square, Film, LayoutList, Trash2 } from 'lucide-react';
 import type { GroupRow } from './types';
 import DripMediaLibrary, { type MediaRow } from './DripMediaLibrary';
+import { COUNTRY } from '@/config/countries';
+import { localHour } from '@/lib/wa-drip';
 
 type Channel = 'group' | 'status' | 'channel' | 'facebook' | 'instagram';
 type Mode = 'media' | 'catalog';
@@ -195,14 +197,14 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
           )}
           {isMedia ? (
             <p className="text-sm text-slate-500">
-              🎬 Médias · {mediaInLoop} média{mediaInLoop > 1 ? 's' : ''} · {cfg.media_hours.map((h) => `${h}h`).join(', ')} (Libreville)
+              🎬 Médias · {mediaInLoop} média{mediaInLoop > 1 ? 's' : ''} · {cfg.media_hours.map((h) => `${h}h`).join(', ')} ({COUNTRY.mainCity})
               {cfg.media_batch > 0 && cfg.media_batch < mediaInLoop ? ` · ${cfg.media_batch} par créneau en boucle · position ${mediaPos}/${mediaInLoop || '—'}` : ' · tous les médias à chaque créneau'}
               {state.offer_title ? ` · listing rappelé : ${state.offer_title}` : ''}
             </p>
           ) : (
             <p className="text-sm text-slate-500">
               📦 Catalogue · {state.offer_title ? `${state.offer_title} · ${state.categories} catégories` : 'Aucun listing choisi'}
-              {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h (Libreville)
+              {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h ({COUNTRY.mainCity})
               {' · '}position {currentPos}/{state.categories || '—'}
             </p>
           )}
@@ -264,7 +266,7 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
       {isMedia && (
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
           <div>
-            <label className={label}>Créneaux quotidiens (heure de Libreville)</label>
+            <label className={label}>Créneaux quotidiens (heure de {COUNTRY.mainCity})</label>
             <div className="flex flex-wrap gap-1.5">
               {HOURS.map((h) => {
                 const on = cfg.media_hours.includes(h);
@@ -500,7 +502,8 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
           <p className={label}>Prochaine publication · {state.next_batch.length > 1 ? `${state.next_batch.length} médias` : `média ${state.next_media.index + 1}/${state.next_media.total}`} · prochain créneau {(() => {
             const now = new Date();
-            const h = Number(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Africa/Libreville', hour: '2-digit', hour12: false }).format(now)) % 24;
+            // Lecture fiable de l'heure (le format « heure seule » en français, « 00 h », donnait NaN).
+            const h = localHour(now);
             const next = cfg.media_hours.find((x) => x > h) ?? cfg.media_hours[0];
             return `${next}h${next <= h ? ' (demain)' : ''}`;
           })()}</p>
@@ -581,7 +584,7 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
               <li key={i} className="flex items-start justify-between gap-3 py-2">
                 <span className="text-slate-800 dark:text-slate-200">{r.note}</span>
                 <span className="shrink-0 text-xs text-slate-400">
-                  {new Date(r.done_at).toLocaleString('fr-FR', { timeZone: 'Africa/Libreville', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(r.done_at).toLocaleString('fr-FR', { timeZone: COUNTRY.timezone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   {r.done_by ? ` · ${r.done_by}` : ''}
                 </span>
               </li>

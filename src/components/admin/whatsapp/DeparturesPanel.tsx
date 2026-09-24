@@ -25,6 +25,7 @@ import {
   type DepartureStatus,
 } from '@/lib/playbook';
 import type { GroupRow } from './types';
+import { phonePrefixDigits } from '@/lib/phone';
 
 interface Departure {
   id: string;
@@ -225,7 +226,7 @@ export default function DeparturesPanel({
           {groupMode === 'create' && (
             <label className="block text-[10px] font-medium text-slate-500">
               Numéros des premiers clients (le reste rejoindra par lien d’invitation)
-              <textarea className={inputCls} rows={2} placeholder="24107xxxxxxx, 24106xxxxxxx" value={phonesTxt} onChange={(e) => setPhonesTxt(e.target.value)} />
+              <textarea className={inputCls} rows={2} placeholder={`${phonePrefixDigits()}07xxxxxxx, ${phonePrefixDigits()}06xxxxxxx`} value={phonesTxt} onChange={(e) => setPhonesTxt(e.target.value)} />
             </label>
           )}
           {groupMode === 'existing' && (

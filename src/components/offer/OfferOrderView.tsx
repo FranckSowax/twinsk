@@ -21,6 +21,10 @@ import { formatSettlement, formatSettlementRate, roundSettlement, OMG_WHATSAPP_N
 import TransportSplitEditor from '@/components/offer/TransportSplitEditor';
 import { orderNumber } from '@/lib/order-number';
 import { isAcompte, ACOMPTE_BADGE } from '@/lib/acompte';
+import { COUNTRY } from '@/config/countries';
+import { CONTENT } from '@/content';
+import { transitLabel } from '@/lib/country';
+import { LOCAL_CURRENCY, isLocalCurrency } from '@/lib/local-currency';
 
 interface OrderLine {
   id: string;
@@ -400,7 +404,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
 
   const { order, lines, pricing, airtel_number } = data;
   // Tous les montants (lignes, transport, total) suivent la devise du listing.
-  const currency: SettlementCurrency = data.currency === 'EUR' ? 'EUR' : 'XAF';
+  const currency: SettlementCurrency = data.currency === 'EUR' ? 'EUR' : LOCAL_CURRENCY;
   const fmt = (n: number | null | undefined) => formatSettlement(n, currency);
   // Devis : lignes « acompte » (sur devis). Une commande 100% acompte = demande de
   // devis (pas de transport ni de paiement — notre équipe établit le devis).
@@ -627,7 +631,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               </p>
               <a
                 href={`https://wa.me/${OMG_WHATSAPP_NUMBER}?text=${encodeURIComponent(
-                  `Bonjour Oh My Gab, je souhaite un devis conteneur pour ma commande ${orderNumber(order.id)} (${pricing.totalVolume?.toFixed(2)} m³).\n${typeof window !== 'undefined' ? window.location.href : ''}`,
+                  `Bonjour ${COUNTRY.brand}, je souhaite un devis conteneur pour ma commande ${orderNumber(order.id)} (${pricing.totalVolume?.toFixed(2)} m³).\n${typeof window !== 'undefined' ? window.location.href : ''}`,
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -635,7 +639,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               >
                 <MessageCircle className="h-4 w-4" /> Demander mon devis conteneur sur WhatsApp
               </a>
-              <p className="text-[10px] text-slate-500">🚚 Livraison 60 à 85 jours · réponse sous 48 h</p>
+              <p className="text-[10px] text-slate-500">🚚 Livraison {transitLabel(COUNTRY.transit.sea)} · réponse sous 48 h</p>
             </div>
           ) : (
           <button
@@ -657,14 +661,14 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             </div>
             <p className="text-xs text-slate-500">
               {formatSettlementRate(pricing.seaRate, 'm³', currency)}
-              {currency === 'XAF' && pricing.seaRate < SEA_RATE_FCFA_PER_M3 && (
+              {isLocalCurrency(currency) && pricing.seaRate < SEA_RATE_FCFA_PER_M3 && (
                 <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">tarif dégressif</span>
               )}
             </p>
             <p className="font-display text-lg font-bold text-emerald-600">
               {fmt(pricing.seaCost)}
             </p>
-            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 60 à 85 jours</p>
+            <p className="text-[11px] font-medium text-slate-600">🚚 Livraison {transitLabel(COUNTRY.transit.sea)}</p>
             <p className="text-[10px] text-slate-400">
               Estimation transport seul
             </p>
@@ -711,7 +715,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             )}
             {!pricing.airOversize && (
               <>
-                <p className="text-[11px] font-medium text-slate-600">🚚 Livraison 8 à 14 jours</p>
+                <p className="text-[11px] font-medium text-slate-600">🚚 Livraison {transitLabel(COUNTRY.transit.air)}</p>
                 <p className="text-[10px] text-slate-400">Estimation transport seul</p>
               </>
             )}
@@ -879,7 +883,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           />
           <input
             type="tel"
-            placeholder="Numéro WhatsApp (avec indicatif +241 / +242…) *"
+            placeholder={`Numéro WhatsApp (avec indicatif ${CONTENT.phoneHint}) *`}
             value={contactPhone}
             onChange={(e) => setContactPhone(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
@@ -1048,7 +1052,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
           <Banknote className="mx-auto h-12 w-12 text-amber-500" />
           <h2 className="mt-3 font-display text-xl font-bold text-amber-800">Commande réservée — paiement cash</h2>
           <p className="mt-2 text-sm text-amber-700">
-            Rendez-vous à l’agence TWINSK la plus proche pour régler{' '}
+            Rendez-vous à l’{COUNTRY.agency.name} la plus proche pour régler{' '}
             <b>{fmt(grandTotalFcfa)}</b> en espèces, <b>sous 48h</b>.
           </p>
           <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-500 px-4 py-1.5 text-sm font-bold text-white">

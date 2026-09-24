@@ -9,6 +9,7 @@ import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { FX_RATES, roundXafUp } from '@/lib/utils/formatCurrency';
 import { isEligible } from '@/lib/wa-catalog-plan';
+import { COUNTRY } from '@/config/countries';
 
 export const DRIP_SETTING_KEY = 'category_drip';
 /**
@@ -34,7 +35,7 @@ export function dripSettingKey(slot: number): string {
 export function dripRitual(slot: number): string {
   return slot <= 1 ? 'category_drip' : `category_drip:${slot}`;
 }
-export const DRIP_TIMEZONE = 'Africa/Libreville';
+export const DRIP_TIMEZONE = COUNTRY.timezone;
 /** Produits publiés par catégorie et par heure (au-delà, c'est du spam de groupe). */
 export const DRIP_MAX_PER_CATEGORY = 5;
 

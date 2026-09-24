@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus, UserCheck, UserX } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 type Agent = { id: string; name: string; phone: string; active: boolean; created_at: string };
 
@@ -42,7 +43,7 @@ export default function AdminAgentsPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-1 font-display text-2xl font-bold text-slate-900">Agents Gabon</h1>
+      <h1 className="mb-1 font-display text-2xl font-bold text-slate-900">Agents {COUNTRY.name}</h1>
       <p className="mb-6 text-sm text-slate-500">Lien de connexion agents : <code>/agent</code></p>
 
       <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-4">

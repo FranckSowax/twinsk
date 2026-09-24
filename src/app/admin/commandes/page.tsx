@@ -18,6 +18,8 @@ import {
   TRANSPORT_FALLBACK,
 } from '@/components/agent/agent-ui';
 import ParcelPhotos, { type ParcelPhoto } from '@/components/orders/ParcelPhotos';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
+import type { SettlementCurrency } from '@/lib/offer-pricing';
 
 interface Order {
   id: string;
@@ -34,7 +36,7 @@ interface Order {
   payment_proof_url: string | null;
   created_at: string;
   /** Devise de règlement des montants (FCFA par défaut, euros pour un listing en euros). */
-  currency?: 'XAF' | 'EUR';
+  currency?: SettlementCurrency;
   thumbnail?: string | null;
   items_count?: number;
   parcel_photos?: ParcelPhoto[];
@@ -97,7 +99,7 @@ const PAY_LABEL: Record<string, { key: TKey; cls: string }> = {
   pending: { key: 'orders.pay.pending', cls: 'bg-slate-100 text-slate-500' },
 };
 
-function fmt(n: number | null, currency: 'XAF' | 'EUR' = 'XAF') {
+function fmt(n: number | null, currency: SettlementCurrency = LOCAL_CURRENCY) {
   if (n == null) return '—';
   if (currency === 'EUR') return `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   return `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
@@ -249,7 +251,7 @@ export default function AdminOrdersPage() {
     const toCollect = orders.filter((o) => inTab('to_collect', o));
     const collected = orders.filter((o) => o.payment_status === 'paid');
     // Les KPI sont en FCFA : une commande en euros est convertie au taux interne.
-    const sum = (list: Order[]) => list.reduce((s, o) => s + toFcfa(totalOf(o) || 0, o.currency === 'EUR' ? 'EUR' : 'XAF'), 0);
+    const sum = (list: Order[]) => list.reduce((s, o) => s + toFcfa(totalOf(o) || 0, o.currency === 'EUR' ? 'EUR' : LOCAL_CURRENCY), 0);
     return [
       { label: t('orders.kpi.toVerify'), value: String(toVerify.length), sub: t('orders.kpi.toVerifySub'), icon: BadgeAlert, box: 'bg-red-50 text-red-600 ring-red-200' },
       { label: t('orders.kpi.toCollect'), value: String(toCollect.length), sub: fmt(sum(toCollect)), icon: HandCoins, box: 'bg-amber-50 text-amber-600 ring-amber-200' },

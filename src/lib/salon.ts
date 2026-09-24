@@ -4,6 +4,7 @@
 // pur — la base et WHAPI sont dans salon-data.ts.
 
 export const SALON_SETTING_KEY = 'salon_search';
+import { CONTENT } from '@/content';
 export const SALON_NOTE_PREFIX = '[salon]';
 export const SALON_MAX_PRODUCTS = 5;
 
@@ -19,13 +20,9 @@ export interface SalonConfig {
 export const DEFAULT_SALON_CONFIG: SalonConfig = {
   enabled: true,
   ack_enabled: true,
-  group_id: '120363431660727284@g.us',
+  group_id: CONTENT.salon.groupId,
   subject: '🔎 Oh My Recherche — Sourcing à la demande',
-  description:
-    'Vous cherchez un produit précis ? Postez ici une photo ou une description (quantité, usage, budget).\n\n' +
-    'Oh My Gab vous répond dans le groupe avec le prix depuis la Chine et les fiches produits à commander. ' +
-    'Chaque demande reçoit une référence R-XXXX : rappelez-la dans vos échanges.\n\n' +
-    'Prix en FCFA · Airtel Money ou cash · Livraison à Libreville 🇨🇳 ➡️ 🇬🇦',
+  description: CONTENT.salon.description,
 };
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');

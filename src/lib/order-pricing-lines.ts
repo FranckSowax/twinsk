@@ -5,10 +5,11 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { settlementCurrencyOf, type OrderLineForPricing, type SettlementCurrency } from '@/lib/offer-pricing';
 import { readOrderSplit } from '@/lib/order-split';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 /** Devise de règlement d'un listing (EUR si l'offre est affichée en euros, sinon FCFA). */
 export async function offerSettlementCurrency(offerId: string | null | undefined): Promise<SettlementCurrency> {
-  if (!offerId) return 'XAF';
+  if (!offerId) return LOCAL_CURRENCY;
   const { data } = await supabaseAdmin.from('offers').select('offer_currency').eq('id', offerId).maybeSingle();
   return settlementCurrencyOf((data as { offer_currency?: string | null } | null)?.offer_currency);
 }

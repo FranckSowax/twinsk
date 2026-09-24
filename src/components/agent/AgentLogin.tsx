@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Loader2, Smartphone, KeyRound } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 type Agent = { id: string; name: string };
 
@@ -38,13 +39,13 @@ export default function AgentLogin({ onAuthed }: { onAuthed: (a: Agent) => void 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <h1 className="mb-1 text-center font-display text-2xl font-bold text-slate-900">Espace agents</h1>
-      <p className="mb-6 text-center text-sm text-slate-500">TWINSK Gabon</p>
+      <p className="mb-6 text-center text-sm text-slate-500">TWINSK {COUNTRY.name}</p>
 
       {step === 'phone' ? (
         <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-6">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Smartphone className="h-4 w-4" /> Votre numéro WhatsApp</label>
           <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel"
-            placeholder="+241 ..." className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg" />
+            placeholder={`${COUNTRY.phonePrefix} ...`} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg" />
           <button onClick={requestOtp} disabled={busy || phone.replace(/\D/g, '').length < 6}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white disabled:opacity-50">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Recevoir le code

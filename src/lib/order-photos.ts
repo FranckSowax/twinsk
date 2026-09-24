@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiImage } from '@/lib/whapi';
 import { orderNumber } from '@/lib/order-number';
 import { ORDERS_GROUP_ID } from '@/lib/order-notify';
+import { COUNTRY } from '@/config/countries';
 
 export type PhotoStage = 'china' | 'gabon';
 
@@ -20,7 +21,8 @@ export interface ParcelPhoto {
 
 const STAGE_LABEL: Record<PhotoStage, string> = {
   china: '🇨🇳 Colis en Chine — avant expédition',
-  gabon: '🇬🇦 Colis reçu au Gabon',
+  // Clé technique « gabon » conservée (données en base) : étape « reçu dans le pays ».
+  gabon: `${COUNTRY.flag} Colis reçu ${COUNTRY.nameIn}`,
 };
 
 export function isPhotoStage(v: unknown): v is PhotoStage {

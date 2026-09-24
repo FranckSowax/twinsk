@@ -7,6 +7,7 @@
 
 import { useRef, useState } from 'react';
 import { Camera, Loader2 } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 export interface ParcelPhoto {
   url: string;
@@ -115,7 +116,7 @@ export default function ParcelPhotos({
                   p.stage === 'china' ? 'bg-rose-50 text-rose-600' : 'bg-teal-50 text-teal-700'
                 }`}
               >
-                {p.stage === 'china' ? '🇨🇳' : '🇬🇦'} {p.by || ''}
+                {p.stage === 'china' ? '🇨🇳' : COUNTRY.flag} {p.by || ''}
               </span>
             </li>
           ))}

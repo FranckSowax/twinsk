@@ -6,8 +6,10 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { SCENES, type Scene } from './scenes';
 import styles from './parcours.module.css';
+import { COUNTRY } from '@/config/countries';
 
-const WHATSAPP_URL = 'https://wa.me/24100000000?text=Bonjour%20TWINSK%2C%20je%20veux%20faire%20venir%20un%20colis%20de%20Chine';
+// Décision D6 : numéro réel du pays (le numéro factice 24100000000 ne menait nulle part).
+const WHATSAPP_URL = `https://wa.me/${COUNTRY.supportWhatsapp}?text=Bonjour%20TWINSK%2C%20je%20veux%20faire%20venir%20un%20colis%20de%20Chine`;
 
 /** Dessine une image en mode "cover" (remplit le canvas sans déformation). */
 function drawCover(

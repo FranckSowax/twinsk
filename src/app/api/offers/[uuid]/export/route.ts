@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor } from '@/lib/collab';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 // GET: exporte une offre en JSON RÉIMPORTABLE (même schéma que le bulk-load).
 // Permet de reproduire la page dans une autre offre (copier / télécharger).
@@ -88,7 +89,7 @@ export async function GET(
       title: offer.title,
       theme: offer.theme,
       description: offer.description,
-      currency: offer.offer_currency || 'XAF',
+      currency: offer.offer_currency || LOCAL_CURRENCY,
       type: offer.offer_type || 'b2c',
     },
     categories,

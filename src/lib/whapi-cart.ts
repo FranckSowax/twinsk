@@ -8,6 +8,7 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getWhapiOrderItems, sendWhapiText } from '@/lib/whapi';
 import { orderNumber } from '@/lib/order-number';
+import { CONTENT } from '@/content';
 
 interface Pick {
   product_id: string;
@@ -83,7 +84,7 @@ export async function handleWhatsappCart(args: {
         `Dernière étape, sur cette page :\n` +
         `1️⃣ Choisissez le transport (aérien ou maritime)\n` +
         `2️⃣ Renseignez vos coordonnées\n` +
-        `3️⃣ Payez par Airtel Money, eBilling ou en espèces à l'agence\n\n` +
+        `${CONTENT.payment.cartStep}\n\n` +
         `👉 ${url}`,
       args.customerChatId,
     );

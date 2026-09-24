@@ -17,6 +17,7 @@ import {
   requestNumber,
   type SalonConfig,
 } from '@/lib/salon';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
@@ -49,7 +50,7 @@ export async function createSalonRequest(args: {
       client_phone: args.phone,
       status: 'submitted',
       notes: buildSalonNote(args.msgId, args.chatId),
-      proposal_currency: 'XAF',
+      proposal_currency: LOCAL_CURRENCY,
     })
     .select('id')
     .single();

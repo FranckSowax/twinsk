@@ -3,6 +3,8 @@
 import crypto from 'crypto';
 import type { NextRequest } from 'next/server';
 import { supabaseAdmin } from './supabase/server';
+import { COUNTRY, type CountryConfig } from '@/config/countries';
+import { phonePrefixDigits } from '@/lib/phone';
 
 const SECRET = process.env.ADMIN_PASSWORD || 'twinsk-dev-secret';
 
@@ -59,20 +61,27 @@ export function otpRateLimited(recentCount: number): boolean {
  * présence) du préfixe pays 241 — « 06871309 » matche « 24106871309 » et
  * inversement. Évite les échecs silencieux de l'OTP sur un simple format.
  */
-export function phoneCandidates(phone: string | null | undefined): string[] {
+export function phoneCandidates(phone: string | null | undefined, country: CountryConfig = COUNTRY): string[] {
   let d = normalizePhone(phone);
   if (d.startsWith('00')) d = d.slice(2); // « 00241… » saisi à l'internationale
   if (!d) return [];
+  const prefix = phonePrefixDigits(country);
+  // Côte d'Ivoire : le 0 fait partie du numéro national (10 chiffres) ; seules
+  // les formes avec et sans indicatif sont à tolérer.
+  if (country.autoPrefixLocalPhone) {
+    const local = d.startsWith(prefix) ? d.slice(prefix.length) : d;
+    return [...new Set([d, local, `${prefix}${local}`])].filter((x) => x.length >= 6);
+  }
   // Forme locale gabonaise : 8 chiffres commençant par 0 (06 87 13 09). Beaucoup
   // l'écrivent sans le 0 après l'indicatif (+241 6 87 13 09) : on génère les
   // deux formes, avec et sans 241, pour ne jamais rater l'agent sur un format.
-  const locals = new Set<string>([d.startsWith('241') ? d.slice(3) : d]);
+  const locals = new Set<string>([d.startsWith(prefix) ? d.slice(prefix.length) : d]);
   for (const l of [...locals]) locals.add(l.startsWith('0') ? l.slice(1) : `0${l}`);
   const out = new Set<string>([d]);
   for (const l of locals) {
     if (l.length < 6) continue; // un numéro local a 7 ou 8 chiffres : pas de faux candidats
     out.add(l);
-    out.add(`241${l}`);
+    out.add(`${prefix}${l}`);
   }
   return [...out].filter((x) => x.length >= 6);
 }

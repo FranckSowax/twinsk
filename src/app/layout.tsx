@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Oswald } from "next/font/google";
 import "./globals.css";
 import AttributionCapture from "@/components/AttributionCapture";
+import { CONTENT } from '@/content';
+import { COUNTRY } from '@/config/countries';
 
 const geist = Geist({
   variable: "--font-sans",
@@ -22,9 +24,9 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: "Twinsk Company — Logistique & Sourcing depuis la Chine",
-  description:
-    "Fret aérien et maritime, sourcing 1688/Alibaba, échantillonnage, import véhicules et réception délégations. Hong Kong → Monde.",
+  title: CONTENT.site.title,
+  description: CONTENT.site.description,
+  icons: { icon: COUNTRY.favicon },
 };
 
 export default function RootLayout({

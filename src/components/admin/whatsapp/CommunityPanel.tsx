@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { COMMUNITY_SLOTS } from '@/lib/playbook';
 import type { CommunityState, GroupRow } from './types';
+import { phonePrefixDigits } from '@/lib/phone';
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
@@ -355,7 +356,7 @@ export default function CommunityPanel({
                   <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                     <input
                       className={`${inputCls} max-w-[240px]`}
-                      placeholder="1ᵉʳ membre : 24107xxxxxxx"
+                      placeholder={`1ᵉʳ membre : ${phonePrefixDigits()}07xxxxxxx`}
                       value={createPhones[slot.key] || ''}
                       onChange={(e) => setCreatePhones((p) => ({ ...p, [slot.key]: e.target.value }))}
                     />
@@ -473,7 +474,7 @@ export default function CommunityPanel({
           <textarea
             value={phones}
             onChange={(e) => setPhones(e.target.value)}
-            placeholder="24177000000, 24166000000"
+            placeholder={`${phonePrefixDigits()}77000000, ${phonePrefixDigits()}66000000`}
             rows={2}
             className={`${inputCls} min-w-[200px] flex-1`}
           />

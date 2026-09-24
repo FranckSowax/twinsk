@@ -1,8 +1,9 @@
 'use client';
 
 import { toMultiCurrency, formatXAF } from '@/lib/utils/formatCurrency';
+import { LOCAL_CURRENCY } from '@/lib/local-currency';
 
-type Currency = 'CNY' | 'USD' | 'EUR' | 'XAF';
+type Currency = 'CNY' | 'USD' | 'EUR' | 'XAF' | 'XOF';
 
 interface MultiCurrencyPriceProps {
   amountCny: number;
@@ -17,13 +18,14 @@ interface MultiCurrencyPriceProps {
   only?: boolean;
 }
 
-const ORDER: Currency[] = ['CNY', 'USD', 'EUR', 'XAF'];
+const ORDER: Currency[] = ['CNY', 'USD', 'EUR', LOCAL_CURRENCY];
 
 const HEAD_COLOR: Record<Currency, string> = {
   CNY: 'text-amber-500',
   USD: 'text-blue-600',
   EUR: 'text-indigo-600',
   XAF: 'text-emerald-600',
+  XOF: 'text-emerald-600',
 };
 
 /**
@@ -45,6 +47,8 @@ export default function MultiCurrencyPrice({
     USD: p.formatted.usd,
     EUR: p.formatted.eur,
     XAF: xafOverrideFcfa != null ? formatXAF(xafOverrideFcfa) : p.formatted.xaf,
+    // Franc CFA d'Afrique de l'Ouest : même parité, même rendu « FCFA ».
+    XOF: xafOverrideFcfa != null ? formatXAF(xafOverrideFcfa) : p.formatted.xaf,
   };
   const head = formatted[primary];
   const headColor = HEAD_COLOR[primary];

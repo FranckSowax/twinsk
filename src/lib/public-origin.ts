@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server';
+import { COUNTRY } from '@/config/countries';
 
 /** Domaine public de l'app quand rien ne permet de le déduire (cron interne, tests). */
-export const PUBLIC_ORIGIN_FALLBACK = 'https://twinsk-production.up.railway.app';
+export const PUBLIC_ORIGIN_FALLBACK = (process.env.NEXT_PUBLIC_SITE_URL || `https://${COUNTRY.domain}`).replace(/\/$/, '');
 
 /**
  * Origine PUBLIQUE d'une requête. Derrière le proxy Railway, `request.nextUrl.origin`
