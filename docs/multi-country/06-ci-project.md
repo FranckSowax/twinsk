@@ -9,7 +9,7 @@
 | 0 | Contrôles en lecture | Base vide : 0 table publique, 0 bucket, extensions par défaut. Historique vide |
 | 1 | `supabase db push` | 4 migrations appliquées : `…0000` à `…0300` |
 | 2 | `db query --linked -f common.sql`, puis `-f CI.sql` | Défaut `offer_currency = 'XOF'` ; 12 communes d'Abidjan |
-| 3 | `config push` | **En attente de validation** (voir §3) |
+| 3 | `config push` | Appliqué après le « go config » de Franck : les 4 réglages du §3, rien d'autre. Nouveau `config diff` : 0 écart déclaré |
 | 4 | `recreate-buckets.ts --apply` | `request-images` créé ; relance → « conforme ». Clé service lue par la CLI, jamais affichée |
 | — | `functions deploy`, `secrets set`, cron, webhooks | Sans objet (aucune fonction Edge, aucune tâche pg_cron, aucun webhook de base) |
 
@@ -41,7 +41,7 @@ Correction possible par une migration commune aux deux pays, à décider.
 
 **Aucune donnée transactionnelle.** Seule table remplie : `delivery_zones` (12 lignes). Commandes, listings, conversations, prospects, agents, collaborateurs, affiliés, codes promo, paiements et réglages : 0 ligne. Stockage : 0 fichier.
 
-## 3. Réglages Auth (`config push`) : écart à valider
+## 3. Réglages Auth (`config push`), appliqués le 24 septembre
 
 Point important de la CLI 2.117 : sans terminal interactif, `config push` **applique sans demander**. Le modèle `config.toml` de `supabase init` déclarait des valeurs de développement local, qui auraient écrasé des réglages de production :
 - délai minimal entre deux e-mails : 1 s au lieu de 1 min ;
