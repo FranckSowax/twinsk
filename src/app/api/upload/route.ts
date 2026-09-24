@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { compressVideo } from '@/lib/video-compress';
+import { isAdmin, getCollaborator } from '@/lib/collab';
+import { getAgent } from '@/lib/agent';
+import { checkUploadFile, clientIp, RateLimiter } from '@/lib/upload-policy';
+
+// Visiteurs non connectés : limite de fréquence par IP (voir lib/upload-policy).
+const anonLimiter = new RateLimiter();
+
+async function isStaff(request: NextRequest): Promise<boolean> {
+  if (isAdmin(request)) return true;
+  if (await getCollaborator(request)) return true;
+  return !!(await getAgent(request));
+}
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB (cover vidéo mp4)
@@ -16,6 +28,21 @@ export async function POST(request: NextRequest) {
 
     if (!files.length) {
       return NextResponse.json({ error: 'Aucun fichier fourni' }, { status: 400 });
+    }
+
+    // Équipe : tout ; visiteur : images seulement, fréquence limitée par IP.
+    const staff = await isStaff(request);
+    if (!staff && !anonLimiter.take(clientIp(request.headers), files.length)) {
+      return NextResponse.json(
+        { error: 'Trop d’envois en peu de temps. Réessayez dans quelques minutes.' },
+        { status: 429 },
+      );
+    }
+
+    // Contrôle de TOUS les fichiers avant le moindre envoi (pas d'envoi partiel).
+    for (const file of files) {
+      const rule = checkUploadFile(staff, file.type);
+      if (!rule.ok) return NextResponse.json({ error: rule.error }, { status: rule.status });
     }
 
     const urls: string[] = [];
