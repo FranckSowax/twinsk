@@ -36,8 +36,9 @@ jobs:
     environment: ${{ matrix.environment }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      PROJECT_REF: ${{ matrix.country == 'GA' && secrets.GA_PROJECT_REF || secrets.CI_PROJECT_REF }}
-      SUPABASE_DB_PASSWORD: ${{ matrix.country == 'GA' && secrets.GA_DB_PASSWORD || secrets.CI_DB_PASSWORD }}
+      # Secrets nommés d'après le pays : <PAYS>_PROJECT_REF, <PAYS>_DB_PASSWORD.
+      PROJECT_REF: ${{ secrets[format('{0}_PROJECT_REF', matrix.country)] }}
+      SUPABASE_DB_PASSWORD: ${{ secrets[format('{0}_DB_PASSWORD', matrix.country)] }}
     steps:
       - uses: actions/checkout@v4
 
