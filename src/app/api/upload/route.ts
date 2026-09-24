@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { compressVideo } from '@/lib/video-compress';
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB (cover vidéo mp4)
@@ -38,7 +39,14 @@ export async function POST(request: NextRequest) {
 
       const ext = file.name.split('.').pop() || 'jpg';
       const fileName = `${uuidv4()}.${ext}`;
-      const buffer = Buffer.from(await file.arrayBuffer());
+      let buffer: Buffer = Buffer.from(await file.arrayBuffer());
+      // Vidéos : compressées avant stockage (bande passante Supabase). En cas
+      // d'échec ou de gain trop faible, l'original est envoyé tel quel.
+      if (isVideo) {
+        const c = await compressVideo(buffer);
+        console.log(`[upload] vidéo ${file.name} : ${Math.round(buffer.length / 1024)} Ko → ${Math.round(c.buffer.length / 1024)} Ko${c.compressed ? '' : ` (non compressée : ${c.reason})`}`);
+        buffer = c.buffer;
+      }
 
       const { error } = await supabaseAdmin.storage
         .from('request-images')
