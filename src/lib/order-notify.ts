@@ -15,6 +15,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   cash: '💵 Cash en agence (48h)',
   airtel: '📱 Airtel Money (capture soumise)',
   ebilling: '💳 eBilling',
+  paydunya: '📲 Mobile money (payé en ligne)',
 };
 
 const TRANSPORT_LABEL: Record<string, string> = {

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import OfferPublicView from '@/components/offer/OfferPublicView';
 import { fetchPublicOffer, type PublicOfferData } from '@/lib/offer-public-fetch';
 import { buildOgImage } from '@/lib/og-image';
+import { COUNTRY } from '@/config/countries';
 
 // Boutique marque blanche d'un partenaire : /b/[affiliateOfferId].
 // Prix majorés de la commission, produits masqués filtrés, ordre personnalisé,
@@ -50,7 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const image = offer?.cover_image_url || null;
   const ogTitle = shop || offer?.title || 'Boutique';
 
-  const host = (await headers()).get('host') || 'twinsk-production.up.railway.app';
+  const host = (await headers()).get('host') || COUNTRY.domain;
   const origin = `https://${host}`;
   // Même traitement que /offer : sans width/height, Facebook affiche la carte
   // sans visuel au premier partage.

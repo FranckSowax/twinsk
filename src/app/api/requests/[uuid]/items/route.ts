@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { notifyNewSubmission, notifyItemsAdded } from '@/lib/telegram';
+import { COUNTRY } from '@/config/countries';
 
 // POST: Add items to a request (client or admin)
 // Body: { items: [{ image_url, description }], added_by?: 'client' | 'admin' }
@@ -70,7 +71,7 @@ export async function POST(
 
     // Send Telegram notification (non-blocking — don't await, don't fail the request)
     if (source === 'client') {
-      const baseUrl = `https://${request.headers.get('host') || 'twinsk-production.up.railway.app'}`;
+      const baseUrl = `https://${request.headers.get('host') || COUNTRY.domain}`;
       const clientName = currentRequest?.client_name || '';
       const clientEmail = currentRequest?.client_email || '';
 

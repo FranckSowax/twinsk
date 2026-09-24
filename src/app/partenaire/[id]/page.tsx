@@ -21,6 +21,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { COUNTRY } from '@/config/countries';
+import { CONTENT } from '@/content';
 
 interface PartnerProduct {
   id: string;
@@ -180,7 +181,7 @@ function ShopProfile({ data, onSaved }: { data: PartnerData; onSaved: () => void
     return (
       <div className="flex items-center justify-between rounded-3xl bg-white p-4 shadow-sm">
         <div className="min-w-0 text-sm text-slate-600">
-          <p>📱 Airtel Money : <b>{data.airtel_number || '—'}</b></p>
+          <p>📱 {CONTENT.payment.payoutLabel} : <b>{data.airtel_number || '—'}</b></p>
           <p>💬 WhatsApp (notifications) : <b>{data.whatsapp_number || '—'}</b></p>
         </div>
         <button onClick={() => setOpen(true)} className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
@@ -200,7 +201,7 @@ function ShopProfile({ data, onSaved }: { data: PartnerData; onSaved: () => void
         <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Ex : La Boutique de Sarah" className={inputCls} />
       </label>
       <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">Numéro Airtel Money (encaissement)</span>
+        <span className="mb-1 block text-sm font-semibold text-slate-700">Numéro {CONTENT.payment.payoutLabel} (encaissement)</span>
         <input value={airtel} onChange={(e) => setAirtel(e.target.value)} placeholder={`${COUNTRY.phonePrefix} …`} className={inputCls} />
       </label>
       <label className="block">

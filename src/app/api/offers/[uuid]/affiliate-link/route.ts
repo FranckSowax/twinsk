@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin } from '@/lib/collab';
+import { affiliatePayoutNumber } from '@/lib/payments/methods';
 
 // GET: liste les liens partenaires (marque blanche) de cette offre (admin).
 export async function GET(
@@ -11,19 +12,19 @@ export async function GET(
   const { uuid } = await params;
   const { data, error } = await supabaseAdmin
     .from('affiliate_offers')
-    .select('id, created_at, commission_percent, active, affiliates(id, shop_name, airtel_number, whatsapp_number)')
+    .select('id, created_at, commission_percent, active, affiliates(*)')
     .eq('offer_id', uuid)
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ links: [], warning: error.message });
   const links = (data || []).map((l) => {
-    const a = l.affiliates as unknown as { id: string; shop_name: string; airtel_number: string | null } | null;
+    const a = l.affiliates as unknown as { id: string; shop_name: string; airtel_number: string | null; payout_number?: string | null } | null;
     return {
       id: l.id,
       created_at: l.created_at,
       commission_percent: l.commission_percent,
       active: l.active,
       shop_name: a?.shop_name || '',
-      airtel_number: a?.airtel_number || null,
+      airtel_number: affiliatePayoutNumber(a),
     };
   });
   return NextResponse.json({ links });

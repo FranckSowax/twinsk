@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { settlePromoForOrder } from '@/lib/promo-settle';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { publicOrigin } from '@/lib/public-origin';
+import { isPaymentMethodEnabled } from '@/lib/payments/methods';
 
 // POST: le client déclare un paiement Airtel Money en joignant la capture d'écran.
 // La commande passe en "submitted" (en attente de vérification par l'admin).
@@ -11,6 +12,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string; orderId: string }> },
 ) {
+  if (!isPaymentMethodEnabled('airtel')) {
+    return NextResponse.json({ error: 'Moyen de paiement indisponible' }, { status: 404 });
+  }
   const { uuid, orderId } = await params;
   const body = (await request.json().catch(() => ({}))) as { proof_url?: string };
   const proofUrl = (body.proof_url || '').trim();

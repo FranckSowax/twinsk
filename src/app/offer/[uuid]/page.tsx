@@ -4,6 +4,7 @@ import OfferPublicView from '@/components/offer/OfferPublicView';
 import { fetchPublicOffer } from '@/lib/offer-public-fetch';
 import { buildOgImage } from '@/lib/og-image';
 import { FX_RATES, roundXafUp } from '@/lib/utils/formatCurrency';
+import { COUNTRY } from '@/config/countries';
 
 interface PageProps {
   params: Promise<{ uuid: string }>;
@@ -17,7 +18,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const data = await fetchPublicOffer(uuid);
   if (!data?.offer) return { title: 'Offre Twinsk' };
 
-  const host = (await headers()).get('host') || 'twinsk-production.up.railway.app';
+  const host = (await headers()).get('host') || COUNTRY.domain;
   const origin = `https://${host}`;
 
   // Lien profond ?p=<id produit> : l'aperçu WhatsApp montre LE produit (photo,

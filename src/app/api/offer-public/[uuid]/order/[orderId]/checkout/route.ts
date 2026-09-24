@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { settlePromoForOrder } from '@/lib/promo-settle';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { publicOrigin } from '@/lib/public-origin';
+import { isPaymentMethodEnabled } from '@/lib/payments/methods';
+import { COUNTRY } from '@/config/countries';
 
 // POST: Initiate ebilling payment for an order.
 // NOTE: This is a STUB. Replace with real ebilling integration once credentials
@@ -13,6 +15,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string; orderId: string }> }
 ) {
+  if (!isPaymentMethodEnabled('ebilling')) {
+    return NextResponse.json({ error: 'Moyen de paiement indisponible' }, { status: 404 });
+  }
   const { uuid, orderId } = await params;
 
   const { data: order } = await supabaseAdmin
@@ -68,7 +73,7 @@ export async function POST(
 
   // Real integration: call ebilling API with grand_total_fcfa + client_phone,
   // get back a payment URL, then redirect customer to it.
-  const baseUrl = `https://${request.headers.get('host') || 'twinsk-production.up.railway.app'}`;
+  const baseUrl = `https://${request.headers.get('host') || COUNTRY.domain}`;
   const redirectUrl = `${baseUrl}/offer/${uuid}/order/${orderId}?payment=mock-success`;
 
   return NextResponse.json({

@@ -4,6 +4,7 @@ import { computeOrderPricing, CNY_TO_EUR, CNY_TO_FCFA, isAirOversize } from '@/l
 import { offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { readOrderSplit } from '@/lib/order-split';
 import { describePromo, pricingOptionsFor, type PromoKind } from '@/lib/promo';
+import { affiliatePayoutNumber } from '@/lib/payments/methods';
 
 // GET: Public order detail (for the confirmation / transport / checkout page).
 export async function GET(
@@ -144,10 +145,12 @@ async function resolveAirtelNumber(order: { affiliate_id?: string | null }): Pro
   if (order.affiliate_id) {
     const { data } = await supabaseAdmin
       .from('affiliates')
-      .select('airtel_number')
+      .select('*')
       .eq('id', order.affiliate_id)
       .single();
-    if (data?.airtel_number) return data.airtel_number;
+    // Numéro générique (D5, migration 63) sinon colonne historique Airtel.
+    const n = affiliatePayoutNumber(data);
+    if (n) return n;
   }
   return process.env.AIRTEL_MONEY_NUMBER || null;
 }

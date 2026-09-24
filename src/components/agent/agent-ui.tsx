@@ -73,6 +73,7 @@ export const PAY_META: Record<string, { icon: LucideIcon; label: string; box: st
   cash: { icon: Banknote, label: 'Cash agence', box: 'bg-amber-50 text-amber-600 ring-amber-200' },
   airtel: { icon: Smartphone, label: 'Airtel Money', box: 'bg-red-50 text-red-600 ring-red-200' },
   ebilling: { icon: CreditCard, label: 'eBilling', box: 'bg-emerald-50 text-emerald-600 ring-emerald-200' },
+  paydunya: { icon: Smartphone, label: 'Mobile money', box: 'bg-sky-50 text-sky-600 ring-sky-200' },
 };
 export const PAY_FALLBACK = { icon: CreditCard, label: 'Non choisi', box: 'bg-slate-50 text-slate-400 ring-slate-200' };
 

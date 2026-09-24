@@ -25,6 +25,17 @@ import { COUNTRY } from '@/config/countries';
 import { CONTENT } from '@/content';
 import { transitLabel } from '@/lib/country';
 import { LOCAL_CURRENCY, isLocalCurrency } from '@/lib/local-currency';
+import { PAYMENT_METHODS, OPERATOR_LABELS, type PaymentMethodId } from '@/lib/payments/methods';
+import type { LucideIcon } from 'lucide-react';
+
+// Apparence des boutons de choix du moyen de paiement (Gabon : inchangée).
+const METHOD_STYLE: Record<PaymentMethodId, { icon: LucideIcon; on: string; hover: string }> = {
+  ebilling: { icon: CreditCard, on: 'border-emerald-500 bg-white text-emerald-700', hover: 'hover:border-emerald-300' },
+  airtel: { icon: Smartphone, on: 'border-red-500 bg-white text-red-600', hover: 'hover:border-red-300' },
+  cash: { icon: Banknote, on: 'border-amber-500 bg-white text-amber-700', hover: 'hover:border-amber-300' },
+  paydunya: { icon: Smartphone, on: 'border-sky-500 bg-white text-sky-700', hover: 'hover:border-sky-300' },
+};
+const METHOD_GRID: Record<number, string> = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' };
 
 interface OrderLine {
   id: string;
@@ -117,7 +128,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const [splitOpen, setSplitOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'ebilling' | 'airtel' | 'cash' | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId | null>(null);
+  const [onlineBusy, setOnlineBusy] = useState(false);
+  const [onlineNotice, setOnlineNotice] = useState<string | null>(null);
   const [cashSubmitting, setCashSubmitting] = useState(false);
   const [airtelProofUrl, setAirtelProofUrl] = useState<string | null>(null);
   const [airtelUploading, setAirtelUploading] = useState(false);
@@ -153,6 +166,32 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   useEffect(() => {
     load();
   }, [load]);
+
+  // Retour de la page de paiement mobile money : on fait vérifier le statut
+  // (filet de sécurité si la notification du prestataire n'est pas encore arrivée).
+  useEffect(() => {
+    if (paymentParam === 'cancel') {
+      setPaymentMethod('paydunya');
+      setOnlineNotice('Paiement annulé. Vous pouvez réessayer ou choisir un autre moyen.');
+      return;
+    }
+    if (paymentParam !== 'return') return;
+    let alive = true;
+    (async () => {
+      const res = await fetch(`/api/offer-public/${offerId}/order/${orderId}/pay-online/confirm`, { method: 'POST' }).catch(() => null);
+      const json = res ? await res.json().catch(() => ({})) : {};
+      if (!alive) return;
+      if (json.status === 'completed') await load();
+      else if (json.status === 'pending') {
+        setPaymentMethod('paydunya');
+        setOnlineNotice('Paiement en cours de confirmation. Si vous avez validé sur votre téléphone, cette page se mettra à jour sous peu ; vous recevrez aussi une confirmation sur WhatsApp.');
+      } else if (json.status === 'failed' || json.status === 'cancelled') {
+        setPaymentMethod('paydunya');
+        setOnlineNotice('Le paiement n’a pas abouti. Vous pouvez réessayer ou choisir un autre moyen.');
+      }
+    })();
+    return () => { alive = false; };
+  }, [paymentParam, offerId, orderId, load]);
 
   // Pré-remplit le formulaire coordonnées si la commande en a déjà (sans écraser
   // ce que le client est en train de taper).
@@ -203,6 +242,23 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
       window.location.href = json.redirect_url;
     } finally {
       setCheckingOut(false);
+    }
+  };
+
+  const startOnlinePayment = async () => {
+    setOnlineBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/offer-public/${offerId}/order/${orderId}/pay-online`, { method: 'POST' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.redirect_url) {
+        setError(json.error || 'Erreur paiement');
+        if (json.promo_removed) await load();
+        return;
+      }
+      window.location.href = json.redirect_url;
+    } finally {
+      setOnlineBusy(false);
     }
   };
 
@@ -916,35 +972,24 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             Montant à régler : <b className="text-emerald-700">{fmt(grandTotalFcfa)}</b>. Choisissez votre moyen de paiement.
           </p>
 
-          {/* Choix de la méthode */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('ebilling')}
-              className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
-                paymentMethod === 'ebilling' ? 'border-emerald-500 bg-white text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
-              }`}
-            >
-              <CreditCard className="h-4 w-4" /> eBilling
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('airtel')}
-              className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
-                paymentMethod === 'airtel' ? 'border-red-500 bg-white text-red-600' : 'border-slate-200 bg-white text-slate-600 hover:border-red-300'
-              }`}
-            >
-              <Smartphone className="h-4 w-4" /> Airtel
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('cash')}
-              className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
-                paymentMethod === 'cash' ? 'border-amber-500 bg-white text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300'
-              }`}
-            >
-              <Banknote className="h-4 w-4" /> Cash
-            </button>
+          {/* Choix de la méthode (moyens actifs dans le pays) */}
+          <div className={`mt-3 grid ${METHOD_GRID[PAYMENT_METHODS.length] || 'grid-cols-3'} gap-2`}>
+            {PAYMENT_METHODS.map((m) => {
+              const st = METHOD_STYLE[m.id];
+              const Icon = st.icon;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(m.id)}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
+                    paymentMethod === m.id ? st.on : `border-slate-200 bg-white text-slate-600 ${st.hover}`
+                  }`}
+                >
+                  <Icon className="h-4 w-4" /> {m.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Cash en agence */}
@@ -986,6 +1031,31 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="mt-2 text-[10px] text-amber-700/80">
                 ⚠️ Intégration eBilling en cours d’activation.
               </p>
+            </div>
+          )}
+
+          {/* Mobile money via l'agrégateur (Côte d'Ivoire) */}
+          {paymentMethod === 'paydunya' && (
+            <div className="mt-4 space-y-3 rounded-2xl border border-sky-200 bg-white p-4">
+              <p className="text-sm text-slate-700">
+                📲 Réglez <b className="text-sky-700">{fmt(grandTotalFcfa)}</b> par mobile money
+                {(() => {
+                  const ops = PAYMENT_METHODS.find((m) => m.id === 'paydunya')?.operators || [];
+                  return ops.length ? <> ({ops.map((o) => OPERATOR_LABELS[o]).join(', ')})</> : null;
+                })()}
+                . Vous serez redirigé vers la page de paiement sécurisée, puis ramené ici.
+              </p>
+              {onlineNotice && <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">{onlineNotice}</p>}
+              <motion.button
+                type="button"
+                onClick={startOnlinePayment}
+                disabled={onlineBusy}
+                whileTap={{ scale: 0.99 }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 disabled:opacity-60"
+              >
+                {onlineBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                Payer par mobile money
+              </motion.button>
             </div>
           )}
 

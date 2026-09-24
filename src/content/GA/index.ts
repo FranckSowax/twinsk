@@ -36,6 +36,7 @@ const content: CountryContent = {
     cartShort: 'Airtel Money ou espèces',
     cartStep: '3️⃣ Payez par Airtel Money, eBilling ou en espèces à l\'agence',
     cashReminderFaster: (n) => `💡 Plus rapide : payez par *Airtel Money*` + (n ? ` au *${n}*` : ''),
+    payoutLabel: 'Airtel Money',
   },
   phoneHint: '+241 / +242…',
   sampleClientPhone: '24106871309',

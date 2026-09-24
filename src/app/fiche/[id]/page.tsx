@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import FicheForm from '@/components/fiche/FicheForm';
 import { buildOgImage } from '@/lib/og-image';
+import { COUNTRY } from '@/config/countries';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export async function generateMetadata({
   const title = line.title || line.title_original || 'Fiche produit';
   const description = 'Fiche produit Twinsk · 产品信息表 — à compléter par le fournisseur.';
 
-  const host = (await headers()).get('host') || 'twinsk-production.up.railway.app';
+  const host = (await headers()).get('host') || COUNTRY.domain;
   const origin = `https://${host}`;
   // image_url pointe souvent vers alicdn : buildOgImage la proxifie et mesure
   // ses dimensions, sans quoi aucun aperçu ne s'affiche.

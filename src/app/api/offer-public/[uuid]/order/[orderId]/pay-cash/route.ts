@@ -7,6 +7,7 @@ import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { COUNTRY } from '@/config/countries';
 import { publicOrigin } from '@/lib/public-origin';
+import { isPaymentMethodEnabled } from '@/lib/payments/methods';
 
 // POST: le client choisit de payer CASH en agence.
 // - Réserve la commande (payment_method='cash', payment_status='submitted').
@@ -16,6 +17,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ uuid: string; orderId: string }> },
 ) {
+  if (!isPaymentMethodEnabled('cash')) {
+    return NextResponse.json({ error: 'Moyen de paiement indisponible' }, { status: 404 });
+  }
   const { uuid, orderId } = await params;
 
   // Coordonnées client OBLIGATOIRES avant toute finalisation.

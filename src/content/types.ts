@@ -26,6 +26,8 @@ export interface CountryContent {
     cartStep: string;
     /** Relance « payez plus vite » d'une commande réservée en espèces. */
     cashReminderFaster: (payNumber: string | null) => string;
+    /** Moyen d'encaissement des partenaires (espace partenaire) : « Airtel Money ». */
+    payoutLabel: string;
   };
   /** Indication d'indicatif dans le champ téléphone de la commande. */
   phoneHint: string;

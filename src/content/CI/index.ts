@@ -37,6 +37,7 @@ const content: CountryContent = {
     cartShort: 'mobile money ou espèces',
     cartStep: '3️⃣ Payez par mobile money ou en espèces à l\'agence',
     cashReminderFaster: () => '💡 Plus rapide : payez par *mobile money* depuis votre commande',
+    payoutLabel: 'Mobile Money',
   },
   phoneHint: '+225…',
   sampleClientPhone: '2250707070707',

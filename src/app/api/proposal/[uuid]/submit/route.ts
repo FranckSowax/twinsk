@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { notifyProposalValidated } from '@/lib/telegram';
+import { COUNTRY } from '@/config/countries';
 
 // POST: Public endpoint — client submits their final picks, quantities AND notes
 // Body: {
@@ -120,7 +121,7 @@ export async function POST(
       .single();
 
     // Telegram notification (non-blocking)
-    const baseUrl = `https://${request.headers.get('host') || 'twinsk-production.up.railway.app'}`;
+    const baseUrl = `https://${request.headers.get('host') || COUNTRY.domain}`;
     notifyProposalValidated({
       clientName: reqInfo?.client_name || '',
       selectedCount: clientSelectedTotal,
