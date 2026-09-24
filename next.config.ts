@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Pays figé au build (code navigateur compris). Exposé par /api/health pour
+  // vérifier qu'il correspond au pays lu à l'exécution par le serveur.
+  env: { BUILD_COUNTRY: process.env.NEXT_PUBLIC_COUNTRY || 'GA' },
   reactCompiler: true,
   images: {
     remotePatterns: [

@@ -17,6 +17,14 @@ COPY . .
 # Next.js collects anonymous telemetry data - disable it
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Variables publiques figées dans le code navigateur au moment du build.
+# Railway ne les transmet à un build Dockerfile que si elles sont déclarées
+# en ARG (https://docs.railway.com/builds/dockerfiles#using-variables-at-build-time).
+# Non définies (déploiement Gabon actuel) : build identique à avant (pays GA).
+ARG NEXT_PUBLIC_COUNTRY
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_OMG_WHATSAPP_NUMBER
+
 RUN npm run build
 
 # Production image, copy all the files and run next

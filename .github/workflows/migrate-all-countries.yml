@@ -1,0 +1,85 @@
+# Applique les migrations Supabase à chaque pays quand supabase/** change sur main.
+# Ordre : Côte d'Ivoire d'abord, puis Gabon (production) après approbation manuelle.
+# Au premier échec, les pays restants sont annulés et le résumé nomme le pays fautif.
+#
+# Réglages GitHub (Settings) — voir docs/multi-country/07-deploy.md :
+#   Secrets du dépôt : SUPABASE_ACCESS_TOKEN, GA_PROJECT_REF, CI_PROJECT_REF
+#   (facultatifs : GA_DB_PASSWORD, CI_DB_PASSWORD)
+#   Environnements : « supabase-ci » (sans relecteur) et « supabase-ga » (relecteur obligatoire : Franck)
+name: Migrations Supabase (tous les pays)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Migrations ${{ matrix.country }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - country: CI
+            environment: supabase-ci
+          - country: GA
+            environment: supabase-ga
+    environment: ${{ matrix.environment }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ matrix.country == 'GA' && secrets.GA_PROJECT_REF || secrets.CI_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ matrix.country == 'GA' && secrets.GA_DB_PASSWORD || secrets.CI_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      - name: Lier le projet ${{ matrix.country }}
+        run: |
+          test -n "$PROJECT_REF" || { echo "::error::Référence du projet ${{ matrix.country }} absente (secret)"; exit 1; }
+          supabase link --project-ref "$PROJECT_REF"
+
+      - name: Vérifier l'historique (baseline enregistrée)
+        # Au Gabon, la baseline doit avoir été marquée « applied » (migration repair),
+        # sinon db push tenterait de recréer un schéma qui existe déjà.
+        run: |
+          supabase migration list > migrations.txt 2>&1 || { cat migrations.txt; exit 1; }
+          cat migrations.txt
+          if ! grep -q '"remote":"20260924000000"' migrations.txt && ! grep -Eq '20260924000000[[:space:]]*\|[[:space:]]*20260924000000' migrations.txt; then
+            echo "::error title=Historique ${{ matrix.country }}::baseline 20260924000000 absente de l'historique distant — voir docs/multi-country/05-supabase.md §5"
+            exit 1
+          fi
+
+      - name: Aperçu
+        run: supabase db push --dry-run
+
+      - name: Appliquer les migrations
+        run: supabase db push --yes
+
+      - name: Fonctions Edge
+        run: |
+          if compgen -G "supabase/functions/*/index.ts" > /dev/null; then
+            supabase functions deploy --project-ref "$PROJECT_REF"
+          else
+            echo "Aucune fonction Edge à déployer."
+          fi
+
+      - name: Résumé
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### ✅ ${{ matrix.country }} : migrations à jour" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ❌ ${{ matrix.country }} : échec — les pays suivants sont annulés" >> "$GITHUB_STEP_SUMMARY"
+          fi
