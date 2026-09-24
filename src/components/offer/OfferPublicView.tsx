@@ -29,6 +29,7 @@ import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText } from 'lucide-react';
 import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
 import { LOCAL_CURRENCY, isLocalCurrency } from '@/lib/local-currency';
+import LazyVideo from '@/components/ui/LazyVideo';
 
 // Normalisation pour la recherche : minuscules + sans accents (« telephone » trouve « Téléphone »).
 function normalizeSearch(s: string): string {
@@ -634,13 +635,10 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
       {/* Vidéo carrée 1:1 en tête — MOBILE uniquement (autoplay + boucle) */}
       {offer.mobile_video_url && (
         <div className="mb-6 overflow-hidden rounded-3xl bg-black sm:hidden">
-          <video
+          <LazyVideo
             src={offer.mobile_video_url}
             className="aspect-square w-full object-cover"
-            muted
-            loop
-            autoPlay
-            playsInline
+            poster={offer.cover_image_url || undefined}
           />
         </div>
       )}
@@ -672,13 +670,9 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
           Masquée sur mobile si une vidéo 1:1 est présente (elle la remplace). */}
       <div className={`relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900 ${offer.mobile_video_url ? 'hidden sm:block' : ''}`}>
         {offer.cover_video_url ? (
-          <video
+          <LazyVideo
             src={offer.cover_video_url}
             className="h-64 w-full bg-black object-cover sm:h-80"
-            muted
-            loop
-            autoPlay
-            playsInline
             controls
             poster={offer.cover_image_url || undefined}
           />

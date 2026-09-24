@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
         .upload(fileName, buffer, {
           contentType: file.type,
           upsert: false,
+          // Nom unique (uuid) : le fichier ne change jamais → cache navigateur d'un an.
+          // Chaque visite répétée ne recompte plus dans la bande passante Supabase.
+          cacheControl: '31536000',
         });
 
       if (error) {

@@ -8,7 +8,7 @@
 // projet) sur transform/opacity uniquement ; `prefers-reduced-motion` respecté.
 
 import './bio.css';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'framer-motion';
 import { Package } from 'lucide-react';
 import type { BioConfig, BioFilter } from '@/lib/bio-page';
@@ -18,6 +18,7 @@ import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import { COUNTRY } from '@/config/countries';
 import { CONTENT } from '@/content';
 import { formatPhone } from '@/lib/phone';
+import LazyVideo from '@/components/ui/LazyVideo';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -60,35 +61,14 @@ function ChevronIcon({ className }: { className?: string }) {
 }
 
 
-/** Vignette : vidéo carrée du listing en boucle muette (jouée seulement à l'écran), sinon la cover. */
+/** Vignette : vidéo carrée du listing en boucle muette, chargée et jouée seulement à l'écran (LazyVideo), sinon la cover. */
 function CardMedia({ card }: { card: BioOfferCard }) {
   const [videoFailed, setVideoFailed] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const video = card.mobile_video_url && !videoFailed ? card.mobile_video_url : null;
   const poster = card.cover_image_url ? proxyImageUrl(card.cover_image_url) : undefined;
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    // React ne pose pas `muted` dans le HTML : on force la propriété, sinon
-    // iOS/Chrome refusent l'autoplay. Lecture uniquement quand la vignette est
-    // visible pour ménager batterie et données (jusqu'à 16 vidéos par page).
-    v.muted = true;
-    v.defaultMuted = true;
-    const io = new IntersectionObserver(
-      (entries) => {
-        // Plusieurs entrées peuvent arriver d'un coup (hors-écran puis à l'écran) : seule la dernière compte.
-        const last = entries[entries.length - 1];
-        if (last.isIntersecting) v.play().catch(() => undefined);
-        else v.pause();
-      },
-      { threshold: 0.25 },
-    );
-    io.observe(v);
-    return () => io.disconnect();
-  }, [video]);
   const media = 'h-full w-full object-cover transition-transform duration-[800ms] ease-(--ease) group-hover:scale-[1.07]';
   if (video) {
-    return <video ref={videoRef} src={video} poster={poster} muted autoPlay loop playsInline preload="metadata" onError={() => setVideoFailed(true)} className={media} />;
+    return <LazyVideo src={video} poster={poster} onError={() => setVideoFailed(true)} className={media} />;
   }
   if (poster) {
     // eslint-disable-next-line @next/next/no-img-element
