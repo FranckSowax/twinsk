@@ -3,13 +3,22 @@
 > Mis à jour le 24 septembre 2026, fin de la mission multi-pays. Rien de ce qui suit ne bloque le Gabon.
 > Les valeurs à remplir sont repérées dans le code par `TODO(franck)` (`src/config/countries.ts`, `src/content/CI/`).
 
+## 0. Fait le 24 septembre 2026
+
+| Étape | Résultat |
+|---|---|
+| Fusion de `feat/multi-country` dans `main` | Gabon et Côte d'Ivoire déployés depuis `main` (test de fumée 16/16) |
+| Service Railway `ohmycot` | Suit `main` |
+| GitHub | Secrets `SUPABASE_ACCESS_TOKEN`, `GA_PROJECT_REF`, `CI_PROJECT_REF` ; environnement `supabase-ga` avec ton approbation obligatoire ; workflow validé (CI à jour) |
+| Historique des migrations du Gabon | Aligné (`migration repair`, lancé par Franck) |
+| Migrations `…0100` à `…0300` au Gabon | Appliquées : XOF autorisé, `delivery_zones` (Libreville), `payments`, colonnes d'encaissement des affiliés, **RLS sur les 48 tables** |
+| Relances de paiement en espèces au Gabon | Réparées (`cron-cash`) |
+
 ## 1. Décisions
 
 | Sujet | Contexte | Doc |
 |---|---|---|
-| **Fusionner `feat/multi-country` dans `main`** | Déploie au Gabon tout le travail multi-pays. Non-régression vérifiée (tests, rendu de 7 pages identique à la prod, build GA inchangé). Ensuite, repasser la source du service Railway `ohmycot` sur `main` | [07](07-deploy.md) |
 | **Prestataire de paiement CI** | PayDunya est intégré (squelette) ; CinetPay n'est pas intégrable tant que sa documentation est hors ligne | [04](04-payments.md) |
-| **Aligner l'historique des migrations du Gabon** (`migration repair`, n'écrit que dans l'historique), puis appliquer au Gabon `…0100` à `…0300` (XOF, zones, paiements, RLS des tables d'offre) | Tant que ce n'est pas fait, le workflow GitHub refuse de toucher au Gabon (voulu) | [05 §5](05-supabase.md) |
 | Retirer les 14 politiques « ouvertes à tous » (`catalog`, `requests`, `request_items`…) | L'application ne s'en sert pas (tout passe par le serveur). Même régime qu'en CI | [05](05-supabase.md) |
 | Corriger les 2 avertissements de sécurité Supabase | 5 fonctions sans `search_path` fixé ; `pg_trgm` dans `public`. Migration commune aux deux pays | [06](06-ci-project.md) |
 | Variable Telegram mal nommée au Gabon | La prod définit `TELEGRAM_TOKEN`, le code lit `TELEGRAM_BOT_TOKEN` : alertes muettes. La corriger réactiverait les alertes | [03](03-server-secrets.md) |
@@ -38,8 +47,6 @@
 
 | Où | Quoi |
 |---|---|
-| GitHub › Settings › Secrets and variables › Actions | `SUPABASE_ACCESS_TOKEN`, `GA_PROJECT_REF` (`qaemzzpyrmoopfkiciki`), `CI_PROJECT_REF` (`pjindxsnwheoztvpqbbe`) |
-| GitHub › Settings › Environments | `supabase-ci` ; `supabase-ga` avec **Required reviewers : toi** |
 | Railway › `ohmycot` › Variables | Lire `ADMIN_PASSWORD` pour se connecter à `/admin` en CI |
 | Supabase | Projet CI dans une autre organisation que Twinsk : le rapprocher (transfert) si tu veux tout gérer au même endroit |
 
