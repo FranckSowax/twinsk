@@ -104,7 +104,7 @@ Exemple : Cameroun, code `CM`. Chaque étape est courte, parce que tout ce qui v
    - `domain` ;
    - `paymentProviders`, `freight`, `transit` ;
    - `modules.twinsk`.
-2. **Devise hors franc CFA seulement :** l'ajouter à `LocalCurrency` (`src/config/countries.ts`) et au taux de `src/lib/formatCurrency.ts`, avec une migration qui l'autorise dans les contrôles `offers_offer_currency_check` et `requests_proposal_currency_check`.
+2. **Devise hors franc CFA seulement :** l'ajouter à `LocalCurrency` (`src/config/countries.ts`) et au taux de `src/lib/utils/formatCurrency.ts`, avec une migration qui l'autorise dans les contrôles `offers_offer_currency_check` et `requests_proposal_currency_check`.
 3. `src/content/CM/index.ts` : copier `src/content/CI/index.ts`, adapter les textes, déclarer le pays dans `src/content/index.ts`.
 4. `public/brands/CM/` : image du haut de /bio et icône d'onglet.
 5. **Mobile money par PayDunya :** ajouter les canaux du pays dans `CHANNELS` (`src/lib/payments/paydunya.ts`), d'après la documentation officielle.
