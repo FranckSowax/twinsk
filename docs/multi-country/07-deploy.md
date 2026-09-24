@@ -43,7 +43,7 @@ Se déclenche à chaque fusion sur `main` qui touche `supabase/migrations/**` ou
 
 Le fichier n'agit qu'une fois sur `main`. Tant que la branche n'est pas fusionnée, il ne se déclenche pas.
 
-## 4. Railway : écritures prévues (à valider)
+## 4. Railway : écritures faites le 24 septembre (« go les deux »)
 
 Même projet Railway « Twinsk Company Ltd » (environnement production, région europe-west4). Les services s'y référencent entre eux (`${{ohmycot.…}}`), ce qui est impossible d'un projet à l'autre.
 
@@ -70,8 +70,19 @@ Non repris en CI : `AIRTEL_MONEY_NUMBER` (Gabon), `RAPIDAPI_KEY` et `KIMI_API_KE
 
 Après le premier déploiement : `npx tsx scripts/smoke.ts --country CI --url https://<domaine>`.
 
+### Résultat
+
+| Élément | État |
+|---|---|
+| Service `ohmycot` | En ligne : https://ohmycot-production.up.railway.app (branche `feat/multi-country`, commit `46e675d`) |
+| Test de fumée CI | **8/8** : santé 200, pays CI à l'exécution **et** au build, base CI joignable, `/bio` affiche « Oh My Cot », accueil redirigé vers `/bio`, `/admin` répond |
+| Variables | 8 réglées ; clés Supabase et secrets passés par l'entrée standard de la CLI Railway, jamais affichés |
+| `ohmycot-cron-cash` | Créé, toutes les 15 min, `APP_URL` et `CRON_SECRET` par référence au service `ohmycot` ; premier passage : succès |
+
+**Quand la branche sera fusionnée dans `main`**, repasser la source de `ohmycot` sur `main`. Sinon le service ivoirien continuera de suivre la branche de travail.
+
 ## 5. Constat en production (Gabon)
 
 **Les relances de paiement en espèces ne partent plus.** Depuis au moins le 24 septembre au matin, chaque passage de `cron-cash` (toutes les 15 min) reçoit **401 Non autorisé** et finit en « CRASHED ». `cron-catalog-drip`, avec la même vérification, passe bien. La valeur de `CRON_SECRET` enregistrée sur `cron-cash` diffère donc de celle du site (non lue ici).
 
-Correction proposée (écriture sur le Gabon, à valider) : régler la variable `CRON_SECRET` de `cron-cash` sur la référence `${{twinsk.CRON_SECRET}}`. Elle suivra alors toujours celle du site.
+**Corrigé le 24 septembre (« go G1 »)** : la variable `CRON_SECRET` de `cron-cash` vaut désormais la référence `${{twinsk.CRON_SECRET}}` et suit toujours celle du site. Le premier passage après la correction se termine en succès, après une série de 401.
