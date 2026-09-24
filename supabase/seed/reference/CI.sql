@@ -1,6 +1,16 @@
 -- Données de référence propres à la Côte d'Ivoire (Oh My Cot). Idempotent.
 -- À exécuter APRÈS les migrations et common.sql, sur le projet CI uniquement.
 
+-- 0. Sécurité : refuse de tourner sur le projet Gabon (zone Libreville ou
+--    listings déjà présents). Vérifier le projet lié : cat supabase/.temp/project-ref
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.delivery_zones WHERE hub_code = 'LBV')
+     OR EXISTS (SELECT 1 FROM public.offers WHERE offer_currency = 'XAF') THEN
+    RAISE EXCEPTION 'CI.sql refusé : cette base est celle du Gabon (projet lié ?)';
+  END IF;
+END $$;
+
 -- 1. Devise par défaut des listings : franc CFA d'Afrique de l'Ouest (décision D4).
 --    Seul écart de schéma voulu entre les deux pays.
 ALTER TABLE public.offers ALTER COLUMN offer_currency SET DEFAULT 'XOF';
