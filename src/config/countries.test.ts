@@ -21,6 +21,8 @@ describe('configuration par pays', () => {
     const c = COUNTRIES.CI;
     expect([c.brand, c.currency, c.timezone, c.phonePrefix]).toEqual(['Oh My Cot', 'XOF', 'Africa/Abidjan', '+225']);
     expect(c.modules.twinsk).toBe(false);
+    // Tarifs vers Abidjan (24 sept. 2026) : 12 000 / kg, 215 000 / m³ sans dégressivité.
+    expect([c.freight.airRatePerKg, c.freight.seaRatePerM3, c.freight.seaRateFloorPerM3]).toEqual([12000, 215000, 215000]);
     expect(c.phoneRegex.test('0707070707')).toBe(true);
     expect(c.phoneRegex.test('0907070707')).toBe(false);
   });

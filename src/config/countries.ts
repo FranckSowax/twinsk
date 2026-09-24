@@ -103,7 +103,9 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     nameWithArticle: 'la Côte d’Ivoire',
     nameZh: '科特迪瓦',
     brand: 'Oh My Cot',
-    domain: 'ohmycot.com', // TODO(franck) : domaine à confirmer
+    // Déploiement Railway dédié (décision du 24 sept. 2026) ; domaine personnalisé plus tard.
+    // NEXT_PUBLIC_SITE_URL prime : à régler sur le domaine réellement attribué par Railway.
+    domain: 'ohmycot-production.up.railway.app',
     currency: 'XOF',
     currencyRegionLabel: 'Afrique de l’Ouest',
     currencyFlag: '🇨🇮',
@@ -125,8 +127,10 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     analytics: {},
     legal: { companyName: 'TODO', address: 'TODO' }, // TODO(franck) : entité juridique CI
     agency: { name: 'agence Oh My Cot', address: '', hours: '' }, // TODO(franck) : adresse et horaires (D3 : agence confirmée)
-    // TODO(franck) : tarifs de fret vers Abidjan — valeurs du Gabon en attendant.
-    freight: { airRatePerKg: 13000, airBatteryRatePerKg: 18000, seaRatePerM3: 240000, seaRateFloorPerM3: 205000 },
+    // Tarifs vers Abidjan donnés par Franck le 24 sept. 2026 : 12 000 XOF / kg en aérien,
+    // 215 000 XOF / m³ en maritime, sans grille dégressive (plancher = tarif de base).
+    // TODO(franck) : tarif aérien des produits à batterie (valeur du Gabon en attendant).
+    freight: { airRatePerKg: 12000, airBatteryRatePerKg: 18000, seaRatePerM3: 215000, seaRateFloorPerM3: 215000 },
     transit: { air: [8, 14], sea: [60, 85] }, // TODO(franck) : délais vers Abidjan
     modules: { twinsk: false },
     favicon: '/brands/CI/favicon.png', // TODO(franck) : logo Oh My Cot
