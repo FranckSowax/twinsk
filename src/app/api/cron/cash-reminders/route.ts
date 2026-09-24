@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
 import { CONTENT } from '@/content';
+import { publicOrigin } from '@/lib/public-origin';
 
 // GET/POST: relance des commandes CASH non réglées après ~36h (à appeler par un
 // cron externe/Railway toutes les 10-30 min). Sécurisé par CRON_SECRET.
@@ -35,7 +36,7 @@ async function handle(request: NextRequest) {
     const num = orderNumber(o.id);
     const total = Number(o.grand_total_fcfa ?? o.items_total_fcfa) || 0;
     const totalStr = `${Math.round(total).toLocaleString('fr-FR')} FCFA`;
-    const recapUrl = `${request.nextUrl.origin}/offer/${o.offer_id}/order/${o.id}`;
+    const recapUrl = `${publicOrigin(request)}/offer/${o.offer_id}/order/${o.id}`;
     const chat = toWhatsappChatId(o.client_phone);
 
     if (chat) {

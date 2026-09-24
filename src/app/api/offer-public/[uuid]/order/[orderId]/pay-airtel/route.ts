@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { settlePromoForOrder } from '@/lib/promo-settle';
 import { notifyOrdersGroup } from '@/lib/order-notify';
+import { publicOrigin } from '@/lib/public-origin';
 
 // POST: le client déclare un paiement Airtel Money en joignant la capture d'écran.
 // La commande passe en "submitted" (en attente de vérification par l'admin).
@@ -55,7 +56,7 @@ export async function POST(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Récap détaillé (produits + liens 1688) dans le groupe 🧾 Commandes Oh My Gab.
-  await notifyOrdersGroup(orderId, request.nextUrl.origin);
+  await notifyOrdersGroup(orderId, publicOrigin(request));
 
   return NextResponse.json({ success: true });
 }

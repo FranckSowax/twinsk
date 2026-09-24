@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { toWhatsappChatId } from '@/lib/order-number';
 import { phoneCandidates, generateOtpCode, hashOtp, otpRateLimited, OTP_TTL_MS } from '@/lib/agent';
+import { COUNTRY } from '@/config/countries';
 
 // Réponse TOUJOURS générique (anti-énumération) : on n'indique jamais si le numéro existe.
 export async function POST(request: NextRequest) {
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
   if (chat) {
     // fire-and-forget : ne pas bloquer la réponse (évite un canal temporel d'énumération)
     void sendWhapiText(
-      `🔐 *TWINSK — Espace agents*\nVotre code de connexion : *${code}*\nValable 10 minutes. Ne le partagez pas.`,
+      `🔐 *${COUNTRY.senderName} — Espace agents*\nVotre code de connexion : *${code}*\nValable 10 minutes. Ne le partagez pas.`,
       chat,
     )
       .then((r) => {

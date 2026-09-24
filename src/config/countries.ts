@@ -19,6 +19,8 @@ export interface CountryConfig {
   /** Nom en chinois (admin bilingue FR / ZH). */
   nameZh: string;
   brand: string;
+  /** Signature des messages et interfaces de l'équipe : « TWINSK » (Gabon), « Oh My Cot ». */
+  senderName: string;
   /** Domaine public (sans protocole) ; surchargé par NEXT_PUBLIC_SITE_URL. */
   domain: string;
   currency: LocalCurrency;
@@ -40,6 +42,11 @@ export interface CountryConfig {
   phoneExample: string;
   paymentProviders: readonly PaymentProviderId[];
   supportWhatsapp: string;
+  /**
+   * Groupes WhatsApp du numéro du pays (valeurs par défaut ; les variables
+   * WHAPI_GROUP_ID / WHAPI_ORDERS_GROUP_ID priment). Vide = pas de groupe.
+   */
+  whatsappGroups: { main: string; orders: string; search: string };
   supportEmail: string;
   social: { facebook?: string; instagram?: string; tiktok?: string; whatsappChannel?: string; whatsappGroup?: string };
   analytics: { metaPixelId?: string; ga4Id?: string };
@@ -64,6 +71,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     nameWithArticle: 'le Gabon',
     nameZh: '加蓬',
     brand: 'Oh My Gab',
+    senderName: 'TWINSK',
     domain: 'twinsk-production.up.railway.app',
     currency: 'XAF',
     currencyRegionLabel: 'Afrique centrale',
@@ -81,6 +89,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     phoneExample: '+241 07 42 75 60',
     paymentProviders: ['ebilling', 'airtel_money', 'cash'],
     supportWhatsapp: '24107425560',
+    whatsappGroups: { main: '120363408414253084@g.us', orders: '120363428402268041@g.us', search: '120363431660727284@g.us' },
     supportEmail: '',
     social: {
       facebook: 'https://www.facebook.com/1755823391163318',
@@ -103,6 +112,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     nameWithArticle: 'la Côte d’Ivoire',
     nameZh: '科特迪瓦',
     brand: 'Oh My Cot',
+    senderName: 'Oh My Cot',
     // Déploiement Railway dédié (décision du 24 sept. 2026) ; domaine personnalisé plus tard.
     // NEXT_PUBLIC_SITE_URL prime : à régler sur le domaine réellement attribué par Railway.
     domain: 'ohmycot-production.up.railway.app',
@@ -122,6 +132,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     phoneExample: '+225 07 00 00 00 00',
     paymentProviders: ['orange_money', 'mtn_momo', 'wave', 'moov_money', 'cash'],
     supportWhatsapp: '', // TODO(franck) : numéro WhatsApp Oh My Cot
+    whatsappGroups: { main: '', orders: '', search: '' }, // TODO(franck) : groupes WhatsApp du numéro Oh My Cot
     supportEmail: '', // TODO(franck)
     social: {}, // TODO(franck) : Facebook, Instagram, TikTok, chaîne et groupe WhatsApp
     analytics: {},

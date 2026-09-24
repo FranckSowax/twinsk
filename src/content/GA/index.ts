@@ -26,7 +26,6 @@ const content: CountryContent = {
     { id: 'catalogues', label: 'Catalogues', text: `Retrouvez tous nos catalogues ici : ${origin}/bio — choisissez, ajoutez au panier, et on s’occupe du reste.` },
   ],
   salon: {
-    groupId: '120363431660727284@g.us',
     description:
       'Vous cherchez un produit précis ? Postez ici une photo ou une description (quantité, usage, budget).\n\n' +
       'Oh My Gab vous répond dans le groupe avec le prix depuis la Chine et les fiches produits à commander. ' +

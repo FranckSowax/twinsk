@@ -5,6 +5,7 @@
 
 export const SALON_SETTING_KEY = 'salon_search';
 import { CONTENT } from '@/content';
+import { COUNTRY } from '@/config/countries';
 export const SALON_NOTE_PREFIX = '[salon]';
 export const SALON_MAX_PRODUCTS = 5;
 
@@ -20,7 +21,7 @@ export interface SalonConfig {
 export const DEFAULT_SALON_CONFIG: SalonConfig = {
   enabled: true,
   ack_enabled: true,
-  group_id: CONTENT.salon.groupId,
+  group_id: COUNTRY.whatsappGroups.search,
   subject: '🔎 Oh My Recherche — Sourcing à la demande',
   description: CONTENT.salon.description,
 };

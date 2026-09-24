@@ -34,6 +34,7 @@ yarn-error.log*
 .env*
 # Modèle sans valeur réelle : versionné.
 !.env.example
+!supabase/.env.example
 
 # vercel
 .vercel

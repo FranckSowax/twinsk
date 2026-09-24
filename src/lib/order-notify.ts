@@ -6,9 +6,10 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber } from '@/lib/order-number';
 import { formatSettlement, settlementCurrencyOf } from '@/lib/offer-pricing';
+import { COUNTRY } from '@/config/countries';
 
 export const ORDERS_GROUP_ID =
-  process.env.WHAPI_ORDERS_GROUP_ID || '120363428402268041@g.us';
+  process.env.WHAPI_ORDERS_GROUP_ID || COUNTRY.whatsappGroups.orders;
 
 const PAYMENT_LABEL: Record<string, string> = {
   cash: '💵 Cash en agence (48h)',

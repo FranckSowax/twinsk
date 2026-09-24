@@ -2,10 +2,11 @@
 // Modèle : src/lib/telegram.ts. Secret via variable d'environnement (WHAPI_TOKEN).
 // Endpoints : POST /messages/text · /messages/image · /messages/interactive (Bearer token).
 
+import { COUNTRY } from '@/config/countries';
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN;
 const WHAPI_BASE = process.env.WHAPI_BASE_URL || 'https://gate.whapi.cloud';
 // Groupe WhatsApp de diffusion Twinsk par défaut (JID). Surchargeable via env.
-export const DEFAULT_GROUP_ID = process.env.WHAPI_GROUP_ID || '120363408414253084@g.us';
+export const DEFAULT_GROUP_ID = process.env.WHAPI_GROUP_ID || COUNTRY.whatsappGroups.main;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

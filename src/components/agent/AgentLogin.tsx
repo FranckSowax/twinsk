@@ -39,7 +39,7 @@ export default function AgentLogin({ onAuthed }: { onAuthed: (a: Agent) => void 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <h1 className="mb-1 text-center font-display text-2xl font-bold text-slate-900">Espace agents</h1>
-      <p className="mb-6 text-center text-sm text-slate-500">TWINSK {COUNTRY.name}</p>
+      <p className="mb-6 text-center text-sm text-slate-500">{COUNTRY.senderName} {COUNTRY.name}</p>
 
       {step === 'phone' ? (
         <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-6">

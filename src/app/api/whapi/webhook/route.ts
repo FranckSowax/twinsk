@@ -5,6 +5,7 @@ import { extractInboundImage, extractInboundText, isSalonCandidate, type Inbound
 import { createSalonRequest, readSalonConfig, sendSalonAck } from '@/lib/salon-data';
 import { applyStatusEvent, ingestInboxMessage } from '@/lib/wa-inbox-data';
 import { isPrivateChat, type InboxMessageIn } from '@/lib/wa-inbox';
+import { publicOrigin } from '@/lib/public-origin';
 
 // Webhook WHAPI (appelé par les serveurs WHAPI). PUBLIC mais protégé par un secret
 // passé en query (?secret=WHAPI_WEBHOOK_SECRET). Capte les votes de sondage (poll_update).
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
           orderId: m.order.id,
           orderToken: m.order.token,
           customerChatId: chat,
-          origin: request.nextUrl.origin,
+          origin: publicOrigin(request),
         });
       }
       continue;

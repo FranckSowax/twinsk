@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText, DEFAULT_GROUP_ID } from '@/lib/whapi';
+import { publicOrigin } from '@/lib/public-origin';
 
 // POST public (le VENDEUR remplit la fiche via le lien partagé — l'id UUID sert de jeton).
 // Met à jour les champs à compléter sur la ligne « à réviser » (collab_review_lines).
@@ -85,7 +86,7 @@ export async function POST(
       `运费/Frais : ${na(l.supplier_shipping_price, ' CNY')}\n` +
       `交货/Délai : ${na(l.delivery_time)}\n` +
       `电池/Batterie : ${l.has_battery ? 'oui' : 'non'}\n` +
-      `👉 ${request.nextUrl.origin}/admin/revisions`;
+      `👉 ${publicOrigin(request)}/admin/revisions`;
     await sendWhapiText(msg, to);
   } catch {
     // ignore

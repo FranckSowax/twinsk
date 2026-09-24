@@ -49,7 +49,7 @@ export default function AgentShell({ agent, onLogout }: { agent: Agent; onLogout
       {/* Barre latérale (desktop) */}
       <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col bg-slate-900 text-slate-300 lg:flex">
         <div className="px-5 py-6">
-          <p className="font-display text-lg font-bold tracking-tight text-white">TWINSK</p>
+          <p className="font-display text-lg font-bold tracking-tight text-white">{COUNTRY.senderName}</p>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400">Agents {COUNTRY.name}</p>
         </div>
         <nav className="flex-1 space-y-1 px-3">
@@ -97,7 +97,7 @@ export default function AgentShell({ agent, onLogout }: { agent: Agent; onLogout
           <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
             <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
               <div className="lg:hidden">
-                <p className="font-display text-sm font-bold leading-tight text-slate-900">TWINSK</p>
+                <p className="font-display text-sm font-bold leading-tight text-slate-900">{COUNTRY.senderName}</p>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-600">Agents</p>
               </div>
               <h1 className="font-display text-lg font-bold text-slate-900 max-lg:ml-auto max-lg:text-base">Messagerie</h1>

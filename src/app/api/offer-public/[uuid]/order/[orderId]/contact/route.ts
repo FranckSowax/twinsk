@@ -4,6 +4,7 @@ import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { sendWhapiText } from '@/lib/whapi';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { validateContact } from '@/lib/contact-validation';
+import { publicOrigin } from '@/lib/public-origin';
 
 // PATCH: le client renseigne ses coordonnées (après le choix du transport,
 // avant le paiement). Enregistre nom/téléphone/email sur la commande, puis crée
@@ -97,7 +98,7 @@ export async function PATCH(
             `Client : ${clientName} (${clientPhone})\n` +
             (Number.isFinite(total) && total > 0 ? `Total : ${Math.round(total).toLocaleString('fr-FR')} FCFA\n` : '') +
             (commission > 0 ? `Votre commission : ${Math.round(commission).toLocaleString('fr-FR')} FCFA\n` : '') +
-            (linkId ? `👉 ${request.nextUrl.origin}/partenaire/${linkId}` : ''),
+            (linkId ? `👉 ${publicOrigin(request)}/partenaire/${linkId}` : ''),
           `${aff.whatsapp_number.replace(/\D/g, '')}@s.whatsapp.net`,
         );
       }
@@ -118,7 +119,7 @@ export async function PATCH(
     !(Number.isFinite(total) && total > 0);
   const firstContact = !(order.client_name && order.client_phone);
   if (isQuote && firstContact) {
-    await notifyOrdersGroup(orderId, request.nextUrl.origin);
+    await notifyOrdersGroup(orderId, publicOrigin(request));
   }
 
   return NextResponse.json({ success: true });

@@ -30,3 +30,14 @@ describe('configuration par pays', () => {
     expect(Object.keys(COUNTRIES.CI).sort()).toEqual(Object.keys(COUNTRIES.GA).sort());
   });
 });
+
+describe('groupes WhatsApp et expéditeur (phase 3)', () => {
+  it('Gabon : groupes et signature d’origine', () => {
+    expect(COUNTRIES.GA.whatsappGroups).toEqual({ main: '120363408414253084@g.us', orders: '120363428402268041@g.us', search: '120363431660727284@g.us' });
+    expect(COUNTRIES.GA.senderName).toBe('TWINSK');
+  });
+  it('Côte d’Ivoire : aucun groupe du Gabon par défaut, signature Oh My Cot', () => {
+    expect(Object.values(COUNTRIES.CI.whatsappGroups).every((g) => g === '')).toBe(true);
+    expect(COUNTRIES.CI.senderName).toBe('Oh My Cot');
+  });
+});

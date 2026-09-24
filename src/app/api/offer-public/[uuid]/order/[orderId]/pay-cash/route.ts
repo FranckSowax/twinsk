@@ -6,6 +6,7 @@ import { sendWhapiText } from '@/lib/whapi';
 import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { COUNTRY } from '@/config/countries';
+import { publicOrigin } from '@/lib/public-origin';
 
 // POST: le client choisit de payer CASH en agence.
 // - Réserve la commande (payment_method='cash', payment_status='submitted').
@@ -57,7 +58,7 @@ export async function POST(
   const total = Number(order.grand_total_fcfa ?? order.items_total_fcfa) || 0;
   const offerMeta = order.offers as { title?: string; offer_currency?: string | null } | null;
   const totalStr = formatSettlement(total, settlementCurrencyOf(offerMeta?.offer_currency));
-  const recapUrl = `${request.nextUrl.origin}/offer/${uuid}/order/${orderId}`;
+  const recapUrl = `${publicOrigin(request)}/offer/${uuid}/order/${orderId}`;
   const offerTitle = offerMeta?.title || '';
 
   // 1) Message au client (best-effort).
@@ -65,7 +66,7 @@ export async function POST(
   if (clientChat) {
     try {
       await sendWhapiText(
-        `🧾 *Commande ${num}* — TWINSK\n` +
+        `🧾 *Commande ${num}* — ${COUNTRY.senderName}\n` +
           `Bonjour ${order.client_name || ''}, votre commande est *réservée*.\n\n` +
           `💵 Montant : *${totalStr}*\n` +
           `À régler en *espèces* à l'${COUNTRY.agency.name} la plus proche, *sous 48h*.\n\n` +
@@ -97,7 +98,7 @@ export async function POST(
   }
 
   // 3) Récap détaillé (produits + liens 1688) dans le groupe 🧾 Commandes Oh My Gab.
-  await notifyOrdersGroup(orderId, request.nextUrl.origin);
+  await notifyOrdersGroup(orderId, publicOrigin(request));
 
   return NextResponse.json({ success: true, order_number: num });
 }

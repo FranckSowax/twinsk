@@ -27,7 +27,6 @@ const content: CountryContent = {
     { id: 'catalogues', label: 'Catalogues', text: `Retrouvez tous nos catalogues ici : ${origin}/bio — choisissez, ajoutez au panier, et on s’occupe du reste.` },
   ],
   salon: {
-    groupId: '', // TODO(franck) : groupe WhatsApp de recherche du numéro Oh My Cot
     description:
       'Vous cherchez un produit précis ? Postez ici une photo ou une description (quantité, usage, budget).\n\n' +
       'Oh My Cot vous répond dans le groupe avec le prix depuis la Chine et les fiches produits à commander. ' +

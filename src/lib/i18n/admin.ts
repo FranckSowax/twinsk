@@ -8,7 +8,7 @@ import { COUNTRY } from '@/config/countries';
 export const DICT = {
   fr: {
     // Navigation / layout
-    'brand': 'TWINSK Admin',
+    'brand': `${COUNTRY.senderName} Admin`,
     'nav.dashboard': 'Tableau de bord',
     'nav.sourcing': 'Devis & Packing List',
     'nav.offers': 'Offres B2C',
@@ -232,7 +232,7 @@ export const DICT = {
   },
   zh: {
     // 导航 / 布局
-    'brand': 'TWINSK 管理后台',
+    'brand': `${COUNTRY.senderName} 管理后台`,
     'nav.dashboard': '仪表板',
     'nav.sourcing': '报价与装箱单',
     'nav.offers': 'B2C 优惠',

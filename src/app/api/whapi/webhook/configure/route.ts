@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setWhapiWebhook } from '@/lib/whapi';
+import { publicOrigin } from '@/lib/public-origin';
 
 // POST: configure l'URL de webhook WHAPI vers notre receiver (admin only).
 export async function POST(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json().catch(() => ({}))) as { origin?: string };
-  const origin = body.origin?.replace(/\/$/, '') || request.nextUrl.origin;
+  const origin = body.origin?.replace(/\/$/, '') || publicOrigin(request);
   if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
     return NextResponse.json(
       { error: 'URL locale non joignable par WHAPI. Configurez depuis le domaine public (prod).' },

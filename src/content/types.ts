@@ -17,8 +17,8 @@ export interface CountryContent {
   };
   /** Phrases rapides par défaut de la messagerie (`origin` = domaine public). */
   quickReplies: (origin: string) => QuickReply[];
-  /** Groupe WhatsApp « Oh My Recherche » par défaut. */
-  salon: { groupId: string; description: string };
+  /** Description du groupe WhatsApp « Oh My Recherche » (identifiant : COUNTRY.whatsappGroups.search). */
+  salon: { description: string };
   payment: {
     /** Parenthèse des messages de panier : « (Airtel Money ou espèces) ». */
     cartShort: string;

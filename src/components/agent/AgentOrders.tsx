@@ -33,6 +33,7 @@ import {
   TRANSPORT_META,
   TRANSPORT_FALLBACK,
 } from './agent-ui';
+import { COUNTRY } from '@/config/countries';
 
 type Agent = { id: string; name: string };
 type Row = {
@@ -210,7 +211,7 @@ export default function AgentOrders({ onTodoCount }: { agent: Agent; onLogout: (
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
             <div className="lg:hidden">
-              <p className="font-display text-sm font-bold leading-tight text-slate-900">TWINSK</p>
+              <p className="font-display text-sm font-bold leading-tight text-slate-900">{COUNTRY.senderName}</p>
               <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-600">Agents</p>
             </div>
             <h1 className="font-display text-lg font-bold text-slate-900 max-lg:ml-auto max-lg:text-base">Commandes</h1>
