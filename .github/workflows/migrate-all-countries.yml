@@ -55,9 +55,9 @@ jobs:
         # Au Gabon, la baseline doit avoir été marquée « applied » (migration repair),
         # sinon db push tenterait de recréer un schéma qui existe déjà.
         run: |
-          supabase migration list > migrations.txt 2>&1 || { cat migrations.txt; exit 1; }
-          cat migrations.txt
-          if ! grep -q '"remote":"20260924000000"' migrations.txt && ! grep -Eq '20260924000000[[:space:]]*\|[[:space:]]*20260924000000' migrations.txt; then
+          supabase migration list --output-format json > migrations.json
+          jq -r '.migrations[] | "\(.local)  distant: \(.remote)"' migrations.json
+          if ! jq -e '.migrations[] | select(.local == "20260924000000" and .remote == "20260924000000")' migrations.json > /dev/null; then
             echo "::error title=Historique ${{ matrix.country }}::baseline 20260924000000 absente de l'historique distant — voir docs/multi-country/05-supabase.md §5"
             exit 1
           fi
