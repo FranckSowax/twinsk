@@ -1,3 +1,4 @@
+-- Anciennement supabase-migration-63.sql (même contenu).
 -- ================================================
 -- Twinsk — Migration #63 — Paiements en ligne + reversement des affiliés
 --  1. Table `payments` : une ligne par facture d'un prestataire de paiement en

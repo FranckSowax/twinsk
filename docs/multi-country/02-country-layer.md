@@ -13,7 +13,7 @@
 | Utilitaires | `src/lib/country.ts`, `src/lib/phone.ts` | `formatPrice`, `formatDate`, `formatDateTime`, `hourInCountry`, `transitLabel` ; `normalizePhone`, `validatePhone`, `formatPhone` |
 | Modules (option B) | `src/lib/modules.ts`, `src/proxy.ts` | En CI : `/` et pages Twinsk → `/bio` ; sections admin Twinsk → `/admin` ; menu admin filtré |
 | Visuels | `public/brands/{GA,CI}/` | Image du haut de la page bio (+ image de partage) et icône d’onglet ; visuels CI provisoires |
-| Base | `supabase-migration-62.sql`, `supabase/seed/reference/GA.sql` | `XOF` autorisé ; table `delivery_zones` ; zone Libreville |
+| Base | migration 62, devenue `supabase/migrations/20260924000100_xof_delivery_zones.sql` ; `supabase/seed/reference/GA.sql` | `XOF` autorisé ; table `delivery_zones` ; zone Libreville |
 | Variables | `.env.example` | Toutes les variables, dont `NEXT_PUBLIC_COUNTRY` et `NEXT_PUBLIC_SITE_URL` |
 
 ## Non-régression (Gabon)

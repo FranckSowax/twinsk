@@ -1,3 +1,4 @@
+-- Anciennement supabase-migration-62.sql (même contenu).
 -- ================================================
 -- Twinsk — Migration #62 — Multi-pays (Oh My Gab / Oh My Cot)
 --  1. Franc CFA d'Afrique de l'Ouest (XOF, Côte d'Ivoire) autorisé comme devise

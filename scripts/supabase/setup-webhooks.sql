@@ -1,0 +1,11 @@
+-- Webhooks de base de données — AUCUN à créer.
+--
+-- Constat (Gabon, 24 septembre 2026) : aucun déclencheur supabase_functions
+-- (webhook de base), aucune fonction Edge, pg_net non installé. Les seuls
+-- webhooks entrants sont applicatifs et se configurent hors de la base :
+--   WHAPI    → https://<domaine>/api/whapi/webhook?secret=<WHAPI_WEBHOOK_SECRET>
+--              (bouton « Configurer le webhook » dans /admin/whatsapp, depuis l'admin du pays)
+--   PayDunya → https://<domaine>/api/payments/paydunya/ipn
+--              (envoyé à chaque facture dans actions.callback_url ; rien à régler côté PayDunya)
+-- Rien à pointer vers des fonctions Edge du projet CI.
+SELECT 'aucun webhook de base à créer' AS setup_webhooks;

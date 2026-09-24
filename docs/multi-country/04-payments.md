@@ -38,7 +38,7 @@ Ce qui a été utilisé, et rien d'autre :
 
 **Sécurité.** Le statut faisant foi est toujours redemandé à PayDunya avec nos clés privées. Même un IPN correctement signé ne suffit pas seul quand PayDunya répond.
 
-## 3. Base : `supabase-migration-63.sql` (non appliquée)
+## 3. Base : migration 63, devenue `supabase/migrations/20260924000200_payments_affiliate_payout.sql` (non appliquée)
 
 Purement additive :
 - table `payments` (RLS active, aucune policy : accès serveur uniquement) ;

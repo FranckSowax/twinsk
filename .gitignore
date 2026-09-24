@@ -54,3 +54,7 @@ TWINSK LOGO.jpg
 
 # Claude Code - permissions locales
 .claude/settings.local.json
+
+# Supabase CLI (état local, jamais versionné)
+supabase/.temp/
+supabase/.branches/

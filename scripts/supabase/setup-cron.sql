@@ -1,0 +1,25 @@
+-- Tâches planifiées pg_cron — AUCUNE à créer.
+--
+-- Constat (Gabon, 24 septembre 2026) : l'extension pg_cron n'est pas installée
+-- et aucune tâche n'existe en base. Les deux tâches planifiées de l'application
+-- sont des services cron Railway qui appellent les routes Next.js :
+--   cron-catalog-drip  toutes les heures  /api/cron/category-drip?key=$CRON_SECRET
+--   cron-cash          toutes les 15 min  /api/cron/cash-reminders?key=$CRON_SECRET
+-- Pour la Côte d'Ivoire, on reproduit ces services Railway (phase 7), avec
+-- APP_URL=https://${{ohmycot.RAILWAY_PUBLIC_DOMAIN}} au lieu d'un domaine en dur.
+--
+-- Si l'on passe un jour à pg_cron, le modèle ci-dessous lit l'adresse et la
+-- clé dans Vault (jamais en clair dans ce fichier). À n'activer qu'après
+-- `create extension pg_cron; create extension pg_net;` dans une migration, et
+-- après avoir rangé les secrets :
+--   select vault.create_secret('https://<domaine>', 'app_url');
+--   select vault.create_secret('<CRON_SECRET>', 'cron_secret');
+--
+-- select cron.schedule('cash-reminders', '*/15 * * * *', $$
+--   select net.http_get(
+--     url := (select decrypted_secret from vault.decrypted_secrets where name = 'app_url')
+--            || '/api/cron/cash-reminders?key='
+--            || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
+--   );
+-- $$);
+SELECT 'aucune tâche pg_cron à créer' AS setup_cron;
