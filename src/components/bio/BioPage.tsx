@@ -174,13 +174,13 @@ export default function BioPage({ config, listings }: { config: BioConfig; listi
             <motion.p {...rise(0.16)} className="mx-auto mt-3.5 max-w-[520px] text-[clamp(14px,2.4vw,16.5px)] font-medium leading-[1.55] text-(--ink-60)">
               {CONTENT.bio.heroText}
             </motion.p>
-            {/* Visuel de marque du pays (public/brands/<code>/top-bio-web.jpg, 1600 px) à la place des indicateurs. */}
+            {/* Visuel de marque du pays (public/brands/<code>/top-bio-web.jpg, dimensions dans COUNTRY.bioHero). */}
             <motion.img
               {...rise(0.24)}
               src={`/brands/${COUNTRY.code}/top-bio-web.jpg`}
               alt={`L’équipe ${COUNTRY.brand} tient le logo ${COUNTRY.brand.replace(/\s/g, '')}!`}
-              width={1600}
-              height={686}
+              width={COUNTRY.bioHero.width}
+              height={COUNTRY.bioHero.height}
               fetchPriority="high"
               className="mx-auto mt-6 w-full max-w-[720px] rounded-(--radius)"
             />

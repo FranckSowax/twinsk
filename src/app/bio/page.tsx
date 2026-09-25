@@ -15,8 +15,8 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '
 export async function generateMetadata(): Promise<Metadata> {
   const cfg = await readBioConfig();
   const title = `${cfg.title} — Listings, commande et contact`;
-  // Aperçu de partage (WhatsApp, réseaux) : le visuel de marque du hero,
-  // 1600 × 686, versionné dans public/bio.
+  // Aperçu de partage (WhatsApp, réseaux) : le visuel de marque du hero du pays
+  // (public/brands/<code>/top-bio-web.jpg, dimensions dans COUNTRY.bioHero).
   const image = `${PUBLIC_ORIGIN_FALLBACK}/brands/${COUNTRY.code}/top-bio-web.jpg`;
   return {
     title,
@@ -27,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: cfg.tagline,
       url: `${PUBLIC_ORIGIN_FALLBACK}/bio`,
       type: 'website',
-      images: [{ url: image, width: 1600, height: 686, alt: `${COUNTRY.brand} ! — la Chine livrée à ${COUNTRY.mainCity}` }],
+      images: [{ url: image, width: COUNTRY.bioHero.width, height: COUNTRY.bioHero.height, alt: `${COUNTRY.brand} ! — la Chine livrée à ${COUNTRY.mainCity}` }],
     },
     twitter: { card: 'summary_large_image', title, description: cfg.tagline, images: [image] },
   };

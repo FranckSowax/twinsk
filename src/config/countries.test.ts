@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COUNTRIES, COUNTRY, countryOf } from './countries';
+import { readFileSync } from 'node:fs';
 
 describe('configuration par pays', () => {
   it('Gabon par défaut (NEXT_PUBLIC_COUNTRY absent)', () => {
@@ -39,5 +40,26 @@ describe('groupes WhatsApp et expéditeur (phase 3)', () => {
   it('Côte d’Ivoire : aucun groupe du Gabon par défaut, signature Oh My Cot', () => {
     expect(Object.values(COUNTRIES.CI.whatsappGroups).every((g) => g === '')).toBe(true);
     expect(COUNTRIES.CI.senderName).toBe('Oh My Cot');
+  });
+});
+
+// Dimensions réelles d'un JPEG (segment SOF), sans dépendance.
+function jpegSize(buf: Buffer): { width: number; height: number } {
+  let i = 2;
+  while (i < buf.length) {
+    const marker = buf[i + 1];
+    const len = buf.readUInt16BE(i + 2);
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+    }
+    i += 2 + len;
+  }
+  throw new Error('JPEG sans segment SOF');
+}
+
+describe('visuel du haut de /bio', () => {
+  it.each(Object.values(COUNTRIES).map((c) => [c.code, c] as const))('%s : dimensions de la config = fichier', (_code, c) => {
+    const buf = readFileSync(`public/brands/${c.code}/top-bio-web.jpg`);
+    expect(jpegSize(buf)).toEqual(c.bioHero);
   });
 });

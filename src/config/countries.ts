@@ -61,6 +61,8 @@ export interface CountryConfig {
   modules: { twinsk: boolean };
   /** Icône d'onglet (public/brands/<code>/). */
   favicon: string;
+  /** Visuel du haut de /bio et d'aperçu de partage : public/brands/<code>/top-bio-web.jpg. */
+  bioHero: { width: number; height: number };
 }
 
 export const COUNTRIES: Record<CountryCode, CountryConfig> = {
@@ -104,6 +106,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     transit: { air: [8, 14], sea: [60, 85] },
     modules: { twinsk: true },
     favicon: '/brands/GA/favicon.ico',
+    bioHero: { width: 1600, height: 686 },
   },
   CI: {
     code: 'CI',
@@ -145,6 +148,8 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     transit: { air: [8, 14], sea: [60, 85] }, // TODO(franck) : délais vers Abidjan
     modules: { twinsk: false },
     favicon: '/brands/CI/favicon.png', // TODO(franck) : logo Oh My Cot
+    // Visuel fourni par Franck le 25 sept. 2026 (équipe tenant le logo « OhMyCot! »).
+    bioHero: { width: 1600, height: 904 },
   },
 };
 
