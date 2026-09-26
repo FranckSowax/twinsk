@@ -60,8 +60,24 @@ export interface QuoteTransportSummary {
   seaModeLabel: string | null;
   /** Cout aerien total exprime en CNY (pour additionner au sous-total devis). */
   airCostCny: number | null;
-  /** Cout maritime total exprime en CNY. */
+  /** Cout maritime total exprime en CNY (fret + camion éventuel). */
   seaCostCny: number | null;
+  /** Poids volumétrique total (volume × facteur de la destination), null si non applicable. */
+  volumetricWeight: number | null;
+  /** Poids taxable aérien / ferroviaire = max(poids réel, poids volumétrique). */
+  chargeableWeight: number | null;
+  /** Ferroviaire proposé pour cette destination (tarif connu). */
+  trainOffered: boolean;
+  trainAvailable: boolean;
+  trainRatePerKg: number | null;
+  trainCostNative: number | null;
+  trainCostCny: number | null;
+  /** Maritime : fret seul (devise seaCostCurrency), hors camion. */
+  seaFreightNative: number | null;
+  /** Camion depuis le hub (ex. Paris → Bordeaux), dans la devise du pays. */
+  seaTruck: { from: string; city: string; pallets: number; perPallet: number; costNative: number } | null;
+  /** Délais porte à porte indicatifs par mode, en jours. */
+  transitDays: Partial<Record<'air' | 'sea' | 'train', [number, number]>>;
 }
 
 function nativeToCny(amount: number, native: CurrencyCode): number {
@@ -95,6 +111,10 @@ export function computeQuoteTransport(
 
   const airAvailable = weightKnown && totalWeight > 0;
   const seaAvailable = volumeKnown && totalVolume > 0;
+  // Poids taxable (aérien et train) : max(poids réel, volume × facteur) quand la
+  // destination fixe un facteur et que le volume est connu ; sinon poids réel.
+  const volumetricWeight = dest.volumetric_kg_per_cbm && volumeKnown ? totalVolume * dest.volumetric_kg_per_cbm : null;
+  const chargeableWeight = weightKnown ? Math.max(totalWeight, volumetricWeight ?? 0) : null;
   // Aérien scindé : kilos sans batterie au tarif standard, kilos avec batterie
   // au tarif batterie (plus de majoration sur tout le lot).
   const airRatePerKg = dest.air_rate_per_kg;
@@ -104,7 +124,13 @@ export function computeQuoteTransport(
   // checkout) ; autres destinations : tarif plat de la destination.
   const seaRatePerCbm = dest.currency === 'XAF' ? seaRateForVolume(totalVolume, dest.sea_rate_per_cbm) : dest.sea_rate_per_cbm;
 
-  const airCostNative = airAvailable ? weightStd * airRatePerKg + weightBattery * airBatteryRatePerKg : null;
+  // Le poids taxable se répartit entre standard et batterie au prorata du poids réel
+  // (sans facteur volumétrique : poids réel, calcul inchangé).
+  const scale = airAvailable && chargeableWeight != null ? chargeableWeight / totalWeight : 1;
+  const airCostNative = airAvailable ? (weightStd * airRatePerKg + weightBattery * airBatteryRatePerKg) * scale : null;
+  const trainOffered = dest.train_rate_per_kg != null;
+  const trainAvailable = trainOffered && airAvailable;
+  const trainCostNative = trainAvailable && chargeableWeight != null ? chargeableWeight * dest.train_rate_per_kg! : null;
 
   // Maritime : regle d optimisation conteneur.
   // < 20 CBM        -> groupage (tarif destination)
@@ -146,6 +172,19 @@ export function computeQuoteTransport(
     }
   }
 
+  // Camion depuis le hub vers certaines villes (France : Paris → Bordeaux), à la palette.
+  let seaTruck: QuoteTransportSummary['seaTruck'] = null;
+  const typed = (destinationCode || '').toString();
+  if (seaAvailable && dest.sea_truck) {
+    const leg = dest.sea_truck.legs.find((l) => l.match.test(typed));
+    if (leg) {
+      const pallets = Math.max(1, Math.ceil(totalVolume / dest.sea_truck.pallet_capacity_cbm - 1e-9));
+      seaTruck = { from: dest.sea_truck.from, city: leg.city, pallets, perPallet: leg.per_pallet, costNative: pallets * leg.per_pallet };
+    }
+  }
+  const seaFreightCny = seaCostNative != null ? nativeToCny(seaCostNative, seaCostCurrency) : null;
+  const seaTruckCny = seaTruck ? nativeToCny(seaTruck.costNative, dest.currency) : 0;
+
   return {
     destinationCode: dest.code,
     destinationLabel: destinationLabelFor(destinationCode), // texte saisi (ville / pays), tarifs du pays reconnu
@@ -162,35 +201,60 @@ export function computeQuoteTransport(
     airWeightBattery: weightKnown ? weightBattery : null,
     seaRatePerCbm,
     airCostNative,
-    seaCostNative,
+    // Groupage : même devise que le camion, on additionne ; conteneur : fret seul
+    // (le camion est détaillé à part et compté dans seaCostCny).
+    seaCostNative: seaCostNative != null && seaTruck && seaCostCurrency === dest.currency ? seaCostNative + seaTruck.costNative : seaCostNative,
     seaCostCurrency,
     seaMode,
     seaContainerCount,
     seaModeLabel,
     airCostCny: airCostNative != null ? nativeToCny(airCostNative, dest.currency) : null,
-    seaCostCny:
-      seaCostNative != null ? nativeToCny(seaCostNative, seaCostCurrency) : null,
+    seaCostCny: seaFreightCny != null ? seaFreightCny + seaTruckCny : null,
+    volumetricWeight,
+    chargeableWeight,
+    trainOffered,
+    trainAvailable,
+    trainRatePerKg: dest.train_rate_per_kg ?? null,
+    trainCostNative,
+    trainCostCny: trainCostNative != null ? nativeToCny(trainCostNative, dest.currency) : null,
+    seaFreightNative: seaCostNative,
+    seaTruck,
+    transitDays: dest.transit_days ?? {},
   };
 }
 
-/** Mode de transport retenu pour un document : aérien, maritime, ou le moins cher des deux. */
-export type QuoteTransportMode = 'air' | 'sea' | 'both';
-export const QUOTE_TRANSPORT_MODES: QuoteTransportMode[] = ['air', 'sea', 'both'];
+/** Mode de transport retenu pour un document : un seul mode, ou « au choix » (le moins cher). */
+export type QuoteTransportMode = 'air' | 'sea' | 'train' | 'both';
+export const QUOTE_TRANSPORT_MODES: QuoteTransportMode[] = ['air', 'sea', 'train', 'both'];
 export function normalizeQuoteTransportMode(v: unknown): QuoteTransportMode {
-  return v === 'air' || v === 'sea' ? v : 'both';
+  return v === 'air' || v === 'sea' || v === 'train' ? v : 'both';
 }
 export const QUOTE_TRANSPORT_LABEL: Record<QuoteTransportMode, string> = {
   air: 'Aérien',
   sea: 'Maritime',
+  train: 'Ferroviaire',
   both: 'Au choix (le moins cher retenu)',
 };
 
-/** Coût transport (CNY) retenu pour le total selon le mode choisi. */
-export function pickQuoteTransportCny(t: { airCostCny: number | null; seaCostCny: number | null }, mode: QuoteTransportMode): number | null {
+/** Modes affichés sur le document : le mode choisi, ou tous les modes proposés pour « au choix ». */
+export function quoteModesShown(mode: QuoteTransportMode, trainOffered: boolean): { air: boolean; sea: boolean; train: boolean } {
+  if (mode === 'both') return { air: true, sea: true, train: trainOffered };
+  return { air: mode === 'air', sea: mode === 'sea', train: mode === 'train' };
+}
+
+/** Coût transport (CNY) retenu pour le total selon le mode choisi (« au choix » : le moins cher). */
+export function pickQuoteTransportCny(
+  t: { airCostCny: number | null; seaCostCny: number | null; trainCostCny?: number | null },
+  mode: QuoteTransportMode,
+): number | null {
   if (mode === 'air') return t.airCostCny;
   if (mode === 'sea') return t.seaCostCny;
-  const a = t.airCostCny;
-  const s = t.seaCostCny;
-  if (a != null && s != null) return Math.min(a, s);
-  return a ?? s ?? null;
+  if (mode === 'train') return t.trainCostCny ?? null;
+  const costs = [t.airCostCny, t.seaCostCny, t.trainCostCny ?? null].filter((c): c is number => c != null);
+  return costs.length ? Math.min(...costs) : null;
+}
+
+/** « 23 à 32 jours » */
+export function transitLabelDays(d: [number, number] | undefined): string | null {
+  return d ? `${d[0]} à ${d[1]} jours` : null;
 }

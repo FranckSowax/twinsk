@@ -57,18 +57,18 @@ describe('seaRateForVolume — grille dégressive maritime (21 sept. 2026)', () 
 
 describe('computeOrderPricing — devise de règlement euros (listing affiché en euros)', () => {
   const eurLine = (weight: number, volume: number, price = 77) => ({ unit_price_cny: price, quantity: 2, weight, volume, has_battery: false });
-  it('convertit les articles en euros au centime et applique 10 €/kg et 390 €/m³ sans grille dégressive', () => {
+  it('convertit les articles en euros au centime et applique 10 €/kg et 380 €/m³ sans grille dégressive', () => {
     const r = computeOrderPricing([eurLine(1.5, 0.5)], { currency: 'EUR' });
     expect(r.currency).toBe('EUR');
     expect(r.itemsTotalFcfaRounded).toBe(20); // 77 CNY × 2 / 7,7 = 20 €
     expect(r.airRate).toBe(10);
-    expect(r.seaRate).toBe(390);
+    expect(r.seaRate).toBe(380);
     expect(r.airCost).toBe(30); // 3 kg × 10 €
-    expect(r.seaCost).toBe(390); // 1 m³ × 390 €
+    expect(r.seaCost).toBe(380); // 1 m³ × 380 € (tarif France du 26 sept. 2026)
     expect(r.airTotal).toBe(50);
-    expect(r.seaTotal).toBe(410);
+    expect(r.seaTotal).toBe(400);
     const big = computeOrderPricing([eurLine(1, 14)], { currency: 'EUR' });
-    expect(big.seaRate).toBe(390); // pas de dégressif en euros
+    expect(big.seaRate).toBe(380); // pas de dégressif en euros
   });
   it('convertit les codes promo (saisis en FCFA) dans la devise euros', () => {
     const r = computeOrderPricing([eurLine(1, 0.5)], { currency: 'EUR', discountFcfa: 91 * 7.7, seaRate: 91 * 7.7 * 100 });

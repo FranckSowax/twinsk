@@ -62,7 +62,7 @@ export interface Quote {
   pdf_url: string | null;
   document_type: DocumentType;
   /** Mode de transport retenu à la génération (réglage, pas une colonne). */
-  transport_mode?: 'air' | 'sea' | 'both' | null;
+  transport_mode?: 'air' | 'sea' | 'train' | 'both' | null;
 }
 
 export interface CatalogEntry {

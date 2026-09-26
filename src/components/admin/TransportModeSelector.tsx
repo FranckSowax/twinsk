@@ -5,8 +5,8 @@
 // l'estimation calculée sur les produits sélectionnés (poids, volume, coût).
 
 import { motion } from 'framer-motion';
-import { Plane, Scale, Ship } from 'lucide-react';
-import { QUOTE_TRANSPORT_LABEL, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
+import { Plane, Scale, Ship, TrainFront } from 'lucide-react';
+import { QUOTE_TRANSPORT_LABEL, transitLabelDays, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
 
 export default function TransportModeSelector({
@@ -21,13 +21,22 @@ export default function TransportModeSelector({
   currency: CurrencyCode;
 }) {
   const fmt = (cny: number | null | undefined) => (cny != null ? formatInCurrency(cny, currency) : 'à calculer');
+  const delay = (m: 'air' | 'sea' | 'train') => {
+    const d = transitLabelDays(transport?.transitDays[m]);
+    return d ? ` · ${d}` : '';
+  };
+  // Poids facturé : taxable (max réel / volumétrique) quand la destination l'applique.
+  const kg = transport?.chargeableWeight ?? transport?.totalWeight ?? null;
+  const kgLabel = kg != null
+    ? `${kg.toFixed(1)} kg${transport?.volumetricWeight != null && transport.chargeableWeight != null && transport.chargeableWeight > (transport.totalWeight ?? 0) ? ' taxables' : ''}`
+    : '';
   const options: { value: QuoteTransportMode; label: string; icon: typeof Plane; detail: string }[] = [
     {
       value: 'air',
       label: '✈️ Aérien',
       icon: Plane,
-      detail: transport?.airAvailable && transport.totalWeight != null
-        ? `${transport.totalWeight.toFixed(1)} kg · ${fmt(transport.airCostCny)}${transport.hasBattery && (transport.airWeightBattery ?? 0) > 0 ? ` · dont ${transport.airWeightBattery!.toFixed(1)} kg batterie au tarif majoré` : ''}`
+      detail: transport?.airAvailable && kg != null
+        ? `${kgLabel} · ${fmt(transport.airCostCny)}${transport.hasBattery && (transport.airWeightBattery ?? 0) > 0 ? ` · dont ${transport.airWeightBattery!.toFixed(1)} kg batterie au tarif majoré` : ''}${delay('air')}`
         : 'Poids des produits à compléter',
     },
     {
@@ -35,14 +44,26 @@ export default function TransportModeSelector({
       label: '🚢 Maritime',
       icon: Ship,
       detail: transport?.seaAvailable && transport.totalVolume != null
-        ? `${transport.totalVolume.toFixed(3)} m³ · ${fmt(transport.seaCostCny)}${transport.seaModeLabel ? ` · ${transport.seaModeLabel}` : ''}`
+        ? `${transport.totalVolume.toFixed(3)} m³ · ${fmt(transport.seaCostCny)}${transport.seaModeLabel ? ` · ${transport.seaModeLabel}` : ''}${transport.seaTruck ? ` + camion ${transport.seaTruck.from} → ${transport.seaTruck.city}` : ''}${delay('sea')}`
         : 'Volume des produits à compléter',
     },
+    ...(transport?.trainOffered
+      ? [{
+          value: 'train' as const,
+          label: '🚆 Train',
+          icon: TrainFront,
+          detail: transport.trainAvailable && kg != null
+            ? `${kgLabel} · ${fmt(transport.trainCostCny)}${delay('train')}`
+            : 'Poids des produits à compléter',
+        }]
+      : []),
     {
       value: 'both',
       label: '⚖️ Au choix',
       icon: Scale,
-      detail: 'Les deux packs sur le document, le moins cher dans le total',
+      detail: transport?.trainOffered
+        ? 'Les trois packs sur le document, le moins cher dans le total'
+        : 'Les deux packs sur le document, le moins cher dans le total',
     },
   ];
   return (
@@ -52,7 +73,7 @@ export default function TransportModeSelector({
         {transport ? `Destination : ${transport.destinationLabel}` : 'Sélectionnez des produits pour estimer le transport'}
         {value !== 'both' ? ` · ${QUOTE_TRANSPORT_LABEL[value]} seul sur le document` : ''}
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className={`grid gap-3 ${options.length > 3 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
         {options.map((opt) => {
           const Icon = opt.icon;
           const active = value === opt.value;

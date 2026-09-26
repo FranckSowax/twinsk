@@ -3,7 +3,7 @@ import {
   type CurrencyCode,
   formatInCurrency,
 } from '@/lib/utils/formatCurrency';
-import { normalizeQuoteTransportMode, pickQuoteTransportCny, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
+import { normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { ensureCjkFont } from '@/lib/pdf/fonts';
 import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
 import { groupQuoteItems } from '@/lib/quote-groups';
@@ -300,14 +300,25 @@ export default function QuotePDF({
   // Couts transport dans la devise du devis (CNY). On affiche les 2 modes ;
   // le "Total a payer" prend le moins cher disponible (cas B2B le plus courant).
   const mode = normalizeQuoteTransportMode(transportMode);
-  const showAir = mode !== 'sea';
-  const showSea = mode !== 'air';
+  const shown = quoteModesShown(mode, transport?.trainOffered ?? false);
+  const showAir = shown.air;
+  const showSea = shown.sea;
+  const showTrain = shown.train;
   const finalTransportCny: number | null = transport
     ? pickQuoteTransportCny(
-        { airCostCny: transport.airAvailable ? transport.airCostCny : null, seaCostCny: transport.seaAvailable ? transport.seaCostCny : null },
+        {
+          airCostCny: transport.airAvailable ? transport.airCostCny : null,
+          seaCostCny: transport.seaAvailable ? transport.seaCostCny : null,
+          trainCostCny: transport.trainAvailable ? transport.trainCostCny : null,
+        },
         mode,
       )
     : null;
+  const delay = (m: 'air' | 'sea' | 'train') => (transport ? transitLabelDays(transport.transitDays[m]) : null);
+  const taxableNote =
+    transport && transport.volumetricWeight != null && transport.chargeableWeight != null && transport.totalWeight != null
+      ? ` — poids taxable ${transport.chargeableWeight.toFixed(2)} kg (réel ${transport.totalWeight.toFixed(2)} kg, volumétrique ${transport.volumetricWeight.toFixed(2)} kg)`
+      : '';
   const grandTotalCny = itemsTotalCny + (finalTransportCny ?? 0);
   const destLabel = transport?.destinationLabel || 'Gabon (Libreville)';
   // Police embarquee pour les lignes contenant du chinois (adresse + footer).
@@ -346,7 +357,7 @@ export default function QuotePDF({
             <Text style={styles.docDate}>Date : {quoteDate}</Text>
             <View style={styles.transportPill}>
               <Text style={styles.transportPillText}>
-                {mode === 'air' ? 'Transport aérien' : mode === 'sea' ? 'Transport maritime' : 'Transport au choix'} · Door to Door
+                {mode === 'air' ? 'Transport aérien' : mode === 'sea' ? 'Transport maritime' : mode === 'train' ? 'Transport ferroviaire' : 'Transport au choix'} · Door to Door
               </Text>
             </View>
           </View>
@@ -567,8 +578,11 @@ export default function QuotePDF({
                 >
                   {transport.hasBattery && (transport.airWeightBattery ?? 0) > 0
                     ? `Poids total : ${transport.totalWeight!.toFixed(2)} kg — ${transport.airWeightStd!.toFixed(2)} kg standard à ${fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg + ${transport.airWeightBattery!.toFixed(2)} kg avec batterie à ${fmtNativeRate(transport.airBatteryRatePerKg, transport.nativeCurrency)}/kg`
-                    : `Poids total : ${transport.totalWeight!.toFixed(2)} kg (${fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg)`}
+                    : `Poids total : ${transport.totalWeight!.toFixed(2)} kg (${fmtNativeRate(transport.airRatePerKg, transport.nativeCurrency)}/kg)${taxableNote}`}
                 </Text>
+                {delay('air') && (
+                  <Text style={{ fontSize: 8, color: '#475569', marginTop: 1 }}>Livré à l&apos;adresse · délai porte à porte : {delay('air')}</Text>
+                )}
               </View>
               <Text style={[styles.tableCell, styles.colQty]}>1</Text>
               <Text style={[styles.tableCell, styles.colArea]}>—</Text>
@@ -625,8 +639,16 @@ export default function QuotePDF({
                   {transport.seaMode === 'groupage' &&
                     ` (${fmtNativeRate(transport.seaRatePerCbm, transport.nativeCurrency)}/m³)`}
                   {transport.seaMode !== 'groupage' && transport.seaCostNative != null &&
-                    ` — forfait : ${fmtNativeAmount(transport.seaCostNative, transport.seaCostCurrency)}`}
+                    ` — forfait : ${fmtNativeAmount(transport.seaFreightNative ?? transport.seaCostNative, transport.seaCostCurrency)}`}
                 </Text>
+                {transport.seaTruck && (
+                  <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#0f172a', marginTop: 1 }}>
+                    + Camion de {transport.seaTruck.from} à {transport.seaTruck.city} : {transport.seaTruck.pallets} palette{transport.seaTruck.pallets > 1 ? 's' : ''} × {fmtNativeAmount(transport.seaTruck.perPallet, transport.nativeCurrency)} = {fmtNativeAmount(transport.seaTruck.costNative, transport.nativeCurrency)}
+                  </Text>
+                )}
+                {delay('sea') && (
+                  <Text style={{ fontSize: 8, color: '#475569', marginTop: 1 }}>Délai porte à porte : {delay('sea')}</Text>
+                )}
               </View>
               <Text style={[styles.tableCell, styles.colQty]}>
                 {transport.seaContainerCount > 1 ? transport.seaContainerCount : 1}
@@ -654,6 +676,40 @@ export default function QuotePDF({
                 <Text style={{ fontSize: 8, color: '#94a3b8' }}>
                   À calculer — volume (CBM) des produits à confirmer
                 </Text>
+              </View>
+              <Text style={[styles.tableCell, styles.colQty]}>1</Text>
+              <Text style={[styles.tableCell, styles.colArea]}>—</Text>
+              <Text style={[styles.tableCell, styles.colUnit, { color: '#94a3b8' }]}>—</Text>
+              <Text style={[styles.tableCell, styles.colTotalLast, { color: '#94a3b8' }]}>—</Text>
+            </View>
+          ))}
+
+          {/* Transport ferroviaire (destinations qui le proposent) */}
+          {showTrain && (transport?.trainAvailable && transport.trainCostCny != null ? (
+            <View style={styles.totalRowFinal} wrap={false}>
+              <View style={[styles.productCell, styles.colProduct]}>
+                <Text style={styles.productTitleBold}>Pack Transport Ferroviaire</Text>
+                <Text style={{ fontSize: 8, color: '#475569' }}>
+                  Destination : {destLabel} · Chargement, transport départ,
+                  contrôle qualité, douane export, formalités admin Chine · livré à l&apos;adresse
+                </Text>
+                <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#0f172a', marginTop: 2 }}>
+                  {`Poids facturé : ${(transport.chargeableWeight ?? transport.totalWeight ?? 0).toFixed(2)} kg (${fmtNativeAmount(transport.trainRatePerKg ?? 0, transport.nativeCurrency)}/kg)${taxableNote}`}
+                </Text>
+                {delay('train') && (
+                  <Text style={{ fontSize: 8, color: '#475569', marginTop: 1 }}>Délai porte à porte : {delay('train')}</Text>
+                )}
+              </View>
+              <Text style={[styles.tableCell, styles.colQty]}>1</Text>
+              <Text style={[styles.tableCell, styles.colArea]}>—</Text>
+              <Text style={[styles.tableCell, styles.colUnit]}>{fmt(transport.trainCostCny, currency)}</Text>
+              <Text style={[styles.tableCell, styles.colTotalLast, { fontFamily: 'Helvetica-Bold' }]}>{fmt(transport.trainCostCny, currency)}</Text>
+            </View>
+          ) : (
+            <View style={styles.totalRowFinal} wrap={false}>
+              <View style={[styles.productCell, styles.colProduct]}>
+                <Text style={styles.productTitleBold}>Pack Transport Ferroviaire</Text>
+                <Text style={{ fontSize: 8, color: '#94a3b8' }}>À calculer — poids unitaire des produits à confirmer</Text>
               </View>
               <Text style={[styles.tableCell, styles.colQty]}>1</Text>
               <Text style={[styles.tableCell, styles.colArea]}>—</Text>

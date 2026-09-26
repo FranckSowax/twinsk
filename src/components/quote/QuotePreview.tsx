@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { groupQuoteItems } from '@/lib/quote-groups';
 import { Download, Printer } from 'lucide-react';
 import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
-import { computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny } from '@/lib/quote-transport';
+import { computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays } from '@/lib/quote-transport';
 import { stripMarkdown } from '@/lib/utils/stripMarkdown';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
@@ -79,8 +79,16 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
   // Mode choisi par l'admin à la génération : un seul pack affiché et retenu,
   // ou les deux (le moins cher entre dans le total) si « au choix ».
   const transportMode = normalizeQuoteTransportMode(quote.transport_mode);
-  const showAir = transportMode !== 'sea';
-  const showSea = transportMode !== 'air';
+  const shown = quoteModesShown(transportMode, transport.trainOffered);
+  const showAir = shown.air;
+  const showSea = shown.sea;
+  const showTrain = shown.train;
+  const delay = (m: 'air' | 'sea' | 'train') => transitLabelDays(transport.transitDays[m]);
+  // Poids facturé (aérien / train) : taxable si la destination applique un poids volumétrique.
+  const taxableNote =
+    transport.volumetricWeight != null && transport.chargeableWeight != null && transport.totalWeight != null
+      ? ` — poids taxable ${transport.chargeableWeight.toFixed(2)} kg (réel ${transport.totalWeight.toFixed(2)} kg, volumétrique ${transport.volumetricWeight.toFixed(2)} kg)`
+      : '';
   const transportCnyPicked: number | null = pickQuoteTransportCny(transport, transportMode);
   const grandTotalCny = itemsTotalCny + (transportCnyPicked ?? 0);
   const destLabel = transport.destinationLabel;
@@ -147,7 +155,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               Date : {new Date(quote.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <p className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-              {transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : '✈️🚢 Transport au choix'} · Door to Door
+              {transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : transportMode === 'train' ? '🚆 Transport ferroviaire' : transport.trainOffered ? '✈️🚆🚢 Transport au choix' : '✈️🚢 Transport au choix'} · Door to Door
             </p>
           </div>
         </div>
@@ -334,9 +342,10 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         </p>
                       ) : (
                         <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                          Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg)}/kg)
+                          Poids total : {transport.totalWeight!.toFixed(2)} kg ({fmtNativeRate(transport.airRatePerKg)}/kg){taxableNote}
                         </p>
                       )}
+                      {delay('air') && <p className="mt-0.5 text-xs text-slate-600">Livré à l&apos;adresse · délai porte à porte : {delay('air')}</p>}
                     </>
                   ) : (
                     <p className="text-xs text-slate-400">À calculer — poids unitaire des produits à confirmer</p>
@@ -372,9 +381,15 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         {transport.seaMode === 'groupage'
                           ? ` (${fmtNativeRate(transport.seaRatePerCbm)}/m³)`
                           : transport.seaCostNative != null
-                            ? ` — forfait : ${fmtNative(transport.seaCostNative, transport.seaCostCurrency, transport.seaCostCurrency === 'XAF' ? 0 : 2)}`
+                            ? ` — forfait : ${fmtNative(transport.seaFreightNative ?? transport.seaCostNative, transport.seaCostCurrency, transport.seaCostCurrency === 'XAF' ? 0 : 2)}`
                             : ''}
                       </p>
+                      {transport.seaTruck && (
+                        <p className="mt-0.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          + Camion de {transport.seaTruck.from} à {transport.seaTruck.city} : {transport.seaTruck.pallets} palette{transport.seaTruck.pallets > 1 ? 's' : ''} × {fmtNative(transport.seaTruck.perPallet, transport.nativeCurrency, 2)} = {fmtNative(transport.seaTruck.costNative, transport.nativeCurrency, 2)}
+                        </p>
+                      )}
+                      {delay('sea') && <p className="mt-0.5 text-xs text-slate-600">Délai porte à porte : {delay('sea')}</p>}
                     </>
                   ) : (
                     <p className="text-xs text-slate-400">À calculer — volume (CBM) des produits à confirmer</p>
@@ -391,6 +406,37 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                 </td>
                 <td className="p-3 text-right font-bold">
                   {transport.seaCostCny != null ? fmt(transport.seaCostCny) : <span className="text-slate-400">—</span>}
+                </td>
+              </tr>
+              )}
+
+              {/* Ferroviaire */}
+              {showTrain && (
+              <tr className="border-t border-slate-300">
+                <td className="border-r border-slate-300 p-3">
+                  <p className="font-bold text-slate-900 dark:text-white">Pack Transport Ferroviaire</p>
+                  {transport.trainAvailable && transport.trainCostCny != null ? (
+                    <>
+                      <p className="text-xs text-slate-600">
+                        Destination : {destLabel} · Chargement, transport départ, contrôle qualité,
+                        douane export, formalités admin Chine · livré à l&apos;adresse
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Poids facturé : {(transport.chargeableWeight ?? transport.totalWeight ?? 0).toFixed(2)} kg ({fmtNative(transport.trainRatePerKg ?? 0, transport.nativeCurrency, 2)}/kg){taxableNote}
+                      </p>
+                      {delay('train') && <p className="mt-0.5 text-xs text-slate-600">Délai porte à porte : {delay('train')}</p>}
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-400">À calculer — poids unitaire des produits à confirmer</p>
+                  )}
+                </td>
+                <td className="border-r border-slate-300 p-3 text-center">{transport.trainAvailable ? '1' : '—'}</td>
+                <td className="border-r border-slate-300 p-3 text-center text-slate-400">—</td>
+                <td className="border-r border-slate-300 p-3 text-center">
+                  {transport.trainCostCny != null ? fmt(transport.trainCostCny) : <span className="text-slate-400">—</span>}
+                </td>
+                <td className="p-3 text-right font-bold">
+                  {transport.trainCostCny != null ? fmt(transport.trainCostCny) : <span className="text-slate-400">—</span>}
                 </td>
               </tr>
               )}

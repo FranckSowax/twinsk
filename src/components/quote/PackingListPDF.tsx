@@ -98,7 +98,7 @@ interface PackingListPDFProps {
   clientEmail: string;
   clientPhone: string;
   items: PackingItem[];
-  transportMode?: 'air' | 'sea' | 'both' | null;
+  transportMode?: 'air' | 'sea' | 'train' | 'both' | null;
   destinationLabel?: string | null;
 }
 
@@ -134,7 +134,7 @@ export default function PackingListPDF({
             <Text style={styles.docInfo}>Date : {quoteDate}</Text>
             {transportMode && transportMode !== 'both' ? (
               <Text style={[styles.docInfo, { fontFamily: 'Helvetica-Bold', color: '#b45309' }]}>
-                Transport {transportMode === 'air' ? 'aérien' : 'maritime'}{destinationLabel ? ` · ${destinationLabel}` : ''}
+                Transport {transportMode === 'air' ? 'aérien' : transportMode === 'train' ? 'ferroviaire' : 'maritime'}{destinationLabel ? ` · ${destinationLabel}` : ''}
               </Text>
             ) : destinationLabel ? (
               <Text style={styles.docInfo}>Destination : {destinationLabel}</Text>
@@ -236,7 +236,7 @@ export default function PackingListPDF({
           {transportMode && transportMode !== 'both' ? (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Mode de transport :</Text>
-              <Text style={styles.totalValue}>{transportMode === 'air' ? 'Aérien' : 'Maritime'}</Text>
+              <Text style={styles.totalValue}>{transportMode === 'air' ? 'Aérien' : transportMode === 'train' ? 'Ferroviaire' : 'Maritime'}</Text>
             </View>
           ) : null}
           <View style={styles.grandTotal}>
