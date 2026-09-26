@@ -12,6 +12,7 @@ import { useAdminT } from '@/components/admin/LocaleProvider';
 import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import TransportModeSelector from '@/components/admin/TransportModeSelector';
+import QuoteDocumentsPanel from '@/components/admin/QuoteDocumentsPanel';
 import { computeQuoteTransport, type QuoteTransportMode } from '@/lib/quote-transport';
 import { resolveAllQuoteLines } from '@/lib/variant-picks';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
@@ -79,6 +80,7 @@ export default function AdminRequestDetailPage() {
   const [items, setItems] = useState<RequestItemWithResults[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [docsRefresh, setDocsRefresh] = useState(0);
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
   const [transportMode, setTransportMode] = useState<QuoteTransportMode>('both');
   const [addItemOpen, setAddItemOpen] = useState(false);
@@ -195,6 +197,7 @@ export default function AdminRequestDetailPage() {
 
       if (res.ok && data.id) {
         window.open(`/quote/${data.id}`, '_blank');
+        setDocsRefresh((n) => n + 1);
       } else {
         alert(data.error || 'Erreur génération devis');
       }
@@ -724,6 +727,12 @@ export default function AdminRequestDetailPage() {
               )}
             </motion.button>
           </div>
+
+          <QuoteDocumentsPanel
+            requestId={uuid}
+            refreshKey={docsRefresh}
+            currency={proposalCurrency === 'USD' || proposalCurrency === 'EUR' || proposalCurrency === 'XAF' ? proposalCurrency : 'CNY'}
+          />
           </>
           )}
         </>

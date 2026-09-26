@@ -2,7 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { RequestItemWithResults } from '@/lib/types/database';
 import { normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { quoteKeys } from '@/lib/quote-documents';
 import { quoteLinesTotal, resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
+
+// GET ?request_id= : documents d'une demande (admin), du plus récent au plus ancien,
+// avec les liens devis → facture.
+export async function GET(request: NextRequest) {
+  const adminCookie = request.cookies.get('admin_token');
+  if (!adminCookie || adminCookie.value !== process.env.ADMIN_PASSWORD) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  const requestId = request.nextUrl.searchParams.get('request_id');
+  if (!requestId) return NextResponse.json({ error: 'request_id requis' }, { status: 400 });
+  const { data: quotes, error } = await supabaseAdmin
+    .from('quotes')
+    .select('id, created_at, document_type, status, total_amount')
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: false });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const ids = (quotes || []).map((q) => q.id);
+  const links: Record<string, string> = {};
+  if (ids.length) {
+    const { data: rows } = await supabaseAdmin
+      .from('wa_settings')
+      .select('key, value')
+      .in('key', ids.map((id) => quoteKeys.invoiceOf(id)));
+    for (const r of rows || []) {
+      const inv = (r.value as { invoice_id?: string } | null)?.invoice_id;
+      if (inv) links[r.key.slice(quoteKeys.invoiceOf('').length)] = inv;
+    }
+  }
+  const sourceOf: Record<string, string> = {};
+  for (const [quoteId, invoiceId] of Object.entries(links)) sourceOf[invoiceId] = quoteId;
+  return NextResponse.json({
+    documents: (quotes || []).map((q) => ({ ...q, invoice_id: links[q.id] ?? null, source_quote_id: sourceOf[q.id] ?? null })),
+  });
+}
 
 // POST: Generate a quote from selected results
 export async function POST(request: NextRequest) {

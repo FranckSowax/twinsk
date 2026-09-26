@@ -3,6 +3,8 @@ import {
   type CurrencyCode,
   formatInCurrency,
 } from '@/lib/utils/formatCurrency';
+import { documentMeta, documentNumber } from '@/lib/quote-documents';
+import type { DocumentType } from '@/lib/types/database';
 import { normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { ensureCjkFont } from '@/lib/pdf/fonts';
 import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
@@ -234,6 +236,10 @@ interface QuoteItem {
 
 interface QuotePDFProps {
   quoteId: string;
+  /** Devis (défaut) ou facture : titre, numéro, conditions et mention finale. */
+  documentType?: DocumentType;
+  /** Facture : devis d'origine (référence affichée). */
+  sourceQuoteId?: string | null;
   quoteDate: string;
   clientName: string;
   clientEmail: string;
@@ -273,6 +279,8 @@ function fmtNativeAmount(amount: number, native: CurrencyCode): string {
 
 export default function QuotePDF({
   quoteId,
+  documentType = 'devis',
+  sourceQuoteId = null,
   quoteDate,
   clientName,
   clientEmail,
@@ -299,6 +307,7 @@ export default function QuotePDF({
 
   // Couts transport dans la devise du devis (CNY). On affiche les 2 modes ;
   // le "Total a payer" prend le moins cher disponible (cas B2B le plus courant).
+  const isInvoice = documentType === 'facture';
   const mode = normalizeQuoteTransportMode(transportMode);
   const shown = quoteModesShown(mode, transport?.trainOffered ?? false);
   const showAir = shown.air;
@@ -351,9 +360,12 @@ export default function QuotePDF({
             </View>
           </View>
           <View style={styles.docBlock}>
-            <Text style={styles.docTitle}>FACTURE</Text>
-            <Text style={styles.docSubtitle}>INVOICE</Text>
-            <Text style={styles.docNumber}>N° TWK{quoteId.slice(0, 8).toUpperCase()}</Text>
+            <Text style={styles.docTitle}>{documentMeta(documentType).title.toUpperCase()}</Text>
+            <Text style={styles.docSubtitle}>{documentMeta(documentType).subtitle.toUpperCase()}</Text>
+            <Text style={styles.docNumber}>N° {documentNumber(documentType, quoteId)}</Text>
+            {isInvoice && sourceQuoteId && (
+              <Text style={styles.docDate}>Réf. devis : N° {documentNumber('devis', sourceQuoteId)}</Text>
+            )}
             <Text style={styles.docDate}>Date : {quoteDate}</Text>
             <View style={styles.transportPill}>
               <Text style={styles.transportPillText}>
@@ -377,7 +389,9 @@ export default function QuotePDF({
               Devise : <Text style={styles.cardStrong}>{currency}</Text> · Prix FOB Chine, transport détaillé ci-dessous
             </Text>
             <Text style={styles.cardLine}>
-              Validité : <Text style={styles.cardStrong}>15 jours</Text> · Paiement à la commande
+              {isInvoice
+                ? <>Paiement : <Text style={styles.cardStrong}>à réception de la facture</Text></>
+                : <>Validité : <Text style={styles.cardStrong}>15 jours</Text> · Paiement à la commande</>}
             </Text>
             <Text style={styles.cardLine}>
               Destination : <Text style={styles.cardStrong}>{destLabel}</Text>
@@ -741,10 +755,19 @@ export default function QuotePDF({
 
         {/* Legal note */}
         <Text style={styles.legalNote}>
-          Le présent devis porte sur une prestation d&apos;une durée de
-          <Text style={{ fontFamily: 'Helvetica-Bold' }}> quinze (15) jours</Text>,
-          pour un montant global de
-          <Text style={{ fontFamily: 'Helvetica-Bold' }}> {fmt(grandTotalCny, currency)}</Text>.
+          {isInvoice ? (
+            <>
+              La présente facture s&apos;élève à un montant global de
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}> {fmt(grandTotalCny, currency)}</Text>, payable à réception.
+            </>
+          ) : (
+            <>
+              Le présent devis porte sur une prestation d&apos;une durée de
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}> quinze (15) jours</Text>,
+              pour un montant global de
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}> {fmt(grandTotalCny, currency)}</Text>.
+            </>
+          )}
         </Text>
 
         {/* Footer */}

@@ -3,14 +3,14 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { supabaseAdmin } from '@/lib/supabase/server';
 import QuotePDF from '@/components/quote/QuotePDF';
 import PackingListPDF from '@/components/quote/PackingListPDF';
-import { computeQuoteTransport, normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { computeQuoteTransport } from '@/lib/quote-transport';
+import { loadQuoteDocument } from '@/lib/quote-data';
+import { documentMeta } from '@/lib/quote-documents';
 import { resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
 import { destinationLabel } from '@/lib/destinations';
 import type { CurrencyCode } from '@/lib/utils/formatCurrency';
-import type { Quote, Request as RequestType, RequestItemWithResults } from '@/lib/types/database';
 
 // Cache du logo en data URL — evite de relire le fichier a chaque devis
 // et evite tout fetch HTTP cote serveur (qui echoue sur Railway).
@@ -36,38 +36,15 @@ export async function GET(
     const { quoteId } = await params;
     const logoUrl = (await getLogoDataUrl()) ?? undefined;
 
-    const { data: quote, error: quoteError } = await supabaseAdmin
-      .from('quotes')
-      .select('*')
-      .eq('id', quoteId)
-      .single();
-
-    if (quoteError || !quote) {
+    // Devis / colisage : données en direct ; facture : instantané figé.
+    const doc = await loadQuoteDocument(quoteId);
+    if (!doc) {
       return NextResponse.json({ error: 'Devis non trouvé' }, { status: 404 });
     }
-
-    const q = quote as Quote;
-    const { data: tm } = await supabaseAdmin.from('wa_settings').select('value').eq('key', `quote_transport:${q.id}`).maybeSingle();
-    const transportMode = normalizeQuoteTransportMode((tm?.value as { mode?: unknown } | null)?.mode);
-
-    const { data: request } = await supabaseAdmin
-      .from('requests')
-      .select('*')
-      .eq('id', q.request_id)
-      .single();
-
-    const req = request as RequestType | null;
-
-    const { data: items } = await supabaseAdmin
-      .from('request_items')
-      .select('*, search_results(*)')
-      .eq('request_id', q.request_id);
-
-    const typedItems = (items || []) as unknown as RequestItemWithResults[];
-
-    const selectedResults = typedItems
-      .flatMap((item) => item.search_results || [])
-      .filter((r) => r.selected);
+    const q = doc.quote;
+    const transportMode = q.transport_mode ?? 'both';
+    const req = doc.request;
+    const selectedResults = doc.items.flatMap((item) => item.search_results || []);
 
     const dateStr = new Date(q.created_at).toLocaleDateString('fr-FR', {
       day: 'numeric',
@@ -104,7 +81,7 @@ export async function GET(
         })),
       });
     } else {
-      filenamePrefix = 'devis-twinsk';
+      filenamePrefix = documentMeta(q.document_type).file;
       // Devise affichée au client : tirée de la request (proposal_currency).
       const rawCur = (req as unknown as { proposal_currency?: string } | null)
         ?.proposal_currency;
@@ -127,6 +104,8 @@ export async function GET(
       );
       pdfElement = createElement(QuotePDF, {
         quoteId: q.id,
+        documentType: q.document_type,
+        sourceQuoteId: q.source_quote_id ?? null,
         // Même format que l'aperçu à l'écran (jj/mm/aaaa).
         quoteDate: new Date(q.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         clientName: req?.client_name || 'Client',

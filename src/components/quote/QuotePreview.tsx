@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { groupQuoteItems } from '@/lib/quote-groups';
 import { Download, Printer } from 'lucide-react';
 import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
+import { documentMeta, documentNumber } from '@/lib/quote-documents';
 import { computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays } from '@/lib/quote-transport';
 import { stripMarkdown } from '@/lib/utils/stripMarkdown';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
@@ -79,6 +80,9 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
   // Mode choisi par l'admin à la génération : un seul pack affiché et retenu,
   // ou les deux (le moins cher entre dans le total) si « au choix ».
   const transportMode = normalizeQuoteTransportMode(quote.transport_mode);
+  const docType = quote.document_type === 'facture' ? 'facture' : 'devis';
+  const isInvoice = docType === 'facture';
+  const meta = documentMeta(docType);
   const shown = quoteModesShown(transportMode, transport.trainOffered);
   const showAir = shown.air;
   const showSea = shown.sea;
@@ -148,9 +152,12 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
             </div>
           </div>
           <div className="text-left sm:text-right">
-            <p className="font-display text-3xl font-bold uppercase tracking-wider text-slate-900 dark:text-white">Facture</p>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Invoice</p>
-            <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">N° TWK{quote.id.slice(0, 8).toUpperCase()}</p>
+            <p className="font-display text-3xl font-bold uppercase tracking-wider text-slate-900 dark:text-white">{meta.title}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{meta.subtitle}</p>
+            <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">N° {documentNumber(docType, quote.id)}</p>
+            {isInvoice && quote.source_quote_id && (
+              <p className="text-xs text-slate-500">Réf. devis : N° {documentNumber('devis', quote.source_quote_id)}</p>
+            )}
             <p className="text-sm text-slate-600 dark:text-slate-300">
               Date : {new Date(quote.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
@@ -171,7 +178,9 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
           <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Conditions</p>
             <p className="mt-1">Devise : <strong>{currency}</strong> · Prix FOB Chine, transport détaillé ci-dessous</p>
-            <p>Validité : <strong>15 jours</strong> · Paiement à la commande</p>
+            {isInvoice
+              ? <p>Paiement : <strong>à réception de la facture</strong></p>
+              : <p>Validité : <strong>15 jours</strong> · Paiement à la commande</p>}
             <p>Destination : <strong>{destLabel}</strong></p>
           </div>
         </div>
@@ -462,9 +471,15 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
 
         {/* Legal note */}
         <p className="mt-4 text-sm text-slate-700 dark:text-slate-300">
-          Le présent devis porte sur une prestation d&apos;une durée de{' '}
-          <strong>quinze (15) jours</strong>, pour un montant global de{' '}
-          <strong>{fmt(grandTotalCny)}</strong>.
+          {isInvoice ? (
+            <>La présente facture s&apos;élève à un montant global de <strong>{fmt(grandTotalCny)}</strong>, payable à réception.</>
+          ) : (
+            <>
+              Le présent devis porte sur une prestation d&apos;une durée de{' '}
+              <strong>quinze (15) jours</strong>, pour un montant global de{' '}
+              <strong>{fmt(grandTotalCny)}</strong>.
+            </>
+          )}
         </p>
 
         {/* Footer */}
