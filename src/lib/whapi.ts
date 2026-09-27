@@ -861,7 +861,13 @@ export async function sendWhapiProductCard(args: {
   buttonTitle: string;
   url: string;
   to: string;
+  /** Boutons lien supplémentaires (WhatsApp : 3 boutons au plus). */
+  extraButtons?: { title: string; url: string; id: string }[];
 }): Promise<WhapiResult> {
+  const buttons = [
+    { type: 'url', title: args.buttonTitle.slice(0, 20), id: 'product_link', url: args.url },
+    ...(args.extraButtons || []).map((b) => ({ type: 'url', title: b.title.slice(0, 20), id: b.id, url: b.url })),
+  ].slice(0, 3);
   return whapiPost('/messages/interactive', {
     to: args.to,
     type: 'button',
@@ -869,9 +875,7 @@ export async function sendWhapiProductCard(args: {
     header: { text: '' },
     body: { text: args.body },
     ...(args.footer ? { footer: { text: args.footer.slice(0, 60) } } : {}),
-    action: {
-      buttons: [{ type: 'url', title: args.buttonTitle.slice(0, 20), id: 'product_link', url: args.url }],
-    },
+    action: { buttons },
   });
 }
 

@@ -8,6 +8,7 @@ import { computeOrderPricing } from '@/lib/offer-pricing';
 import { loadOrderPricingLines, offerSettlementCurrency } from '@/lib/order-pricing-lines';
 import { releasePromoUse } from '@/lib/promo';
 import { clearOrderSplit } from '@/lib/order-split';
+import { insertOrderLines, priceOrderPicks } from '@/lib/offer-order-create';
 
 export interface EditableOrder {
   id: string;
@@ -66,4 +67,45 @@ export async function recomputeAfterLineChange(order: EditableOrder): Promise<{ 
     })
     .eq('id', order.id);
   return { promo_removed: promoRemoved, lines: lines.length };
+}
+
+/**
+ * Ajoute un produit du listing au panier d'une commande modifiable. Même produit
+ * et même variante déjà présents : quantité cumulée, sauf `skipIfPresent`
+ * (sélection client : un 2ᵉ appui ne double pas la quantité).
+ */
+export async function addProductToOrder(
+  order: EditableOrder,
+  pick: { product_id: string; variant_id?: string | null; quantity?: number },
+  opts: { skipIfPresent?: boolean } = {},
+): Promise<{ ok: true; added: boolean; promo_removed: boolean; lines: number } | { ok: false; error: string; status: number }> {
+  const qty = Math.max(1, Math.trunc(Number(pick.quantity) || 1));
+  // Le produit doit appartenir au listing de la commande.
+  const { data: prod } = await supabaseAdmin
+    .from('offer_products')
+    .select('id, offer_items!inner(offer_id)')
+    .eq('id', pick.product_id)
+    .single();
+  const belongs = (prod as { offer_items?: { offer_id?: string } | { offer_id?: string }[] } | null)?.offer_items;
+  const offerOfProduct = Array.isArray(belongs) ? belongs[0]?.offer_id : belongs?.offer_id;
+  if (!prod || offerOfProduct !== order.offer_id) return { ok: false, error: 'Produit hors du listing', status: 400 };
+
+  let q = supabaseAdmin.from('offer_order_lines').select('id, quantity, unit_price_cny').eq('order_id', order.id).eq('product_id', pick.product_id);
+  q = pick.variant_id ? q.eq('variant_id', pick.variant_id) : q.is('variant_id', null);
+  const { data: existing } = await q.maybeSingle();
+  if (existing) {
+    if (opts.skipIfPresent) return { ok: true, added: false, promo_removed: false, lines: 0 };
+    const newQty = Number(existing.quantity) + qty;
+    await supabaseAdmin
+      .from('offer_order_lines')
+      .update({ quantity: newQty, subtotal_cny: Number(existing.unit_price_cny) * newQty })
+      .eq('id', existing.id);
+  } else {
+    const priced = await priceOrderPicks([{ product_id: pick.product_id, variant_id: pick.variant_id || null, quantity: qty }], await orderAffiliateCommission(order));
+    if ('error' in priced) return { ok: false, error: priced.error, status: priced.status };
+    const err = await insertOrderLines(order.id, priced.lineRows);
+    if (err) return { ok: false, error: err, status: 500 };
+  }
+  const r = await recomputeAfterLineChange(order);
+  return { ok: true, added: true, ...r };
 }
