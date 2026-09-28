@@ -44,11 +44,12 @@ export async function GET(
   // repli sur le produit (anciennes commandes avant migration 30).
   const productIds = Array.from(new Set(lines.map((l) => l.product_id).filter(Boolean))) as string[];
   type Vari = { id?: string; weight?: number | null; volume?: number | null };
-  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean; variants: Vari[] | null };
+  type WL = { id: string; weight: number | null; volume: number | null; has_battery: boolean; sea_only?: boolean | null; variants: Vari[] | null };
   const { data: prodRows } = productIds.length
     ? await supabaseAdmin
         .from('offer_products')
-        .select('id, weight, volume, has_battery, variants')
+        // `*` : inclut sea_only (liquide dangereux) dès que la migration est appliquée.
+        .select('*')
         .in('id', productIds)
     : { data: [] as WL[] };
   const prodMap = new Map<string, WL>(
@@ -86,6 +87,7 @@ export async function GET(
         weight: l.weight ?? vari?.weight ?? meta?.weight ?? null,
         volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
         has_battery: l.has_battery ?? !!meta?.has_battery,
+        sea_only: !!meta?.sea_only,
         air_qty: hasSplit ? (split[l.id] ?? 0) : null,
       };
     }),
@@ -126,8 +128,9 @@ export async function GET(
       const unitVolume = l.volume ?? vari?.volume ?? meta?.volume ?? null;
       return {
       ...l,
-      // Article de plus de 1,5 m³ : jamais en avion (bateau uniquement dans la répartition).
-      air_blocked: isAirOversize(unitVolume),
+      // Article de plus de 1,5 m³ ou liquide dangereux : jamais en avion (bateau uniquement dans la répartition).
+      air_blocked: isAirOversize(unitVolume) || !!meta?.sea_only,
+      air_block_reason: meta?.sea_only ? 'sea_only' : isAirOversize(unitVolume) ? 'oversize' : null,
       unit_price_fcfa: l.unit_price_cny * lineRate,
       subtotal_fcfa: l.subtotal_cny * lineRate,
       // Transport fractionné : unités avion de la ligne (null = pas de répartition).

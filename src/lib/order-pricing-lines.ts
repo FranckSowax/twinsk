@@ -25,7 +25,7 @@ interface LineRow {
   has_battery?: boolean | null;
 }
 interface Vari { id?: string; weight?: number | null; volume?: number | null }
-interface ProductMeta { id: string; weight: number | null; volume: number | null; has_battery: boolean; variants: Vari[] | null }
+interface ProductMeta { id: string; weight: number | null; volume: number | null; has_battery: boolean; sea_only?: boolean | null; variants: Vari[] | null }
 
 export async function loadOrderPricingLines(orderId: string): Promise<OrderLineForPricing[]> {
   const [{ data: lines }, split] = await Promise.all([
@@ -36,7 +36,8 @@ export async function loadOrderPricingLines(orderId: string): Promise<OrderLineF
   const hasSplit = Object.keys(split).length > 0;
   const ids = Array.from(new Set(rows.map((l) => l.product_id).filter(Boolean))) as string[];
   const { data: prods } = ids.length
-    ? await supabaseAdmin.from('offer_products').select('id, weight, volume, has_battery, variants').in('id', ids)
+    // `*` : inclut sea_only dès que la migration du 28 sept. 2026 est appliquée, sans casser avant.
+    ? await supabaseAdmin.from('offer_products').select('*').in('id', ids)
     : { data: [] as ProductMeta[] };
   const pm = new Map<string, ProductMeta>(((prods || []) as ProductMeta[]).map((p) => [p.id, p]));
   return rows.map((l) => {
@@ -48,6 +49,7 @@ export async function loadOrderPricingLines(orderId: string): Promise<OrderLineF
       weight: l.weight ?? vari?.weight ?? meta?.weight ?? null,
       volume: l.volume ?? vari?.volume ?? meta?.volume ?? null,
       has_battery: l.has_battery ?? !!meta?.has_battery,
+      sea_only: !!meta?.sea_only,
       // Transport fractionné : unités avion de la ligne (0 = tout en bateau).
       air_qty: hasSplit ? (split[l.id] ?? 0) : null,
     };

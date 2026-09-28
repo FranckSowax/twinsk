@@ -89,6 +89,11 @@ export function isAirOversize(unitVolumeM3: number | null | undefined): boolean 
   return unitVolumeM3 != null && Number.isFinite(unitVolumeM3) && unitVolumeM3 > AIR_MAX_UNIT_VOLUME_M3 + 1e-9;
 }
 
+/** Article qui ne peut pas prendre l'avion : trop volumineux, ou liquide dangereux. */
+export function isAirBlocked(l: { volume?: number | null; sea_only?: boolean | null }): boolean {
+  return isAirOversize(l.volume) || !!l.sea_only;
+}
+
 /** Au-delà du groupage : conteneur dédié, prix sur devis. */
 export function isSeaOverLimit(volumeM3: number | null | undefined): boolean {
   return volumeM3 != null && Number.isFinite(volumeM3) && volumeM3 > SEA_MAX_GROUPAGE_M3 + 1e-9;
@@ -119,6 +124,8 @@ export interface OrderLineForPricing {
   weight: number | null;
   volume: number | null;
   has_battery: boolean;
+  /** Liquide dangereux (vernis, gel…) : interdit en avion, bateau uniquement. */
+  sea_only?: boolean | null;
   /** Transport fractionné : unités de la ligne qui partent en AVION (le reste en bateau). */
   air_qty?: number | null;
 }
@@ -192,6 +199,8 @@ export interface PricingResult {
   seaOverLimit: boolean;
   /** Au moins un article dépasse 1,5 m³ à lui seul : pas d'envoi aérien pour la commande entière. */
   airOversize: boolean;
+  /** Au moins un article « maritime uniquement » (liquide dangereux) : pas d'envoi aérien pour la commande entière. */
+  airSeaOnly: boolean;
   /** Nombre total d'unités du panier (le fractionnement n'a de sens qu'à partir de 2). */
   totalUnits: number;
   airTotal: number | null;
@@ -205,9 +214,10 @@ export interface PricingResult {
 }
 
 /** Unités « avion » d'une ligne en mode fractionné (bornées à la quantité). */
-export function airUnitsOf(l: Pick<OrderLineForPricing, 'quantity' | 'air_qty'> & { volume?: number | null }): number {
-  // Un article trop volumineux pour l'avion part toujours en bateau, quoi que dise la répartition.
-  if (isAirOversize(l.volume)) return 0;
+export function airUnitsOf(l: Pick<OrderLineForPricing, 'quantity' | 'air_qty'> & { volume?: number | null; sea_only?: boolean | null }): number {
+  // Un article trop volumineux pour l'avion, ou un liquide dangereux, part
+  // toujours en bateau, quoi que dise la répartition.
+  if (isAirOversize(l.volume) || l.sea_only) return 0;
   const n = Number(l.air_qty);
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(Math.max(1, Math.trunc(l.quantity)), Math.trunc(n));
@@ -299,7 +309,9 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
   // Un seul article de plus de 1,5 m³ interdit l'aérien pour la commande entière
   // (le fractionnement reste possible : cet article part alors en bateau).
   const airOversize = lines.some((l) => isAirOversize(l.volume));
-  const airAvailable = weightKnown && totalWeight > 0 && !airOversize;
+  // Même règle pour un liquide dangereux (vernis, gel…) : bateau uniquement.
+  const airSeaOnly = lines.some((l) => !!l.sea_only);
+  const airAvailable = weightKnown && totalWeight > 0 && !airOversize && !airSeaOnly;
   // Au-delà de 20 m³ : conteneur dédié sur devis (contact WhatsApp), pas de prix automatique.
   const seaOverLimit = volumeKnown && isSeaOverLimit(totalVolume);
   const seaAvailable = volumeKnown && totalVolume > 0 && !seaOverLimit;
@@ -360,6 +372,7 @@ export function computeOrderPricing(lines: OrderLineForPricing[], opts: PricingO
     seaAvailable,
     seaOverLimit,
     airOversize,
+    airSeaOnly,
     totalUnits: lines.reduce((s, l) => s + Math.max(0, Math.trunc(l.quantity)), 0),
     discountFcfa,
     itemsNetFcfa,

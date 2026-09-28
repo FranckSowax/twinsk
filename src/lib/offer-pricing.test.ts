@@ -169,3 +169,26 @@ describe('article trop volumineux pour l’avion (> 1,5 m³ l’unité) — 21 s
     expect(r.mixed!.airCost).toBe(4 * 13000);
   });
 });
+
+describe('liquide dangereux (vernis, gel…) : maritime uniquement — 28 sept. 2026', () => {
+  const vernis = { unit_price_cny: 6.5, quantity: 10, weight: 0.05, volume: 0.0001, has_battery: false, sea_only: true };
+  const lampe = { unit_price_cny: 80, quantity: 2, weight: 1.2, volume: 0.01, has_battery: false };
+  it('un vernis dans le panier : pas d’aérien, le maritime reste proposé', () => {
+    const r = computeOrderPricing([vernis, lampe]);
+    expect(r.airSeaOnly).toBe(true);
+    expect(r.airAvailable).toBe(false);
+    expect(r.airCost).toBeNull();
+    expect(r.seaAvailable).toBe(true);
+  });
+  it('sans produit marqué : rien ne change', () => {
+    const r = computeOrderPricing([lampe]);
+    expect(r.airSeaOnly).toBe(false);
+    expect(r.airAvailable).toBe(true);
+  });
+  it('fractionné : le vernis part en bateau même si la répartition le met en avion', () => {
+    const r = computeOrderPricing([{ ...vernis, air_qty: 10 }, { ...lampe, air_qty: 2 }]);
+    expect(r.mixed!.airUnits).toBe(2);
+    expect(r.mixed!.seaUnits).toBe(10);
+    expect(r.mixed!.available).toBe(true);
+  });
+});

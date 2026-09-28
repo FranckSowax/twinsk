@@ -26,7 +26,7 @@ import ImageGallery from '@/components/ui/ImageGallery';
 import MultiCurrencyPrice from '@/components/ui/MultiCurrencyPrice';
 import { roundXafUp, formatXAF, formatCNY, formatUSD, formatEUR, formatInCurrency, convertFromCny, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { shortenTitle, splitCategoryTitle } from '@/lib/utils/shortenTitle';
-import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText } from 'lucide-react';
+import { BatteryWarning, Info, LayoutGrid, List as ListIcon, Package, Ruler, Scale, Search, FileText, Ship } from 'lucide-react';
 import { isAcompte, ACOMPTE_LABEL, ACOMPTE_BADGE } from '@/lib/acompte';
 import { LOCAL_CURRENCY, isLocalCurrency } from '@/lib/local-currency';
 import LazyVideo from '@/components/ui/LazyVideo';
@@ -77,6 +77,8 @@ interface OfferProduct {
   dimensions: string | null;
   dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
   has_battery: boolean;
+  /** Liquide dangereux (vernis, gel…) : livraison maritime uniquement. */
+  sea_only?: boolean;
   info_manquante: string | null;
   seller: string | null;
   variants: OfferVariant[] | null;
@@ -849,10 +851,20 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                           alt={p.title}
                           className="h-full w-full object-cover transition-transform group-hover:scale-105"
                         />
-                        {p.has_battery && (
-                          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg">
-                            <BatteryWarning className="h-2.5 w-2.5" />
-                            Batterie
+                        {(p.has_battery || p.sea_only) && (
+                          <span className="absolute left-2 top-2 flex flex-col items-start gap-1">
+                            {p.has_battery && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg">
+                                <BatteryWarning className="h-2.5 w-2.5" />
+                                Batterie
+                              </span>
+                            )}
+                            {p.sea_only && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg" title="Liquide dangereux, interdit en avion : livraison maritime uniquement">
+                                <Ship className="h-2.5 w-2.5" />
+                                Maritime uniquement
+                              </span>
+                            )}
                           </span>
                         )}
                         {lineCount > 0 && (
@@ -938,6 +950,12 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                                 <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-orange-700">
                                   <BatteryWarning className="h-2.5 w-2.5" />
                                   Batterie
+                                </span>
+                              )}
+                              {p.sea_only && (
+                                <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700" title="Liquide dangereux, interdit en avion : livraison maritime uniquement">
+                                  <Ship className="h-2.5 w-2.5" />
+                                  Maritime
                                 </span>
                               )}
                               {p.in_cover_video && (
@@ -1202,6 +1220,20 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                       <p className="text-xs text-orange-700">
                         Contraintes de transport aérien (tarif majoré) et documents
                         douaniers spécifiques.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeProduct.sea_only && (
+                  <div className="flex items-start gap-2 rounded-xl border-2 border-blue-300 bg-blue-50 px-3 py-2.5 text-sm text-blue-900">
+                    <Ship className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <p className="font-bold">Livraison maritime uniquement</p>
+                      <p className="text-xs text-blue-800">
+                        Liquide dangereux (inflammable) : interdit en avion. Ce produit voyage
+                        uniquement par bateau, même si le reste de votre commande part en avion
+                        (transport fractionné).
                       </p>
                     </div>
                   </div>

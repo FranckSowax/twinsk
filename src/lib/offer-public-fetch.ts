@@ -27,6 +27,8 @@ interface RawProduct {
   dimensions: string | null;
   dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
   has_battery: boolean;
+  /** Liquide dangereux (vernis, gel…) : maritime uniquement (migration du 28 sept. 2026, absent avant). */
+  sea_only?: boolean | null;
   info_manquante: string | null;
   margin_percent: number;
   selected: boolean;
@@ -94,6 +96,8 @@ export interface PublicOfferData {
       dimensions: string | null;
       dimensions_cm: { length?: number | null; width?: number | null; height?: number | null } | null;
       has_battery: boolean;
+      /** Interdit en avion (liquide dangereux) : livraison maritime uniquement. */
+      sea_only?: boolean;
       info_manquante: string | null;
       seller: string | null;
       product_url: string;
@@ -265,6 +269,7 @@ export async function fetchPublicOffer(uuid: string): Promise<PublicOfferData | 
             dimensions: p.dimensions,
             dimensions_cm: p.dimensions_cm,
             has_battery: !!p.has_battery,
+            sea_only: !!p.sea_only,
             info_manquante: sanitizeForPublic(p.info_manquante) || null,
             seller: null, // hide supplier name from the public offer
             product_url: '',

@@ -52,8 +52,10 @@ interface OrderLine {
   price_type?: string | null; // "acompte" → ligne sur devis (hors total)
   /** Transport fractionné : unités de la ligne qui partent en avion (null = pas de répartition). */
   air_qty?: number | null;
-  /** Article de plus de 1,5 m³ : bateau uniquement. */
+  /** Article de plus de 1,5 m³ ou liquide dangereux : bateau uniquement. */
   air_blocked?: boolean;
+  /** Pourquoi : trop volumineux (oversize) ou liquide dangereux (sea_only). */
+  air_block_reason?: 'oversize' | 'sea_only' | null;
 }
 
 interface Pricing {
@@ -67,6 +69,8 @@ interface Pricing {
   seaOverLimit?: boolean;
   /** Un article dépasse 1,5 m³ : pas d'envoi aérien. */
   airOversize?: boolean;
+  /** Un article est un liquide dangereux (vernis, gel…) : pas d'envoi aérien. */
+  airSeaOnly?: boolean;
   totalUnits?: number;
   discountFcfa: number;
   itemsNetFcfa: number;
@@ -479,7 +483,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const canSplit =
     totalUnits > 1 &&
     lines.some((l) => !l.air_blocked) &&
-    (pricing.airAvailable || pricing.seaAvailable || !!pricing.airOversize);
+    (pricing.airAvailable || pricing.seaAvailable || !!pricing.airOversize || !!pricing.airSeaOnly);
   const grandTotalFcfa = roundSettlement(pricing.itemsNetFcfa + (transportCostNow || 0), currency);
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
@@ -579,6 +583,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                   </p>
                   {l.variant_name && (
                     <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-emerald-600">{l.variant_name}</p>
+                  )}
+                  {l.air_block_reason === 'sea_only' && (
+                    <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                      <Ship className="h-3 w-3" /> Maritime uniquement : liquide dangereux, interdit en avion
+                    </p>
                   )}
                 </div>
               </div>
@@ -756,6 +765,10 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
               <p className="text-xs font-medium text-slate-600">
                 Envoi aérien impossible : un article de votre panier dépasse 1,5 m³ (trop volumineux pour l’avion). Il part en bateau.
               </p>
+            ) : pricing.airSeaOnly ? (
+              <p className="text-xs font-medium text-slate-600">
+                Envoi aérien impossible : votre panier contient un liquide dangereux (vernis, gel…) interdit en avion. Choisissez le maritime, ou fractionnez : ces articles partiront en bateau.
+              </p>
             ) : (
               <>
                 <p className="text-xs text-slate-500">{formatSettlementRate(pricing.airRate, 'kg', currency)}</p>
@@ -769,13 +782,13 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                 ⚡ {pricing.airWeightBattery?.toFixed(2)} kg avec batterie à {formatSettlementRate(pricing.airBatteryRate ?? 0, 'kg', currency)} : {fmt(pricing.airCostBattery)}
               </p>
             )}
-            {!pricing.airOversize && (
+            {!pricing.airOversize && !pricing.airSeaOnly && (
               <>
                 <p className="text-[11px] font-medium text-slate-600">🚚 Livraison {transitLabel(COUNTRY.transit.air)}</p>
                 <p className="text-[10px] text-slate-400">Estimation transport seul</p>
               </>
             )}
-            {!pricing.airAvailable && !pricing.airOversize && (
+            {!pricing.airAvailable && !pricing.airOversize && !pricing.airSeaOnly && (
               <p className="text-[10px] text-amber-600">Poids inconnu</p>
             )}
           </button>
@@ -806,7 +819,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         )}
         {canSplit && (splitOpen || isMixed) && (
           <TransportSplitEditor
-            lines={lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty, air_blocked: !!l.air_blocked }))}
+            lines={lines.map((l) => ({ id: l.id, title: l.product_title || 'Produit', variant_name: l.variant_name, quantity: l.quantity, air_qty: l.air_qty, air_blocked: !!l.air_blocked, air_block_reason: l.air_block_reason ?? null }))}
             mixed={pricing.mixed}
             currency={currency}
             applied={isMixed}

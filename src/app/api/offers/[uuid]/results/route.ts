@@ -16,6 +16,7 @@ const FIELD_LABELS: Record<string, string> = {
   seller: 'Vendeur',
   variants: 'Variantes',
   has_battery: 'Batterie',
+  sea_only: 'Maritime uniquement',
   selected: 'Sélection',
 };
 
@@ -101,6 +102,7 @@ export async function PATCH(
       'volume',
       'dimensions',
       'has_battery',
+      'sea_only',
       'supplier_shipping_price',
       'delivery_time',
       'description_admin',

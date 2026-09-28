@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight, Video, Layers } from 'lucide-react';
+import { Check, ExternalLink, Minus, Info, Plus, FileText, Sparkles, CheckCircle2, User, Shield, X, Pencil, Trash2, GripVertical, Send, ChevronDown, ChevronRight, Video, Layers, Ship } from 'lucide-react';
 import { formatCNY, applyMargin } from '@/lib/utils/formatCurrency';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import ResultDetailModal from './ResultDetailModal';
@@ -72,6 +72,8 @@ interface SearchResultRow {
   position?: number | null;
   // « Vu dans la vidéo » : présent dans la vidéo de cover → badge rose fluo côté client.
   in_cover_video?: boolean | null;
+  // Liquide dangereux (vernis, gel…) : maritime uniquement (produits de listing, migration du 28 sept. 2026).
+  sea_only?: boolean | null;
 }
 
 interface RequestItemWithResults {
@@ -1105,6 +1107,20 @@ export default function ResultsTable({
                           >
                             <Video className="h-3.5 w-3.5" />
                           </button>
+                          {/* « Maritime uniquement » — liquide dangereux interdit en avion. Visible
+                              seulement sur les produits de listing une fois la colonne créée. */}
+                          {'sea_only' in result && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdate(result.id, { sea_only: !result.sea_only })}
+                              title={result.sea_only ? 'Retirer « Maritime uniquement »' : 'Marquer « Maritime uniquement » (liquide dangereux : vernis, gel, dissolvant…)'}
+                              className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+                                result.sea_only ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-300 hover:text-blue-600'
+                              }`}
+                            >
+                              <Ship className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {result.review_state === 'reviewed' && (
                             onValidateReview ? (
                               <button

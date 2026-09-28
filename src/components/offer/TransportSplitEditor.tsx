@@ -19,6 +19,8 @@ export interface SplitLine {
   air_qty?: number | null;
   /** Article de plus de 1,5 m³ : bateau uniquement (champ avion verrouillé à 0). */
   air_blocked?: boolean;
+  /** Pourquoi l'article ne prend pas l'avion : trop volumineux ou liquide dangereux. */
+  air_block_reason?: 'oversize' | 'sea_only' | null;
 }
 
 interface Props {
@@ -75,7 +77,11 @@ export default function TransportSplitEditor({ lines, mixed, currency, applied, 
                 <span className="w-8 text-center font-semibold tabular-nums text-slate-900">{l.quantity - air}</span>
                 bateau
               </span>
-              {l.air_blocked && <span className="basis-full text-[11px] font-medium text-amber-700">Plus de 1,5 m³ : trop volumineux pour l’avion, bateau uniquement.</span>}
+              {l.air_blocked && (
+                <span className="basis-full text-[11px] font-medium text-amber-700">
+                  {l.air_block_reason === 'sea_only' ? 'Liquide dangereux (vernis, gel…) : interdit en avion, bateau uniquement.' : 'Plus de 1,5 m³ : trop volumineux pour l’avion, bateau uniquement.'}
+                </span>
+              )}
               <div className={`flex gap-1 ${l.air_blocked ? 'hidden' : ''}`}>
                 <button type="button" onClick={() => setAir(l.id, l.quantity, l.quantity)} className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50">tout avion</button>
                 <button type="button" onClick={() => setAir(l.id, l.quantity, 0)} className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50">tout bateau</button>
