@@ -6,7 +6,7 @@ export type InboxStatus = 'open' | 'replied' | 'closed';
 import { CONTENT } from '@/content';
 import { PUBLIC_ORIGIN_FALLBACK } from '@/lib/public-origin';
 import { formatPhone as formatCountryPhone } from '@/lib/phone';
-export type InboxFilter = 'todo' | 'mine' | 'all' | 'closed';
+export type InboxFilter = 'todo' | 'mine' | 'pinned' | 'all' | 'closed';
 export type InboxMediaKind = 'image' | 'video' | 'audio' | 'document' | 'sticker';
 
 /** Message tel que livré par le webhook WHAPI (champs utiles seulement). */
@@ -194,7 +194,10 @@ export function summarizeThread(messages: ThreadMessage[], currentStatus: InboxS
   const lastOut = [...sorted].reverse().find((m) => m.from_me);
   // Une conversation clôturée le reste : seul un nouveau message en direct (webhook) la rouvre.
   const closed = currentStatus === 'closed';
-  const unread = closed ? 0 : sorted.filter((m) => !m.from_me && (!lastOut || m.sent_at > lastOut.sent_at)).length;
+  const pending = sorted.filter((m) => !m.from_me && (!lastOut || m.sent_at > lastOut.sent_at));
+  // Après notre réponse, un simple « Merci 🙏 » n'attend pas de réponse.
+  const onlyCourtesy = !!lastOut && pending.every((m) => m.type === 'text' && isCourtesyOnly(m.text || ''));
+  const unread = closed || onlyCourtesy ? 0 : pending.length;
   const status: InboxStatus = closed ? 'closed' : unread > 0 ? 'open' : 'replied';
   return {
     last_message_at: lastMsg.sent_at,
@@ -232,6 +235,11 @@ export function conversationPatch(
     // Une réponse de notre côté (interface ou téléphone) : plus rien à répondre.
     return { last_message_at: sentAt, last_message_preview: preview, last_outbound_at: sentAt, unread_count: 0, status: existing?.status === 'closed' ? 'closed' : 'replied', updated_at: sentAt };
   }
+  // « Merci », « ok merci 🙏 »… après notre réponse : rien à répondre, la
+  // conversation reste répondue (ou clôturée) au lieu de revenir « à répondre ».
+  if (existing && (existing.status === 'replied' || existing.status === 'closed') && d.type === 'text' && isCourtesyOnly(d.text)) {
+    return { last_message_at: sentAt, last_message_preview: preview, last_inbound_at: sentAt, status: existing.status, unread_count: existing.unread_count || 0, updated_at: sentAt };
+  }
   const patch: Record<string, unknown> = {
     last_message_at: sentAt,
     last_message_preview: preview,
@@ -243,6 +251,63 @@ export function conversationPatch(
   };
   if (!existing?.name && m.from_name) patch.name = m.from_name.trim().slice(0, 120);
   return patch;
+}
+
+// ---- Messages de simple politesse ----
+/** Mots d'un remerciement ou d'une formule de fin (sans accents ni apostrophes). */
+const COURTESY_WORDS = new Set([
+  'merci', 'mercii', 'merciii', 'merki', 'thanks', 'thank', 'thx', 'you', 'beaucoup', 'bcp', 'infiniment', 'mille', 'fois', 'encore',
+  'ok', 'okay', 'oki', 'okk', 'd', 'daccord', 'dac', 'accord', 'super', 'parfait', 'top', 'cool', 'nickel', 'genial', 'tres', 'bien', 'recu', 'note', 'entendu', 'compris',
+  'bonne', 'bon', 'journee', 'soiree', 'nuit', 'fin', 'semaine', 'a', 'vous', 'toi', 'aussi', 'egalement', 'pareil', 'de', 'meme', 'bientot', 'plus', 'tard', 'et',
+  'c', 'cest', 'est', 'gentil', 'dieu', 'benisse', 'amen',
+]);
+/** Mots qui font d'un message une politesse de fin (seul « ok » ne suffit pas). */
+const COURTESY_TRIGGERS = new Set(['merci', 'mercii', 'merciii', 'merki', 'thanks', 'thank', 'thx', 'journee', 'soiree', 'nuit', 'bientot']);
+/** Émojis de remerciement ou d'accord : 👍 🙏 👌 🤝 ❤️ 😊 🥰 😍 🤗 ✅ 💯 ☺️. */
+const COURTESY_EMOJI = /[\u{1F44D}\u{1F64F}\u{1F44C}\u{1F91D}❤♥\u{1F60A}\u{1F970}\u{1F60D}\u{1F917}✅\u{1F4AF}☺]/u;
+
+/**
+ * Vrai si le message n'est qu'une politesse (« Merci », « ok merci 🙏 »,
+ * « Bonne journée », 👍) : il n'appelle pas de réponse. Une question, une
+ * demande ou un « ok » / « oui » seul restent à traiter.
+ */
+export function isCourtesyOnly(text: string): boolean {
+  const raw = (text || '').trim();
+  if (!raw || raw.length > 80 || raw.includes('?')) return false;
+  const hasEmoji = COURTESY_EMOJI.test(raw);
+  const words = raw
+    .replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|‍|️/gu, ' ')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+  if (!words.length) return hasEmoji;
+  if (!words.every((w) => COURTESY_WORDS.has(w))) return false;
+  return hasEmoji || words.some((w) => COURTESY_TRIGGERS.has(w));
+}
+
+// ---- Épingles (propres à chaque personne connectée, wa_settings) ----
+export const PINS_PREFIX = 'inbox_pins:';
+/** Clé des épingles d'une personne : admin, collaborateur ou agent. */
+export function pinsKey(actor: { role: string; id: string }): string {
+  return `${PINS_PREFIX}${actor.role}:${actor.id}`;
+}
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+export function normalizePins(raw: unknown): string[] {
+  const out: string[] = [];
+  for (const v of Array.isArray(raw) ? raw : []) {
+    if (typeof v === 'string' && UUID_RE.test(v) && !out.includes(v)) out.push(v);
+    if (out.length >= 100) break;
+  }
+  return out;
+}
+/** Épingle (en tête) ou désépingle une conversation. */
+export function togglePin(list: string[], id: string, pinned: boolean): string[] {
+  const rest = normalizePins(list).filter((x) => x !== id);
+  return pinned ? normalizePins([id, ...rest]) : rest;
 }
 
 // ---- Phrases rapides (wa_settings clé inbox_quick_replies) ----
@@ -331,6 +396,8 @@ export interface MessageContext {
   ad?: AdContext;
   quoted?: QuotedContext;
   forwarded?: boolean;
+  /** Boutons lien d'une fiche envoyée par la plateforme (« Voir le produit »…). */
+  buttons?: { title: string; url: string }[];
 }
 /** Origine d'une conversation (dernière pub par laquelle le client est arrivé). */
 export interface ConversationSource {

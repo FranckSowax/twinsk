@@ -14,6 +14,10 @@ import {
   mergeReceipt,
   messageSentAt,
   normalizeQuickReplies,
+  normalizePins,
+  pinsKey,
+  togglePin,
+  chatIdFromPhone,
   phoneFromChatId,
   previewText,
   QUICK_REPLIES_KEY,
@@ -175,10 +179,12 @@ export async function applyStatusEvent(st: { id?: string; status?: string; recip
   await applyReceipt(st.id, st.status, Number.isFinite(t) && t > 1_000_000_000 ? new Date(t * 1000).toISOString() : undefined);
 }
 
-export async function listConversations(filter: InboxFilter, actor: InboxActor, q = ''): Promise<ConversationRow[]> {
+export async function listConversations(filter: InboxFilter, actor: InboxActor, q = '', pins: string[] = []): Promise<ConversationRow[]> {
+  if (filter === 'pinned' && !pins.length) return [];
   let qb = supabaseAdmin.from('wa_conversations').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).limit(200);
   if (filter === 'todo') qb = qb.eq('status', 'open');
   else if (filter === 'mine') qb = qb.eq('assigned_to', actor.id).neq('status', 'closed');
+  else if (filter === 'pinned') qb = qb.in('id', pins);
   else if (filter === 'closed') qb = qb.eq('status', 'closed');
   else qb = qb.neq('status', 'closed');
   const term = q.trim();
@@ -191,13 +197,25 @@ export async function listConversations(filter: InboxFilter, actor: InboxActor, 
   return (data || []) as ConversationRow[];
 }
 
-/** Compteurs des filtres (à répondre, les miennes) pour l'en-tête. */
-export async function inboxCounts(actor: InboxActor): Promise<{ todo: number; mine: number }> {
+/** Compteurs des filtres (à répondre, les miennes, mes épingles) pour l'en-tête. */
+export async function inboxCounts(actor: InboxActor, pins: string[] = []): Promise<{ todo: number; mine: number; pinned: number }> {
   const [todo, mine] = await Promise.all([
     supabaseAdmin.from('wa_conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     supabaseAdmin.from('wa_conversations').select('id', { count: 'exact', head: true }).eq('assigned_to', actor.id).neq('status', 'closed'),
   ]);
-  return { todo: todo.count || 0, mine: mine.count || 0 };
+  return { todo: todo.count || 0, mine: mine.count || 0, pinned: pins.length };
+}
+
+// ---- Épingles : propres à chaque personne connectée (wa_settings) ----
+export async function readPins(actor: InboxActor): Promise<string[]> {
+  const { data } = await supabaseAdmin.from('wa_settings').select('value').eq('key', pinsKey(actor)).maybeSingle();
+  return normalizePins(data?.value);
+}
+export async function setPin(actor: InboxActor, conversationId: string, pinned: boolean): Promise<string[]> {
+  const next = togglePin(await readPins(actor), conversationId, pinned);
+  const { error } = await supabaseAdmin.from('wa_settings').upsert({ key: pinsKey(actor), value: next, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  return next;
 }
 
 export async function getConversation(id: string): Promise<ConversationRow | null> {
@@ -294,6 +312,86 @@ export async function sendInboxReply(conversationId: string, actor: InboxActor, 
   // Accepté par WhatsApp : 1 coche ; « reçu » et « lu » arrivent ensuite par le webhook.
   await applyReceipt(row.id, 'sent');
   return { ok: true, message: { ...row, status: 'sent' } as MessageRow };
+}
+
+/** Message envoyé par la plateforme hors du champ de réponse (panier client, sélection…). */
+export interface OutboundRecord {
+  messageId?: string;
+  type: string;
+  text: string | null;
+  media_url?: string | null;
+  media_kind?: InboxMediaKind | null;
+  buttons?: { title: string; url: string }[];
+  /** Instant d'envoi (ISO). */
+  at: string;
+}
+
+/**
+ * Inscrit dans le fil de la messagerie les messages qu'une autre partie de la
+ * plateforme vient d'envoyer au client (fiches produit, récap de panier…),
+ * avec leur auteur : sans cela, seul l'écho du webhook arrivait, et les fiches
+ * à boutons n'y étaient pas lisibles. Conversation créée au besoin, marquée
+ * répondue. Ne bloque jamais l'envoi : toute erreur est seulement journalisée.
+ */
+export async function recordOutboundMessages(phone: string, actor: InboxActor | null, items: OutboundRecord[], clientName?: string | null): Promise<void> {
+  if (!items.length) return;
+  try {
+    const chatId = chatIdFromPhone(phone);
+    if (!isPrivateChat(chatId)) return;
+    const { data: existing } = await supabaseAdmin.from('wa_conversations').select('id, assigned_to').eq('chat_id', chatId).maybeSingle();
+    let conversationId = existing?.id as string | undefined;
+    if (!conversationId) {
+      const { data: created, error } = await supabaseAdmin
+        .from('wa_conversations')
+        .insert({ chat_id: chatId, phone: phoneFromChatId(chatId), name: clientName?.trim().slice(0, 120) || null, status: 'replied', unread_count: 0 })
+        .select('id')
+        .single();
+      if (error || !created) {
+        console.error('[inbox] conversation non créée (envoi plateforme) :', error?.message);
+        return;
+      }
+      conversationId = created.id as string;
+    }
+    const rows = items.map((it) => ({
+      id: it.messageId || `local-${crypto.randomUUID()}`,
+      conversation_id: conversationId,
+      chat_id: chatId,
+      from_me: true,
+      type: it.type,
+      text: it.text || null,
+      media_url: it.media_url || null,
+      media_kind: it.media_kind || null,
+      filename: null,
+      sender_name: actor?.name || null,
+      sent_by: actor?.id || null,
+      sent_at: it.at,
+    }));
+    // Pas d'ignoreDuplicates : si l'écho du webhook est arrivé avant, il est complété (auteur, photo).
+    const { error } = await supabaseAdmin.from('wa_messages').upsert(rows, { onConflict: 'id' });
+    if (error) {
+      console.error('[inbox] envoi plateforme non enregistré :', error.message);
+      return;
+    }
+    // Boutons dans le contexte (migration 61) : mise à jour séparée, tolère l'absence de colonne.
+    for (let i = 0; i < items.length; i++) {
+      const buttons = items[i].buttons?.filter((b) => b.url);
+      if (buttons?.length) await supabaseAdmin.from('wa_messages').update({ context: { buttons } }).eq('id', rows[i].id);
+    }
+    const last = rows[rows.length - 1];
+    const patch: Record<string, unknown> = {
+      last_message_at: last.sent_at,
+      last_message_preview: previewText({ type: last.type, text: last.text || '', media_url: last.media_url, media_kind: last.media_kind, filename: null }),
+      last_outbound_at: last.sent_at,
+      unread_count: 0,
+      status: 'replied',
+      updated_at: new Date().toISOString(),
+    };
+    if (actor && !existing?.assigned_to) Object.assign(patch, { assigned_to: actor.id, assigned_name: actor.name, assigned_at: last.sent_at });
+    await supabaseAdmin.from('wa_conversations').update(patch).eq('id', conversationId);
+    for (const r of rows) await applyReceipt(r.id, 'sent');
+  } catch (e) {
+    console.error('[inbox] envoi plateforme non enregistré :', e);
+  }
 }
 
 /**

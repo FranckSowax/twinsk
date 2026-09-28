@@ -8,7 +8,7 @@
 // interrogation régulière (liste 10 s, fil 6 s).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, FileText, History, Image as ImageIcon, Loader2, Lock, Paperclip, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCheck, CheckCircle2, Clock, ExternalLink, FileText, History, Image as ImageIcon, Loader2, Paperclip, Pin, PinOff, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
 import QuickRepliesEditor from './QuickRepliesEditor';
 import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
@@ -20,8 +20,9 @@ interface MediaItem { id: string; url: string; kind: 'image' | 'video'; title: s
 const FILTERS: { key: InboxFilter; label: string }[] = [
   { key: 'todo', label: 'À répondre' },
   { key: 'mine', label: 'Les miennes' },
+  { key: 'pinned', label: '📌 Épinglées' },
   { key: 'all', label: 'Toutes' },
-  { key: 'closed', label: 'Clôturées' },
+  { key: 'closed', label: 'Terminées' },
 ];
 
 function relTime(iso: string | null): string {
@@ -83,7 +84,9 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [filter, setFilter] = useState<InboxFilter>('todo');
   const [q, setQ] = useState('');
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
-  const [counts, setCounts] = useState({ todo: 0, mine: 0 });
+  const [counts, setCounts] = useState({ todo: 0, mine: 0, pinned: 0 });
+  // Épingles de la personne connectée (chacun les siennes).
+  const [pins, setPins] = useState<string[]>([]);
   const [listError, setListError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [thread, setThread] = useState<{ conversation: ConversationRow; messages: MessageRow[] } | null>(null);
@@ -144,8 +147,9 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
     setListError('');
     setConversations(d.conversations || []);
     queueReceiptSync(d.conversations || []);
-    setCounts(d.counts || { todo: 0, mine: 0 });
+    setCounts({ todo: 0, mine: 0, pinned: 0, ...(d.counts || {}) });
     onCounts?.(d.counts || { todo: 0, mine: 0 });
+    if (Array.isArray(d.pins)) setPins(d.pins);
     if (d.actor) setActor(d.actor);
   }, [filter, q, api, onCounts, queueReceiptSync]);
   useEffect(() => {
@@ -205,17 +209,29 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const conv = thread?.conversation || conversations.find((c) => c.id === selectedId) || null;
   const client = useMemo(() => ({ name: conv?.name || null, phone: conv?.phone || null }), [conv?.name, conv?.phone]);
 
-  const patchConv = async (body: Record<string, unknown>) => {
-    if (!conv) return;
-    const r = await api(`/api/inbox/conversations/${conv.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const patchConv = async (body: Record<string, unknown>, id = conv?.id) => {
+    if (!id) return;
+    const r = await api(`/api/inbox/conversations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       setError(d.error || 'Mise à jour impossible');
       return;
     }
-    setThread((t) => (t ? { ...t, conversation: d.conversation } : t));
+    if (Array.isArray(d.pins)) setPins(d.pins);
+    setThread((t) => (t && t.conversation.id === id && d.conversation ? { ...t, conversation: d.conversation } : t));
     loadList();
   };
+  // « Terminer » : la conversation sort de « À répondre » ; un nouveau message du client la rouvre.
+  const finish = (id: string) => {
+    setConversations((list) => (filter === 'todo' ? list.filter((c) => c.id !== id) : list.map((c) => (c.id === id ? { ...c, status: 'closed', unread_count: 0 } : c))));
+    return patchConv({ status: 'closed' }, id);
+  };
+  const pinnedSet = useMemo(() => new Set(pins), [pins]);
+  // Mes épingles d'abord (ordre du plus récent message conservé à l'intérieur de chaque groupe).
+  const shown = useMemo(
+    () => (filter === 'pinned' ? conversations : [...conversations.filter((c) => pinnedSet.has(c.id)), ...conversations.filter((c) => !pinnedSet.has(c.id))]),
+    [conversations, pinnedSet, filter],
+  );
 
   const send = async (payload: { text?: string; media?: { url: string; kind: 'image' | 'video' | 'document'; caption?: string; filename?: string } }) => {
     if (!conv || sending) return;
@@ -305,7 +321,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
             </div>
             <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {FILTERS.map((f) => {
-                const n = f.key === 'todo' ? counts.todo : f.key === 'mine' ? counts.mine : null;
+                const n = f.key === 'todo' ? counts.todo : f.key === 'mine' ? counts.mine : f.key === 'pinned' ? pins.length : null;
                 const on = filter === f.key;
                 return (
                   <button key={f.key} type="button" onClick={() => setFilter(f.key)} className={`flex flex-shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold ${on ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'}`}>
@@ -319,24 +335,35 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
           <div className="min-h-0 flex-1 overflow-y-auto">
             {conversations.length === 0 && !listError && (
               <p className="p-6 text-center text-sm text-slate-500">
-                {filter === 'todo' ? 'Rien à répondre pour l’instant 🎉' : 'Aucune conversation.'}
+                {filter === 'todo' ? 'Rien à répondre pour l’instant 🎉' : filter === 'pinned' ? 'Aucune conversation épinglée. Ouvrez-en une puis « Épingler » pour y revenir plus tard.' : 'Aucune conversation.'}
               </p>
             )}
-            {conversations.map((c) => {
+            {shown.map((c) => {
               const active = c.id === selectedId;
+              const pinned = pinnedSet.has(c.id);
               return (
-                <button
+                <div
                   key={c.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedId(c.id)}
-                  className={`flex w-full items-start gap-3 border-b border-slate-100 px-3 py-3 text-left transition dark:border-slate-700/60 ${active ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedId(c.id);
+                    }
+                  }}
+                  className={`flex w-full cursor-pointer items-start gap-3 border-b border-slate-100 px-3 py-3 text-left transition dark:border-slate-700/60 ${active ? 'bg-emerald-50 dark:bg-emerald-900/20' : pinned ? 'bg-amber-50/60 hover:bg-amber-50 dark:bg-amber-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
                 >
                   <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${c.status === 'closed' ? 'bg-slate-200 text-slate-500' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'}`}>
                     {initials(c.name, c.phone)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
-                      <span className={`truncate text-sm ${c.unread_count > 0 ? 'font-bold text-slate-900 dark:text-white' : 'font-semibold text-slate-800 dark:text-slate-100'}`}>{c.name || formatPhone(c.phone)}</span>
+                      <span className={`flex min-w-0 items-center gap-1 truncate text-sm ${c.unread_count > 0 ? 'font-bold text-slate-900 dark:text-white' : 'font-semibold text-slate-800 dark:text-slate-100'}`}>
+                        {pinned && <Pin className="h-3.5 w-3.5 flex-shrink-0 fill-amber-400 text-amber-500" aria-label="Épinglée" />}
+                        <span className="truncate">{c.name || formatPhone(c.phone)}</span>
+                      </span>
                       <span className="flex-shrink-0 text-[11px] text-slate-400">{relTime(c.last_message_at)}</span>
                     </span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
@@ -356,10 +383,23 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                         </span>
                       )}
                       <AssigneeChip c={c} actor={actor} />
-                      {c.status === 'closed' && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">Clôturée</span>}
+                      {c.status === 'closed' && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">Terminée</span>}
+                      {c.status === 'open' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            finish(c.id);
+                          }}
+                          title="Rien à répondre (ex. « Merci ») : sortir de « À répondre »"
+                          className="ml-auto inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:bg-transparent dark:text-emerald-300"
+                        >
+                          <CheckCircle2 className="h-3 w-3" /> Terminer
+                        </button>
+                      )}
                     </span>
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -380,7 +420,8 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                   <p className="truncate font-bold text-slate-900 dark:text-white">{conv.name || formatPhone(conv.phone)}</p>
                   <p className="truncate text-xs text-slate-500">
                     {conv.name ? `${formatPhone(conv.phone)} · ` : ''}
-                    {conv.status === 'closed' ? 'Clôturée' : conv.status === 'replied' ? 'Répondue' : 'À répondre'}
+                    {conv.status === 'closed' ? 'Terminée' : conv.status === 'replied' ? 'Répondue' : 'À répondre'}
+                    {pinnedSet.has(conv.id) ? ' · 📌 épinglée' : ''}
                     {conv.assigned_name ? ` · ${conv.assigned_to === actor?.id ? 'attribuée à vous' : `suivie par ${conv.assigned_name}`}` : ' · non attribuée'}
                   </p>
                   {conv.source?.type === 'ad' && (
@@ -398,10 +439,20 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                 ) : (
                   <button type="button" onClick={() => patchConv({ assign: 'me' })} className={`${btn} border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300`}><UserCheck className="h-3.5 w-3.5" /> M’attribuer</button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => patchConv({ pin: !pinnedSet.has(conv.id) })}
+                  className={`${btn} ${pinnedSet.has(conv.id) ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/20' : ''}`}
+                  title={pinnedSet.has(conv.id) ? 'Retirer de mes épingles' : 'Épingler pour y répondre plus tard (visible par vous seul)'}
+                >
+                  {pinnedSet.has(conv.id) ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />} {pinnedSet.has(conv.id) ? 'Désépingler' : 'Épingler'}
+                </button>
                 {conv.status === 'closed' ? (
                   <button type="button" onClick={() => patchConv({ status: 'open' })} className={btn}><RefreshCw className="h-3.5 w-3.5" /> Rouvrir</button>
                 ) : (
-                  <button type="button" onClick={() => patchConv({ status: 'closed' })} className={btn}><Lock className="h-3.5 w-3.5" /> Clôturer</button>
+                  <button type="button" onClick={() => finish(conv.id)} className={`${btn} border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300`} title="Conversation terminée : elle sort de « À répondre » (un nouveau message du client la rouvre)">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Terminer
+                  </button>
                 )}
                 <button type="button" onClick={() => setPanel(panel === 'note' ? null : 'note')} className={`${btn} ${conv.note ? 'border-amber-300 text-amber-700' : ''}`} title="Note interne"><FileText className="h-3.5 w-3.5" /> Note</button>
               </div>
@@ -434,11 +485,21 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                           return <QuotedBlock author={author} text={orig?.text || q.text} />;
                         })()}
                       {m.context?.forwarded && <p className="mb-1 text-[10px] italic opacity-60">↪ Transféré</p>}
-                      {!m.context?.ad && (() => {
+                      {!m.context?.ad && !m.context?.buttons?.length && (() => {
                         const url = m.type === 'link_preview' && m.media_url ? m.media_url : firstUrl(m.text);
                         return url ? <LinkPreviewCard url={url} fallbackTitle={m.type === 'link_preview' ? m.filename : null} fetcher={api} /> : null;
                       })()}
                       {m.text && <MessageText text={m.text} mine={m.from_me} />}
+                      {/* Boutons des fiches envoyées par la plateforme (panier, sélection) */}
+                      {!!m.context?.buttons?.length && (
+                        <div className="mt-2 flex flex-col gap-1 border-t border-black/10 pt-1.5">
+                          {m.context.buttons.map((b, i) => (
+                            <a key={i} href={b.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-lg py-1 text-xs font-semibold text-[#027eb5] hover:bg-black/5 dark:text-sky-300">
+                              <ExternalLink className="h-3.5 w-3.5" /> {b.title}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       <p className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${m.from_me ? 'text-emerald-800/70 dark:text-emerald-100/70' : 'text-slate-400'}`}>
                         {m.from_me && (m.sender_name ? <span className="font-semibold">{m.sender_name}</span> : <span className="flex items-center gap-0.5"><Smartphone className="h-3 w-3" /> téléphone</span>)}
                         {!m.from_me && m.sender_name && <span className="font-semibold">{m.sender_name}</span>}
@@ -553,7 +614,15 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
               <h2 className="flex items-center gap-2 font-display text-lg font-bold uppercase text-slate-900 dark:text-white"><Users className="h-5 w-5 text-emerald-500" /> Panier pour {conv.name || formatPhone(conv.phone)}</h2>
               <button type="button" onClick={() => setPanel(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200" aria-label="Fermer"><X className="h-5 w-5" /></button>
             </div>
-            <ClientCartPanel initialName={conv.name || ''} initialPhone={`+${conv.phone}`} />
+            <ClientCartPanel
+              initialName={conv.name || ''}
+              initialPhone={`+${conv.phone}`}
+              asAgent={as === 'agent'}
+              onSent={() => {
+                loadThread(conv.id, true);
+                loadList();
+              }}
+            />
           </div>
         </div>
       )}

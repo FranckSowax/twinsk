@@ -1,5 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { conversationPatch, describeMessage, extractContext, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isIgnoredType, isPrivateChat, messageSentAt, normalizeQuickReplies, phoneFromChatId, previewText, splitLinks, summarizeThread } from './wa-inbox';
+import { conversationPatch, describeMessage, extractContext, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isCourtesyOnly, isIgnoredType, isPrivateChat, messageSentAt, normalizePins, normalizeQuickReplies, phoneFromChatId, pinsKey, previewText, splitLinks, summarizeThread, togglePin } from './wa-inbox';
+
+describe('isCourtesyOnly — « Merci » n’attend pas de réponse (28 sept. 2026)', () => {
+  it('remerciements, formules de fin, émojis d’accord', () => {
+    for (const t of ['Merci', 'merci beaucoup !', 'Ok merci 🙏', "D'accord merci", 'Merci, bonne journée', 'Bonne soirée à vous', '👍', '🙏🏾', 'ok 👍', 'Très bien merci', 'Merci à vous aussi', 'C’est noté merci']) {
+      expect(isCourtesyOnly(t), t).toBe(true);
+    }
+  });
+  it('question, demande, « ok » ou « oui » seuls : à traiter', () => {
+    for (const t of ['Merci, et le prix ?', 'Merci je prends 2', 'ok', 'Oui', 'D’accord', '', '😮', 'merci ' + 'x'.repeat(90), 'Merci pour le lien, je veux le canapé gris']) {
+      expect(isCourtesyOnly(t), t).toBe(false);
+    }
+  });
+  it('après notre réponse, « Merci » ne remet pas la conversation « à répondre »', () => {
+    const d = { type: 'text', text: 'Merci 🙏', media_url: null, media_kind: null, filename: null };
+    expect(conversationPatch({ status: 'replied', unread_count: 0, name: 'H' }, {}, d, 't')).toMatchObject({ status: 'replied', unread_count: 0, last_inbound_at: 't' });
+    expect(conversationPatch({ status: 'closed', unread_count: 0, name: 'H' }, {}, d, 't')).toMatchObject({ status: 'closed' });
+    // Conversation déjà à répondre, ou premier message : on ne touche à rien.
+    expect(conversationPatch({ status: 'open', unread_count: 1, name: 'H' }, {}, d, 't')).toMatchObject({ status: 'open', unread_count: 2 });
+    expect(conversationPatch(null, {}, d, 't')).toMatchObject({ status: 'open', unread_count: 1 });
+  });
+  it('résumé de l’historique : un « Merci » après notre réponse ne compte pas', () => {
+    const msg = (from_me: boolean, sent_at: string, text = 'x') => ({ from_me, sent_at, type: 'text', text, media_url: null, media_kind: null, filename: null });
+    expect(summarizeThread([msg(false, 'a', 'Prix ?'), msg(true, 'b'), msg(false, 'c', 'Merci beaucoup')], 'replied')).toMatchObject({ unread_count: 0, status: 'replied' });
+    expect(summarizeThread([msg(false, 'a', 'Merci')], 'open')).toMatchObject({ unread_count: 1, status: 'open' });
+  });
+});
+
+describe('épingles — propres à chaque personne connectée', () => {
+  const a = '11111111-1111-1111-1111-111111111111';
+  const b = '22222222-2222-2222-2222-222222222222';
+  it('clé par rôle et identifiant', () => {
+    expect(pinsKey({ role: 'admin', id: 'admin' })).toBe('inbox_pins:admin:admin');
+    expect(pinsKey({ role: 'agent', id: a })).toBe(`inbox_pins:agent:${a}`);
+  });
+  it('épingler met en tête sans doublon, désépingler retire, valeurs invalides ignorées', () => {
+    expect(togglePin([a], b, true)).toEqual([b, a]);
+    expect(togglePin([b, a], a, true)).toEqual([a, b]);
+    expect(togglePin([a, b], a, false)).toEqual([b]);
+    expect(normalizePins([a, a, 'x', 3, b])).toEqual([a, b]);
+    expect(normalizePins(null)).toEqual([]);
+  });
+});
 
 describe('isPrivateChat — seules les conversations clients entrent dans la messagerie', () => {
   it('accepte un numéro, refuse groupes, chaînes et vide', () => {

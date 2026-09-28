@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     message: body.message,
     origin: publicOrigin(request),
     actor: actor ? `${actor.role}:${actor.name}` : 'admin',
+    inbox: actor,
   });
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: r.status });
   return NextResponse.json({ success: true, selection: r.selection, sent: r.sent, errors: r.errors });

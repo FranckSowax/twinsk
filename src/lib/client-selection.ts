@@ -16,6 +16,7 @@ import { buildCardBody, listingTagline, productDeepLink } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiText } from '@/lib/whapi';
 import { COUNTRY } from '@/config/countries';
+import { recordOutboundMessages, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
 
 export const SELECTION_PREFIX = 'client_selection:';
 export const MAX_SELECTION_PRODUCTS = 20;
@@ -107,6 +108,8 @@ export async function createAndSendSelection(args: {
   message?: string | null;
   origin: string;
   actor: string;
+  /** Personne qui envoie : les messages sont inscrits à son nom dans la messagerie. */
+  inbox?: InboxActor | null;
 }): Promise<{ selection: ClientSelection; sent: number; errors: string[] } | { error: string; status: number }> {
   const data = await fetchPublicOffer(args.offerId);
   if (!data) return { error: 'Listing introuvable ou non publié', status: 404 };
@@ -141,10 +144,16 @@ export async function createAndSendSelection(args: {
   };
   const errors: string[] = [];
   let sent = 0;
+  // Messages envoyés, inscrits ensuite dans le fil de la messagerie.
+  const log: OutboundRecord[] = [];
+  const at = () => new Date().toISOString();
 
-  const hello = await sendWhapiText(buildSelectionIntro({ clientName: sel.client_name, tagline, count: items.length, message: sel.message }), to);
-  if (hello.ok) sent += 1;
-  else errors.push(`accueil : ${hello.error}`);
+  const intro = buildSelectionIntro({ clientName: sel.client_name, tagline, count: items.length, message: sel.message });
+  const hello = await sendWhapiText(intro, to);
+  if (hello.ok) {
+    sent += 1;
+    log.push({ messageId: hello.messageId, type: 'text', text: intro, at: at() });
+  } else errors.push(`accueil : ${hello.error}`);
   await sleep(1200);
 
   for (const it of items) {
@@ -158,15 +167,23 @@ export async function createAndSendSelection(args: {
     let r = img
       ? await sendWhapiProductCard({ imageUrl: img, body, footer: tagline, buttonTitle: 'Voir le produit', url: viewUrl, to, extraButtons: [{ title: 'Ajouter au panier', url: addUrl, id: 'add_to_cart' }] })
       : await sendWhapiButtonLink({ body: `${body}\n\n🛒 Ajouter au panier : ${addUrl}`, buttonTitle: 'Voir le produit', url: viewUrl, to });
+    let rec: Omit<OutboundRecord, 'messageId' | 'at'> = img
+      ? { type: 'image', text: body, media_url: img, media_kind: 'image', buttons: [{ title: 'Voir le produit', url: viewUrl }, { title: 'Ajouter au panier', url: addUrl }] }
+      : { type: 'text', text: `${body}\n\n🛒 Ajouter au panier : ${addUrl}`, buttons: [{ title: 'Voir le produit', url: viewUrl }] };
     if (!r.ok && img) {
       await sleep(800);
-      r = await sendWhapiImage(img, `${body}\n\n👀 Voir le produit : ${viewUrl}\n🛒 Ajouter au panier : ${addUrl}`, to);
+      const caption = `${body}\n\n👀 Voir le produit : ${viewUrl}\n🛒 Ajouter au panier : ${addUrl}`;
+      r = await sendWhapiImage(img, caption, to);
+      rec = { type: 'image', text: caption, media_url: img, media_kind: 'image' };
     }
-    if (r.ok) sent += 1;
-    else errors.push(`${p.title.slice(0, 40)} : ${r.error}`);
+    if (r.ok) {
+      sent += 1;
+      log.push({ ...rec, messageId: r.messageId, at: at() });
+    } else errors.push(`${p.title.slice(0, 40)} : ${r.error}`);
     await sleep(1200);
   }
 
+  await recordOutboundMessages(sel.client_phone, args.inbox ?? null, log, sel.client_name);
   sel.sent_at = new Date().toISOString();
   await saveSelection(sel);
   await supabaseAdmin.from('playbook_log').insert({

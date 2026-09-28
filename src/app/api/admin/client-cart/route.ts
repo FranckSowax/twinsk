@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { canBuildCarts } from '@/lib/inbox-actor';
+import { canBuildCarts, inboxActor } from '@/lib/inbox-actor';
 import { validateContact } from '@/lib/contact-validation';
 import { createOfferOrder, type OrderPick } from '@/lib/offer-order-create';
 import { publicOrigin } from '@/lib/public-origin';
@@ -98,7 +98,8 @@ export async function POST(request: NextRequest) {
   if (body.send === false) {
     return NextResponse.json({ success: true, saved: true, order_id: created.orderId, order_url: orderUrl, sent: 0, errors: transportWarning ? [transportWarning] : [] });
   }
-  const r = await sendClientCartWhatsapp({ orderId: created.orderId, origin, message: body.message });
+  const actor = await inboxActor(request);
+  const r = await sendClientCartWhatsapp({ orderId: created.orderId, origin, message: body.message, inbox: actor, actor: actor ? `${actor.role}:${actor.name}` : undefined });
   if ('error' in r) return NextResponse.json({ error: r.error, order_id: created.orderId, order_url: orderUrl }, { status: r.status });
   const errors = transportWarning ? [transportWarning, ...r.errors] : r.errors;
   return NextResponse.json({ success: errors.length === 0, saved: true, ...r, errors });

@@ -36,7 +36,20 @@ const key = (p: string, v: string | null) => `${p}::${v || ''}`;
 // Montants dans la devise de règlement du listing (FCFA, ou euros pour un listing en euros).
 const fcfa = (n: number, currency: SettlementCurrency = LOCAL_CURRENCY) => formatSettlement(n, currency);
 
-export default function ClientCartPanel({ initialName = '', initialPhone = '' }: { initialName?: string; initialPhone?: string } = {}) {
+export default function ClientCartPanel({
+  initialName = '',
+  initialPhone = '',
+  asAgent = false,
+  onSent,
+}: {
+  initialName?: string;
+  initialPhone?: string;
+  /** Espace agents : l'envoi est inscrit au nom de l'agent dans la messagerie. */
+  asAgent?: boolean;
+  /** Appelé après un envoi WhatsApp réussi (la messagerie rafraîchit son fil). */
+  onSent?: () => void;
+} = {}) {
+  const sendHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...(asAgent ? { 'x-inbox-as': 'agent' } : {}) };
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerId, setOfferId] = useState('');
   const [data, setData] = useState<PublicOfferData | null>(null);
@@ -242,12 +255,15 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
     try {
       const res = await fetch(`/api/admin/client-cart/${editing.orderId}/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sendHeaders,
         body: JSON.stringify({ message: message.trim() || undefined }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) setError(d.error || `Erreur HTTP ${res.status}`);
-      else setResult(d as SendResult);
+      else {
+        setResult(d as SendResult);
+        if ((d as SendResult).sent > 0) onSent?.();
+      }
       await loadSaved();
     } finally {
       setBusy(null);
@@ -284,7 +300,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
     try {
       const res = await fetch('/api/admin/client-cart', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sendHeaders,
         body: JSON.stringify({
           offer_id: offerId,
           client_name: contact.name,
@@ -304,6 +320,7 @@ export default function ClientCartPanel({ initialName = '', initialPhone = '' }:
       if (!res.ok) setError(d.error || `Erreur HTTP ${res.status}`);
       else {
         setResult(d as SendResult);
+        if (send && (d as SendResult).sent > 0) onSent?.();
         setCart({});
         setNewMode(null);
         setNewSplit({});

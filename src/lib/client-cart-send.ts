@@ -12,6 +12,7 @@ import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiTex
 import { COUNTRY } from '@/config/countries';
 import { CONTENT } from '@/content';
 import { transitLabel } from '@/lib/country';
+import { recordOutboundMessages, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -35,6 +36,8 @@ export async function sendClientCartWhatsapp(args: {
   origin: string;
   message?: string;
   actor?: string;
+  /** Personne qui envoie : les messages sont inscrits à son nom dans la messagerie. */
+  inbox?: InboxActor | null;
 }): Promise<ClientCartSendResult | { error: string; status: number }> {
   const { data: order } = await supabaseAdmin
     .from('offer_orders')
@@ -88,6 +91,9 @@ export async function sendClientCartWhatsapp(args: {
   const to = `${phone}@s.whatsapp.net`;
   const errors: string[] = [];
   let sent = 0;
+  // Messages envoyés, inscrits ensuite dans le fil de la messagerie.
+  const log: OutboundRecord[] = [];
+  const at = () => new Date().toISOString();
 
   const intro =
     `Bonjour ${o.client_name} 👋\n\n` +
@@ -95,8 +101,10 @@ export async function sendClientCartWhatsapp(args: {
     (args.message?.trim() ? `${args.message.trim()}\n\n` : '') +
     `Les fiches produits suivent, puis le récapitulatif de votre panier.`;
   const hello = await sendWhapiText(intro, to);
-  if (hello.ok) sent += 1;
-  else errors.push(`intro : ${hello.error}`);
+  if (hello.ok) {
+    sent += 1;
+    log.push({ messageId: hello.messageId, type: 'text', text: intro, at: at() });
+  } else errors.push(`intro : ${hello.error}`);
   await sleep(1200);
 
   for (const l of lines) {
@@ -107,15 +115,23 @@ export async function sendClientCartWhatsapp(args: {
     const cardBody = [`*${title}*`, l.variant_name ? `Variante : ${l.variant_name}` : null, priceLine].filter(Boolean).join('\n\n');
     const url = l.product_id ? productDeepLink(offerUrl, l.product_id) : offerUrl;
     const img = l.product_image ? publicImage(l.product_image) : null;
+    const buttons = [{ title: 'Voir le produit', url }];
     let r = img
       ? await sendWhapiProductCard({ imageUrl: img, body: cardBody, footer: tagline, buttonTitle: 'Voir le produit', url, to })
       : await sendWhapiButtonLink({ body: cardBody, buttonTitle: 'Voir le produit', url, to });
+    let rec: Omit<OutboundRecord, 'messageId' | 'at'> = img
+      ? { type: 'image', text: cardBody, media_url: img, media_kind: 'image', buttons }
+      : { type: 'text', text: cardBody, buttons };
     if (!r.ok && img) {
       await sleep(800);
-      r = await sendWhapiImage(img, `${cardBody}\n\n👉 ${url}`, to);
+      const caption = `${cardBody}\n\n👉 ${url}`;
+      r = await sendWhapiImage(img, caption, to);
+      rec = { type: 'image', text: caption, media_url: img, media_kind: 'image' };
     }
-    if (r.ok) sent += 1;
-    else errors.push(`${title.slice(0, 40)} : ${r.error}`);
+    if (r.ok) {
+      sent += 1;
+      log.push({ ...rec, messageId: r.messageId, at: at() });
+    } else errors.push(`${title.slice(0, 40)} : ${r.error}`);
     await sleep(1200);
   }
 
@@ -161,12 +177,18 @@ export async function sendClientCartWhatsapp(args: {
     `*Total articles : ${fcfa(pricing.itemsTotalFcfaRounded)}*` +
     transportBlock;
   const tail = await sendWhapiButtonLink({ body: recap, buttonTitle: 'Voir mon panier', url: orderUrl, to });
-  if (tail.ok) sent += 1;
-  else {
-    const t = await sendWhapiText(`${recap}\n\n👉 ${orderUrl}`, to);
-    if (t.ok) sent += 1;
-    else errors.push(`récap : ${t.error}`);
+  if (tail.ok) {
+    sent += 1;
+    log.push({ messageId: tail.messageId, type: 'text', text: recap, buttons: [{ title: 'Voir mon panier', url: orderUrl }], at: at() });
+  } else {
+    const text = `${recap}\n\n👉 ${orderUrl}`;
+    const t = await sendWhapiText(text, to);
+    if (t.ok) {
+      sent += 1;
+      log.push({ messageId: t.messageId, type: 'text', text, at: at() });
+    } else errors.push(`récap : ${t.error}`);
   }
+  await recordOutboundMessages(phone, args.inbox ?? null, log, o.client_name);
 
   await supabaseAdmin.from('playbook_log').insert({
     ritual: 'client_cart',
