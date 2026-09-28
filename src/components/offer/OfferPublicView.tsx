@@ -1105,6 +1105,21 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                   );
                 })()}
 
+                {/* Juste sous le prix : visible avant le choix des variantes. */}
+                {activeProduct.sea_only && (
+                  <div className="flex items-start gap-2 rounded-xl border-2 border-blue-300 bg-blue-50 px-3 py-2.5 text-sm text-blue-900">
+                    <Ship className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <p className="font-bold">Livraison maritime uniquement</p>
+                      <p className="text-xs text-blue-800">
+                        Liquide dangereux (inflammable) : interdit en avion. Ce produit voyage
+                        uniquement par bateau, même si le reste de votre commande part en avion
+                        (transport fractionné).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Variants */}
                 {activeProduct.variants && activeProduct.variants.length > 0 && (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
@@ -1220,20 +1235,6 @@ export default function OfferPublicView({ offerId, offer, items, phases, affilia
                       <p className="text-xs text-orange-700">
                         Contraintes de transport aérien (tarif majoré) et documents
                         douaniers spécifiques.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {activeProduct.sea_only && (
-                  <div className="flex items-start gap-2 rounded-xl border-2 border-blue-300 bg-blue-50 px-3 py-2.5 text-sm text-blue-900">
-                    <Ship className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                    <div>
-                      <p className="font-bold">Livraison maritime uniquement</p>
-                      <p className="text-xs text-blue-800">
-                        Liquide dangereux (inflammable) : interdit en avion. Ce produit voyage
-                        uniquement par bateau, même si le reste de votre commande part en avion
-                        (transport fractionné).
                       </p>
                     </div>
                   </div>
