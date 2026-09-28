@@ -8,8 +8,9 @@
 // interrogation régulière (liste 10 s, fil 6 s).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, CheckCheck, CheckCircle2, Clock, ExternalLink, FileText, History, Image as ImageIcon, Loader2, Paperclip, Pin, PinOff, RefreshCw, Search, Send, ShoppingCart, Smartphone, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCheck, CheckCircle2, Clock, ExternalLink, FileText, History, Image as ImageIcon, Loader2, Paperclip, Pin, PinOff, RefreshCw, Search, Send, ShoppingCart, Smartphone, Sparkles, Unlock, UserCheck, Users, X, Zap } from 'lucide-react';
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
+import ClientSelectionPanel from '@/components/admin/whatsapp/ClientSelectionPanel';
 import QuickRepliesEditor from './QuickRepliesEditor';
 import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
 import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
@@ -93,7 +94,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [panel, setPanel] = useState<'quick' | 'media' | 'cart' | 'note' | null>(null);
+  const [panel, setPanel] = useState<'quick' | 'media' | 'cart' | 'selection' | 'note' | null>(null);
   const [quick, setQuick] = useState<QuickReply[]>([]);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaCaption, setMediaCaption] = useState('');
@@ -565,6 +566,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                     <button type="button" onClick={() => setPanel(panel === 'quick' ? null : 'quick')} className={tool(panel === 'quick')} title="Phrases rapides"><Zap className="h-5 w-5" /></button>
                     <button type="button" onClick={() => setPanel(panel === 'media' ? null : 'media')} className={tool(panel === 'media')} title="Médiathèque et fichiers"><ImageIcon className="h-5 w-5" /></button>
                     <button type="button" onClick={() => setPanel(panel === 'cart' ? null : 'cart')} className={tool(panel === 'cart')} title="Créer un panier depuis un listing"><ShoppingCart className="h-5 w-5" /></button>
+                    <button type="button" onClick={() => setPanel(panel === 'selection' ? null : 'selection')} className={tool(panel === 'selection')} title="Sélection de produits : fiches « Voir le produit » / « Ajouter au panier »"><Sparkles className="h-5 w-5" /></button>
                     <span className="hidden sm:flex">
                       <EmojiPicker onPick={(e) => insertAtCursor(textRef.current, draft, e, setDraft)} />
                       <LinkInsertMenu fetcher={api} onPick={(u) => insertAtCursor(textRef.current, draft, u, setDraft)} />
@@ -615,6 +617,29 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
               <button type="button" onClick={() => setPanel(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200" aria-label="Fermer"><X className="h-5 w-5" /></button>
             </div>
             <ClientCartPanel
+              initialName={conv.name || ''}
+              initialPhone={`+${conv.phone}`}
+              asAgent={as === 'agent'}
+              onSent={() => {
+                loadThread(conv.id, true);
+                loadList();
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Sélection de produits : le panneau de /admin/whatsapp, pré-rempli avec ce client */}
+      {panel === 'selection' && conv && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/60" onClick={() => setPanel(null)}>
+          <div className="h-full w-full max-w-4xl overflow-y-auto bg-slate-50 p-4 shadow-2xl dark:bg-slate-900 sm:p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-display text-lg font-bold uppercase text-slate-900 dark:text-white"><Sparkles className="h-5 w-5 text-amber-500" /> Sélection pour {conv.name || formatPhone(conv.phone)}</h2>
+              <button type="button" onClick={() => setPanel(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200" aria-label="Fermer"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="mb-3 text-xs text-slate-500">Le client reçoit chaque produit avec « Voir le produit » et « Ajouter au panier » (sa commande s’ouvre : produit ajouté, choix du transport).</p>
+            <ClientSelectionPanel
+              compact
               initialName={conv.name || ''}
               initialPhone={`+${conv.phone}`}
               asAgent={as === 'agent'}

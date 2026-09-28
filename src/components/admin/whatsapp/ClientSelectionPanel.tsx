@@ -33,7 +33,22 @@ interface Selection {
 const MAX = 20;
 const catTitle = (d: string | null | undefined) => splitCategoryTitle(d).short || d || 'Sans titre';
 
-export default function ClientSelectionPanel({ initialName = '', initialPhone = '' }: { initialName?: string; initialPhone?: string } = {}) {
+export default function ClientSelectionPanel({
+  initialName = '',
+  initialPhone = '',
+  asAgent = false,
+  onSent,
+  compact = false,
+}: {
+  initialName?: string;
+  initialPhone?: string;
+  /** Espace agents : l'envoi est inscrit au nom de l'agent dans la messagerie. */
+  asAgent?: boolean;
+  /** Appelé après un envoi réussi (la messagerie rafraîchit son fil). */
+  onSent?: () => void;
+  /** Depuis la messagerie : sans l'intro, historique limité à ce client. */
+  compact?: boolean;
+} = {}) {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerId, setOfferId] = useState('');
   const [data, setData] = useState<PublicOfferData | null>(null);
@@ -108,7 +123,7 @@ export default function ClientSelectionPanel({ initialName = '', initialPhone = 
     try {
       const res = await fetch('/api/admin/client-selection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(asAgent ? { 'x-inbox-as': 'agent' } : {}) },
         body: JSON.stringify({
           offer_id: offerId,
           client_name: contact.name,
@@ -120,6 +135,7 @@ export default function ClientSelectionPanel({ initialName = '', initialPhone = 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(json.error || 'Envoi impossible'); return; }
       setResult({ sent: json.sent, errors: json.errors || [], client: contact.name });
+      if (json.sent > 0) onSent?.();
       setPicked([]);
       setVariants({});
       await loadHistory();
@@ -129,19 +145,26 @@ export default function ClientSelectionPanel({ initialName = '', initialPhone = 
   };
 
   const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900';
+  // Depuis la messagerie : seules les sélections déjà envoyées à ce client.
+  const digits = (s: string) => s.replace(/\D/g, '');
+  const shownHistory = compact && digits(initialPhone) ? history.filter((s) => digits(s.client_phone) === digits(initialPhone)) : history;
 
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
-        <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-          <Sparkles className="h-4 w-4 text-amber-500" /> Sélection client
-        </p>
-        <p className="mt-1 text-sm text-slate-500">
-          Choisissez les produits d’un listing susceptibles d’intéresser un client : il les reçoit un par un sur WhatsApp,
-          avec « Voir le produit » et « Ajouter au panier » (sa commande s’ouvre : produit ajouté, choix du transport).
-        </p>
+        {!compact && (
+          <>
+            <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+              <Sparkles className="h-4 w-4 text-amber-500" /> Sélection client
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Choisissez les produits d’un listing susceptibles d’intéresser un client : il les reçoit un par un sur WhatsApp,
+              avec « Voir le produit » et « Ajouter au panier » (sa commande s’ouvre : produit ajouté, choix du transport).
+            </p>
+          </>
+        )}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className={`${compact ? '' : 'mt-4 '}grid gap-3 sm:grid-cols-3`}>
           <select value={offerId} onChange={(e) => setOfferId(e.target.value)} className={input}>
             <option value="">Listing…</option>
             {offers.map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
@@ -260,11 +283,11 @@ export default function ClientSelectionPanel({ initialName = '', initialPhone = 
         </div>
       )}
 
-      {history.length > 0 && (
+      {shownHistory.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">Sélections envoyées</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{compact ? 'Sélections déjà envoyées à ce client' : 'Sélections envoyées'}</p>
           <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-700">
-            {history.map((s) => (
+            {shownHistory.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
                 <span className="font-medium text-slate-900 dark:text-white">{s.client_name}</span>
                 <span className="text-xs text-slate-500">{s.client_phone}</span>
