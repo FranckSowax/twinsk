@@ -254,6 +254,29 @@ export default function ClientCartPanel({
     setBusy('send');
     setError('');
     try {
+      // Nom ou numéro modifiés dans le formulaire : enregistrés AVANT l'envoi.
+      // Sinon l'envoi partait au numéro déjà enregistré dans la commande (bug du
+      // 29 sept. 2026 : un numéro corrigé n'était jamais utilisé).
+      const current = orderData?.order;
+      const contact = validateContact(clientName, clientPhone);
+      if (!contact.ok) {
+        setError(contact.error);
+        return;
+      }
+      const digits = (v: string | null | undefined) => (v || '').replace(/\D/g, '');
+      if (current && (contact.name !== current.client_name || digits(contact.phone) !== digits(current.client_phone))) {
+        const saveRes = await fetch(`/api/offer-public/${editing.offerId}/order/${editing.orderId}/contact`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_name: contact.name, client_phone: clientPhone.trim() }),
+        });
+        if (!saveRes.ok) {
+          const d = await saveRes.json().catch(() => ({}));
+          setError(d.error || 'Coordonnées non enregistrées : envoi annulé');
+          return;
+        }
+        await loadOrder(editing.orderId, editing.offerId);
+      }
       const res = await fetch(`/api/admin/client-cart/${editing.orderId}/send`, {
         method: 'POST',
         headers: sendHeaders,
@@ -606,6 +629,9 @@ export default function ClientCartPanel({
             <div>
               <label className={label}>Numéro WhatsApp</label>
               <input className={field} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={COUNTRY.phoneExample} inputMode="tel" />
+              {/^\s*0/.test(clientPhone) && !clientPhone.trim().startsWith('00') && (
+                <p className="mt-1 text-[11px] text-amber-700">Numéro sans indicatif : pour un numéro étranger, ajoutez-le (ex. +33 pour la France, +225 pour la Côte d’Ivoire).</p>
+              )}
             </div>
             {editing && (
               <button type="button" onClick={saveContact} disabled={busy !== null} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200">
