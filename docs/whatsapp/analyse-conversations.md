@@ -1,6 +1,6 @@
 # Analyse IA des conversations WhatsApp
 
-Mise en place le 29 septembre 2026 (décisions de Franck : fournisseur **Kimi**, numéros masqués, analyse horaire, rapport à 21 h). Prompt d'origine : [docs/prompts/analyse-conversations.md](../prompts/analyse-conversations.md).
+Mise en place le 29 septembre 2026. Décisions de Franck : fournisseur **OpenRouter** avec le modèle **GLM 5.3 Flash** de Z.ai (`z-ai/glm-5.3-flash`) pour le Gabon et la Côte d'Ivoire, numéros masqués, analyse horaire, rapport à 21 h. Prompt d'origine : [docs/prompts/analyse-conversations.md](../prompts/analyse-conversations.md).
 
 ## Ce que ça fait
 
@@ -53,7 +53,7 @@ Chaque prochaine action ouvre un outil qui existe déjà :
 | Dialogue : masquage, lignes, troncature (1er + 29 derniers), seuils | `src/lib/conversation-analysis/dialogue.ts` |
 | Agrégations du rapport, entrée du prompt du rapport | `src/lib/conversation-analysis/report.ts` |
 | Service serveur : analyse, lot horaire, rapport, lectures | `src/lib/conversation-analysis/service.ts` |
-| Couche IA commune (Kimi par défaut, Anthropic en option) | `src/lib/llm.ts` |
+| Couche IA commune (OpenRouter par défaut ; Kimi ou Anthropic en option) | `src/lib/llm.ts` |
 | Tables | `supabase/migrations/20260929010000_conversation_analysis.sql` |
 | Cron horaire (+ rapport à partir de 21 h) | `GET /api/cron/conversation-analysis?key=$CRON_SECRET` |
 | Rapport à la demande (cron ou admin) | `GET/POST /api/cron/conversation-report` |
@@ -80,12 +80,12 @@ Numéros de téléphone et e-mails sont remplacés par `[numéro]` et `[e-mail]`
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `KIMI_API_KEY` | déjà en place | Clé Kimi (Moonshot) |
-| `ANALYSIS_LLM_PROVIDER` | `kimi` | `anthropic` pour passer à Claude (avec `ANTHROPIC_API_KEY`) |
-| `ANALYSIS_MODEL` | `moonshot-v1-32k` | Modèle |
+| `OPENROUTER_API_KEY` | à renseigner par Franck, sur `twinsk` et `ohmycot` | Clé OpenRouter |
+| `ANALYSIS_LLM_PROVIDER` | `openrouter` | `kimi` (avec `KIMI_API_KEY`) ou `anthropic` (avec `ANTHROPIC_API_KEY`) |
+| `ANALYSIS_MODEL` | `z-ai/glm-5.3-flash` | Identifiant du modèle chez le fournisseur |
 | `ANALYSIS_BATCH_LIMIT` | 40 | Conversations par passage |
 | `ANALYSIS_DAILY_BUDGET_FCFA` | 500 | Plafond de dépense par jour |
-| `ANALYSIS_PRICE_IN_PER_M`, `ANALYSIS_PRICE_OUT_PER_M`, `USD_TO_FCFA` | 1, 3, 600 | Tarifs indicatifs pour le calcul du coût : à caler sur la facture |
+| `ANALYSIS_PRICE_IN_PER_M`, `ANALYSIS_PRICE_OUT_PER_M`, `USD_TO_FCFA` | 0,15, 0,50, 600 | OpenRouter renvoie le **coût réel** de chaque appel ; ces tarifs ne servent qu'en repli, et `USD_TO_FCFA` pour la conversion |
 
 ## Ajouter ou modifier une catégorie
 
@@ -97,15 +97,15 @@ Aucune migration n'est nécessaire : les détails sont stockés en `jsonb` (`com
 
 ## Coût
 
-Mesure prévue sur trois conversations réelles du Gabon (test à blanc). **Non mesurée au 29 septembre** : le compte Kimi est suspendu faute de solde (`429 insufficient balance`). À compléter après rechargement, avec :
+Mesure prévue sur trois conversations réelles du Gabon (test à blanc). **Non mesurée au 29 septembre** : en attente de la clé OpenRouter (le premier essai, sur Kimi, a échoué car le compte Moonshot est sans solde). À compléter avec :
 
 ```bash
 npx tsx scripts/analysis-dry-run.ts ad1ff7b3-4d13-4018-b7d5-ec94b45f0b5f bc62c31c-4fe4-449c-9d73-488285385f50 31e7c5f1-e123-4382-bfb7-c4e9e42c6b1c
 ```
 
 Ordre de grandeur attendu :
-- environ 2 000 tokens en entrée et 400 en sortie par conversation, soit **1 à 3 FCFA par analyse** ;
-- environ 300 analyses par mois au rythme de septembre, soit **moins de 1 000 FCFA par mois** au Gabon.
+- environ 2 000 tokens en entrée et 400 en sortie par conversation ; au tarif de GLM 5.3 Flash (0,15 $ / 0,50 $ par million), soit **environ 0,3 FCFA par analyse** ;
+- environ 300 analyses par mois au rythme de septembre, soit **environ 100 FCFA par mois** au Gabon, rapports compris.
 
 ## Services cron Railway
 

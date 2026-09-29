@@ -5,8 +5,8 @@
  *
  *   npx tsx scripts/analysis-dry-run.ts <id conversation> [<id> …] [--dialogue]
  *
- * Variables : NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, KIMI_API_KEY
- * (ou ANALYSIS_LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY), NEXT_PUBLIC_COUNTRY.
+ * Variables : NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENROUTER_API_KEY
+ * (ou ANALYSIS_LLM_PROVIDER=kimi|anthropic + la clé correspondante), NEXT_PUBLIC_COUNTRY.
  */
 import { analyzeConversation } from '@/lib/conversation-analysis/service';
 

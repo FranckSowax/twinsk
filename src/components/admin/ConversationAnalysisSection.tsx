@@ -29,7 +29,7 @@ interface Data {
   costFcfa?: number;
   pendingCarts?: { count: number; total: number };
   report?: Report | null;
-  llm: { provider: string; model: string; configured: boolean };
+  llm: { provider: string; model: string; configured: boolean; keyVar?: string };
 }
 
 const fcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
@@ -104,7 +104,7 @@ export default function ConversationAnalysisSection({ period }: { period: Period
     <div className="space-y-4">
       <div className={card}>
         {header}
-        {!data.llm.configured && <p className="mt-2 text-sm text-amber-700">Clé du fournisseur IA absente : aucune nouvelle analyse ne peut tourner.</p>}
+        {!data.llm.configured && <p className="mt-2 text-sm text-amber-700">Clé du fournisseur IA absente ({data.llm.keyVar || 'clé'} dans les variables Railway du site) : aucune nouvelle analyse ne peut tourner.</p>}
         {b.analyzed === 0 ? (
           <p className="mt-3 text-sm text-slate-500">Aucune conversation analysée sur la période. L’analyse tourne toutes les heures (conversations d’au moins 2 messages client, calmes depuis 30 min).</p>
         ) : (

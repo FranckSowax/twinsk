@@ -9,9 +9,9 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { CONTENT } from '@/content';
 import { formatPrice, transitLabel } from '@/lib/country';
-import { chatCompletion, llmPrices, parseJsonLoose } from '@/lib/llm';
+import { chatCompletion, llmCostFcfa, parseJsonLoose } from '@/lib/llm';
 import { conversationOrigin, bucketKey } from '@/lib/admin-activity';
-import { applyFacts, costFcfa, validateAnalysis, type ConversationAnalysis, type OrderFact } from './analysis';
+import { applyFacts, validateAnalysis, type ConversationAnalysis, type OrderFact } from './analysis';
 import { buildDialogue, shouldAnalyze, type DialogueMessage } from './dialogue';
 import { aggregateReport, REPORT_SYSTEM_PROMPT, reportPromptInput, type AnalyzedConversation, type ReportBreakdown } from './report';
 import { buildSystemPrompt } from './taxonomy';
@@ -139,7 +139,7 @@ export async function analyzeConversation(conversationId: string, opts: { force?
   }
   const orders = await ordersOfPhone(c.phone);
   const analysis = applyFacts(validateAnalysis(parseJsonLoose(llm.text)), orders);
-  const cost = costFcfa(llm.inputTokens, llm.outputTokens, llmPrices(llm.provider));
+  const cost = llmCostFcfa(llm);
   const usage = { model: llm.model, inputTokens: llm.inputTokens, outputTokens: llm.outputTokens, costFcfa: cost };
   const lastId = messages[messages.length - 1]?.id || null;
   const result: AnalyzeResult = { ok: true, analysis, listingId: origin.listingId, usage, dialogue: { kept: dialogue.kept, total: dialogue.total, ...(opts.withDialogue ? { text: dialogue.text } : {}) } };
@@ -218,7 +218,8 @@ export async function runAnalysisBatch(limit = batchLimit()): Promise<{ analyzed
     } else if (r.skipped) out.skipped += 1;
     else if (r.error) {
       out.errors.push(r.error);
-      if (/Migration|Clé/.test(r.error)) break;
+      // Erreur qui toucherait tout le lot (migration, clé, solde) : on s'arrête.
+      if (/Migration|Clé|insufficient|suspended|balance|credit| 401 | 402 /i.test(r.error)) break;
     }
   }
   out.costFcfa = Math.round(out.costFcfa * 100) / 100;
@@ -327,7 +328,7 @@ export async function buildDailyReport(now: Date = new Date()): Promise<{ ok: bo
       const j = (parseJsonLoose(llm.text) || {}) as { insights?: unknown; recommendations?: unknown };
       insights = Array.isArray(j.insights) ? j.insights.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean).slice(0, 6) : [];
       recommendations = typeof j.recommendations === 'string' ? j.recommendations.trim().slice(0, 2000) : null;
-      usage = { model: llm.model, inputTokens: llm.inputTokens, outputTokens: llm.outputTokens, cost: costFcfa(llm.inputTokens, llm.outputTokens, llmPrices(llm.provider)) };
+      usage = { model: llm.model, inputTokens: llm.inputTokens, outputTokens: llm.outputTokens, cost: llmCostFcfa(llm) };
     } else console.error(`[analysis] rapport : ${llm.error}`);
   }
   const report: DailyReport = {
