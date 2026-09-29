@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationPatch, describeMessage, extractContext, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isCourtesyOnly, isIgnoredType, isPrivateChat, messageSentAt, normalizePins, normalizeQuickReplies, phoneFromChatId, pinsKey, previewText, splitLinks, summarizeThread, togglePin } from './wa-inbox';
+import { conversationPatch, describeMessage, extractContext, matchKnownPhone, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isCourtesyOnly, isIgnoredType, isPrivateChat, messageSentAt, normalizePins, normalizeQuickReplies, phoneFromChatId, pinsKey, previewText, splitLinks, summarizeThread, togglePin } from './wa-inbox';
 
 describe('isCourtesyOnly — « Merci » n’attend pas de réponse (28 sept. 2026)', () => {
   it('remerciements, formules de fin, émojis d’accord', () => {
@@ -195,5 +195,17 @@ describe('extractContext — d’où vient le client, à quoi il répond', () =>
     expect(extractContext({})).toBeNull();
     expect(extractContext({ context: {} })).toBeNull();
     expect(sourceFromContext(null, 't')).toBeNull();
+  });
+});
+
+describe('matchKnownPhone — numéro WhatsApp réel d’un client (29 sept. 2026)', () => {
+  it('nouveau format ivoirien saisi, compte resté à l’ancien format : on retrouve la conversation', () => {
+    expect(matchKnownPhone('2250712345615', ['22512345615', '24177123456'])).toBe('22512345615');
+  });
+  it('numéro identique, aucun rapprochement hasardeux', () => {
+    expect(matchKnownPhone('24177123456', ['24177123456'])).toBe('24177123456');
+    expect(matchKnownPhone('2250712345615', ['24112345615'])).toBeNull(); // autre pays
+    expect(matchKnownPhone('2250712345615', ['22512345615', '2250512345615'])).toBeNull(); // ambigu
+    expect(matchKnownPhone('077123', ['22577123'])).toBeNull();
   });
 });

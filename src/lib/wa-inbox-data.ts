@@ -18,6 +18,7 @@ import {
   pinsKey,
   togglePin,
   chatIdFromPhone,
+  matchKnownPhone,
   phoneFromChatId,
   previewText,
   QUICK_REPLIES_KEY,
@@ -323,6 +324,22 @@ export async function sendInboxReply(conversationId: string, actor: InboxActor, 
   // Accepté par WhatsApp : 1 coche ; « reçu » et « lu » arrivent ensuite par le webhook.
   await applyReceipt(row.id, 'sent');
   return { ok: true, message: { ...row, status: 'sent' } as MessageRow };
+}
+
+/**
+ * Numéro WhatsApp réel d'un client : celui d'une conversation déjà ouverte avec
+ * lui s'il en existe une (voir matchKnownPhone), sinon le numéro saisi.
+ * À utiliser avant tout envoi de panier ou de sélection.
+ */
+export async function resolveWhatsappPhone(phone: string): Promise<string> {
+  const d = phone.replace(/\D/g, '');
+  if (d.length < 10) return d;
+  const { data, error } = await supabaseAdmin.from('wa_conversations').select('phone, last_inbound_at').ilike('phone', `%${d.slice(-8)}`).limit(10);
+  if (error || !data?.length) return d;
+  // Seules comptent les conversations où le client a écrit : une conversation
+  // créée par nos seuls envois (numéro mal saisi) ne prouve rien.
+  const written = (data as { phone: string; last_inbound_at: string | null }[]).filter((r) => r.last_inbound_at).map((r) => r.phone);
+  return matchKnownPhone(d, written) || d;
 }
 
 /** Message envoyé par la plateforme hors du champ de réponse (panier client, sélection…). */

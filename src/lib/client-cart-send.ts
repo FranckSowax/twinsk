@@ -12,7 +12,7 @@ import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiTex
 import { COUNTRY } from '@/config/countries';
 import { CONTENT } from '@/content';
 import { transitLabel } from '@/lib/country';
-import { recordOutboundMessages, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
+import { recordOutboundMessages, resolveWhatsappPhone, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -88,7 +88,9 @@ export async function sendClientCartWhatsapp(args: {
     const p = proxyImageUrl(url);
     return p.startsWith('/') ? `${args.origin}${p}` : p;
   };
-  const to = `${phone}@s.whatsapp.net`;
+  // Numéro réel : celui de la conversation déjà ouverte avec ce client, s'il y en a une.
+  const waPhone = await resolveWhatsappPhone(phone);
+  const to = `${waPhone}@s.whatsapp.net`;
   const errors: string[] = [];
   let sent = 0;
   // Messages envoyés, inscrits ensuite dans le fil de la messagerie.
@@ -188,7 +190,7 @@ export async function sendClientCartWhatsapp(args: {
       log.push({ messageId: t.messageId, type: 'text', text, at: at() });
     } else errors.push(`récap : ${t.error}`);
   }
-  await recordOutboundMessages(phone, args.inbox ?? null, log, o.client_name);
+  await recordOutboundMessages(waPhone, args.inbox ?? null, log, o.client_name);
 
   await supabaseAdmin.from('playbook_log').insert({
     ritual: 'client_cart',

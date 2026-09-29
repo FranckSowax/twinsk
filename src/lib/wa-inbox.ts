@@ -81,6 +81,22 @@ export function isPrivateChat(chatId: string | null | undefined): boolean {
 export function phoneFromChatId(chatId: string): string {
   return chatId.split('@')[0].replace(/\D/g, '');
 }
+/**
+ * Parmi les numéros de conversations existantes, celui qui correspond au
+ * numéro saisi : identique, ou même indicatif (3 premiers chiffres) et mêmes
+ * 8 derniers chiffres. Cas réel (29 sept. 2026) : client ivoirien saisi au
+ * format à 10 chiffres (225 07 xx xx xx xx) alors que son compte WhatsApp est
+ * resté à l'ancien format à 8 chiffres (225 xx xx xx xx) — les messages
+ * restaient « en attente » chez WhatsApp.
+ */
+export function matchKnownPhone(phone: string, known: string[]): string | null {
+  const d = phone.replace(/\D/g, '');
+  if (d.length < 10) return null;
+  if (known.includes(d)) return d;
+  const hits = known.filter((k) => k !== d && k.length >= 10 && k.slice(0, 3) === d.slice(0, 3) && k.slice(-8) === d.slice(-8));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 export function chatIdFromPhone(phone: string): string {
   return `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
 }

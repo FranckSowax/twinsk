@@ -16,7 +16,7 @@ import { buildCardBody, listingTagline, productDeepLink } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiText } from '@/lib/whapi';
 import { COUNTRY } from '@/config/countries';
-import { recordOutboundMessages, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
+import { recordOutboundMessages, resolveWhatsappPhone, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
 
 export const SELECTION_PREFIX = 'client_selection:';
 export const MAX_SELECTION_PRODUCTS = 20;
@@ -135,7 +135,9 @@ export async function createAndSendSelection(args: {
   const saveErr = await saveSelection(sel);
   if (saveErr) return { error: saveErr, status: 500 };
 
-  const to = `${sel.client_phone}@s.whatsapp.net`;
+  // Numéro réel : celui de la conversation déjà ouverte avec ce client, s'il y en a une.
+  const waPhone = await resolveWhatsappPhone(sel.client_phone);
+  const to = `${waPhone}@s.whatsapp.net`;
   const offerUrl = `${args.origin}/offer/${sel.offer_id}`;
   const tagline = listingTagline(data.offer);
   const publicImage = (url: string) => {
@@ -183,7 +185,7 @@ export async function createAndSendSelection(args: {
     await sleep(1200);
   }
 
-  await recordOutboundMessages(sel.client_phone, args.inbox ?? null, log, sel.client_name);
+  await recordOutboundMessages(waPhone, args.inbox ?? null, log, sel.client_name);
   sel.sent_at = new Date().toISOString();
   await saveSelection(sel);
   await supabaseAdmin.from('playbook_log').insert({
