@@ -148,7 +148,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     transit: { air: [8, 14], sea: [60, 85] }, // TODO(franck) : délais vers Abidjan
     modules: { twinsk: false },
     favicon: '/brands/CI/favicon.png', // TODO(franck) : logo Oh My 225 !
-    // Visuel fourni par Franck le 25 sept. 2026 (équipe tenant le logo « OhMyCot! », ancien nom).
+    // Visuel fourni par Franck le 29 sept. 2026 (équipe tenant le logo « OhMy225! »).
     bioHero: { width: 1600, height: 904 },
   },
 };
