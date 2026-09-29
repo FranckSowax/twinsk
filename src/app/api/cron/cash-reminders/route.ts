@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
-import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
+import { orderNumber } from '@/lib/order-number';
+import { resolveWhatsappChatId } from '@/lib/whatsapp-number';
 import { CONTENT } from '@/content';
 import { publicOrigin } from '@/lib/public-origin';
 
@@ -37,7 +38,7 @@ async function handle(request: NextRequest) {
     const total = Number(o.grand_total_fcfa ?? o.items_total_fcfa) || 0;
     const totalStr = `${Math.round(total).toLocaleString('fr-FR')} FCFA`;
     const recapUrl = `${publicOrigin(request)}/offer/${o.offer_id}/order/${o.id}`;
-    const chat = toWhatsappChatId(o.client_phone);
+    const chat = await resolveWhatsappChatId(o.client_phone);
 
     if (chat) {
       try {

@@ -16,7 +16,8 @@ import { buildCardBody, listingTagline, productDeepLink } from '@/lib/wa-drip';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import { sendWhapiButtonLink, sendWhapiImage, sendWhapiProductCard, sendWhapiText } from '@/lib/whapi';
 import { COUNTRY } from '@/config/countries';
-import { recordOutboundMessages, resolveWhatsappPhone, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
+import { recordOutboundMessages, type InboxActor, type OutboundRecord } from '@/lib/wa-inbox-data';
+import { resolveWhatsappPhone } from '@/lib/whatsapp-number';
 
 export const SELECTION_PREFIX = 'client_selection:';
 export const MAX_SELECTION_PRODUCTS = 20;
@@ -136,7 +137,7 @@ export async function createAndSendSelection(args: {
   if (saveErr) return { error: saveErr, status: 500 };
 
   // Numéro réel : celui de la conversation déjà ouverte avec ce client, s'il y en a une.
-  const waPhone = await resolveWhatsappPhone(sel.client_phone);
+  const waPhone = (await resolveWhatsappPhone(sel.client_phone)) || sel.client_phone;
   const to = `${waPhone}@s.whatsapp.net`;
   const offerUrl = `${args.origin}/offer/${sel.offer_id}`;
   const tagline = listingTagline(data.offer);

@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { formatSettlement, settlementCurrencyOf } from '@/lib/offer-pricing';
 import { settlePromoForOrder } from '@/lib/promo-settle';
 import { sendWhapiText } from '@/lib/whapi';
-import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
+import { orderNumber } from '@/lib/order-number';
+import { resolveWhatsappChatId } from '@/lib/whatsapp-number';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { COUNTRY } from '@/config/countries';
 import { publicOrigin } from '@/lib/public-origin';
@@ -66,7 +67,7 @@ export async function POST(
   const offerTitle = offerMeta?.title || '';
 
   // 1) Message au client (best-effort).
-  const clientChat = toWhatsappChatId(order.client_phone);
+  const clientChat = await resolveWhatsappChatId(order.client_phone);
   if (clientChat) {
     try {
       await sendWhapiText(

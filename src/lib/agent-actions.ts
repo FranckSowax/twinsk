@@ -1,7 +1,7 @@
 // Helpers partagés par les 5 routes d'action agent (DRY) : audit + notif client.
 import { supabaseAdmin } from './supabase/server';
 import { sendWhapiText } from './whapi';
-import { toWhatsappChatId } from './order-number';
+import { resolveWhatsappChatId } from './whatsapp-number';
 
 export async function logAgentAction(
   agentId: string, orderId: string, action: string, meta?: Record<string, unknown>,
@@ -18,7 +18,7 @@ export async function logAgentAction(
 export async function notifyClient(
   clientPhone: string | null | undefined, text: string,
 ): Promise<void> {
-  const chat = toWhatsappChatId(clientPhone);
+  const chat = await resolveWhatsappChatId(clientPhone);
   if (!chat) return;
   try {
     await sendWhapiText(text, chat);

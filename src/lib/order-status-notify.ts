@@ -6,7 +6,8 @@
 
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
-import { orderNumber, toWhatsappChatId } from '@/lib/order-number';
+import { orderNumber } from '@/lib/order-number';
+import { resolveWhatsappChatId } from '@/lib/whatsapp-number';
 import { formatSettlement, settlementCurrencyOf, type SettlementCurrency } from '@/lib/offer-pricing';
 import { COUNTRY } from '@/config/countries';
 import { transitLabel } from '@/lib/country';
@@ -97,7 +98,7 @@ export async function notifyClientOrderStatus(args: {
       offers: { offer_currency?: string | null } | null;
     } | null;
     if (!o) return { sent: false, reason: 'commande introuvable' };
-    const chat = toWhatsappChatId(o.client_phone);
+    const chat = await resolveWhatsappChatId(o.client_phone);
     if (!chat) return { sent: false, reason: 'numéro WhatsApp du client manquant ou invalide' };
 
     const body = buildStatusMessage({

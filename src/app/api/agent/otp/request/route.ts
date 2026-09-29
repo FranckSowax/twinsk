@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { sendWhapiText } from '@/lib/whapi';
-import { toWhatsappChatId } from '@/lib/order-number';
+import { resolveWhatsappChatId } from '@/lib/whatsapp-number';
 import { phoneCandidates, generateOtpCode, hashOtp, otpRateLimited, OTP_TTL_MS } from '@/lib/agent';
 import { COUNTRY } from '@/config/countries';
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return generic;
   }
 
-  const chat = toWhatsappChatId(agent.phone);
+  const chat = await resolveWhatsappChatId(agent.phone);
   if (chat) {
     // fire-and-forget : ne pas bloquer la réponse (évite un canal temporel d'énumération)
     void sendWhapiText(

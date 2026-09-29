@@ -763,6 +763,48 @@ export async function getWhapiWebhooks(): Promise<Record<string, unknown>[]> {
   }
 }
 
+export interface WhapiContactCheck {
+  /** Numéro saisi (chiffres seuls). */
+  input: string;
+  status: 'valid' | 'invalid' | 'unknown';
+  /** Identifiant WhatsApp réel (chiffres seuls), s'il existe. */
+  waId: string | null;
+}
+
+/** Lit la réponse de POST /contacts (pur, testé). */
+export function parseContactCheck(input: string, data: unknown): WhapiContactCheck {
+  const list = (data as { contacts?: { input?: string; status?: string; wa_id?: string }[] } | null)?.contacts || [];
+  const c = list.find((x) => (x.input || '').replace(/\D/g, '') === input) || list[0];
+  if (!c) return { input, status: 'unknown', waId: null };
+  const waId = (c.wa_id || '').split('@')[0].replace(/\D/g, '') || null;
+  return { input, status: c.status === 'valid' ? 'valid' : c.status === 'invalid' ? 'invalid' : 'unknown', waId };
+}
+
+/**
+ * Demande à WhatsApp le compte réel derrière un numéro (POST /contacts,
+ * vérification rapide). Cas réel : un numéro ivoirien au nouveau format à
+ * 10 chiffres renvoie l'identifiant de l'ancien format à 8 chiffres, le seul
+ * qui reçoive les messages.
+ */
+export async function checkWhapiContact(phone: string): Promise<WhapiContactCheck> {
+  const input = phone.replace(/\D/g, '');
+  if (!WHAPI_TOKEN || input.length < 8) return { input, status: 'unknown', waId: null };
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(`${WHAPI_BASE}/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WHAPI_TOKEN}` },
+      body: JSON.stringify({ blocking: 'wait', force_check: false, contacts: [input] }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+    if (!res.ok) return { input, status: 'unknown', waId: null };
+    return parseContactCheck(input, await res.json().catch(() => null));
+  } catch {
+    return { input, status: 'unknown', waId: null };
+  }
+}
+
 /** Envoie une image (media = URL publique) avec légende optionnelle. */
 export async function sendWhapiImage(
   mediaUrl: string,
