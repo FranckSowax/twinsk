@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Lock, LogIn, Users } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 interface AdminLoginProps {
   onLogin: () => void;
@@ -75,7 +76,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500">
             <Lock className="h-7 w-7 text-white" />
           </div>
-          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">TWINSK</h1>
+          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">{COUNTRY.senderName}</h1>
           <p className="mt-1 text-sm text-slate-500">Connexion / 登录</p>
         </div>
 

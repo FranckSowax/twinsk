@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import QRCode from 'qrcode';
 import { Loader2, Printer } from 'lucide-react';
+import { COUNTRY } from '@/config/countries';
 
 interface LabelOrder {
   id: string;
@@ -47,7 +48,7 @@ export default function EtiquettePage() {
         setOrder(o);
         const type = o.transport_mode ? TYPE_LABEL[o.transport_mode] || o.transport_mode : 'NON DÉFINI';
         const payload = [
-          'TWINSK',
+          COUNTRY.senderName,
           `Commande #${o.id.slice(0, 8)}`,
           `Client: ${o.client_name}`,
           `Tel: ${o.client_phone}`,
@@ -94,7 +95,7 @@ export default function EtiquettePage() {
 
       {/* Étiquette */}
       <div className="label-print rounded-3xl border-2 border-slate-900 bg-white p-6 text-center">
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">TWINSK</p>
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">{COUNTRY.senderName}</p>
 
         {/* Type d'envoi — EN GROS ET GRAS */}
         <p className="mt-3 font-display text-4xl font-black uppercase leading-none text-slate-900 sm:text-5xl">
