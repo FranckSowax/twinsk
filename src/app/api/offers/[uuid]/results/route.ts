@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor, logCollabAction } from '@/lib/collab';
+import { actorLabel, preparePriceHistory } from '@/lib/price-history-data';
 
 // Libellés FR des champs modifiables (pour le journal d'audit).
 const FIELD_LABELS: Record<string, string> = {
@@ -73,10 +74,14 @@ export async function PATCH(
   }
   const { uuid } = await params;
 
-  const { updates } = await request.json();
+  const { updates, global_margin } = await request.json();
   if (!Array.isArray(updates) || !updates.length) {
     return NextResponse.json({ error: 'Aucune mise à jour' }, { status: 400 });
   }
+
+  // Historique des marges / prix : état avant la mise à jour, consigné après.
+  // `global_margin` : envoyé par « Marge globale → Appliquer à tous » (marge enregistrée du listing).
+  const recordPrices = await preparePriceHistory('offer', uuid, updates, actorLabel(actor), { globalMargin: typeof global_margin === 'number' ? global_margin : null });
 
   const changedFields = new Set<string>();
   for (const update of updates) {
@@ -114,6 +119,8 @@ export async function PATCH(
     if (!Object.keys(clean).length) continue;
     await supabaseAdmin.from('offer_products').update(clean).eq('id', id);
   }
+
+  await recordPrices();
 
   // Audit : journalise la mise à jour si l'auteur est un collaborateur.
   const labels = [...changedFields].filter((f) => f !== 'selected').map((f) => FIELD_LABELS[f] || f);

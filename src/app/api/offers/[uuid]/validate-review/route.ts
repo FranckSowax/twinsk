@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin } from '@/lib/collab';
+import { preparePriceHistory } from '@/lib/price-history-data';
 
 // POST: l'admin valide la révision d'un produit depuis /admin/offer.
 // Applique les infos complétées par le collaborateur au produit, puis repasse
@@ -11,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ uuid: string }> },
 ) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  await params; // uuid non utilisé (product_id suffit)
+  const { uuid } = await params;
   const body = (await request.json().catch(() => ({}))) as { product_id?: string };
   if (!body.product_id) {
     return NextResponse.json({ error: 'product_id requis' }, { status: 400 });
@@ -53,7 +54,9 @@ export async function POST(
       patch.variants = prodVariants;
     }
     if (Object.keys(patch).length) {
+      const recordPrices = await preparePriceHistory('offer', uuid, [{ id: body.product_id, ...patch }], 'Admin (révision collaborateur)');
       await supabaseAdmin.from('offer_products').update(patch).eq('id', body.product_id);
+      await recordPrices();
     }
     await supabaseAdmin
       .from('collab_review_lines')

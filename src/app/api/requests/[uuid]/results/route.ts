@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { resolveActor, logCollabAction } from '@/lib/collab';
+import { actorLabel, preparePriceHistory } from '@/lib/price-history-data';
 
 const FIELD_LABELS: Record<string, string> = {
   dimensions: 'Dimensions', weight: 'Poids', volume: 'Volume', price: 'Prix', moq: 'MOQ',
@@ -46,11 +47,15 @@ export async function PATCH(
 
     const { uuid } = await params;
 
-    const { updates } = await request.json();
+    const { updates, global_margin } = await request.json();
 
     if (!updates?.length) {
       return NextResponse.json({ error: 'Aucune mise à jour' }, { status: 400 });
     }
+
+    // Historique des marges / prix : état avant la mise à jour, consigné après.
+    // `global_margin` : envoyé par « Marge globale → Appliquer à tous » (marge enregistrée de la demande).
+    const recordPrices = await preparePriceHistory('request', uuid, updates, actorLabel(actor), { globalMargin: typeof global_margin === 'number' ? global_margin : null });
 
     const changedFields = new Set<string>();
     for (const update of updates) {
@@ -61,6 +66,7 @@ export async function PATCH(
         .update(fields)
         .eq('id', id);
     }
+    await recordPrices();
 
     const labels = [...changedFields].filter((f) => f !== 'selected').map((f) => FIELD_LABELS[f] || f);
     if (labels.length) {

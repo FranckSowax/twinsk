@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { isAdmin } from '@/lib/collab';
+import { offerIdOfProduct, preparePriceHistory } from '@/lib/price-history-data';
 
 // POST: réapplique les infos complétées par le collaborateur au produit de l'offre
 // (admin only). Ne touche que les champs renseignés dans la ligne révisée.
@@ -45,8 +46,13 @@ export async function POST(
     patch.variants = prodVariants;
   }
   if (Object.keys(patch).length) {
+    const offerId = await offerIdOfProduct(line.offer_product_id);
+    const recordPrices = offerId
+      ? await preparePriceHistory('offer', offerId, [{ id: line.offer_product_id, ...patch }], 'Admin (révision collaborateur)')
+      : async () => undefined;
     const { error } = await supabaseAdmin.from('offer_products').update(patch).eq('id', line.offer_product_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await recordPrices();
   }
 
   await supabaseAdmin

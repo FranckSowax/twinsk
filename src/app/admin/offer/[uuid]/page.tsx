@@ -455,20 +455,19 @@ export default function AdminOfferDetailPage() {
   };
 
   const handleApplyGlobalMargin = async (margin: number) => {
-    const updates: { id: string; margin_percent: number }[] = [];
+    // Tous les produits passent à la marge globale ; `global_margin` l'enregistre
+    // (historique price_history, reproposée à la réouverture).
+    const updates = items.flatMap((item) => item.search_results.map((r) => ({ id: r.id, margin_percent: margin })));
     setItems((prev) =>
       prev.map((item) => ({
         ...item,
-        search_results: item.search_results.map((r) => {
-          updates.push({ id: r.id, margin_percent: margin });
-          return { ...r, margin_percent: margin };
-        }),
+        search_results: item.search_results.map((r) => ({ ...r, margin_percent: margin })),
       }))
     );
     await fetch(`/api/offers/${uuid}/results`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates }),
+      body: JSON.stringify({ updates, global_margin: margin }),
     });
   };
 
@@ -1506,7 +1505,7 @@ export default function AdminOfferDetailPage() {
             const allSelected = total > 0 && selectedCount === total;
             return (
               <div className="flex flex-wrap items-center gap-3">
-                <MarginControls onApplyGlobal={handleApplyGlobalMargin} />
+                <MarginControls onApplyGlobal={handleApplyGlobalMargin} scope="offer" targetId={uuid} />
                 <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
                   <button
                     type="button"
