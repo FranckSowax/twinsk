@@ -357,15 +357,16 @@ export async function latestReport(): Promise<DailyReport | null> {
   return (data as DailyReport | null) || null;
 }
 
-export async function latestAnalysis(conversationId: string): Promise<(ConversationAnalysis & { analyzed_at: string; cost_fcfa: number; model: string | null }) | null> {
+export type StoredAnalysis = ConversationAnalysis & { analyzed_at: string; cost_fcfa: number; model: string | null; listing_id: string | null; triggered_by: string | null };
+export async function latestAnalysis(conversationId: string): Promise<StoredAnalysis | null> {
   const { data, error } = await supabaseAdmin
     .from('wa_conversation_analyses')
-    .select('commerce, analyzed_at, cost_fcfa, model')
+    .select('commerce, analyzed_at, cost_fcfa, model, listing_id, triggered_by')
     .eq('conversation_id', conversationId)
     .order('analyzed_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
-  const d = data as { commerce: ConversationAnalysis; analyzed_at: string; cost_fcfa: number; model: string | null };
-  return { ...d.commerce, analyzed_at: d.analyzed_at, cost_fcfa: Number(d.cost_fcfa) || 0, model: d.model };
+  const d = data as { commerce: ConversationAnalysis; analyzed_at: string; cost_fcfa: number; model: string | null; listing_id: string | null; triggered_by: string | null };
+  return { ...d.commerce, analyzed_at: d.analyzed_at, cost_fcfa: Number(d.cost_fcfa) || 0, model: d.model, listing_id: d.listing_id, triggered_by: d.triggered_by };
 }
