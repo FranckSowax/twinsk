@@ -130,6 +130,8 @@ export async function chatCompletion(req: LlmRequest): Promise<LlmResult> {
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
         lastError = `${provider} ${res.status} : ${JSON.stringify(data.error ?? data).slice(0, 200)}`;
+        // Solde épuisé / compte suspendu : inutile de réessayer.
+        if (/insufficient|suspended|balance|credit/i.test(lastError)) return { ...base, ok: false, text: '', error: lastError };
         if (res.status === 429 || res.status >= 500) continue;
         return { ...base, ok: false, text: '', error: lastError };
       }
