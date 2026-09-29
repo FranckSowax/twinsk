@@ -27,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: cfg.tagline,
       url: `${PUBLIC_ORIGIN_FALLBACK}/bio`,
       type: 'website',
-      images: [{ url: image, width: COUNTRY.bioHero.width, height: COUNTRY.bioHero.height, alt: `${COUNTRY.brand} ! — la Chine livrée à ${COUNTRY.mainCity}` }],
+      images: [{ url: image, width: COUNTRY.bioHero.width, height: COUNTRY.bioHero.height, alt: `${COUNTRY.brand.replace(/\s*!$/, '')} ! — la Chine livrée à ${COUNTRY.mainCity}` }],
     },
     twitter: { card: 'summary_large_image', title, description: cfg.tagline, images: [image] },
   };
