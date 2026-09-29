@@ -58,6 +58,12 @@ export interface ConversationRow {
   last_outbound_status?: string | null;
   /** Dernière pub par laquelle le client est arrivé (migration 61 ; absent avant). */
   source?: ConversationSource | null;
+  /** Analyse IA (migration du 29 sept. 2026 ; absent avant). */
+  purchase_stage?: string | null;
+  purchase_intent_score?: number | null;
+  abandon_risk?: string | null;
+  next_best_action?: string | null;
+  analyzed_at?: string | null;
 }
 export interface MessageRow {
   id: string;
@@ -181,10 +187,15 @@ export async function applyStatusEvent(st: { id?: string; status?: string; recip
 
 export async function listConversations(filter: InboxFilter, actor: InboxActor, q = '', pins: string[] = []): Promise<ConversationRow[]> {
   if (filter === 'pinned' && !pins.length) return [];
-  let qb = supabaseAdmin.from('wa_conversations').select('*').order('last_message_at', { ascending: false, nullsFirst: false }).limit(200);
+  let qb = supabaseAdmin.from('wa_conversations').select('*').limit(200);
+  // Clients chauds : les plus fortes intentions d'abord ; ailleurs, les plus récentes.
+  if (filter === 'hot') qb = qb.order('purchase_intent_score', { ascending: false, nullsFirst: false });
+  qb = qb.order('last_message_at', { ascending: false, nullsFirst: false });
   if (filter === 'todo') qb = qb.eq('status', 'open');
   else if (filter === 'mine') qb = qb.eq('assigned_to', actor.id).neq('status', 'closed');
   else if (filter === 'pinned') qb = qb.in('id', pins);
+  // Clients chauds (analyse IA) : prêts à acheter ou forte intention, triés par intention.
+  else if (filter === 'hot') qb = qb.neq('status', 'closed').or('purchase_stage.eq.READY_TO_BUY,purchase_intent_score.gte.70');
   else if (filter === 'closed') qb = qb.eq('status', 'closed');
   else qb = qb.neq('status', 'closed');
   const term = q.trim();

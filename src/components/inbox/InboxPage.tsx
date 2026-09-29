@@ -12,6 +12,7 @@ import { AlertCircle, ArrowLeft, Check, CheckCheck, CheckCircle2, Clock, Externa
 import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
 import ClientSelectionPanel from '@/components/admin/whatsapp/ClientSelectionPanel';
 import QuickRepliesEditor from './QuickRepliesEditor';
+import AnalysisPanel, { StageBadge } from './AnalysisPanel';
 import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
 import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
@@ -22,6 +23,7 @@ const FILTERS: { key: InboxFilter; label: string }[] = [
   { key: 'todo', label: 'À répondre' },
   { key: 'mine', label: 'Les miennes' },
   { key: 'pinned', label: '📌 Épinglées' },
+  { key: 'hot', label: '🔥 Chauds' },
   { key: 'all', label: 'Toutes' },
   { key: 'closed', label: 'Terminées' },
 ];
@@ -336,7 +338,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
           <div className="min-h-0 flex-1 overflow-y-auto">
             {conversations.length === 0 && !listError && (
               <p className="p-6 text-center text-sm text-slate-500">
-                {filter === 'todo' ? 'Rien à répondre pour l’instant 🎉' : filter === 'pinned' ? 'Aucune conversation épinglée. Ouvrez-en une puis « Épingler » pour y revenir plus tard.' : 'Aucune conversation.'}
+                {filter === 'todo' ? 'Rien à répondre pour l’instant 🎉' : filter === 'hot' ? 'Aucun client chaud (prêt à acheter ou forte intention) pour l’instant.' : filter === 'pinned' ? 'Aucune conversation épinglée. Ouvrez-en une puis « Épingler » pour y revenir plus tard.' : 'Aucune conversation.'}
               </p>
             )}
             {shown.map((c) => {
@@ -383,6 +385,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                           📣 <span className="truncate">{c.source.title || 'Pub'}</span>
                         </span>
                       )}
+                      <StageBadge stage={c.purchase_stage} intent={c.purchase_intent_score} risk={c.abandon_risk} compact />
                       <AssigneeChip c={c} actor={actor} />
                       {c.status === 'closed' && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">Terminée</span>}
                       {c.status === 'open' && (
@@ -462,6 +465,31 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                   <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} onBlur={() => noteDraft !== (conv.note || '') && patchConv({ note: noteDraft })} rows={2} placeholder="Note interne (jamais envoyée au client) : besoin, budget, relance prévue…" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-slate-900" />
                 </div>
               )}
+
+              {/* Analyse IA : besoin, stade, objections, prochaine action vers les outils de la messagerie */}
+              <AnalysisPanel
+                key={conv.id}
+                conversationId={conv.id}
+                fetcher={api}
+                origin={typeof window !== 'undefined' ? window.location.origin : ''}
+                actions={{
+                  openCart: () => setPanel('cart'),
+                  openSelection: () => setPanel('selection'),
+                  insertText: (t) => {
+                    setDraft((d) => (d.trim() ? `${d.trimEnd()}\n${t}` : t));
+                    setTimeout(() => textRef.current?.focus(), 0);
+                  },
+                  pin: () => {
+                    if (!pinnedSet.has(conv.id)) patchConv({ pin: true });
+                  },
+                  note: (t) => {
+                    const next = conv.note ? `${conv.note}\n${t}` : t;
+                    setNoteDraft(next);
+                    patchConv({ note: next });
+                    setPanel('note');
+                  },
+                }}
+              />
 
               {/* Messages */}
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#efeae2] px-3 py-4 dark:bg-slate-900/60">

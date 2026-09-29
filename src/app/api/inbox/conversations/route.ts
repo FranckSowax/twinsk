@@ -18,14 +18,16 @@ export async function GET(request: NextRequest) {
     }
   }
   const f = request.nextUrl.searchParams.get('filter') || 'todo';
-  const filter: InboxFilter = f === 'mine' || f === 'pinned' || f === 'all' || f === 'closed' ? f : 'todo';
+  const filter: InboxFilter = f === 'mine' || f === 'pinned' || f === 'hot' || f === 'all' || f === 'closed' ? f : 'todo';
   try {
     const [conversations, counts] = await Promise.all([listConversations(filter, actor, request.nextUrl.searchParams.get('q') || '', pins), inboxCounts(actor, pins)]);
     return NextResponse.json({ conversations, counts, actor, pins });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erreur';
     // Tables absentes tant que la migration 59 n'est pas appliquée : message explicite.
-    const hint = /wa_conversations|does not exist/i.test(msg) ? 'Migration 59 non appliquée (tables wa_conversations / wa_messages).' : msg;
+    const hint = /purchase_stage|purchase_intent_score/i.test(msg)
+      ? 'Analyse IA pas encore disponible (migration « conversation_analysis » non appliquée).'
+      : /wa_conversations|does not exist/i.test(msg) ? 'Migration 59 non appliquée (tables wa_conversations / wa_messages).' : msg;
     return NextResponse.json({ error: hint }, { status: 500 });
   }
 }

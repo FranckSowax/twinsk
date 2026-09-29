@@ -6,7 +6,7 @@ export type InboxStatus = 'open' | 'replied' | 'closed';
 import { CONTENT } from '@/content';
 import { PUBLIC_ORIGIN_FALLBACK } from '@/lib/public-origin';
 import { formatPhone as formatCountryPhone } from '@/lib/phone';
-export type InboxFilter = 'todo' | 'mine' | 'pinned' | 'all' | 'closed';
+export type InboxFilter = 'todo' | 'mine' | 'pinned' | 'hot' | 'all' | 'closed';
 export type InboxMediaKind = 'image' | 'video' | 'audio' | 'document' | 'sticker';
 
 /** Message tel que livré par le webhook WHAPI (champs utiles seulement). */
