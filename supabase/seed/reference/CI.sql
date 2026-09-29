@@ -1,4 +1,4 @@
--- Données de référence propres à la Côte d'Ivoire (Oh My Cot). Idempotent.
+-- Données de référence propres à la Côte d'Ivoire (Oh My 225 !). Idempotent.
 -- À exécuter APRÈS les migrations et common.sql, sur le projet CI uniquement.
 
 -- 0. Sécurité : refuse de tourner sur le projet Gabon (zone Libreville ou
@@ -26,7 +26,7 @@ INSERT INTO public.delivery_zones (
   transit_air_min_days, transit_air_max_days, transit_sea_min_days, transit_sea_max_days,
   air_rate_per_kg, air_battery_rate_per_kg, sea_rate_per_m3, sea_rate_floor_per_m3, position
 )
-SELECT z.code, z.label, 'Abidjan', 'ABJ', false, false, 0, 'agence Oh My Cot',
+SELECT z.code, z.label, 'Abidjan', 'ABJ', false, false, 0, 'agence Oh My 225',
        8, 14, 60, 85,
        12000, 18000, 215000, 215000, z.position
 FROM (VALUES

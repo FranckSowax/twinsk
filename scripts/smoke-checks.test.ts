@@ -13,7 +13,7 @@ describe('test de fumée', () => {
   it('CI conforme', async () => {
     const f = fakeFetch({
       '/api/health': { status: 200, body: JSON.stringify({ ok: true, country: 'CI', buildCountry: 'CI', database: 'ok' }) },
-      '/bio': { status: 200, body: '<h1>Oh My Cot</h1>' },
+      '/bio': { status: 200, body: '<h1>Oh My 225 !</h1>' },
       '/': { status: 307, location: 'https://x.test/bio' },
       '/admin': { status: 200 },
     });
@@ -24,7 +24,7 @@ describe('test de fumée', () => {
   it('détecte un build CI compilé comme le Gabon', async () => {
     const f = fakeFetch({
       '/api/health': { status: 503, body: JSON.stringify({ ok: false, country: 'CI', buildCountry: 'GA', database: 'ok' }) },
-      '/bio': { status: 200, body: 'Oh My Cot' },
+      '/bio': { status: 200, body: 'Oh My 225 !' },
       '/': { status: 307, location: '/bio' },
       '/admin': { status: 200 },
     });

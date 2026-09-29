@@ -1,10 +1,10 @@
-# Twinsk / Oh My Gab / Oh My Cot
+# Twinsk / Oh My Gab / Oh My 225 !
 
 Application Next.js 16 (App Router), déployée sur Railway depuis GitHub (`FranckSowax/twinsk`, branche `main`), données dans Supabase. Tests : `npm test` (vitest). Lint : `npm run lint`. Build : `npx next build`.
 
 ## Multi-pays
 
-Un seul code, **un déploiement et un projet Supabase par pays** : Gabon (`GA`, Oh My Gab + Twinsk) et Côte d'Ivoire (`CI`, Oh My Cot). Le pays est choisi par `NEXT_PUBLIC_COUNTRY` au **build**. Documentation complète : `docs/multi-country/README.md`.
+Un seul code, **un déploiement et un projet Supabase par pays** : Gabon (`GA`, Oh My Gab + Twinsk) et Côte d'Ivoire (`CI`, Oh My 225 !). Le pays est choisi par `NEXT_PUBLIC_COUNTRY` au **build**. Documentation complète : `docs/multi-country/README.md`.
 
 ### Règles
 

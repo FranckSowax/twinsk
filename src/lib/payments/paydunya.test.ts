@@ -25,14 +25,14 @@ describe('configuration', () => {
 describe('buildInvoicePayload', () => {
   it('montant entier, canaux, actions et données personnalisées', () => {
     const p = buildInvoicePayload({
-      amount: 125000.4, description: 'Commande #A1', storeName: 'Oh My Cot', websiteUrl: 'https://x.test',
+      amount: 125000.4, description: 'Commande #A1', storeName: 'Oh My 225 !', websiteUrl: 'https://x.test',
       customer: { name: ' Awa ', phone: '2250707070707' }, channels: ['wave-ci'],
       returnUrl: 'https://x.test/r', cancelUrl: 'https://x.test/c', callbackUrl: 'https://x.test/ipn',
       customData: { order_id: 'o1' },
     });
     expect(p).toEqual({
       invoice: { total_amount: 125000, description: 'Commande #A1', customer: { name: 'Awa', phone: '2250707070707' }, channels: ['wave-ci'] },
-      store: { name: 'Oh My Cot', website_url: 'https://x.test' },
+      store: { name: 'Oh My 225 !', website_url: 'https://x.test' },
       custom_data: { order_id: 'o1' },
       actions: { cancel_url: 'https://x.test/c', return_url: 'https://x.test/r', callback_url: 'https://x.test/ipn' },
     });

@@ -53,7 +53,7 @@ Ces clés ne sont plus déclarées. Le projet garde donc ses valeurs. `supabase 
 
 | Réglage | Actuel | Après |
 |---|---|---|
-| `auth.site_url` | `http://localhost:3000` | `https://ohmycot-production.up.railway.app` |
+| `auth.site_url` | `http://localhost:3000` | `https://ohmy225-production.up.railway.app` |
 | `auth.additional_redirect_urls` | vide | le même domaine |
 | `auth.enable_signup` | activé | **désactivé** |
 | `auth.email.enable_signup` | activé | **désactivé** |

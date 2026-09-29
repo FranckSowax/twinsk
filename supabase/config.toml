@@ -1,6 +1,6 @@
-# Configuration Supabase de Twinsk / Oh My Gab / Oh My Cot — commune à tous les pays.
+# Configuration Supabase de Twinsk / Oh My Gab / Oh My 225 ! — commune à tous les pays.
 # Les valeurs propres à un projet viennent de l'environnement (env(...)) :
-#   SUPABASE_AUTH_SITE_URL   domaine public du déploiement (ex. https://ohmycot-production.up.railway.app)
+#   SUPABASE_AUTH_SITE_URL   domaine public du déploiement (ex. https://ohmy225-production.up.railway.app)
 # Voir docs/multi-country/05-supabase.md.
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
@@ -110,7 +110,7 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-# Twinsk / Oh My Cot n'utilisent pas Supabase Auth (authentification propre à l'app) : inscriptions fermées.
+# Twinsk / Oh My 225 ! n'utilisent pas Supabase Auth (authentification propre à l'app) : inscriptions fermées.
 enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false

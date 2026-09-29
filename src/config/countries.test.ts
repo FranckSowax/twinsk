@@ -20,7 +20,7 @@ describe('configuration par pays', () => {
   });
   it('Côte d’Ivoire : XOF (UEMOA, pas XAF), UTC+0, +225, partie Twinsk absente', () => {
     const c = COUNTRIES.CI;
-    expect([c.brand, c.currency, c.timezone, c.phonePrefix]).toEqual(['Oh My Cot', 'XOF', 'Africa/Abidjan', '+225']);
+    expect([c.brand, c.currency, c.timezone, c.phonePrefix]).toEqual(['Oh My 225 !', 'XOF', 'Africa/Abidjan', '+225']);
     expect(c.modules.twinsk).toBe(false);
     // Tarifs vers Abidjan (24 sept. 2026) : 12 000 / kg, 215 000 / m³ sans dégressivité.
     expect([c.freight.airRatePerKg, c.freight.seaRatePerM3, c.freight.seaRateFloorPerM3]).toEqual([12000, 215000, 215000]);
@@ -37,9 +37,9 @@ describe('groupes WhatsApp et expéditeur (phase 3)', () => {
     expect(COUNTRIES.GA.whatsappGroups).toEqual({ main: '120363408414253084@g.us', orders: '120363428402268041@g.us', search: '120363431660727284@g.us' });
     expect(COUNTRIES.GA.senderName).toBe('TWINSK');
   });
-  it('Côte d’Ivoire : aucun groupe du Gabon par défaut, signature Oh My Cot', () => {
+  it('Côte d’Ivoire : aucun groupe du Gabon par défaut, signature Oh My 225 !', () => {
     expect(Object.values(COUNTRIES.CI.whatsappGroups).every((g) => g === '')).toBe(true);
-    expect(COUNTRIES.CI.senderName).toBe('Oh My Cot');
+    expect(COUNTRIES.CI.senderName).toBe('Oh My 225 !');
   });
 });
 

@@ -50,7 +50,7 @@ Même projet Railway « Twinsk Company Ltd » (environnement production, région
 | # | Écriture | Détail |
 |---|---|---|
 | R1 | Créer le service **`ohmycot`** | Dépôt `FranckSowax/twinsk`, **branche `feat/multi-country`** tant que la branche n'est pas fusionnée (ensuite : `main`). Build par le `Dockerfile` (`railway.toml`) |
-| R2 | Domaine Railway du service | Port 8080 comme `twinsk` ; nom visé `ohmycot-production.up.railway.app` |
+| R2 | Domaine Railway du service | Port 8080 comme `twinsk` ; nom visé `ohmy225-production.up.railway.app` |
 | R3 | Variables de `ohmycot` | Voir tableau ci-dessous |
 | R4 | Créer **`ohmycot-cron-cash`** | Image `curlimages/curl`, toutes les 15 min, `curl -fsS "$APP_URL/api/cron/cash-reminders?key=$CRON_SECRET"`, avec `APP_URL=https://${{ohmycot.RAILWAY_PUBLIC_DOMAIN}}` et `CRON_SECRET=${{ohmycot.CRON_SECRET}}` |
 | — | Diffusion horaire (équivalent de `cron-catalog-drip`) | **Reportée** : sans numéro WhatsApp ivoirien, elle n'a rien à diffuser |
@@ -74,8 +74,8 @@ Après le premier déploiement : `npx tsx scripts/smoke.ts --country CI --url ht
 
 | Élément | État |
 |---|---|
-| Service `ohmycot` | En ligne : https://ohmycot-production.up.railway.app (branche `feat/multi-country`, commit `46e675d`) |
-| Test de fumée CI | **8/8** : santé 200, pays CI à l'exécution **et** au build, base CI joignable, `/bio` affiche « Oh My Cot », accueil redirigé vers `/bio`, `/admin` répond |
+| Service `ohmycot` | En ligne : https://ohmy225-production.up.railway.app (branche `feat/multi-country`, commit `46e675d`) |
+| Test de fumée CI | **8/8** : santé 200, pays CI à l'exécution **et** au build, base CI joignable, `/bio` affiche « Oh My 225 ! », accueil redirigé vers `/bio`, `/admin` répond |
 | Variables | 8 réglées ; clés Supabase et secrets passés par l'entrée standard de la CLI Railway, jamais affichés |
 | `ohmycot-cron-cash` | Créé, toutes les 15 min, `APP_URL` et `CRON_SECRET` par référence au service `ohmycot` ; premier passage : succès |
 

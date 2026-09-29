@@ -19,7 +19,7 @@ Emplacement prévu dans le code (à créer quand les textes seront prêts) : `sr
 
 ## 2. Conditions générales de vente : rubriques
 
-| # | Rubrique | Éléments propres à Oh My Cot à couvrir |
+| # | Rubrique | Éléments propres à Oh My 225 ! à couvrir |
 |---|---|---|
 | 1 | Identification du vendeur | Informations du §1 |
 | 2 | Objet et champ d'application | Vente de produits sourcés en Chine, livrés à Abidjan |

@@ -81,7 +81,7 @@ Le projet visé est lu dans l'environnement (`SUPABASE_PROJECT_REF`, `SUPABASE_S
 Prérequis, à faire par Franck :
 - `brew trust --formula supabase/tap/supabase && brew upgrade supabase` (la CLI 2.2.1 ne gère pas Postgres 17) ;
 - `supabase login` ;
-- créer le projet **Oh My Cot** (région `eu-west-3` ou `eu-west-1`) et me donner sa référence.
+- créer le projet **Oh My 225 !** (région `eu-west-3` ou `eu-west-1`) et me donner sa référence.
 
 | # | Commande | Écrit ? |
 |---|---|---|
@@ -92,7 +92,7 @@ Prérequis, à faire par Franck :
 | 5 | `psql "$CI_DB_URL" -f supabase/seed/reference/common.sql` | Oui (rien à insérer) |
 | 6 | `psql "$CI_DB_URL" -f supabase/seed/reference/CI.sql` | **Oui** : défaut XOF, 12 communes |
 | 7 | `supabase functions deploy`, `supabase secrets set` | **Sans objet** : aucune fonction Edge |
-| 8 | `SUPABASE_AUTH_SITE_URL=https://ohmycot-production.up.railway.app supabase config push` | **Oui** : réglages Auth, inscriptions fermées (la CLI affiche l'écart et demande confirmation) |
+| 8 | `SUPABASE_AUTH_SITE_URL=https://ohmy225-production.up.railway.app supabase config push` | **Oui** : réglages Auth, inscriptions fermées (la CLI affiche l'écart et demande confirmation) |
 | 9 | `npx tsx scripts/supabase/recreate-buckets.ts`, puis la même commande avec `--apply` | **Oui** : bucket `request-images` |
 | 10 | `setup-cron.sql`, `setup-webhooks.sql` | Sans objet |
 

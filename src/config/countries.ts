@@ -19,7 +19,7 @@ export interface CountryConfig {
   /** Nom en chinois (admin bilingue FR / ZH). */
   nameZh: string;
   brand: string;
-  /** Signature des messages et interfaces de l'équipe : « TWINSK » (Gabon), « Oh My Cot ». */
+  /** Signature des messages et interfaces de l'équipe : « TWINSK » (Gabon), « Oh My 225 ! ». */
   senderName: string;
   /** Domaine public (sans protocole) ; surchargé par NEXT_PUBLIC_SITE_URL. */
   domain: string;
@@ -114,11 +114,11 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     nameIn: 'en Côte d’Ivoire',
     nameWithArticle: 'la Côte d’Ivoire',
     nameZh: '科特迪瓦',
-    brand: 'Oh My Cot',
-    senderName: 'Oh My Cot',
+    brand: 'Oh My 225 !',
+    senderName: 'Oh My 225 !',
     // Déploiement Railway dédié (décision du 24 sept. 2026) ; domaine personnalisé plus tard.
     // NEXT_PUBLIC_SITE_URL prime : à régler sur le domaine réellement attribué par Railway.
-    domain: 'ohmycot-production.up.railway.app',
+    domain: 'ohmy225-production.up.railway.app',
     currency: 'XOF',
     currencyRegionLabel: 'Afrique de l’Ouest',
     currencyFlag: '🇨🇮',
@@ -134,21 +134,21 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     autoPrefixLocalPhone: true,
     phoneExample: '+225 07 00 00 00 00',
     paymentProviders: ['orange_money', 'mtn_momo', 'wave', 'moov_money', 'cash'],
-    supportWhatsapp: '', // TODO(franck) : numéro WhatsApp Oh My Cot
-    whatsappGroups: { main: '', orders: '', search: '' }, // TODO(franck) : groupes WhatsApp du numéro Oh My Cot
+    supportWhatsapp: '', // TODO(franck) : numéro WhatsApp Oh My 225 !
+    whatsappGroups: { main: '', orders: '', search: '' }, // TODO(franck) : groupes WhatsApp du numéro Oh My 225 !
     supportEmail: '', // TODO(franck)
     social: {}, // TODO(franck) : Facebook, Instagram, TikTok, chaîne et groupe WhatsApp
     analytics: {},
     legal: { companyName: 'TODO', address: 'TODO' }, // TODO(franck) : entité juridique CI
-    agency: { name: 'agence Oh My Cot', address: '', hours: '' }, // TODO(franck) : adresse et horaires (D3 : agence confirmée)
+    agency: { name: 'agence Oh My 225', address: '', hours: '' }, // TODO(franck) : adresse et horaires (D3 : agence confirmée)
     // Tarifs vers Abidjan donnés par Franck le 24 sept. 2026 : 12 000 XOF / kg en aérien,
     // 215 000 XOF / m³ en maritime, sans grille dégressive (plancher = tarif de base).
     // TODO(franck) : tarif aérien des produits à batterie (valeur du Gabon en attendant).
     freight: { airRatePerKg: 12000, airBatteryRatePerKg: 18000, seaRatePerM3: 215000, seaRateFloorPerM3: 215000 },
     transit: { air: [8, 14], sea: [60, 85] }, // TODO(franck) : délais vers Abidjan
     modules: { twinsk: false },
-    favicon: '/brands/CI/favicon.png', // TODO(franck) : logo Oh My Cot
-    // Visuel fourni par Franck le 25 sept. 2026 (équipe tenant le logo « OhMyCot! »).
+    favicon: '/brands/CI/favicon.png', // TODO(franck) : logo Oh My 225 !
+    // Visuel fourni par Franck le 25 sept. 2026 (équipe tenant le logo « OhMyCot! », ancien nom).
     bioHero: { width: 1600, height: 904 },
   },
 };

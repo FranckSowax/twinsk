@@ -1,6 +1,6 @@
 # Phase 0 — Découverte (lecture seule)
 
-> Projet : OhMyGab (dépôt « Twinsk »), préparation du lancement **Oh My Cot** (Côte d'Ivoire).
+> Projet : OhMyGab (dépôt « Twinsk »), préparation du lancement **Oh My 225 !** (Côte d'Ivoire).
 > Date : 24 septembre 2026. Toutes les requêtes sur le projet Supabase Gabon
 > `qaemzzpyrmoopfkiciki` ont été des `SELECT` (aucune écriture).
 
@@ -216,7 +216,7 @@ Total : 46 tables. 11 REFERENCE (dont 1 mixte), 35 TRANSACTIONAL.
 | Fonctions Edge à adapter | Aucune | Phase 3 réduite à la documentation des secrets des routes API. **OK ?** |
 | Supabase Auth à reproduire | Non utilisé | Rien à configurer côté Auth |
 | Fournisseurs de paiement GA (Airtel, Moov) | Airtel Money **manuel** + espèces ; e-Billing = maquette | Phase 4 : interface `PaymentProvider` avec adaptateurs « manuels » GA ; CI : agrégateur réel à choisir (CinetPay ou PayDunya) |
-| Un seul produit par dépôt | Le dépôt sert Twinsk (logistique B2B, sourcing Chine) **et** Oh My Gab | **Question 1** : le déploiement CI embarque-t-il toute l'application (sourcing, fret, admin) sous la marque Oh My Cot, ou seulement la partie Oh My Gab ? |
+| Un seul produit par dépôt | Le dépôt sert Twinsk (logistique B2B, sourcing Chine) **et** Oh My Gab | **Question 1** : le déploiement CI embarque-t-il toute l'application (sourcing, fret, admin) sous la marque Oh My 225 !, ou seulement la partie Oh My Gab ? |
 | Zones de livraison en base | Aucune zone : livraison « à Libreville », tarifs de fret par variable d'env | Table `delivery_zones` à créer (phase 2) ; tarifs de fret par pays |
 | Catalogue par pays | Prix en CNY, neutres en devise | **Question 2** : le catalogue (listings, produits) est-il **partagé** (copié à l'initialisation, puis indépendant) ou **vide** au départ en CI ? |
 | Données transactionnelles | 35 tables | Aucune copie (conforme à la mission) |

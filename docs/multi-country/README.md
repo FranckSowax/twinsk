@@ -1,4 +1,4 @@
-# Multi-pays : Oh My Gab (Gabon) et Oh My Cot (Côte d'Ivoire)
+# Multi-pays : Oh My Gab (Gabon) et Oh My 225 ! (Côte d'Ivoire)
 
 Un seul dépôt, une seule branche `main`, **un déploiement et un projet Supabase par pays**. Le pays est choisi par `NEXT_PUBLIC_COUNTRY` (`GA` par défaut, `CI`) au moment du build.
 
@@ -29,7 +29,7 @@ flowchart LR
   subgraph Railway["Railway : projet « Twinsk Company Ltd »"]
     twinsk["twinsk<br/>NEXT_PUBLIC_COUNTRY absent → GA<br/>twinsk-production.up.railway.app"]
     cronGA["cron-cash · cron-catalog-drip"]
-    ohmycot["ohmycot<br/>NEXT_PUBLIC_COUNTRY=CI<br/>ohmycot-production.up.railway.app"]
+    ohmycot["ohmycot<br/>NEXT_PUBLIC_COUNTRY=CI<br/>ohmy225-production.up.railway.app"]
     cronCI["ohmycot-cron-cash<br/>APP_URL=${{ohmycot.RAILWAY_PUBLIC_DOMAIN}}"]
   end
 

@@ -29,7 +29,7 @@
 
 | Élément | Où ça va | État |
 |---|---|---|
-| **Domaine** | `COUNTRY.domain`, `NEXT_PUBLIC_SITE_URL` (Railway), `SUPABASE_AUTH_SITE_URL` + `config push` | Provisoire : `ohmycot-production.up.railway.app` |
+| **Domaine** | `COUNTRY.domain`, `NEXT_PUBLIC_SITE_URL` (Railway), `SUPABASE_AUTH_SITE_URL` + `config push` | Provisoire : `ohmy225-production.up.railway.app` |
 | **Entité juridique et adresse** (raison sociale, RCCM, siège) | `COUNTRY.legal` | Manquant |
 | **Agence** : adresse, horaires, commune (zone par défaut) | `COUNTRY.agency`, `delivery_zones.is_default` | Manquant (agence confirmée, D3) |
 | **Compte marchand de l'agrégateur de paiement** | Railway `ohmycot` : `PAYDUNYA_MASTER_KEY`, `PAYDUNYA_PRIVATE_KEY`, `PAYDUNYA_TOKEN`, `PAYDUNYA_MODE` | Manquant ; sans lui, « Mobile Money » répond « pas encore activé » |
@@ -37,7 +37,7 @@
 | **Groupes WhatsApp** (principal, commandes, recherche) | `COUNTRY.whatsappGroups` | Manquant |
 | **Réseaux sociaux** (Facebook, Instagram, TikTok, chaîne et groupe WhatsApp) | `COUNTRY.social` ; Railway `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_USER_ID` | Manquant |
 | **Identifiants Meta Pixel / GA4** | `COUNTRY.analytics` | Manquant |
-| **Logo et visuels Oh My Cot** (haut de /bio, image de partage, icône) | `public/brands/CI/` | Visuels provisoires |
+| **Logo et visuels Oh My 225 !** (haut de /bio, image de partage, icône) | `public/brands/CI/` | Visuels provisoires |
 | **Textes légaux CI** (CGV, politique de confidentialité conforme aux règles de l'ARTCI) | À faire rédiger et valider par un juriste local ; plan dans [legal-CI.md](legal-CI.md) | Non rédigés (volontairement) |
 | Tarif aérien des produits à batterie vers Abidjan | `COUNTRIES.CI.freight.airBatteryRatePerKg`, `supabase/seed/reference/CI.sql` | 18 000 XOF provisoire (valeur du Gabon) |
 | Délais vers Abidjan (aérien, maritime) | `COUNTRIES.CI.transit`, `CI.sql` | Valeurs du Gabon en attendant |

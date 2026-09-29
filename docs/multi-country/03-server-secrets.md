@@ -58,7 +58,7 @@ Les services cron du Gabon ne sont pas modifiés (ce serait une écriture chez l
 
 | Où | Avant | Maintenant |
 |---|---|---|
-| Messages clients (réservation en espèces) | « — TWINSK » | `COUNTRY.senderName` : « TWINSK » au Gabon, « Oh My Cot » en CI |
+| Messages clients (réservation en espèces) | « — TWINSK » | `COUNTRY.senderName` : « TWINSK » au Gabon, « Oh My 225 ! » en CI |
 | Code de connexion des agents (WhatsApp) | « TWINSK — Espace agents » | idem |
 | Titre et en-tête de l’espace agents, titre de l’admin | « TWINSK », « TWINSK Admin » | idem |
 | Messages mentionnant la marque | « Oh My Gab » | `COUNTRY.brand` (phase 2) |
