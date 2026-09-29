@@ -130,15 +130,21 @@ export async function analyzeConversation(conversationId: string, opts: { force?
     system: systemPrompt(),
     messages: [{ role: 'user', content: `Conversation à analyser :\n${dialogue.text}\n\nRéponds uniquement par le JSON demandé.` }],
     jsonMode: true,
-    maxTokens: 900,
-    timeoutMs: 45_000,
+    maxTokens: 2000,
+    timeoutMs: 60_000,
   });
   if (!llm.ok) {
     console.error(`[analysis] ${c.id} : ${llm.error}`);
     return { ok: false, error: llm.error };
   }
+  // JSON illisible : on n'enregistre pas une fiche remplie de valeurs par défaut.
+  const parsed = parseJsonLoose(llm.text);
+  if (!parsed || typeof parsed !== 'object') {
+    console.error(`[analysis] ${c.id} : réponse non JSON (${llm.text.slice(0, 120)})`);
+    return { ok: false, error: 'Réponse du modèle illisible (pas de JSON)' };
+  }
   const orders = await ordersOfPhone(c.phone);
-  const analysis = applyFacts(validateAnalysis(parseJsonLoose(llm.text)), orders);
+  const analysis = applyFacts(validateAnalysis(parsed), orders);
   const cost = llmCostFcfa(llm);
   const usage = { model: llm.model, inputTokens: llm.inputTokens, outputTokens: llm.outputTokens, costFcfa: cost };
   const lastId = messages[messages.length - 1]?.id || null;
@@ -322,7 +328,7 @@ export async function buildDailyReport(now: Date = new Date()): Promise<{ ok: bo
       system: REPORT_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: reportPromptInput(breakdown, { pendingCarts: pc.count, pendingCartsTotal: pc.total, currency: currencyLabel(), period: dayKey }) }],
       jsonMode: true,
-      maxTokens: 900,
+      maxTokens: 2000,
     });
     if (llm.ok) {
       const j = (parseJsonLoose(llm.text) || {}) as { insights?: unknown; recommendations?: unknown };

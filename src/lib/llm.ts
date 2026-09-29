@@ -99,6 +99,12 @@ export function parseJsonLoose(text: string): unknown {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Effort de raisonnement demandé aux modèles qui raisonnent : low (défaut), medium ou high. */
+export function reasoningEffort(): 'low' | 'medium' | 'high' {
+  const v = process.env.ANALYSIS_REASONING_EFFORT;
+  return v === 'medium' || v === 'high' ? v : 'low';
+}
+
 async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, signal: AbortSignal): Promise<Response> {
   if (provider === 'anthropic') {
     return fetch('https://api.anthropic.com/v1/messages', {
@@ -132,8 +138,11 @@ async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, s
       temperature: req.temperature ?? 0.2,
       max_tokens: req.maxTokens ?? 1200,
       ...(req.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-      // OpenRouter : coût réel de l'appel renvoyé dans `usage.cost`.
-      ...(openrouter ? { usage: { include: true } } : {}),
+      // OpenRouter : coût réel de l'appel renvoyé dans `usage.cost`. Les modèles
+      // à raisonnement obligatoire (GLM 5.3 Flash) consomment la limite de sortie
+      // en réfléchissant : effort faible (ANALYSIS_REASONING_EFFORT) et
+      // raisonnement exclu de la réponse, sinon le JSON arrive vide.
+      ...(openrouter ? { usage: { include: true }, reasoning: { effort: reasoningEffort(), exclude: true } } : {}),
     }),
     signal,
   });
@@ -166,12 +175,18 @@ export async function chatCompletion(req: LlmRequest): Promise<LlmResult> {
         const usage = (data.usage as { input_tokens?: number; output_tokens?: number } | undefined) || {};
         return { ...base, ok: true, text: content.filter((c) => c.type === 'text').map((c) => c.text || '').join(''), inputTokens: usage.input_tokens || 0, outputTokens: usage.output_tokens || 0 };
       }
-      const choices = (data.choices as { message?: { content?: string } }[] | undefined) || [];
+      const choices = (data.choices as { message?: { content?: string }; finish_reason?: string }[] | undefined) || [];
       const usage = (data.usage as { prompt_tokens?: number; completion_tokens?: number; cost?: number } | undefined) || {};
+      const content = choices[0]?.message?.content || '';
+      const tokens = { inputTokens: usage.prompt_tokens || 0, outputTokens: usage.completion_tokens || 0, ...(typeof usage.cost === 'number' ? { costUsd: usage.cost } : {}) };
+      // Réponse vide (raisonnement qui a épuisé la limite) ou coupée : échec explicite, payé quand même.
+      if (!content.trim() || choices[0]?.finish_reason === 'length') {
+        return { ...base, ...tokens, ok: false, text: content, error: `${provider} : réponse ${content.trim() ? 'tronquée' : 'vide'} (limite de ${req.maxTokens ?? 1200} tokens atteinte)` };
+      }
       return {
         ...base,
         ok: true,
-        text: choices[0]?.message?.content || '',
+        text: content,
         inputTokens: usage.prompt_tokens || 0,
         outputTokens: usage.completion_tokens || 0,
         ...(typeof usage.cost === 'number' ? { costUsd: usage.cost } : {}),

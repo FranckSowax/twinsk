@@ -85,6 +85,7 @@ Numéros de téléphone et e-mails sont remplacés par `[numéro]` et `[e-mail]`
 | `ANALYSIS_MODEL` | `z-ai/glm-5.3-flash` | Identifiant du modèle chez le fournisseur |
 | `ANALYSIS_BATCH_LIMIT` | 40 | Conversations par passage |
 | `ANALYSIS_DAILY_BUDGET_FCFA` | 500 | Plafond de dépense par jour |
+| `ANALYSIS_REASONING_EFFORT` | `low` | Effort de raisonnement des modèles qui raisonnent (`low`, `medium`, `high`) |
 | `ANALYSIS_PRICE_IN_PER_M`, `ANALYSIS_PRICE_OUT_PER_M`, `USD_TO_FCFA` | 0,15, 0,50, 600 | OpenRouter renvoie le **coût réel** de chaque appel ; ces tarifs ne servent qu'en repli, et `USD_TO_FCFA` pour la conversion |
 
 ## Ajouter ou modifier une catégorie
@@ -97,15 +98,25 @@ Aucune migration n'est nécessaire : les détails sont stockés en `jsonb` (`com
 
 ## Coût
 
-Mesure prévue sur trois conversations réelles du Gabon (test à blanc). **Non mesurée au 29 septembre** : en attente de la clé OpenRouter (le premier essai, sur Kimi, a échoué car le compte Moonshot est sans solde). À compléter avec :
+**Mesuré le 29 septembre 2026** sur trois conversations réelles du Gabon (test à blanc, GLM 5.3 Flash via OpenRouter, coût réel renvoyé par OpenRouter) :
+
+| Conversation | Messages | Tokens entrée / sortie | Coût |
+|---|---|---|---|
+| Question de prix (pub Canapés) | 27 | 1 503 / 456 | 0,27 FCFA |
+| Client pizzeria avec panier | 27 | 1 545 / 493 | 0,29 FCFA |
+| Doute sur la fiabilité (pub Pizzeria) | 21 | 1 179 / 334 | 0,21 FCFA |
+
+**Environ 0,26 FCFA par conversation analysée.** Au rythme de septembre (environ 300 analyses par mois, plus 30 rapports), cela fait **moins de 100 FCFA par mois** au Gabon.
+
+Point d'attention : GLM 5.3 Flash **raisonne obligatoirement**. Sans limite, son raisonnement épuise la sortie et la réponse arrive vide (constaté au premier essai). D'où l'effort de raisonnement `low` (`ANALYSIS_REASONING_EFFORT`), une limite de sortie de 2 000 tokens, et le rejet de toute réponse vide ou illisible, qui n'est jamais enregistrée avec des valeurs par défaut.
+
+Relancer la mesure :
 
 ```bash
 npx tsx scripts/analysis-dry-run.ts ad1ff7b3-4d13-4018-b7d5-ec94b45f0b5f bc62c31c-4fe4-449c-9d73-488285385f50 31e7c5f1-e123-4382-bfb7-c4e9e42c6b1c
 ```
 
-Ordre de grandeur attendu :
-- environ 2 000 tokens en entrée et 400 en sortie par conversation ; au tarif de GLM 5.3 Flash (0,15 $ / 0,50 $ par million), soit **environ 0,3 FCFA par analyse** ;
-- environ 300 analyses par mois au rythme de septembre, soit **environ 100 FCFA par mois** au Gabon, rapports compris.
+Le nom du client n'est pas envoyé. S'il apparaît dans les messages eux-mêmes (signature, « M. X »), il reste dans le texte.
 
 ## Services cron Railway
 
