@@ -9,6 +9,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Clock, Layers, Loader2, MessageCircle, Package, Sparkles, Store, Timer } from 'lucide-react';
 import { PERIODS, type Period } from '@/lib/admin-activity';
+import ConversationAnalysisSection from './ConversationAnalysisSection';
 
 interface Bar { key: string; label: string; value: number }
 interface Series { key: string; label: string; ad: number; direct: number; medianMinutes: number | null }
@@ -108,6 +109,7 @@ export default function ActivityDashboard() {
         <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           <WhatsappBlock d={data} />
           <FunnelBlock d={data} />
+          <ConversationAnalysisSection period={period} />
           <ListingsTable d={data} />
           <CatalogueBlock d={data} />
         </div>
