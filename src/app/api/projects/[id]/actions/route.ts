@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { teamActor, unauthorized, errorResponse } from '@/lib/projects/auth';
 import * as D from '@/lib/projects/data';
+import { validateSourcingImport } from '@/lib/projects/sourcing';
 import type { Attachment, ExchangeChannel, OrderStatus, RfqSender, SupplierStatus } from '@/lib/projects/types';
 
 // POST { action, ... } : toutes les actions de l'équipe sur un projet.
@@ -28,6 +29,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'update.comment': await D.addUpdateComment(id, str(b.update_id), str(b.text), actor); break;
       case 'question.reply': await D.replyQuestion(id, str(b.question_id), str(b.text), actor); break;
       case 'supplier.upsert': result = { id: await D.upsertSupplier(id, { ...(b as unknown as D.SupplierInput), id: str(b.id) || undefined, lot: str(b.lot), score: b.score === null || b.score === '' || b.score === undefined ? (b.score === undefined ? undefined : null) : Number(b.score) }, actor) }; break;
+      case 'supplier.import': {
+        const bundle = await D.loadProject(id);
+        if (!bundle) throw new D.ProjectError('Projet introuvable', 404);
+        const lots = [...new Set([...(bundle.quoteLines as { lot: string }[]).map((l) => l.lot), ...(bundle.rfq as { lot: string }[]).map((r) => r.lot), ...(bundle.suppliers as { lot: string }[]).map((x) => x.lot)])];
+        const parsed = validateSourcingImport(b.data, { knownLots: lots });
+        if (b.dry_run === true) { result = { preview: parsed }; break; }
+        if (!parsed.suppliers.length) throw new D.ProjectError(parsed.warnings[0] || 'Aucune usine à importer');
+        result = { ...(await D.importSuppliers(id, parsed.suppliers, actor)), warnings: parsed.warnings };
+        break;
+      }
       case 'supplier.status': await D.setSupplierStatus(id, str(b.id), str(b.status) as SupplierStatus, actor); break;
       case 'supplier.delete': await D.deleteSupplier(id, str(b.id), actor); break;
       case 'rfq.save': await D.saveRfqMessage(id, str(b.lot), b as Parameters<typeof D.saveRfqMessage>[2], actor); break;

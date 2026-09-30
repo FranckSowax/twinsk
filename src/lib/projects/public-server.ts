@@ -23,6 +23,8 @@ export interface TeamExtras {
   /** Messages RFQ par lot (EN + ZH), modifiables, et signature de l'expéditeur. */
   rfq: RfqMessage[];
   rfq_sender: Partial<RfqSender>;
+  /** Contexte du programme pour les RFQ et le besoin de sourcing (phrase EN/ZH, exigences communes). */
+  rfq_context: { project_en?: string; project_zh?: string; requirements_en?: string[] } | null;
   exchanges: { id: string; supplier_id: string | null; channel: string; exchanged_at: string; summary: string; attachments: Attachment[]; next_action: string | null; next_action_at: string | null; author_name: string | null }[];
   shares: { id: string; token: string; person_name: string; role_label: string | null; expires_at: string | null; revoked_at: string | null; views: number; last_seen_at: string | null; created_at: string }[];
   events: { id: string; type: string; actor: string; actor_name: string | null; detail: string | null; notify: string | null; notified_at: string | null; created_at: string }[];
@@ -48,6 +50,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     })),
     rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
     rfq_sender: pickSender(p.rfq_sender),
+    rfq_context: p.rfq_context && typeof p.rfq_context === 'object' && (p.rfq_context as { project_en?: string }).project_en ? (p.rfq_context as TeamExtras['rfq_context']) : template.rfq_context || null,
     exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name })),
     shares: (b.shares as TeamExtras['shares']).map((s) => ({ id: s.id, token: s.token, person_name: s.person_name, role_label: s.role_label, expires_at: s.expires_at, revoked_at: s.revoked_at, views: s.views, last_seen_at: s.last_seen_at, created_at: s.created_at })),
     events: (b.events as TeamExtras['events']).map((e) => ({ id: e.id, type: e.type, actor: e.actor, actor_name: e.actor_name, detail: e.detail, notify: e.notify, notified_at: e.notified_at, created_at: e.created_at })),

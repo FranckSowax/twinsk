@@ -7,12 +7,13 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { Copy, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
+import { Check, Copy, Download, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
 import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
+import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
 import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, input, label, type WorkspaceApi } from './shared';
 
 export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamExtras; api: WorkspaceApi }) {
@@ -20,6 +21,25 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
   const [exchange, setExchange] = useState<string | null | false>(false); // supplier_id | null (sans fournisseur) | false (fermé)
   const [filter, setFilter] = useState('');
   const [preview, setPreview] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  // Besoin de sourcing (entrée du skill) : lots, lignes, quantités, exigences, usines déjà connues.
+  const brief = () => JSON.stringify(buildSourcingBrief({ title: p.title, description: p.description, currency: p.currency, phases: p.phases, lines: p.quote.lines.map((l) => ({ lot: l.lot, label: l.label, unit: l.unit, quantity: l.effective_quantity, optional: l.optional })), rfq: admin.rfq, rfqContext: admin.rfq_context, knownSuppliers: admin.suppliers, lots: admin.lots }), null, 2);
+  const exportBrief = async () => {
+    const text = brief();
+    try {
+      await navigator.clipboard?.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* presse-papiers indisponible : le téléchargement suffit */
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = `besoin-sourcing-${p.title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 40)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
   const bySupplier = (id: string | null) => admin.exchanges.filter((e) => e.supplier_id === id);
   const shown = admin.exchanges.filter((e) => !filter || e.supplier_id === filter);
   const name = (id: string | null) => (id ? admin.suppliers.find((s) => s.id === id) : null);
@@ -38,6 +58,8 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
             <p className="text-xs text-slate-500">Note due diligence /25 (certifications, adéquation tropicale, installation, prix, transparence). Retenue → le client est prévenu, sous alias.</p>
           </div>
           <span className="flex gap-2">
+            <button type="button" onClick={exportBrief} className={btn} title="Lots, quantités, exigences et usines déjà connues : à donner au skill de sourcing">{copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Download className="h-3.5 w-3.5" />} Besoin de sourcing (JSON)</button>
+            <button type="button" onClick={() => setImporting(true)} className={btn}><Upload className="h-3.5 w-3.5" /> Importer (JSON)</button>
             <button type="button" onClick={() => setPreview((v) => !v)} className={btn}><Eye className="h-3.5 w-3.5" /> {preview ? 'Masquer l’aperçu client' : 'Aperçu client'}</button>
             <button type="button" onClick={() => setEditing('new')} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Usine</button>
           </span>
@@ -120,8 +142,69 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
       </div>
 
       {editing && <SupplierModal s={editing === 'new' ? null : editing} lots={admin.lots} rfq={admin.rfq} api={api} onClose={() => setEditing(null)} />}
+      {importing && <ImportModal api={api} onClose={() => setImporting(false)} />}
       {exchange !== false && <ExchangeModal supplierId={exchange} admin={admin} api={api} onClose={() => setExchange(false)} />}
     </div>
+  );
+}
+
+/** Import du JSON rendu par le skill de sourcing : vérification (aperçu, avertissements) puis enregistrement. */
+function ImportModal({ api, onClose }: { api: WorkspaceApi; onClose: () => void }) {
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<SourcingImport | null>(null);
+  const [done, setDone] = useState<{ added: number; completed: number; warnings: string[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const parse = (): unknown => {
+    // Tolère un bloc ```json … ``` collé tel quel depuis la réponse du skill.
+    const m = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
+    return JSON.parse((m ? m[1] : text).trim());
+  };
+  const run = async (dry: boolean) => {
+    setBusy(true);
+    setErr('');
+    try {
+      const data = parse();
+      const r = await api.act('supplier.import', { data, dry_run: dry });
+      if (dry) setPreview(r.preview as SourcingImport);
+      else setDone(r as unknown as { added: number; completed: number; warnings: string[] });
+    } catch (e) {
+      setErr(e instanceof SyntaxError ? 'JSON illisible : collez uniquement le bloc JSON rendu par le skill.' : e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title="Importer des usines (résultat du skill de sourcing)" onClose={onClose} wide>
+      {done ? (
+        <div className="space-y-2 text-sm">
+          <p className="font-semibold text-emerald-700">{done.added} usine(s) ajoutée(s), {done.completed} complétée(s).</p>
+          {done.warnings.length > 0 && <ul className="list-disc pl-5 text-xs text-amber-700">{done.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
+          <p className="text-xs text-slate-500">Les usines déjà présentes n’ont été complétées que sur leurs champs vides ; leur statut reste celui décidé par l’équipe. Rien n’est « retenu » automatiquement.</p>
+          <button type="button" onClick={onClose} className={btnPrimary}>Fermer</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">Collez le JSON (format <code>twinsk-sourcing-v1</code>) ou choisissez le fichier. « Vérifier » montre ce qui sera importé, sans rien enregistrer.</p>
+          <input type="file" accept="application/json,.json,.txt,.md" className="text-xs" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { setText(await f.text()); setPreview(null); } }} />
+          <textarea className={`${input} font-mono text-xs`} rows={10} value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }} placeholder='{ "format": "twinsk-sourcing-v1", "lots": [ … ] }' />
+          {preview && (
+            <div className="rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-700">
+              <p className="font-semibold text-slate-800 dark:text-slate-100">{preview.suppliers.length} usine(s) : {Object.entries(preview.byLot).map(([l, n]) => `${l} ${n}`).join(' · ')}</p>
+              <ul className="mt-2 max-h-48 space-y-0.5 overflow-y-auto">
+                {preview.suppliers.map((x, i) => <li key={i}><b>{x.lot}</b> · {x.real_name}{x.element ? ` — ${x.element}` : ''} · {scoreTotal(x.scores) ?? '—'}/25 · {SUPPLIER_STATUS.find((st) => st.value === x.status)?.label}{x.email || x.whatsapp || x.wechat ? ' · contact ✓' : ' · contact à trouver'}</li>)}
+              </ul>
+              {preview.warnings.length > 0 && <ul className="mt-2 list-disc pl-5 text-amber-700">{preview.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
+            </div>
+          )}
+          {err && <p className="text-xs text-red-600">{err}</p>}
+          <div className="flex gap-2">
+            <button type="button" disabled={busy || !text.trim()} onClick={() => run(true)} className={btn}>{busy && !preview ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Vérifier</button>
+            <button type="button" disabled={busy || !preview?.suppliers.length} onClick={() => run(false)} className={btnPrimary}>Importer {preview?.suppliers.length || ''} usine(s)</button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 

@@ -22,6 +22,10 @@ Un projet = un programme clé en main (le premier : PSG Academy DOM-TOM) suivi a
 
 Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée : ses tâches et lignes de devis sont visibles mais grisées.
 
+## Sourcing des usines par un skill (30 septembre 2026)
+
+« Usines & échanges » › **Besoin de sourcing (JSON)** exporte le besoin (`twinsk-sourcing-brief-v1`) ; le skill Cowork `sourcing-usines-chine` ([prompt](../prompts/skill-sourcing-usines.md)) rend 3 usines par élément, notées /25, avec fiche anonymisée et contacts (`twinsk-sourcing-v1`) ; **Importer (JSON)** › Vérifier › Importer. Import prudent : fiche client nettoyée de tout élément identifiant, « retenue » jamais automatique, usines existantes complétées sur leurs champs vides seulement. Code : `src/lib/projects/sourcing.ts`.
+
 ## Devises du devis (30 septembre 2026)
 
 - Chaque prix (vente et achat) est **saisi dans sa devise** (yuan, dollar, euro, franc CFA…) : la ligne garde `price_currency` / `cost_currency`.

@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, scoreTotal, supplierAlias, toggleChecklist } from './logic';
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
+import type { ImportedSupplier } from './sourcing';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
 import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
@@ -437,6 +438,41 @@ export async function setSupplierStatus(projectId: string, id: string, status: S
 async function logStatus(projectId: string, id: string, lot: string, alias: string, status: SupplierStatus, actor: Actor) {
   const type = status === 'selected' ? 'supplier.selected' : status === 'shortlisted' ? 'supplier.shortlisted' : status === 'rejected' ? 'supplier.rejected' : 'supplier.candidate';
   await logEvent(projectId, { type, actor, target_type: 'supplier', target_id: id, detail: `${lot} · ${alias}`, notify: status === 'selected' ? 'client' : null });
+}
+/**
+ * Import du résultat d'un skill de sourcing (validateSourcingImport) : une usine
+ * déjà présente (même lot, même nom) n'est complétée que sur ses champs vides
+ * et garde le statut décidé par l'équipe ; les nouvelles reçoivent un alias.
+ */
+export async function importSuppliers(projectId: string, items: ImportedSupplier[], actor: Actor) {
+  const { data: rows, error } = await supabaseAdmin.from('project_suppliers').select('*').eq('project_id', projectId);
+  if (error) fail(error, 'Usines');
+  const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+  let added = 0;
+  let completed = 0;
+  for (const it of items) {
+    const found = (rows || []).find((r) => r.lot === it.lot && norm(String(r.real_name || '')) === norm(it.real_name)) as Record<string, unknown> | undefined;
+    // Champs renseignés seulement (null = inconnu, jamais un effacement).
+    const fields = Object.fromEntries(Object.entries(it).filter(([k, v]) => k !== 'element' && v != null)) as unknown as SupplierInput;
+    if (!found) {
+      await upsertSupplier(projectId, fields, actor);
+      added += 1;
+      continue;
+    }
+    const empty = (k: string) => found[k] == null || found[k] === '' || (Array.isArray(found[k]) && !(found[k] as unknown[]).length) || (k === 'scores' && !Object.keys((found[k] as object) || {}).length);
+    const patch: SupplierInput = { id: String(found.id), lot: it.lot };
+    for (const [k, v] of Object.entries(fields) as [keyof SupplierInput, unknown][]) {
+      if (k === 'lot' || k === 'status' || v == null || (Array.isArray(v) && !v.length)) continue;
+      if (empty(k)) (patch as unknown as Record<string, unknown>)[k] = v;
+    }
+    if (found.status === 'candidate' && it.status === 'shortlisted') patch.status = 'shortlisted';
+    if (Object.keys(patch).length > 2) {
+      await upsertSupplier(projectId, patch, actor);
+      completed += 1;
+    }
+  }
+  await logEvent(projectId, { type: 'supplier.imported', actor, detail: `${added} ajoutée(s), ${completed} complétée(s)` });
+  return { added, completed };
 }
 export async function deleteSupplier(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_suppliers').delete().eq('id', id).eq('project_id', projectId);
