@@ -8,6 +8,7 @@ import { templateByKey, DOM_TOM_TEMPLATE } from './templates/dom-tom';
 import type { Attachment, ContactChannel, ProductPhoto, ProductSpec, RfqMessage, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 import { rankSuppliers } from './logic';
 import { cleanRates, toBase } from './fx';
+import { emailConfigured, emailSender } from '@/lib/email';
 
 /** Vue de l'équipe : mêmes champs que le client, plus documents internes et chemins admin. */
 export interface TeamExtras {
@@ -26,6 +27,8 @@ export interface TeamExtras {
   /** Messages RFQ par lot (EN + ZH), modifiables, et signature de l'expéditeur. */
   rfq: RfqMessage[];
   rfq_sender: Partial<RfqSender>;
+  /** Envoi d'e-mails par la plateforme (Resend) : configuré ou non, adresse d'expédition. */
+  email: { configured: boolean; from: string | null };
   /** Contexte du programme pour les RFQ et le besoin de sourcing (phrase EN/ZH, exigences communes). */
   rfq_context: { project_en?: string; project_zh?: string; requirements_en?: string[] } | null;
   exchanges: { id: string; supplier_id: string | null; channel: string; exchanged_at: string; summary: string; attachments: Attachment[]; next_action: string | null; next_action_at: string | null; author_name: string | null }[];
@@ -55,6 +58,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     })),
     rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
     rfq_sender: pickSender(p.rfq_sender),
+    email: { configured: emailConfigured(), from: emailSender()?.address ?? null },
     rfq_context: p.rfq_context && typeof p.rfq_context === 'object' && (p.rfq_context as { project_en?: string }).project_en ? (p.rfq_context as TeamExtras['rfq_context']) : template.rfq_context || null,
     exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name })),
     shares: (b.shares as TeamExtras['shares']).map((s) => ({ id: s.id, token: s.token, person_name: s.person_name, role_label: s.role_label, expires_at: s.expires_at, revoked_at: s.revoked_at, views: s.views, last_seen_at: s.last_seen_at, created_at: s.created_at })),

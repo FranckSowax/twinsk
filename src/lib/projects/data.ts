@@ -10,6 +10,7 @@ import { COUNTRY } from '@/config/countries';
 import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, scoreTotal, supplierAlias, toggleChecklist } from './logic';
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
 import type { ImportedSupplier } from './sourcing';
+import { emailSender, parseRecipients, sendEmail } from '@/lib/email';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
 import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductPhoto, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
@@ -562,6 +563,35 @@ export async function signedSupplierPhotoUrl(projectId: string, docId: string): 
   if (!data) return null;
   const r = await supabaseAdmin.storage.from(PROJECT_BUCKET).createSignedUrl(data.storage_path, SIGNED_URL_SECONDS);
   return r.error || !r.data?.signedUrl ? null : r.data.signedUrl;
+}
+// ---- E-mails aux usines depuis la plateforme (Resend) ----
+/** Envoie un e-mail à une usine et le note dans les échanges (canal e-mail). */
+export async function sendSupplierEmail(projectId: string, input: { supplier_id: string; to: string; cc?: string; subject: string; body: string; nonce?: string }, actor: Actor) {
+  const { data: s } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias, real_name').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
+  if (!s) throw new ProjectError('Usine introuvable', 404);
+  const to = parseRecipients(input.to);
+  if (!to.length) throw new ProjectError('Adresse du destinataire invalide');
+  const r = await sendEmail({
+    to,
+    cc: parseRecipients(input.cc || ''),
+    subject: input.subject,
+    text: input.body,
+    tags: { projet: projectId.slice(0, 8), lot: s.lot, usine: s.alias },
+    idempotencyKey: input.nonce ? `${projectId}:${s.id}:${input.nonce}` : undefined,
+  });
+  if (!r.ok) throw new ProjectError(r.error, 502);
+  const from = emailSender()?.address || '';
+  await addExchange(projectId, { supplier_id: s.id, channel: 'email', summary: `E-mail envoyé depuis ${from} à ${to.join(', ')}${input.cc ? ` (cc ${parseRecipients(input.cc).join(', ')})` : ''}\nObjet : ${input.subject.trim()}\n\n${input.body.trim().slice(0, 1500)}${input.body.trim().length > 1500 ? '…' : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString() }, actor);
+  await logEvent(projectId, { type: 'email.sent', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${input.subject.trim().slice(0, 100)}`, data: { resend_id: r.id, to } });
+  return { id: r.id, to };
+}
+/** E-mail d'essai (vérifier la configuration Resend). */
+export async function sendTestEmail(projectId: string, to: string, actor: Actor) {
+  const sender = emailSender();
+  const r = await sendEmail({ to: parseRecipients(to), subject: `Test d’envoi — ${COUNTRY.senderName}`, text: `Ceci est un e-mail d’essai envoyé depuis la plateforme ${COUNTRY.senderName} (onglet Projets), expéditeur ${sender?.address || '—'}.\n\nSi vous le recevez, l’envoi aux usines fonctionne. Les réponses arrivent dans la boîte ${sender?.address || 'de l’expéditeur'}.`, tags: { type: 'test' } });
+  if (!r.ok) throw new ProjectError(r.error, 502);
+  await logEvent(projectId, { type: 'email.test', actor, detail: parseRecipients(to).join(', ') });
+  return { id: r.id };
 }
 export async function deleteSupplier(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_suppliers').delete().eq('id', id).eq('project_id', projectId);

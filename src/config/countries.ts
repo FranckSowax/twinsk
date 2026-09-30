@@ -48,6 +48,12 @@ export interface CountryConfig {
    */
   whatsappGroups: { main: string; orders: string; search: string };
   supportEmail: string;
+  /**
+   * Expéditeur des e-mails envoyés par la plateforme (Resend) : demandes de
+   * prix aux usines, etc. Domaine vérifié chez Resend. null = pas d'envoi.
+   * Surchargé par EMAIL_FROM_ADDRESS / EMAIL_FROM_NAME.
+   */
+  outboundEmail: { address: string; name: string } | null;
   social: { facebook?: string; instagram?: string; tiktok?: string; whatsappChannel?: string; whatsappGroup?: string };
   analytics: { metaPixelId?: string; ga4Id?: string };
   legal: { companyName: string; address: string; registration?: string };
@@ -93,6 +99,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     supportWhatsapp: '24107425560',
     whatsappGroups: { main: '120363408414253084@g.us', orders: '120363428402268041@g.us', search: '120363431660727284@g.us' },
     supportEmail: '',
+    outboundEmail: { address: 'sourcing@twinskcompanyltd.com', name: 'Twinsk Sourcing' },
     social: {
       facebook: 'https://www.facebook.com/1755823391163318',
       instagram: 'https://www.instagram.com/ohmygab_gabon',
@@ -137,6 +144,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     supportWhatsapp: '', // TODO(franck) : numéro WhatsApp Oh My 225 !
     whatsappGroups: { main: '', orders: '', search: '' }, // TODO(franck) : groupes WhatsApp du numéro Oh My 225 !
     supportEmail: '', // TODO(franck)
+    outboundEmail: null, // pas de domaine d'envoi vérifié pour la Côte d'Ivoire
     social: {}, // TODO(franck) : Facebook, Instagram, TikTok, chaîne et groupe WhatsApp
     analytics: {},
     legal: { companyName: 'TODO', address: 'TODO' }, // TODO(franck) : entité juridique CI

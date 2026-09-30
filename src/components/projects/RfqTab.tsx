@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { Copy, Check, Mail, MessageCircle, RefreshCw, Save, Send } from 'lucide-react';
+import { EmailCompose, EmailTest } from './EmailCompose';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { fillPlaceholders, mailtoLink, remainingPlaceholders, whatsappLink } from '@/lib/projects/rfq';
 import { CONTACT_CHANNELS, type RfqMessage, type RfqSender } from '@/lib/projects/types';
@@ -19,7 +20,7 @@ export function RfqTab({ admin, api }: { admin: TeamExtras; api: WorkspaceApi })
   const lots = [...new Set([...admin.lots, ...admin.rfq.map((r) => r.lot)])];
   return (
     <div className="space-y-4">
-      <SenderCard sender={admin.rfq_sender} api={api} />
+      <SenderCard sender={admin.rfq_sender} admin={admin} api={api} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">Un jeu de messages par lot, composé à la création du plan. Modifiez le texte, choisissez l’usine : les crochets se remplissent et le message part par e-mail ou WhatsApp en un clic.</p>
         <button type="button" disabled={busy} onClick={async () => { if (!confirm('Recomposer tous les messages depuis le modèle ? Vos modifications seront remplacées.')) return; setBusy(true); setErr(''); try { await api.act('rfq.regenerate', {}); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={btn}><RefreshCw className="h-3.5 w-3.5" /> Tout recomposer</button>
@@ -34,7 +35,7 @@ export function RfqTab({ admin, api }: { admin: TeamExtras; api: WorkspaceApi })
   );
 }
 
-function SenderCard({ sender, api }: { sender: Partial<RfqSender>; api: WorkspaceApi }) {
+function SenderCard({ sender, admin, api }: { sender: Partial<RfqSender>; admin: TeamExtras; api: WorkspaceApi }) {
   const [f, setF] = useState<RfqSender>({ name: sender.name || '', company: sender.company || '', whatsapp: sender.whatsapp || '', wechat: sender.wechat || '', email: sender.email || '' });
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -49,6 +50,7 @@ function SenderCard({ sender, api }: { sender: Partial<RfqSender>; api: Workspac
         ))}
       </div>
       <button type="button" disabled={busy || !dirty} onClick={async () => { setBusy(true); try { await api.act('rfq.sender', { sender: f }); setSaved(true); setTimeout(() => setSaved(false), 2000); } finally { setBusy(false); } }} className={`${btnPrimary} mt-3`}>{saved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} Enregistrer la signature</button>
+      <EmailTest admin={admin} api={api} />
     </div>
   );
 }
@@ -63,6 +65,7 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
     setF(fromMessage());
   }
   const [supplierId, setSupplierId] = useState('');
+  const [compose, setCompose] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState(false);
@@ -105,7 +108,8 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
             {s && (
               <div className="flex flex-wrap items-center gap-2">
                 {channel && <Badge tone="blue">Canal conseillé : {channel}</Badge>}
-                {mailto ? <a href={mailto} className={btnPrimary}><Mail className="h-3.5 w-3.5" /> E-mail à {s.email}</a> : <span className="text-[11px] text-slate-500">Pas d’e-mail enregistré</span>}
+                {s.email && admin.email.configured && <button type="button" onClick={() => setCompose(true)} className={btnPrimary}><Send className="h-3.5 w-3.5" /> Envoyer l’e-mail depuis {admin.email.from}</button>}
+                {mailto ? <a href={mailto} className={admin.email.configured ? btn : btnPrimary}><Mail className="h-3.5 w-3.5" /> {admin.email.configured ? 'Ouvrir dans ma messagerie' : `E-mail à ${s.email}`}</a> : <span className="text-[11px] text-slate-500">Pas d’e-mail enregistré</span>}
                 {waEn && <a href={waEn} target="_blank" rel="noopener noreferrer" className={btnPrimary}><MessageCircle className="h-3.5 w-3.5" /> WhatsApp EN</a>}
                 {waZh && <a href={waZh} target="_blank" rel="noopener noreferrer" className={btnPrimary}><MessageCircle className="h-3.5 w-3.5" /> WhatsApp 中文</a>}
                 {s.wechat && <span className="text-[11px] text-slate-600">WeChat : <b>{s.wechat}</b> (copier le message)</span>}
@@ -132,6 +136,7 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
           </div>
         </div>
       )}
+      {compose && s && <EmailCompose supplier={s} admin={admin} api={api} initial={{ subject, body }} onClose={() => setCompose(false)} />}
     </div>
   );
 }

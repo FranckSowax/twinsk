@@ -40,6 +40,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         break;
       }
       case 'supplier.photos': await D.setSupplierPhotos(id, str(b.id), Array.isArray(b.photos) ? (b.photos as { doc_id: string; caption: string }[]).filter((x) => x && typeof x.doc_id === 'string') : [], actor); break;
+      case 'email.send': result = await D.sendSupplierEmail(id, { supplier_id: str(b.supplier_id), to: str(b.to), cc: str(b.cc), subject: str(b.subject), body: str(b.body), nonce: str(b.nonce) || undefined }, actor); break;
+      case 'email.test': result = await D.sendTestEmail(id, str(b.to), actor); break;
       case 'supplier.status': await D.setSupplierStatus(id, str(b.id), str(b.status) as SupplierStatus, actor); break;
       case 'supplier.delete': await D.deleteSupplier(id, str(b.id), actor); break;
       case 'rfq.save': await D.saveRfqMessage(id, str(b.lot), b as Parameters<typeof D.saveRfqMessage>[2], actor); break;

@@ -7,12 +7,13 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { AlertTriangle, Camera, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Mail, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
 import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
+import { EmailCompose } from './EmailCompose';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
 import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
 
@@ -22,6 +23,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
   const [filter, setFilter] = useState('');
   const [preview, setPreview] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [mailTo, setMailTo] = useState<TeamExtras['suppliers'][number] | null>(null);
   const [copied, setCopied] = useState(false);
   // Besoin de sourcing (entrée du skill) : lots, lignes, quantités, exigences, usines déjà connues.
   const brief = () => JSON.stringify(buildSourcingBrief({ title: p.title, description: p.description, currency: p.currency, phases: p.phases, lines: p.quote.lines.map((l) => ({ lot: l.lot, label: l.label, unit: l.unit, quantity: l.effective_quantity, optional: l.optional })), rfq: admin.rfq, rfqContext: admin.rfq_context, knownSuppliers: admin.suppliers, lots: admin.lots }), null, 2);
@@ -108,7 +110,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                         </select>
                       </td>
                       <td className="py-2 text-right tabular-nums">{bySupplier(s.id).length}</td>
-                      <td className="py-2 text-right"><span className="inline-flex gap-1"><button type="button" onClick={() => setExchange(s.id)} className={btn}>+ Échange</button><button type="button" onClick={() => setEditing(s)} className={btn}>Fiche</button><button type="button" onClick={() => { if (confirm(`Retirer ${s.alias} (${s.real_name || s.lot}) ?`)) api.act('supplier.delete', { id: s.id }); }} className={btn}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button></span></td>
+                      <td className="py-2 text-right"><span className="inline-flex gap-1">{s.email && <button type="button" onClick={() => setMailTo(s)} className={btn} title={admin.email.configured ? `E-mail depuis ${admin.email.from}` : 'Envoi par e-mail non configuré'} aria-label={`E-mail à ${s.real_name || s.alias}`}><Mail className="h-3.5 w-3.5" /></button>}<button type="button" onClick={() => setExchange(s.id)} className={btn}>+ Échange</button><button type="button" onClick={() => setEditing(s)} className={btn}>Fiche</button><button type="button" onClick={() => { if (confirm(`Retirer ${s.alias} (${s.real_name || s.lot}) ?`)) api.act('supplier.delete', { id: s.id }); }} className={btn}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button></span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -165,6 +167,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
 
       {editing && <SupplierModal s={editing === 'new' ? null : editing} lots={admin.lots} rfq={admin.rfq} api={api} onClose={() => setEditing(null)} />}
       {importing && <ImportModal api={api} onClose={() => setImporting(false)} />}
+      {mailTo && <EmailCompose supplier={mailTo} admin={admin} api={api} onClose={() => setMailTo(null)} />}
       {exchange !== false && <ExchangeModal supplierId={exchange} admin={admin} api={api} onClose={() => setExchange(false)} />}
     </div>
   );
