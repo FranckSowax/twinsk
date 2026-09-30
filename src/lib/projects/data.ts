@@ -12,7 +12,7 @@ import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor
 import type { ImportedSupplier } from './sourcing';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
-import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
+import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductPhoto, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 
 export const PROJECT_BUCKET = 'project-files';
 export const SIGNED_URL_SECONDS = 900;
@@ -506,6 +506,57 @@ export async function importSuppliers(projectId: string, items: ImportedSupplier
   }
   await logEvent(projectId, { type: 'supplier.imported', actor, detail: `${added} ajoutée(s), ${completed} complétée(s)` });
   return { added, completed };
+}
+// ---- Photos des produits reçues de l'usine (montrées au client dans la fiche anonymisée) ----
+export const MAX_SUPPLIER_PHOTOS = 12;
+/** Photo prête pour le client : orientation corrigée, 2000 px max, JPEG, métadonnées (GPS, appareil) retirées. Sans sharp : fichier tel quel. */
+export async function prepareProductPhoto(file: { name: string; mime: string; size: number; buffer: Buffer }) {
+  try {
+    const sharp = (await import('sharp')).default;
+    const buffer = await sharp(file.buffer).rotate().resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+    return { name: `${file.name.replace(/\.[^.]+$/, '') || 'photo'}.jpg`, mime: 'image/jpeg', size: buffer.length, buffer };
+  } catch {
+    return file;
+  }
+}
+export async function addSupplierPhotos(projectId: string, supplierId: string, files: { name: string; mime: string; size: number; buffer: Buffer }[], actor: Actor) {
+  const { data: s } = await supabaseAdmin.from('project_suppliers').select('lot, alias, product_photos').eq('id', supplierId).eq('project_id', projectId).maybeSingle();
+  if (!s) throw new ProjectError('Usine introuvable', 404);
+  const current = (s.product_photos || []) as ProductPhoto[];
+  if (current.length + files.length > MAX_SUPPLIER_PHOTOS) throw new ProjectError(`${MAX_SUPPLIER_PHOTOS} photos au plus par usine (${current.length} déjà)`);
+  const added: ProductPhoto[] = [];
+  for (const f of files) {
+    if (!f.mime.startsWith('image/')) throw new ProjectError(`« ${f.name} » n’est pas une image`);
+    // Document interne : jamais listé côté client, servi seulement via la fiche usine.
+    const doc = await storeDocument(projectId, await prepareProductPhoto(f), { category: 'technical', internal: true }, actor);
+    added.push({ doc_id: doc.id, caption: '' });
+  }
+  const { error } = await supabaseAdmin.from('project_suppliers').update({ product_photos: [...current, ...added], updated_at: now() }).eq('id', supplierId);
+  if (error) fail(error, 'Photos');
+  await logEvent(projectId, { type: 'supplier.photos', actor, target_type: 'supplier', target_id: supplierId, detail: `${s.lot} · ${s.alias} : ${added.length} photo(s)` });
+  return added;
+}
+/** Ordre et légendes ; une photo retirée de la liste est supprimée du stockage. */
+export async function setSupplierPhotos(projectId: string, supplierId: string, photos: ProductPhoto[], actor: Actor) {
+  const { data: s } = await supabaseAdmin.from('project_suppliers').select('product_photos').eq('id', supplierId).eq('project_id', projectId).maybeSingle();
+  if (!s) throw new ProjectError('Usine introuvable', 404);
+  const current = (s.product_photos || []) as ProductPhoto[];
+  const known = new Set(current.map((x) => x.doc_id));
+  const next = photos.filter((x) => known.has(x.doc_id)).map((x) => ({ doc_id: x.doc_id, caption: String(x.caption || '').replace(/\s+/g, ' ').trim().slice(0, 160) }));
+  const { error } = await supabaseAdmin.from('project_suppliers').update({ product_photos: next, updated_at: now() }).eq('id', supplierId);
+  if (error) fail(error, 'Photos');
+  const kept = new Set(next.map((x) => x.doc_id));
+  for (const gone of current.filter((x) => !kept.has(x.doc_id))) await deleteDocument(projectId, gone.doc_id, actor).catch(() => undefined);
+}
+/** Lien signé d'une photo pour le client : seulement si elle figure dans la fiche d'une usine du projet. */
+export async function signedSupplierPhotoUrl(projectId: string, docId: string): Promise<string | null> {
+  const { data: sups } = await supabaseAdmin.from('project_suppliers').select('product_photos').eq('project_id', projectId);
+  const listed = (sups || []).some((x) => ((x.product_photos || []) as ProductPhoto[]).some((p) => p.doc_id === docId));
+  if (!listed) return null;
+  const { data } = await supabaseAdmin.from('project_documents').select('storage_path').eq('id', docId).eq('project_id', projectId).maybeSingle();
+  if (!data) return null;
+  const r = await supabaseAdmin.storage.from(PROJECT_BUCKET).createSignedUrl(data.storage_path, SIGNED_URL_SECONDS);
+  return r.error || !r.data?.signedUrl ? null : r.data.signedUrl;
 }
 export async function deleteSupplier(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_suppliers').delete().eq('id', id).eq('project_id', projectId);

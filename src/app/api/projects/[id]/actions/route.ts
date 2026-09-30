@@ -39,6 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         result = { ...(await D.importSuppliers(id, parsed.suppliers, actor)), warnings: parsed.warnings };
         break;
       }
+      case 'supplier.photos': await D.setSupplierPhotos(id, str(b.id), Array.isArray(b.photos) ? (b.photos as { doc_id: string; caption: string }[]).filter((x) => x && typeof x.doc_id === 'string') : [], actor); break;
       case 'supplier.status': await D.setSupplierStatus(id, str(b.id), str(b.status) as SupplierStatus, actor); break;
       case 'supplier.delete': await D.deleteSupplier(id, str(b.id), actor); break;
       case 'rfq.save': await D.saveRfqMessage(id, str(b.lot), b as Parameters<typeof D.saveRfqMessage>[2], actor); break;

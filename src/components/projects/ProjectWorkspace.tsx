@@ -77,6 +77,7 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
   const api: WorkspaceApi = {
     mode,
     viewerName,
+    baseUrl: loadUrl,
     reload,
     act: async (action, payload = {}) => {
       const r = await fetch(actionUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...payload }) });

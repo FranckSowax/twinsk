@@ -170,6 +170,11 @@ export interface ProductSpec {
   label: string;
   value: string;
 }
+/** Photo d'un produit reçue de l'usine (document interne du bucket privé), montrée au client. */
+export interface ProductPhoto {
+  doc_id: string;
+  caption: string;
+}
 /** Signature de l'expéditeur des RFQ (remplace les crochets des messages). */
 export interface RfqSender {
   name: string;

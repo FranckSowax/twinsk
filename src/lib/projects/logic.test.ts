@@ -122,8 +122,8 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     ],
     orders: [],
     suppliers: [
-      { id: 'sup1', lot: 'Gazon', alias: 'Fournisseur A', status: 'candidate', scores: { certifications: 4, tropical: 4, installation: 5, price: 3, transparency: 4 }, score: 21, description: 'Producteur de gazon depuis 2003.', product_specs: [{ label: 'Hauteur', value: '30 mm' }], certifications: ['ISO 9001', 'SGS'], years_experience: 23, capacity: '120 000 m²/jour', lead_time: '10–15 j', moq: null, sample_status: 'requested', country: 'Chine' },
-      { id: 'sup2', lot: 'Gazon', alias: 'Fournisseur B', status: 'selected', scores: { certifications: 3, tropical: 3, installation: 3, price: 5, transparency: 4 }, score: 18, description: null, product_specs: [], certifications: [], years_experience: null, capacity: null, lead_time: null, moq: null, sample_status: null, country: 'Chine' },
+      { id: 'sup1', lot: 'Gazon', alias: 'Fournisseur A', status: 'candidate', scores: { certifications: 4, tropical: 4, installation: 5, price: 3, transparency: 4 }, score: 21, description: 'Producteur de gazon depuis 2003.', product_specs: [{ label: 'Hauteur', value: '30 mm' }], certifications: ['ISO 9001', 'SGS'], years_experience: 23, capacity: '120 000 m²/jour', lead_time: '10–15 j', moq: null, sample_status: 'requested', country: 'Chine', product_photos: [{ doc_id: 'ph1', caption: 'Échantillon 30 mm' }] },
+      { id: 'sup2', lot: 'Gazon', alias: 'Fournisseur B', status: 'selected', scores: { certifications: 3, tropical: 3, installation: 3, price: 5, transparency: 4 }, score: 18, description: null, product_specs: [], certifications: [], years_experience: null, capacity: null, lead_time: null, moq: null, sample_status: null, country: 'Chine', product_photos: [] },
     ],
     finalReports: [{ phase: 'phase1', checklist: [], delivered_at: null, file_id: null }],
   };
@@ -162,7 +162,9 @@ describe('projection publique : aucun champ interdit ne sort', () => {
   it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {
     expect(view.suppliers.map((s) => [s.alias, s.rank, s.status, s.score])).toEqual([['Fournisseur B', 1, 'selected', 18], ['Fournisseur A', 2, 'candidate', 20]]);
     expect(view.suppliers[1]).toMatchObject({ description: 'Producteur de gazon depuis 2003.', product_specs: [{ label: 'Hauteur', value: '30 mm' }], certifications: ['ISO 9001', 'SGS'], years_experience: 23, sample_status: 'requested', scores: { installation: 5 } });
-    expect(Object.keys(view.suppliers[0]).sort()).toEqual(['alias', 'capacity', 'certifications', 'country', 'description', 'lead_time', 'lot', 'moq', 'product_specs', 'rank', 'sample_status', 'score', 'scores', 'status', 'years_experience']);
+    expect(Object.keys(view.suppliers[0]).sort()).toEqual(['alias', 'capacity', 'certifications', 'country', 'description', 'lead_time', 'lot', 'moq', 'photos', 'product_specs', 'rank', 'sample_status', 'score', 'scores', 'status', 'years_experience']);
+    // Photos produit : adresse du lien client (vérifiée côté serveur), jamais l'identifiant de stockage seul.
+    expect(view.suppliers[1].photos).toEqual([{ url: '/api/projects/public/TOKEN/photos/ph1', caption: 'Échantillon 30 mm' }]);
   });
 });
 

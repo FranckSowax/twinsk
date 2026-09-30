@@ -19,6 +19,8 @@ export interface WorkspaceApi {
   /** Assistants IA (équipe seulement) : plan, résumé d'échange, brouillon de journal. */
   ai: (action: string, payload?: Record<string, unknown>) => Promise<Record<string, unknown>>;
   viewerName: string;
+  /** Adresse de base du projet (…/api/projects/<id> ou …/public/<jeton>) pour les routes annexes. */
+  baseUrl: string;
 }
 
 // Centimes seulement quand il y en a (prix unitaires à 7,50 $ ; totaux ronds sans « ,00 »).

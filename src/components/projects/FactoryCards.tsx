@@ -6,8 +6,8 @@
 // critère par critère, la fiche de l'usine et du produit, et le passage à
 // l'usine précédente / suivante du lot. Ne reçoit que la projection publique.
 
-import { useState } from 'react';
-import { Award, CheckCircle2, ChevronLeft, ChevronRight, FlaskConical } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Award, Camera, CheckCircle2, ChevronLeft, ChevronRight, FlaskConical, X } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import { SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type SupplierStatus } from '@/lib/projects/types';
 import { Badge, Empty, Modal, btn, card } from './shared';
@@ -86,6 +86,13 @@ export function FactoryCards({ suppliers, lots }: { suppliers: Card[]; lots?: st
                 <li key={keyOf(s)}>
                   <button type="button" onClick={() => setOpen(keyOf(s))} className={`flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50 active:bg-slate-100 dark:hover:bg-slate-700/40 sm:px-4 ${s.status === 'rejected' ? 'opacity-55' : ''} ${s.status === 'selected' ? 'bg-emerald-50/70 dark:bg-emerald-900/15' : ''}`}>
                     <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${s.rank === 1 && s.status !== 'rejected' ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200'}`}>{s.rank}</span>
+                    {s.photos.length > 0 && (
+                      <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={s.photos[0].url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        {s.photos.length > 1 && <span className="absolute bottom-0 right-0 rounded-tl-md bg-black/60 px-1 text-[9px] font-bold text-white">{s.photos.length}</span>}
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-1.5">
                         <span className="font-semibold text-slate-900 dark:text-white">{s.alias}</span>
@@ -137,6 +144,7 @@ function FactoryDetail({ s }: { s: Card }) {
   ].filter((f): f is { l: string; v: string } => !!f.v);
   return (
     <div className="space-y-4">
+      {s.photos.length > 0 && <PhotoGallery photos={s.photos} />}
       <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800">
         <Award className="h-8 w-8 shrink-0 text-amber-500" />
         <div className="min-w-0 flex-1">
@@ -199,6 +207,73 @@ function FactoryDetail({ s }: { s: Card }) {
           <div className="mt-1 flex flex-wrap gap-1.5">
             {s.certifications.map((c) => <Badge key={c} tone="violet">{c}</Badge>)}
             {sample && <Badge tone="amber"><FlaskConical className="mr-0.5 inline h-3 w-3" />{sample}</Badge>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Photos du produit : carrousel à faire glisser (points de position), agrandissement plein écran au tap. */
+function PhotoGallery({ photos }: { photos: Card['photos'] }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+  const [zoom, setZoom] = useState<number | null>(null);
+  const go = (i: number) => {
+    const el = track.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' });
+  };
+  useEffect(() => {
+    if (zoom == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setZoom(null);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [zoom]);
+  return (
+    <div>
+      <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400"><Camera className="h-3.5 w-3.5" /> Photos du produit</p>
+      <div className="relative overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
+        <div ref={track} onScroll={(e) => setIndex(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none]">
+          {photos.map((p, i) => (
+            <button key={p.url} type="button" onClick={() => setZoom(i)} className="relative w-full shrink-0 snap-center" aria-label={`Agrandir la photo ${i + 1}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt={p.caption || `Photo ${i + 1}`} className="aspect-[4/3] w-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+              {p.caption && <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6 text-left text-xs font-medium text-white">{p.caption}</span>}
+            </button>
+          ))}
+        </div>
+        {photos.length > 1 && (
+          <>
+            <button type="button" onClick={() => go(Math.max(0, index - 1))} disabled={index === 0} className="absolute left-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white disabled:opacity-0 sm:flex" aria-label="Photo précédente"><ChevronLeft className="h-5 w-5" /></button>
+            <button type="button" onClick={() => go(Math.min(photos.length - 1, index + 1))} disabled={index === photos.length - 1} className="absolute right-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white disabled:opacity-0 sm:flex" aria-label="Photo suivante"><ChevronRight className="h-5 w-5" /></button>
+            <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">{index + 1}/{photos.length}</div>
+          </>
+        )}
+      </div>
+      {photos.length > 1 && (
+        <div className="mt-2 flex justify-center gap-1.5">
+          {photos.map((p, i) => <button key={p.url} type="button" onClick={() => go(i)} className={`h-1.5 rounded-full transition-all ${i === index ? 'w-5 bg-emerald-500' : 'w-1.5 bg-slate-300 dark:bg-slate-600'}`} aria-label={`Photo ${i + 1}`} />)}
+        </div>
+      )}
+      {zoom != null && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-black/95" onClick={() => setZoom(null)} role="dialog" aria-modal="true">
+          <div className="flex items-center justify-between px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] text-white">
+            <span className="text-sm tabular-nums">{zoom + 1}/{photos.length}</span>
+            <button type="button" onClick={() => setZoom(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10" aria-label="Fermer"><X className="h-5 w-5" /></button>
+          </div>
+          <div className="flex flex-1 items-center justify-center p-3" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photos[zoom].url} alt={photos[zoom].caption || ''} className="max-h-full max-w-full object-contain" />
+          </div>
+          <div className="flex items-center justify-between gap-3 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] text-white" onClick={(e) => e.stopPropagation()}>
+            <button type="button" disabled={zoom === 0} onClick={() => setZoom(zoom - 1)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 disabled:opacity-30" aria-label="Précédente"><ChevronLeft className="h-5 w-5" /></button>
+            <p className="min-w-0 flex-1 text-center text-sm">{photos[zoom].caption}</p>
+            <button type="button" disabled={zoom === photos.length - 1} onClick={() => setZoom(zoom + 1)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 disabled:opacity-30" aria-label="Suivante"><ChevronRight className="h-5 w-5" /></button>
           </div>
         </div>
       )}

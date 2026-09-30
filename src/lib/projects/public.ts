@@ -6,7 +6,7 @@
  * échanges avec les usines, jetons).
  */
 
-import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, ProductSpec, QuestionStatus, QuoteLineStatus, SampleStatus, Scores, SupplierStatus, TaskOwner, TaskStatus } from './types';
+import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, ProductPhoto, ProductSpec, QuestionStatus, QuoteLineStatus, SampleStatus, Scores, SupplierStatus, TaskOwner, TaskStatus } from './types';
 import { CLIENT_DISCLAIMER } from './types';
 import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, rankSuppliers } from './logic';
 import { rateOf, toBase, type Rates } from './fx';
@@ -91,6 +91,8 @@ export interface PublicProject {
     moq: string | null;
     sample_status: SampleStatus | null;
     country: string | null;
+    /** Photos des produits reçues de l'usine : adresse servie par l'application, légende. */
+    photos: { url: string; caption: string }[];
   }[];
 }
 
@@ -108,12 +110,13 @@ export interface RawForPublic {
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; uploaded_by: string; created_at: string }[];
   quoteLines: { id: string; lot: string; label: string; unit: string; quantity: number; client_quantity: number | null; unit_price: number | null; price_currency: string | null; validated_snapshot: { unit_price: number | null; total: number | null } | null; optional: boolean; enabled: boolean; status: QuoteLineStatus; phase: string | null; validated_at: string | null; supplier_id: string | null }[];
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; line_ids: string[]; total: number; created_at: string; updated_at: string }[];
-  suppliers: { id: string; lot: string; alias: string; status: SupplierStatus; scores: Scores; score: number | null; description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; country: string | null }[];
+  suppliers: { id: string; lot: string; alias: string; status: SupplierStatus; scores: Scores; score: number | null; description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; country: string | null; product_photos: ProductPhoto[] }[];
   finalReports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; file_id: string | null }[];
 }
 
-export function projectPublicView(raw: RawForPublic, token: string, opts: { docPath?: (docId: string) => string } = {}): PublicProject {
+export function projectPublicView(raw: RawForPublic, token: string, opts: { docPath?: (docId: string) => string; photoPath?: (docId: string) => string } = {}): PublicProject {
   const docPath = opts.docPath || ((docId: string) => `/api/projects/public/${token}/documents/${docId}`);
+  const photoPath = opts.photoPath || ((docId: string) => `/api/projects/public/${token}/photos/${docId}`);
   const phases = raw.project.phases;
   const aliasOf = new Map(raw.suppliers.map((s) => [s.id, s.alias]));
   const base = raw.project.currency;
@@ -210,6 +213,7 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
         moq: s.moq,
         sample_status: s.sample_status,
         country: s.country,
+        photos: (s.product_photos || []).map((x) => ({ url: photoPath(x.doc_id), caption: x.caption })),
       };
     }),
   };

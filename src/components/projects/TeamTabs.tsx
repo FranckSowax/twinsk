@@ -7,11 +7,11 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { AlertTriangle, Check, Copy, Download, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
-import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
+import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
 import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, input, label, type WorkspaceApi } from './shared';
@@ -97,7 +97,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                       <td className="py-2 pr-2"><Badge tone="blue">{s.alias}</Badge></td>
                       <td className="py-2 pr-2 font-medium">
                         {s.watch_points?.length ? <span className="mr-1 inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-800" title={s.watch_points.join('\n')}><AlertTriangle className="h-3 w-3" />{s.watch_points.length}</span> : null}
-                        {s.real_name || '—'}{s.city || s.country ? <span className="text-xs font-normal text-slate-500"> · {[s.city, s.country].filter(Boolean).join(', ')}</span> : null}{s.indicative_price ? <span className="block text-[11px] font-normal text-slate-500">{s.indicative_price}</span> : null}
+                        {s.real_name || '—'}{s.product_photos?.length ? <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-normal text-slate-500" title="Photos produit visibles du client"><Camera className="h-3 w-3" />{s.product_photos.length}</span> : null}{s.city || s.country ? <span className="text-xs font-normal text-slate-500"> · {[s.city, s.country].filter(Boolean).join(', ')}</span> : null}{s.indicative_price ? <span className="block text-[11px] font-normal text-slate-500">{s.indicative_price}</span> : null}
                         {s.watch_points?.length ? <span className="block max-w-[22rem] truncate text-[11px] font-normal text-amber-700" title={s.watch_points.join('\n')}>⚠ {s.watch_points[0]}</span> : null}
                       </td>
                       <td className="max-w-[14rem] truncate py-2 pr-2 text-xs text-slate-600" title={contactOf(s)}>{contactOf(s) || <span className="text-amber-600">à trouver</span>}</td>
@@ -166,6 +166,86 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
       {editing && <SupplierModal s={editing === 'new' ? null : editing} lots={admin.lots} rfq={admin.rfq} api={api} onClose={() => setEditing(null)} />}
       {importing && <ImportModal api={api} onClose={() => setImporting(false)} />}
       {exchange !== false && <ExchangeModal supplierId={exchange} admin={admin} api={api} onClose={() => setExchange(false)} />}
+    </div>
+  );
+}
+
+/** Photos des produits reçues de l'usine : envoi, légendes, ordre, retrait. Montrées au client dans la fiche anonymisée. */
+function SupplierPhotos({ supplierId, initial, api, onCount }: { supplierId: string; initial: ProductPhoto[]; api: WorkspaceApi; onCount: (n: number) => void }) {
+  const [photos, setPhotos] = useState<ProductPhoto[]>(initial);
+  const [saved, setSaved] = useState(JSON.stringify(initial));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const src = (docId: string) => `${api.baseUrl}/documents/${docId}`;
+  const dirty = JSON.stringify(photos) !== saved;
+  const upload = async (files: File[]) => {
+    if (!files.length) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const fd = new FormData();
+      files.forEach((f) => fd.append('files', f));
+      const r = await fetch(`${api.baseUrl}/suppliers/${supplierId}/photos`, { method: 'POST', body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Envoi impossible');
+      const next = [...photos, ...(d.photos as ProductPhoto[])];
+      setPhotos(next);
+      setSaved(JSON.stringify(JSON.parse(saved).concat(d.photos)));
+      onCount(next.length);
+      await api.reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Envoi impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await api.act('supplier.photos', { id: supplierId, photos });
+      setSaved(JSON.stringify(photos));
+      onCount(photos.length);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const move = (i: number, d: -1 | 1) => setPhotos((x) => { const y = [...x]; [y[i], y[i + d]] = [y[i + d], y[i]]; return y; });
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+        Le client voit ces photos, sous l’alias. Vérifier qu’aucun <b>logo, nom d’usine, filigrane Alibaba, étiquette ou numéro</b> n’apparaît. Les photos sont redressées, réduites à 2000 px et débarrassées de leurs métadonnées (position GPS, appareil).
+      </div>
+      <label className={`${btnPrimary} cursor-pointer`}>
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />} Ajouter des photos
+        <input type="file" multiple accept="image/*" className="hidden" disabled={busy} onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ''; upload(f); }} />
+      </label>
+      {photos.length === 0 ? (
+        <Empty>Aucune photo. Ajoutez les photos du produit reçues de l’usine (échantillon, ligne de production, réalisation).</Empty>
+      ) : (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {photos.map((p, i) => (
+            <li key={p.doc_id} className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src(p.doc_id)} alt={p.caption || `Photo ${i + 1}`} className="aspect-[4/3] w-full bg-slate-100 object-cover dark:bg-slate-800" loading="lazy" />
+              <div className="space-y-1.5 p-2">
+                <input className={`${input} !py-1.5 !text-xs`} placeholder="Légende (ex. échantillon 30 mm)" value={p.caption} onChange={(e) => setPhotos((x) => x.map((y, k) => (k === i ? { ...y, caption: e.target.value } : y)))} />
+                <div className="flex items-center justify-between gap-1">
+                  <span className="flex gap-1">
+                    <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className={`${btn} !min-h-8 !px-2`} aria-label="Avancer"><ChevronLeft className="h-3.5 w-3.5" /></button>
+                    <button type="button" disabled={i === photos.length - 1} onClick={() => move(i, 1)} className={`${btn} !min-h-8 !px-2`} aria-label="Reculer"><ChevronRight className="h-3.5 w-3.5" /></button>
+                  </span>
+                  <button type="button" onClick={() => setPhotos((x) => x.filter((_, k) => k !== i))} className={`${btn} !min-h-8 !px-2`} aria-label="Retirer"><Trash2 className="h-3.5 w-3.5 text-red-500" /></button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      {dirty && <button type="button" disabled={busy} onClick={save} className={btnPrimary}>Enregistrer l’ordre, les légendes et les retraits</button>}
     </div>
   );
 }
@@ -247,12 +327,13 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
     internal_note: s?.internal_note || '',
     watch: (s?.watch_points || []).join('\n'),
   });
-  const [tab, setTab] = useState<'identity' | 'card' | 'scores'>('identity');
+  const [tab, setTab] = useState<'identity' | 'card' | 'scores' | 'photos'>('identity');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiInfo, setAiInfo] = useState('');
   const total = scoreTotal(f.scores);
+  const [photoCount, setPhotoCount] = useState(s?.product_photos?.length || 0);
   const set = (patch: Partial<SupplierForm>) => setF((x) => ({ ...x, ...patch }));
   // Recherche web des contacts par le modèle (:online) : proposition à vérifier, remplit seulement les champs vides.
   const findContacts = async () => {
@@ -296,7 +377,7 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
   const tabBtn = (k: typeof tab, l: string) => <button type="button" onClick={() => setTab(k)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${tab === k ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white' : 'text-slate-500'}`}>{l}</button>;
   return (
     <Modal title={s ? `${s.alias} — ${s.lot}` : 'Nouvelle usine'} onClose={onClose} wide>
-      <div className="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}</div>
+      <div className="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}{s && tabBtn('photos', `Photos produit${photoCount ? ` (${photoCount})` : ''}`)}</div>
       {tab === 'identity' && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className={label}>Lot</label><input list="lots2" className={input} value={f.lot} onChange={(e) => set({ lot: e.target.value })} /><datalist id="lots2">{lots.map((x) => <option key={x} value={x} />)}</datalist></div>
@@ -367,8 +448,9 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
           <p className="text-right text-sm font-bold text-slate-900 dark:text-white">Total : {total ?? '—'} / 25</p>
         </div>
       )}
+      {tab === 'photos' && s && <SupplierPhotos supplierId={s.id} initial={s.product_photos || []} api={api} onCount={setPhotoCount} />}
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      <button type="button" disabled={busy || !f.lot.trim()} onClick={save} className={`${btnPrimary} mt-4`}>Enregistrer</button>
+      {tab !== 'photos' && <button type="button" disabled={busy || !f.lot.trim()} onClick={save} className={`${btnPrimary} mt-4`}>Enregistrer</button>}
     </Modal>
   );
 }

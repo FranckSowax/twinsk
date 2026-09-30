@@ -5,7 +5,7 @@
 import type { ProjectBundle } from './data';
 import { projectPublicView, type PublicProject, type RawForPublic } from './public';
 import { templateByKey, DOM_TOM_TEMPLATE } from './templates/dom-tom';
-import type { Attachment, ContactChannel, ProductSpec, RfqMessage, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
+import type { Attachment, ContactChannel, ProductPhoto, ProductSpec, RfqMessage, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 import { rankSuppliers } from './logic';
 import { cleanRates, toBase } from './fx';
 
@@ -21,6 +21,7 @@ export interface TeamExtras {
     description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; selected_at: string | null;
     /** Points à surveiller (entité, contact, homonyme…) : équipe seulement. */
     watch_points: string[];
+    product_photos: ProductPhoto[];
   }[];
   /** Messages RFQ par lot (EN + ZH), modifiables, et signature de l'expéditeur. */
   rfq: RfqMessage[];
@@ -37,7 +38,7 @@ export interface TeamExtras {
 }
 export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtras } {
   const id = String((b.project as { id: string }).id);
-  const view = buildView(b, '', { docPath: (docId) => `/api/projects/${id}/documents/${docId}`, includeInternal: true });
+  const view = buildView(b, '', { docPath: (docId) => `/api/projects/${id}/documents/${docId}`, photoPath: (docId) => `/api/projects/${id}/documents/${docId}`, includeInternal: true });
   const p = b.project as Record<string, unknown>;
   const template = templateByKey(String(p.template_key || '')) || DOM_TOM_TEMPLATE;
   const admin: TeamExtras = {
@@ -50,6 +51,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
       country: s.country, city: s.city, indicative_price: s.indicative_price, internal_note: s.internal_note,
       description: s.description, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience, capacity: s.capacity, lead_time: s.lead_time, moq: s.moq, sample_status: s.sample_status, selected_at: s.selected_at,
       watch_points: s.watch_points || [],
+      product_photos: s.product_photos || [],
     })),
     rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
     rfq_sender: pickSender(p.rfq_sender),
@@ -79,8 +81,9 @@ export function toPublicView(b: ProjectBundle, token: string): PublicProject {
   return buildView(b, token, { includeInternal: false });
 }
 
-function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: string) => string; includeInternal: boolean }): PublicProject {
+function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: string) => string; photoPath?: (docId: string) => string; includeInternal: boolean }): PublicProject {
   const p = b.project as Record<string, unknown>;
+  const photoIds = new Set((b.suppliers as { product_photos?: ProductPhoto[] }[]).flatMap((s) => (s.product_photos || []).map((x) => x.doc_id)));
   const internalDocs = new Set((b.documents as { id: string; internal: boolean }[]).filter((d) => d.internal).map((d) => d.id));
   const docPath = opts.docPath || ((docId: string) => `/api/projects/public/${token}/documents/${docId}`);
   const pub = (list: Attachment[] | null | undefined): Attachment[] =>
@@ -103,11 +106,12 @@ function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: st
     updateComments: (b.updateComments as RawForPublic['updateComments']).map((c) => ({ id: c.id, update_id: c.update_id, author: c.author, author_name: c.author_name, text: c.text, created_at: c.created_at })),
     questions: (b.questions as (RawForPublic['questions'][number] & { attachment: Attachment | null })[]).map((q) => ({ id: q.id, subject: q.subject, detail: q.detail, attachment: q.attachment ? pub([q.attachment])[0] || null : null, status: q.status, created_at: q.created_at })),
     questionReplies: (b.questionReplies as RawForPublic['questionReplies']).map((r) => ({ id: r.id, question_id: r.question_id, author: r.author, author_name: r.author_name, text: r.text, created_at: r.created_at })),
-    documents: (b.documents as (RawForPublic['documents'][number] & { internal: boolean })[]).filter((d) => opts.includeInternal || !d.internal).map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, uploaded_by: d.uploaded_by, created_at: d.created_at })),
+    // Les photos produit des usines ne sont pas des documents du projet : elles vivent dans la fiche usine.
+    documents: (b.documents as (RawForPublic['documents'][number] & { internal: boolean })[]).filter((d) => (opts.includeInternal || !d.internal) && !photoIds.has(d.id)).map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, uploaded_by: d.uploaded_by, created_at: d.created_at })),
     quoteLines: (b.quoteLines as RawForPublic['quoteLines']).map((l) => ({ id: l.id, lot: l.lot, label: l.label, unit: l.unit, quantity: Number(l.quantity), client_quantity: l.client_quantity == null ? null : Number(l.client_quantity), unit_price: l.unit_price == null ? null : Number(l.unit_price), price_currency: l.price_currency ?? null, validated_snapshot: l.validated_snapshot ? { unit_price: l.validated_snapshot.unit_price == null ? null : Number(l.validated_snapshot.unit_price), total: l.validated_snapshot.total == null ? null : Number(l.validated_snapshot.total) } : null, optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase, validated_at: l.validated_at, supplier_id: l.supplier_id })),
     orders: (b.orders as RawForPublic['orders']).map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, line_ids: o.line_ids, total: Number(o.total), created_at: o.created_at, updated_at: o.updated_at })),
-    suppliers: (b.suppliers as (RawForPublic['suppliers'][number] & { score: number | string | null })[]).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status || 'candidate', scores: s.scores || {}, score: s.score == null ? null : Number(s.score), description: s.description ?? null, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience ?? null, capacity: s.capacity ?? null, lead_time: s.lead_time ?? null, moq: s.moq ?? null, sample_status: s.sample_status ?? null, country: s.country ?? null })),
+    suppliers: (b.suppliers as (RawForPublic['suppliers'][number] & { score: number | string | null })[]).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status || 'candidate', scores: s.scores || {}, score: s.score == null ? null : Number(s.score), description: s.description ?? null, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience ?? null, capacity: s.capacity ?? null, lead_time: s.lead_time ?? null, moq: s.moq ?? null, sample_status: s.sample_status ?? null, country: s.country ?? null, product_photos: (s.product_photos || []).map((x) => ({ doc_id: String(x.doc_id), caption: String(x.caption || '') })) })),
     finalReports: (b.finalReports as RawForPublic['finalReports']).map((r) => ({ phase: r.phase, checklist: r.checklist || [], delivered_at: r.delivered_at, file_id: r.file_id })),
   };
-  return projectPublicView(raw, token, { docPath });
+  return projectPublicView(raw, token, { docPath, photoPath: opts.photoPath });
 }
