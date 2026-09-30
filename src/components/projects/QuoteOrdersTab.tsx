@@ -30,20 +30,87 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
   const validated = p.quote.lines.filter((l) => l.status === 'validated');
   const fmtEntered = (n: number, c: string) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: c, maximumFractionDigits: 2 }).format(n);
   const missing = missingRates(p.quote.lines, cur, p.rates);
+
+  // Morceaux d'une ligne, partagés entre la carte (mobile) et le tableau (écran large).
+  const setQuantity = (l: Line, v: number) => run(api.mode === 'client' ? 'quote.choice' : 'quote.upsert', api.mode === 'client' ? { line_id: l.id, client_quantity: v } : { id: l.id, quantity: v });
+  const commitQty = (l: Line) => {
+    const v = Number(qty[l.id]);
+    if (qty[l.id] !== undefined && Number.isFinite(v) && v >= 0 && v !== l.effective_quantity) setQuantity(l, v);
+  };
+  const statusBadge = (l: Line) => (l.status === 'ordered' ? <span className="shrink-0"><Badge tone="violet">Commandée</Badge></span> : l.status === 'validated' ? <span title={l.validated_at ? dateTime(l.validated_at) : undefined}><Badge tone="emerald">Validée{l.validated_at ? ` le ${new Date(l.validated_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : ''}</Badge></span> : l.unit_price == null ? <Badge>À chiffrer</Badge> : <Badge tone="amber">À valider</Badge>);
+  const meta = (l: Line) => (
+    <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
+      {l.optional && <Badge tone="violet">Option</Badge>}
+      {l.phase && <span>{p.phases.find((x) => x.id === l.phase)?.name}</span>}
+      {l.supplier_alias && <span>· {l.supplier_alias}</span>}
+      {admin?.line_costs[l.id]?.unit_cost_entered != null && <span className="text-slate-400">· achat {fmtEntered(admin.line_costs[l.id].unit_cost_entered!, admin.line_costs[l.id].cost_currency)}{admin.line_costs[l.id].cost_currency !== cur ? (admin.line_costs[l.id].unit_cost != null ? ` ≈ ${money(admin.line_costs[l.id].unit_cost, cur)}` : ' (taux manquant)') : ''}{admin.line_costs[l.id].unit_cost != null && l.unit_price != null && l.unit_price > 0 ? ` · marge ${Math.round(((l.unit_price - admin.line_costs[l.id].unit_cost!) / l.unit_price) * 100)} %` : ''}</span>}
+      {l.locked && <Badge>Phase verrouillée</Badge>}
+    </p>
+  );
+  const optionToggle = (l: Line) =>
+    l.optional && l.status === 'draft' ? (
+      <label className="mt-2 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-medium text-violet-800 sm:min-h-0 sm:border-0 sm:bg-transparent sm:px-0 sm:text-[11px]">
+        <input type="checkbox" className="h-5 w-5 sm:h-3.5 sm:w-3.5" checked={l.enabled} onChange={(e) => run(api.mode === 'client' ? 'quote.choice' : 'quote.upsert', api.mode === 'client' ? { line_id: l.id, enabled: e.target.checked } : { id: l.id, enabled: e.target.checked })} />
+        {l.enabled ? 'Option activée' : 'Activer cette option'}
+      </label>
+    ) : null;
+  const qtyInput = (l: Line, touch: boolean) => {
+    const editable = l.status === 'draft' && !(l.optional && !l.enabled);
+    const proposed = l.client_quantity != null && l.client_quantity !== l.quantity ? <p className="text-[10px] text-slate-400">proposé : {l.quantity}</p> : null;
+    if (!editable) return <><p className="tabular-nums">{l.effective_quantity} {l.unit}</p>{proposed}</>;
+    const field = (
+      <input type="number" inputMode="decimal" min={0} enterKeyHint="done" className={touch ? 'h-10 w-full min-w-0 rounded-lg border border-slate-200 px-2 text-center text-base tabular-nums dark:border-slate-600 dark:bg-slate-900' : 'w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm dark:border-slate-600 dark:bg-slate-900'} value={qty[l.id] ?? String(l.effective_quantity)} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} onBlur={() => commitQty(l)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} aria-label={`Quantité — ${l.label}`} />
+    );
+    if (!touch) return <><span className="inline-flex items-center gap-1">{field}<span className="text-xs text-slate-500">{l.unit}</span></span>{proposed}</>;
+    // Mobile : − / + pour les petites quantités (kits, pièces), saisie directe pour les surfaces.
+    const step = l.effective_quantity < 1000;
+    const bump = (d: number) => {
+      const v = Math.max(0, l.effective_quantity + d);
+      setQty({ ...qty, [l.id]: String(v) });
+      setQuantity(l, v);
+    };
+    return (
+      <>
+        <div className="mt-1 flex items-center gap-1">
+          {step && <button type="button" onClick={() => bump(-1)} disabled={l.effective_quantity <= 0} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 text-lg font-bold text-slate-600 disabled:opacity-30 dark:border-slate-600" aria-label="Moins">−</button>}
+          {field}
+          {step && <button type="button" onClick={() => bump(1)} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 text-lg font-bold text-slate-600 dark:border-slate-600" aria-label="Plus">+</button>}
+        </div>
+        <p className="mt-0.5 text-[11px] text-slate-500">{l.unit}</p>
+        {proposed}
+      </>
+    );
+  };
+  const unitPrice = (l: Line) => (
+    <>
+      <p className="tabular-nums">{l.unit_price == null ? <span className="text-slate-400">—</span> : money(l.unit_price, cur)}</p>
+      {l.entered_price != null && l.price_currency !== cur && <p className="text-[10px] text-slate-400">{fmtEntered(l.entered_price, l.price_currency)}{l.rate_missing ? ' · taux manquant' : ''}</p>}
+    </>
+  );
+  const actions = (l: Line) => {
+    const draft = l.status === 'draft';
+    const inactive = l.optional && !l.enabled;
+    return (
+      <>
+        {draft && !inactive && l.unit_price != null && !l.locked && <button type="button" onClick={() => run('quote.validate', { line_id: l.id })} className={btnPrimary} title="Valider pour commande"><CheckCircle2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> Valider</button>}
+        {l.status === 'validated' && <button type="button" onClick={() => run('quote.unvalidate', { line_id: l.id })} className={btn} title="Annuler la validation" aria-label="Annuler la validation"><Undo2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>}
+        {api.mode === 'team' && draft && <button type="button" onClick={() => setEditing(l)} className={btn} aria-label="Modifier"><Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>}
+        {api.mode === 'team' && draft && <button type="button" onClick={() => { if (confirm('Supprimer cette ligne ?')) run('quote.delete', { line_id: l.id }); }} className={btn} aria-label="Supprimer"><Trash2 className="h-4 w-4 text-red-500 sm:h-3.5 sm:w-3.5" /></button>}
+      </>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {api.mode === 'team' && admin && <FxCard p={p} admin={admin} api={api} />}
       {missing.length > 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Taux manquant pour {missing.join(', ')} : {api.mode === 'team' ? 'renseignez-le dans « Devises et taux » pour que ces lignes soient chiffrées.' : 'ces lignes seront chiffrées dès que l’équipe aura renseigné le taux.'}</p>}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
         <Kpi label="Validé ou commandé" value={money(p.quote.totals.committed, cur)} tone="emerald" />
         <Kpi label="En attente de validation" value={money(p.quote.totals.pending, cur)} tone="amber" />
         <Kpi label="Programme estimé" value={money(p.quote.totals.estimated, cur)} sub={p.quote.totals.unpriced ? `${p.quote.totals.unpriced} ligne(s) à chiffrer` : undefined} />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-slate-500">{p.disclaimer}</p>
-        {pdfUrl && <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className={btn}>Télécharger le devis (PDF)</a>}
-      </div>
-      {err && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
+      {pdfUrl && <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className={`${btn} w-full sm:w-auto`}>Télécharger le devis (PDF)</a>}
+      {err && <p className="sticky top-2 z-20 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600 shadow sm:static sm:text-xs sm:shadow-none" role="alert">{err}</p>}
       {api.mode === 'team' && (
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setEditing('new')} className={btn}><Plus className="h-3.5 w-3.5" /> Ligne</button>
@@ -52,61 +119,65 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
       )}
       {groupByLot(p.quote.lines).map((g) => (
         <div key={g.lot} className={card}>
-          <p className="mb-2 font-display text-base font-bold text-slate-900 dark:text-white">{g.lot}</p>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <p className="font-display text-base font-bold text-slate-900 dark:text-white">{g.lot}</p>
+            <p className="text-xs font-semibold tabular-nums text-slate-500">{money(g.lines.reduce((n, l) => n + (l.total || 0), 0), cur)}</p>
+          </div>
+          {/* Mobile : une carte par ligne */}
+          <ul className="space-y-2 md:hidden">
+            {g.lines.map((l) => {
+              const inactive = l.optional && !l.enabled;
+              return (
+                <li key={l.id} className={`rounded-xl border border-slate-100 p-3 dark:border-slate-700 ${inactive ? 'bg-slate-50/60 dark:bg-slate-900/30' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`min-w-0 text-sm font-semibold ${inactive ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{l.label}</p>
+                    {statusBadge(l)}
+                  </div>
+                  {meta(l)}
+                  {optionToggle(l)}
+                  {!inactive && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Quantité</p>
+                        {qtyInput(l, true)}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Prix unitaire</p>
+                        {unitPrice(l)}
+                      </div>
+                    </div>
+                  )}
+                  {!inactive && (
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
+                      <p className="text-base font-bold tabular-nums text-slate-900 dark:text-white">{l.total == null ? <span className="text-sm font-medium text-slate-400">À chiffrer</span> : money(l.total, cur)}</p>
+                      <div className="flex gap-1.5">{actions(l)}</div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {/* Tablette et ordinateur : tableau */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
               <thead className="text-[10px] uppercase tracking-wider text-slate-400">
                 <tr><th className="pb-2 text-left font-semibold">Désignation</th><th className="pb-2 text-right font-semibold">Quantité</th><th className="pb-2 text-right font-semibold">Prix unitaire</th><th className="pb-2 text-right font-semibold">Total</th><th className="pb-2 text-left font-semibold">Statut</th><th className="pb-2 text-right font-semibold"></th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {g.lines.map((l) => {
-                  const draft = l.status === 'draft';
-                  const inactive = l.optional && !l.enabled;
-                  return (
-                    <tr key={l.id} className={inactive ? 'opacity-50' : ''}>
-                      <td className="py-2 pr-2">
-                        <p className="font-medium text-slate-900 dark:text-white">{l.label}</p>
-                        <p className="flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
-                          {l.optional && <Badge tone="violet">Option</Badge>}
-                          {l.phase && <span>{p.phases.find((x) => x.id === l.phase)?.name}</span>}
-                          {l.supplier_alias && <span>· {l.supplier_alias}</span>}
-                          {admin?.line_costs[l.id]?.unit_cost_entered != null && <span className="text-slate-400">· achat {fmtEntered(admin.line_costs[l.id].unit_cost_entered!, admin.line_costs[l.id].cost_currency)}{admin.line_costs[l.id].cost_currency !== cur ? (admin.line_costs[l.id].unit_cost != null ? ` ≈ ${money(admin.line_costs[l.id].unit_cost, cur)}` : ' (taux manquant)') : ''}{admin.line_costs[l.id].unit_cost != null && l.unit_price != null && l.unit_price > 0 ? ` · marge ${Math.round(((l.unit_price - admin.line_costs[l.id].unit_cost!) / l.unit_price) * 100)} %` : ''}</span>}
-                          {l.locked && <Badge>Phase verrouillée</Badge>}
-                        </p>
-                        {l.optional && draft && (
-                          <label className="mt-1 flex items-center gap-1.5 text-[11px]"><input type="checkbox" checked={l.enabled} onChange={(e) => run(api.mode === 'client' ? 'quote.choice' : 'quote.upsert', api.mode === 'client' ? { line_id: l.id, enabled: e.target.checked } : { id: l.id, enabled: e.target.checked })} /> {l.enabled ? 'Option activée' : 'Activer cette option'}</label>
-                        )}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {draft && !inactive ? (
-                          <span className="inline-flex items-center gap-1">
-                            <input type="number" min={0} className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm dark:border-slate-600 dark:bg-slate-900" value={qty[l.id] ?? String(l.effective_quantity)} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} onBlur={() => { const v = Number(qty[l.id]); if (qty[l.id] !== undefined && Number.isFinite(v) && v !== l.effective_quantity) run(api.mode === 'client' ? 'quote.choice' : 'quote.upsert', api.mode === 'client' ? { line_id: l.id, client_quantity: v } : { id: l.id, quantity: v }); }} />
-                            <span className="text-xs text-slate-500">{l.unit}</span>
-                          </span>
-                        ) : (
-                          <span>{l.effective_quantity} {l.unit}</span>
-                        )}
-                        {l.client_quantity != null && l.client_quantity !== l.quantity && <p className="text-[10px] text-slate-400">proposé : {l.quantity}</p>}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {money(l.unit_price, cur)}
-                        {l.entered_price != null && l.price_currency !== cur && <p className="text-[10px] text-slate-400">{fmtEntered(l.entered_price, l.price_currency)}{l.rate_missing ? ' · taux manquant' : ''}</p>}
-                      </td>
-                      <td className="py-2 text-right font-semibold tabular-nums">{money(l.total, cur)}</td>
-                      <td className="py-2">
-                        {l.status === 'ordered' ? <Badge tone="violet">Commandée</Badge> : l.status === 'validated' ? <Badge tone="emerald">Validée {l.validated_at ? dateTime(l.validated_at) : ''}</Badge> : <Badge tone="amber">À valider</Badge>}
-                      </td>
-                      <td className="py-2 text-right">
-                        <span className="inline-flex gap-1">
-                          {draft && !inactive && l.unit_price != null && !l.locked && <button type="button" onClick={() => run('quote.validate', { line_id: l.id })} className={btnPrimary} title="Valider pour commande"><CheckCircle2 className="h-3.5 w-3.5" /> Valider</button>}
-                          {l.status === 'validated' && <button type="button" onClick={() => run('quote.unvalidate', { line_id: l.id })} className={btn} title="Annuler la validation"><Undo2 className="h-3.5 w-3.5" /></button>}
-                          {api.mode === 'team' && draft && <button type="button" onClick={() => setEditing(l)} className={btn}><Pencil className="h-3.5 w-3.5" /></button>}
-                          {api.mode === 'team' && draft && <button type="button" onClick={() => { if (confirm('Supprimer cette ligne ?')) run('quote.delete', { line_id: l.id }); }} className={btn}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button>}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {g.lines.map((l) => (
+                  <tr key={l.id} className={l.optional && !l.enabled ? 'opacity-50' : ''}>
+                    <td className="py-2 pr-2">
+                      <p className="font-medium text-slate-900 dark:text-white">{l.label}</p>
+                      {meta(l)}
+                      {optionToggle(l)}
+                    </td>
+                    <td className="py-2 text-right tabular-nums">{qtyInput(l, false)}</td>
+                    <td className="py-2 text-right tabular-nums">{unitPrice(l)}</td>
+                    <td className="py-2 text-right font-semibold tabular-nums">{money(l.total, cur)}</td>
+                    <td className="py-2">{statusBadge(l)}</td>
+                    <td className="py-2 text-right"><span className="inline-flex gap-1">{actions(l)}</span></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -121,10 +192,14 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
 function Kpi({ label: l, value, sub, tone = 'slate' }: { label: string; value: string; sub?: string; tone?: 'slate' | 'emerald' | 'amber' }) {
   const t = { slate: 'text-slate-900 dark:text-white', emerald: 'text-emerald-700', amber: 'text-amber-700' }[tone];
   return (
-    <div className={card}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{l}</p>
-      <p className={`mt-1 font-display text-xl font-bold tabular-nums ${t}`}>{value}</p>
-      {sub && <p className="text-[11px] text-slate-500">{sub}</p>}
+    // Mobile : une ligne compacte (libellé à gauche, montant à droite).
+    <div className={`${card} flex items-center justify-between gap-3 py-2.5 sm:block sm:py-4`}>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{l}</p>
+        {sub && <p className="text-[11px] text-slate-500 sm:hidden">{sub}</p>}
+      </div>
+      <p className={`shrink-0 font-display text-lg font-bold tabular-nums sm:mt-1 sm:text-xl ${t}`}>{value}</p>
+      {sub && <p className="hidden text-[11px] text-slate-500 sm:block">{sub}</p>}
     </div>
   );
 }
@@ -243,7 +318,17 @@ export function OrdersTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
               <p className="font-display text-base font-bold text-slate-900 dark:text-white">{o.reference} <span className="text-sm font-normal text-slate-500">· {money(o.total, p.currency)}</span></p>
               <Badge tone={o.status === 'delivered' ? 'emerald' : 'blue'}>{orderStatusLabel(o.status)}</Badge>
             </div>
-            <ol className="mt-3 flex flex-wrap gap-1">
+            {/* Mobile : frise verticale ; écran large : pastilles */}
+            <ol className="mt-3 space-y-0 sm:hidden">
+              {ORDER_STEPS.map((s, i) => (
+                <li key={s.value} className="relative flex items-center gap-3 pb-3 last:pb-0">
+                  {i < ORDER_STEPS.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${i < idx ? 'bg-emerald-400' : 'bg-slate-200 dark:bg-slate-700'}`} aria-hidden />}
+                  <span className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${i < idx ? 'bg-emerald-500 text-white' : i === idx ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' : 'bg-slate-100 text-slate-400 dark:bg-slate-700'}`}>{i < idx ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}</span>
+                  <span className={`text-sm ${i === idx ? 'font-bold text-slate-900 dark:text-white' : i < idx ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400'}`}>{s.label}</span>
+                </li>
+              ))}
+            </ol>
+            <ol className="mt-3 hidden flex-wrap gap-1 sm:flex">
               {ORDER_STEPS.map((s, i) => (
                 <li key={s.value} className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${i < idx ? 'bg-emerald-100 text-emerald-800' : i === idx ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                   {i < idx ? <CheckCircle2 className="h-3 w-3" /> : <span className="tabular-nums">{i + 1}</span>} {s.label}
@@ -254,8 +339,8 @@ export function OrdersTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
             {o.tracking && <p className="mt-2 text-xs"><span className="text-slate-500">Suivi :</span> {o.tracking}</p>}
             <p className="mt-1 text-[11px] text-slate-400">Mise à jour {dateTime(o.updated_at)}</p>
             {api.mode === 'team' && next && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <input className={`${input} max-w-xs`} placeholder="Suivi / tracking (facultatif)" value={tracking[o.id] ?? o.tracking ?? ''} onChange={(e) => setTracking({ ...tracking, [o.id]: e.target.value })} />
+ <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <input className={`${input} sm:max-w-xs`} placeholder="Suivi / tracking (facultatif)" value={tracking[o.id] ?? o.tracking ?? ''} onChange={(e) => setTracking({ ...tracking, [o.id]: e.target.value })} />
                 <button type="button" onClick={() => api.act('order.status', { order_id: o.id, status: next, tracking: tracking[o.id] ?? o.tracking ?? '' })} className={btnPrimary}>→ {orderStatusLabel(next)}</button>
               </div>
             )}

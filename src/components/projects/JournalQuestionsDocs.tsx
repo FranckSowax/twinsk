@@ -67,7 +67,7 @@ export function JournalTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) 
             ))}
             <div className="flex gap-2">
               <input className={input} placeholder="Réagir…" value={drafts[u.id] || ''} onChange={(e) => setDrafts({ ...drafts, [u.id]: e.target.value })} />
-              <button type="button" disabled={!(drafts[u.id] || '').trim()} onClick={async () => { await api.act('update.comment', { update_id: u.id, text: drafts[u.id] }); setDrafts({ ...drafts, [u.id]: '' }); }} className={btn}><Send className="h-3.5 w-3.5" /></button>
+              <button type="button" disabled={!(drafts[u.id] || '').trim()} onClick={async () => { await api.act('update.comment', { update_id: u.id, text: drafts[u.id] }); setDrafts({ ...drafts, [u.id]: '' }); }} className={`${btn} shrink-0`} aria-label="Envoyer"><Send className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>
             </div>
           </div>
         </article>
@@ -95,7 +95,7 @@ export function QuestionsTab({ p, api }: { p: PublicProject; api: WorkspaceApi }
             {file && <AttachmentList items={[file]} onRemove={() => setFile(null)} />}
             <div className="flex flex-wrap gap-2">
               {!file && <AttachButton api={api} label="Pièce jointe (facultatif)" onAttached={(a) => setFile(a[0] || null)} />}
-              <button type="button" disabled={busy || !f.subject.trim()} onClick={async () => { setBusy(true); setErr(''); try { await api.act('question.ask', { ...f, attachment: file }); setF({ subject: '', detail: '' }); setFile(null); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={btnPrimary}><Send className="h-3.5 w-3.5" /> Envoyer</button>
+              <button type="button" disabled={busy || !f.subject.trim()} onClick={async () => { setBusy(true); setErr(''); try { await api.act('question.ask', { ...f, attachment: file }); setF({ subject: '', detail: '' }); setFile(null); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} flex-1 sm:flex-none`}><Send className="h-3.5 w-3.5" /> Envoyer</button>
             </div>
             {err && <p className="text-xs text-red-600">{err}</p>}
           </div>
@@ -118,7 +118,7 @@ export function QuestionsTab({ p, api }: { p: PublicProject; api: WorkspaceApi }
             ))}
             <div className="flex gap-2">
               <input className={input} placeholder={api.mode === 'team' ? 'Répondre…' : 'Préciser…'} value={drafts[q.id] || ''} onChange={(e) => setDrafts({ ...drafts, [q.id]: e.target.value })} />
-              <button type="button" disabled={!(drafts[q.id] || '').trim()} onClick={async () => { await api.act('question.reply', { question_id: q.id, text: drafts[q.id] }); setDrafts({ ...drafts, [q.id]: '' }); }} className={btnPrimary}><Send className="h-3.5 w-3.5" /></button>
+              <button type="button" disabled={!(drafts[q.id] || '').trim()} onClick={async () => { await api.act('question.reply', { question_id: q.id, text: drafts[q.id] }); setDrafts({ ...drafts, [q.id]: '' }); }} className={`${btnPrimary} shrink-0`} aria-label="Envoyer"><Send className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>
             </div>
           </div>
         </article>
@@ -135,8 +135,8 @@ export function DocumentsTab({ p, api, internalIds = [] }: { p: PublicProject; a
   return (
     <div className="space-y-4">
       <div className={card}>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="sm:w-auto">
             <label className={label}>Catégorie</label>
             <select className={input} value={cat} onChange={(e) => setCat(e.target.value)}>{DOCUMENT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
           </div>
@@ -156,12 +156,14 @@ export function DocumentsTab({ p, api, internalIds = [] }: { p: PublicProject; a
             <ul className="divide-y divide-slate-100 dark:divide-slate-700">
               {docs.map((d) => (
                 <li key={d.id} className="flex items-center gap-3 py-2 text-sm">
-                  <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                  <a href={d.download_path} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate font-medium text-slate-900 hover:underline dark:text-white">{d.name}</a>
+                  <FileText className="h-5 w-5 shrink-0 text-slate-400 sm:h-4 sm:w-4" />
+                  <a href={d.download_path} target="_blank" rel="noopener noreferrer" className="flex min-h-11 min-w-0 flex-1 flex-col justify-center sm:min-h-0 sm:flex-row sm:items-center sm:justify-start sm:gap-3">
+                    <span className="truncate font-medium text-slate-900 hover:underline dark:text-white">{d.name}</span>
+                    <span className="text-[11px] text-slate-500 sm:ml-auto sm:shrink-0">{size(d.size)} · {d.by} · {dateTime(d.at)}</span>
+                  </a>
                   {internalSet.has(d.id) && <Badge>Équipe</Badge>}
-                  <span className="text-[11px] text-slate-500">{size(d.size)} · {d.by} · {dateTime(d.at)}</span>
                   {api.mode === 'team' && (
-                    <button type="button" onClick={() => { if (confirm(`Supprimer « ${d.name} » ?`)) api.act('document.delete', { document_id: d.id }); }} className="rounded p-1 text-red-500 hover:bg-red-50" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => { if (confirm(`Supprimer « ${d.name} » ?`)) api.act('document.delete', { document_id: d.id }); }} className="flex h-10 w-10 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 sm:h-auto sm:w-auto sm:p-1" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button>
                   )}
                 </li>
               ))}

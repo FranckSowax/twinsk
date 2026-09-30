@@ -13,6 +13,8 @@ import { Badge, Empty, card } from './shared';
 
 type Card = PublicProject['suppliers'][number];
 
+// Libellés courts pour les cases de notation (écran étroit) ; le libellé complet reste en info-bulle.
+const SHORT: Record<string, string> = { certifications: 'Certifs', tropical: 'Climat', installation: 'Installation', price: 'Prix', transparency: 'Transparence' };
 const STATUS_TONE: Record<SupplierStatus, 'emerald' | 'blue' | 'slate' | 'red'> = { selected: 'emerald', shortlisted: 'blue', candidate: 'slate', rejected: 'red' };
 export const statusLabel = (s: SupplierStatus) => SUPPLIER_STATUS.find((x) => x.value === s)?.label || s;
 
@@ -58,17 +60,17 @@ function FactoryCard({ s }: { s: Card }) {
       </div>
       {s.description && <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{s.description}</p>}
       {scored.length > 0 && (
-        <div className="mt-2 grid grid-cols-5 gap-1">
+        <div className="mt-2 grid grid-cols-3 gap-1 sm:grid-cols-5">
           {scored.map((c) => (
-            <div key={c.key} className="rounded-lg bg-slate-50 px-1.5 py-1 text-center dark:bg-slate-900/40" title={c.hint}>
+            <div key={c.key} className="rounded-lg bg-slate-50 px-1.5 py-1 text-center dark:bg-slate-900/40" title={`${c.label} — ${c.hint}`}>
               <p className="text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{s.scores[c.key]}<span className="text-[9px] font-normal text-slate-400">/5</span></p>
-              <p className="truncate text-[9px] uppercase tracking-wide text-slate-500">{c.label}</p>
+              <p className="truncate text-[9px] uppercase tracking-wide text-slate-500">{SHORT[c.key] || c.label}</p>
             </div>
           ))}
         </div>
       )}
       {(s.years_experience != null || s.capacity || s.lead_time || s.moq) && (
-        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
           {s.years_experience != null && <><dt className="text-slate-500">Expérience</dt><dd className="text-slate-800 dark:text-slate-100">{s.years_experience} ans</dd></>}
           {s.capacity && <><dt className="text-slate-500">Capacité</dt><dd className="text-slate-800 dark:text-slate-100">{s.capacity}</dd></>}
           {s.lead_time && <><dt className="text-slate-500">Délai de production</dt><dd className="text-slate-800 dark:text-slate-100">{s.lead_time}</dd></>}

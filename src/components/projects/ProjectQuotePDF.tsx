@@ -26,7 +26,7 @@ const s = StyleSheet.create({
   footer: { position: 'absolute', bottom: 24, left: 36, right: 36, fontSize: 7, color: '#94a3b8', textAlign: 'center' },
 });
 
-const fmt = (n: number | null, cur: string) => (n == null ? 'à chiffrer' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n));
+const fmt = (n: number | null, cur: string) => (n == null ? 'à chiffrer' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n));
 const STATUS: Record<string, string> = { draft: 'à valider', validated: 'validée', ordered: 'commandée' };
 
 export default function ProjectQuotePDF({ p, logoUrl, date, clientName }: { p: PublicProject; logoUrl: string | null; date: string; clientName: string }) {

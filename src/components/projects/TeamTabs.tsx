@@ -484,7 +484,7 @@ export function ReportTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
             <ul className="mt-2 space-y-1.5">
               {r.checklist.map((c) => (
                 <li key={c.id}>
-                  <label className={`flex items-center gap-2 text-sm ${api.mode === 'team' ? 'cursor-pointer' : ''}`}>
+                  <label className={`flex min-h-10 items-center gap-2 text-sm sm:min-h-0 ${api.mode === 'team' ? 'cursor-pointer' : ''}`}>
                     <input type="checkbox" checked={c.done} disabled={api.mode !== 'team' || busy} onChange={async (e) => { setBusy(true); try { await api.act('report.set', { phase: r.phase, checklist: r.checklist.map((x) => (x.id === c.id ? { ...x, done: e.target.checked } : x)) }); } finally { setBusy(false); } }} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
                     <span className={c.done ? 'text-slate-400 line-through' : ''}>{c.label}</span>
                   </label>
@@ -510,8 +510,8 @@ export function ReportTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {api.mode === 'client' ? (
             <>
-              <button type="button" disabled={!!bt.interested_at} onClick={() => api.act('trip.interested')} className={btnPrimary}>{bt.interested_at ? `Intérêt signalé le ${dateShort(bt.interested_at)}` : 'Je suis intéressé'}</button>
-              <button type="button" disabled={!!bt.quote_requested_at} onClick={() => api.act('trip.quote')} className={btn}>{bt.quote_requested_at ? `Devis demandé le ${dateShort(bt.quote_requested_at)}` : 'Recevoir le devis du voyage'}</button>
+              <button type="button" disabled={!!bt.interested_at} onClick={() => api.act('trip.interested')} className={`${btnPrimary} w-full sm:w-auto`}>{bt.interested_at ? `Intérêt signalé le ${dateShort(bt.interested_at)}` : 'Je suis intéressé'}</button>
+              <button type="button" disabled={!!bt.quote_requested_at} onClick={() => api.act('trip.quote')} className={`${btn} w-full sm:w-auto`}>{bt.quote_requested_at ? `Devis demandé le ${dateShort(bt.quote_requested_at)}` : 'Recevoir le devis du voyage'}</button>
             </>
           ) : (
             <p className="text-xs text-slate-600">{bt.interested_at ? `Client intéressé le ${dateShort(bt.interested_at)}.` : 'Le client n’a pas encore signalé d’intérêt.'} {bt.quote_requested_at ? `Devis du voyage demandé le ${dateShort(bt.quote_requested_at)} : chiffrer la ligne « Voyage d’audit » du devis.` : ''}</p>

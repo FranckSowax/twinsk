@@ -18,6 +18,9 @@ export default function PlanTab({ p, api }: { p: PublicProject; api: WorkspaceAp
   const task = p.tasks.find((t) => t.id === open) || null;
   const phaseName = (id: string | null) => p.phases.find((x) => x.id === id)?.name || null;
   const overdue = (t: Task) => t.status !== 'done' && new Date(t.due_at) < new Date();
+  const canToggle = (t: Task) => !t.locked && (api.mode === 'client' ? t.owner === 'client' : t.owner === 'team');
+  // Client : ses validations à faire, en tête du plan.
+  const mine = api.mode === 'client' ? p.tasks.filter((t) => t.owner === 'client' && t.status !== 'done' && !t.locked) : [];
 
   return (
     <div className="space-y-4">
@@ -27,11 +30,11 @@ export default function PlanTab({ p, api }: { p: PublicProject; api: WorkspaceAp
           <span className="font-display text-2xl font-bold tabular-nums text-emerald-600">{Math.round(p.progress.global * 100)} %</span>
         </div>
         <Progress value={p.progress.global} className="mt-2" />
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-2">
           {p.phases.map((ph) => (
-            <span key={ph.id} className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${ph.received ? 'bg-emerald-100 text-emerald-800' : ph.locked ? 'bg-slate-100 text-slate-500' : 'bg-sky-100 text-sky-800'}`}>
+            <span key={ph.id} className={`flex flex-wrap items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold sm:rounded-full sm:py-1 ${ph.received ? 'bg-emerald-100 text-emerald-800' : ph.locked ? 'bg-slate-100 text-slate-500' : 'bg-sky-100 text-sky-800'}`}>
               {ph.locked && <Lock className="h-3 w-3" />}
-              {ph.name} · {ph.sites.join(', ')}
+              {ph.name}{ph.sites.length && !ph.sites.every((x) => ph.name.includes(x)) ? ` · ${ph.sites.join(', ')}` : ''}
               {ph.received ? ' · réceptionnée' : ph.locked ? ' · verrouillée' : ' · en cours'}
               {api.mode === 'team' && (
                 <button type="button" onClick={() => api.act('phase.receive', { phase_id: ph.id, received: !ph.received })} className="ml-1 underline decoration-dotted" title={ph.received ? 'Rouvrir la phase' : 'Marquer la phase réceptionnée'}>
@@ -42,6 +45,22 @@ export default function PlanTab({ p, api }: { p: PublicProject; api: WorkspaceAp
           ))}
         </div>
       </div>
+
+      {mine.length > 0 && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3.5 dark:border-sky-900 dark:bg-sky-950/30 sm:p-4">
+          <p className="text-sm font-bold text-sky-900 dark:text-sky-100">À vous de jouer · {mine.length} validation{mine.length > 1 ? 's' : ''}</p>
+          <ul className="mt-2 space-y-1.5">
+            {mine.slice(0, 5).map((t) => (
+              <li key={t.id}>
+                <button type="button" onClick={() => setOpen(t.id)} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-left text-sm shadow-sm dark:bg-slate-900">
+                  <span className="min-w-0 font-medium text-slate-900 dark:text-white">{t.title}</span>
+                  <span className={`shrink-0 text-[11px] ${overdue(t) ? 'font-semibold text-red-600' : 'text-slate-500'}`}>{dateShort(t.due_at)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {p.steps.map((s) => {
         const tasks = p.tasks.filter((t) => t.step_key === s.key);
@@ -61,11 +80,12 @@ export default function PlanTab({ p, api }: { p: PublicProject; api: WorkspaceAp
             <Progress value={pct} className="mt-2" />
             <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-700">
               {tasks.map((t) => (
-                <li key={t.id} className={`flex items-start gap-3 py-2.5 ${t.locked ? 'opacity-55' : ''}`}>
-                  <button type="button" onClick={() => api.act('task.done', { task_id: t.id, done: t.status !== 'done' })} disabled={t.locked} className="mt-0.5 text-emerald-600 disabled:cursor-not-allowed" title={t.status === 'done' ? 'Rouvrir' : 'Marquer terminée'}>
-                    {t.status === 'done' ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5 text-slate-300" />}
+                <li key={t.id} className={`flex items-start gap-1 py-1.5 sm:gap-3 sm:py-2.5 ${t.locked ? 'opacity-55' : ''}`}>
+                  {/* Case large au pouce ; seule la personne responsable peut la cocher */}
+                  <button type="button" onClick={() => api.act('task.done', { task_id: t.id, done: t.status !== 'done' })} disabled={!canToggle(t)} className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-emerald-600 disabled:cursor-not-allowed sm:ml-0 sm:mt-0.5 sm:h-auto sm:w-auto" title={t.status === 'done' ? 'Rouvrir' : 'Marquer terminée'} aria-label={t.status === 'done' ? `Rouvrir : ${t.title}` : `Marquer terminée : ${t.title}`}>
+                    {t.status === 'done' ? <CheckCircle2 className="h-6 w-6 sm:h-5 sm:w-5" /> : <Circle className={`h-6 w-6 sm:h-5 sm:w-5 ${canToggle(t) ? 'text-slate-300' : 'text-slate-200 dark:text-slate-700'}`} />}
                   </button>
-                  <button type="button" onClick={() => setOpen(t.id)} className="min-w-0 flex-1 text-left">
+                  <button type="button" onClick={() => setOpen(t.id)} className="min-w-0 flex-1 py-2 text-left sm:py-0">
                     <p className={`text-sm font-medium ${t.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>{t.title}</p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                       <Badge tone={t.owner === 'client' ? 'blue' : 'slate'}>{t.owner === 'client' ? 'Client' : 'Équipe'}</Badge>
@@ -119,8 +139,8 @@ function TaskModal({ t, p, api, onClose }: { t: Task; p: PublicProject; api: Wor
               <ul className="space-y-1.5">
                 {t.checklist.map((c) => (
                   <li key={c.id}>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input type="checkbox" checked={c.done} disabled={busy || t.locked} onChange={(e) => run('task.checklist', { task_id: t.id, item_id: c.id, done: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-1 text-sm active:bg-slate-50 sm:min-h-0 sm:gap-2 sm:px-0">
+                      <input type="checkbox" checked={c.done} disabled={busy || t.locked} onChange={(e) => run('task.checklist', { task_id: t.id, item_id: c.id, done: e.target.checked })} className="h-5 w-5 shrink-0 rounded border-slate-300 text-emerald-600 sm:h-4 sm:w-4" />
                       <span className={c.done ? 'text-slate-400 line-through' : ''}>{c.label}</span>
                     </label>
                   </li>
@@ -157,13 +177,13 @@ function TaskModal({ t, p, api, onClose }: { t: Task; p: PublicProject; api: Wor
             </div>
           </div>
         </div>
-        <aside className="space-y-3 rounded-2xl bg-slate-50 p-3 text-sm dark:bg-slate-800">
+        <aside className="order-first space-y-3 rounded-2xl bg-slate-50 p-3 text-sm dark:bg-slate-800 md:order-none">
           <p><span className="text-slate-500">Responsable :</span> {t.owner === 'client' ? 'Client' : 'Équipe'}</p>
           <p><span className="text-slate-500">Échéance :</span> {dateShort(t.due_at)}</p>
           {t.phase && <p><span className="text-slate-500">Phase :</span> {p.phases.find((x) => x.id === t.phase)?.name}</p>}
           <p><span className="text-slate-500">Statut :</span> {t.status === 'done' ? <Badge tone="emerald">Terminée</Badge> : t.locked ? <Badge>Verrouillée</Badge> : <Badge tone="amber">À faire</Badge>}</p>
           {canToggle && (
-            <button type="button" disabled={busy} onClick={() => run('task.done', { task_id: t.id, done: t.status !== 'done' })} className={t.status === 'done' ? btn : btnPrimary}>
+            <button type="button" disabled={busy} onClick={() => run('task.done', { task_id: t.id, done: t.status !== 'done' })} className={`${t.status === 'done' ? btn : btnPrimary} w-full md:w-auto`}>
               {t.status === 'done' ? <><RotateCcw className="h-3.5 w-3.5" /> Rouvrir</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Marquer terminée</>}
             </button>
           )}

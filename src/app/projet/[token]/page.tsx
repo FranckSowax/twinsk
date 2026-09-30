@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { COUNTRY } from '@/config/countries';
 import { clientActor } from '@/lib/projects/auth';
 import ClientProject from './ClientProject';
@@ -6,19 +6,21 @@ import ClientProject from './ClientProject';
 // Espace client d'un projet, ouvert par lien à jeton (une personne = un lien).
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: `Suivi de projet — ${COUNTRY.senderName}`, robots: { index: false, follow: false } };
+// Plein écran sur mobile (encoche, barre d'accueil) : les marges sont gérées par env(safe-area-inset-*).
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#ffffff' };
 
 export default async function ProjectClientPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const c = await clientActor(token);
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <p className="font-display text-lg font-bold text-slate-900 dark:text-white">{COUNTRY.senderName} <span className="text-sm font-normal text-slate-500">· suivi de projet</span></p>
-          {c && <p className="text-xs text-slate-500">{c.actor.name}</p>}
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-3 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:static sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          <p className="min-w-0 truncate font-display text-base font-bold text-slate-900 dark:text-white sm:text-lg">{COUNTRY.senderName} <span className="text-xs font-normal text-slate-500 sm:text-sm">· suivi de projet</span></p>
+          {c && <p className="max-w-[40%] shrink-0 truncate text-xs text-slate-500">{c.actor.name}</p>}
         </div>
       </header>
-      <div className="mx-auto max-w-6xl p-4">
+      <div className="mx-auto max-w-6xl px-3 py-3 sm:p-4">
         {c ? (
           <ClientProject token={token} viewerName={c.actor.name} />
         ) : (
