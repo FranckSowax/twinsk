@@ -4,10 +4,10 @@
 // Documents (bibliothèque par catégorie) — partagés équipe / client.
 
 import { useState } from 'react';
-import { FileText, Loader2, Send, Sparkles, Trash2 } from 'lucide-react';
+import { Loader2, Send, Sparkles, Trash2 } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import { DOCUMENT_CATEGORIES, type Attachment } from '@/lib/projects/types';
-import { AttachButton, AttachmentList, AuthorChip, Badge, Empty, btn, btnPrimary, card, dateTime, input, label, size, type WorkspaceApi } from './shared';
+import { AttachButton, AttachmentList, AuthorChip, Badge, Empty, FileActions, btn, btnPrimary, card, dateTime, downloadHref, fileKind, input, label, size, type WorkspaceApi } from './shared';
 
 export function JournalTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
   const [f, setF] = useState({ title: '', body: '' });
@@ -156,12 +156,14 @@ export function DocumentsTab({ p, api, internalIds = [] }: { p: PublicProject; a
             <ul className="divide-y divide-slate-100 dark:divide-slate-700">
               {docs.map((d) => (
                 <li key={d.id} className="flex items-center gap-3 py-2 text-sm">
-                  <FileText className="h-5 w-5 shrink-0 text-slate-400 sm:h-4 sm:w-4" />
-                  <a href={d.download_path} target="_blank" rel="noopener noreferrer" className="flex min-h-11 min-w-0 flex-1 flex-col justify-center sm:min-h-0 sm:flex-row sm:items-center sm:justify-start sm:gap-3">
+                  {(() => { const K = fileKind(d.name); return <span className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300"><K.icon className="h-4 w-4" /><span className="text-[8px] font-bold uppercase leading-none">{K.label}</span></span>; })()}
+                  {/* Le nom ouvre le fichier dans un nouvel onglet (PDF, images) ; les autres formats se téléchargent. */}
+                  <a href={fileKind(d.name).viewable ? d.download_path : downloadHref(d.download_path)} target={fileKind(d.name).viewable ? '_blank' : undefined} rel="noopener noreferrer" className="flex min-h-11 min-w-0 flex-1 flex-col justify-center sm:min-h-0 sm:flex-row sm:items-center sm:justify-start sm:gap-3">
                     <span className="truncate font-medium text-slate-900 hover:underline dark:text-white">{d.name}</span>
                     <span className="text-[11px] text-slate-500 sm:ml-auto sm:shrink-0">{size(d.size)} · {d.by} · {dateTime(d.at)}</span>
                   </a>
                   {internalSet.has(d.id) && <Badge>Équipe</Badge>}
+                  <FileActions url={d.download_path} name={d.name} />
                   {api.mode === 'team' && (
                     <button type="button" onClick={() => { if (confirm(`Supprimer « ${d.name} » ?`)) api.act('document.delete', { document_id: d.id }); }} className="flex h-10 w-10 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 sm:h-auto sm:w-auto sm:p-1" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button>
                   )}

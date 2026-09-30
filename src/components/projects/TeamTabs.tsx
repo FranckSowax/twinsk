@@ -7,14 +7,14 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { AlertTriangle, Camera, Check, ChevronLeft, ChevronRight, Copy, Download, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
 import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
-import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, input, label, type WorkspaceApi } from './shared';
+import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
 
 export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamExtras; api: WorkspaceApi }) {
   const [editing, setEditing] = useState<TeamExtras['suppliers'][number] | 'new' | null>(null);
@@ -601,7 +601,12 @@ export function ReportTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
               ))}
             </ul>
             <div className="mt-3 flex flex-wrap gap-2">
-              {r.download_path && <a href={r.download_path} target="_blank" rel="noopener noreferrer" className={btnPrimary}>Télécharger le rapport</a>}
+              {r.download_path && (
+                <>
+                  <a href={r.download_path} target="_blank" rel="noopener noreferrer" className={btnPrimary}><ExternalLink className="h-3.5 w-3.5" /> Ouvrir le rapport</a>
+                  <a href={downloadHref(r.download_path)} className={btn}><Download className="h-3.5 w-3.5" /> Télécharger</a>
+                </>
+              )}
               {api.mode === 'team' && (
                 <>
                   <AttachButton api={api} category="reports" label={r.download_path ? 'Remplacer le PDF' : 'Joindre le PDF du rapport'} accept="application/pdf" onAttached={async (a) => { const m = /\/documents\/([0-9a-f-]{36})$/i.exec(a[0]?.url || ''); if (m) await api.act('report.set', { phase: r.phase, file_id: m[1] }); }} />

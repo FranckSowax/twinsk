@@ -321,10 +321,15 @@ export async function storeDocument(projectId: string, file: { name: string; mim
   const kind: Attachment['kind'] = file.mime.startsWith('image/') ? 'image' : 'document';
   return { id: data.id as string, attachment: { name: safeName(file.name), url: `/api/projects/${projectId}/documents/${data.id}`, size: file.size, kind, by: actor.name, at: now() } };
 }
-export async function signedDocumentUrl(projectId: string, docId: string, opts: { allowInternal: boolean }): Promise<{ url: string; name: string } | null> {
+/**
+ * Lien signé (15 min) d'un document. Par défaut, ouverture dans le navigateur
+ * (PDF, images, texte affichés dans l'onglet) ; download = fichier enregistré
+ * sous son nom d'origine.
+ */
+export async function signedDocumentUrl(projectId: string, docId: string, opts: { allowInternal: boolean; download?: boolean }): Promise<{ url: string; name: string } | null> {
   const { data } = await supabaseAdmin.from('project_documents').select('storage_path, name, internal').eq('id', docId).eq('project_id', projectId).maybeSingle();
   if (!data || (data.internal && !opts.allowInternal)) return null;
-  const s = await supabaseAdmin.storage.from(PROJECT_BUCKET).createSignedUrl(data.storage_path, SIGNED_URL_SECONDS, { download: data.name });
+  const s = await supabaseAdmin.storage.from(PROJECT_BUCKET).createSignedUrl(data.storage_path, SIGNED_URL_SECONDS, opts.download ? { download: data.name } : undefined);
   if (s.error || !s.data?.signedUrl) return null;
   return { url: s.data.signedUrl, name: data.name };
 }
