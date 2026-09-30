@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { teamActor, unauthorized, errorResponse } from '@/lib/projects/auth';
 import { loadProject, markTeamSeen, updateProject } from '@/lib/projects/data';
-import { templateByKey } from '@/lib/projects/templates/dom-tom';
+import { toTeamView } from '@/lib/projects/public-server';
 
 // GET : projet complet (équipe : tout, fournisseurs réels et échanges compris).
 // PATCH : titre, description, client, statut.
@@ -15,8 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const bundle = await loadProject(id);
     if (!bundle) return NextResponse.json({ error: 'Projet introuvable' }, { status: 404 });
     await markTeamSeen(id);
-    const t = templateByKey(String((bundle.project as { template_key?: string }).template_key || ''));
-    return NextResponse.json({ ...bundle, template: t ? { key: t.key, business_trip: t.business_trip, lots: t.lots } : null });
+    return NextResponse.json({ project: toTeamView(bundle) });
   } catch (e) {
     return errorResponse(e);
   }

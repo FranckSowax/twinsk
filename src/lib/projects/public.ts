@@ -85,7 +85,8 @@ export interface RawForPublic {
   finalReports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; file_id: string | null }[];
 }
 
-export function projectPublicView(raw: RawForPublic, token: string): PublicProject {
+export function projectPublicView(raw: RawForPublic, token: string, opts: { docPath?: (docId: string) => string } = {}): PublicProject {
+  const docPath = opts.docPath || ((docId: string) => `/api/projects/public/${token}/documents/${docId}`);
   const phases = raw.project.phases;
   const aliasOf = new Map(raw.suppliers.map((s) => [s.id, s.alias]));
   const lineLike = raw.quoteLines.map((l) => ({ id: l.id, lot: l.lot, quantity: l.quantity, client_quantity: l.client_quantity, unit_price: l.unit_price, optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase }));
@@ -130,7 +131,7 @@ export function projectPublicView(raw: RawForPublic, token: string): PublicProje
       at: q.created_at,
       replies: raw.questionReplies.filter((r) => r.question_id === q.id).map((r) => ({ id: r.id, author: r.author, author_name: r.author_name, text: r.text, at: r.created_at })),
     })),
-    documents: raw.documents.map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, by: d.uploaded_by, at: d.created_at, download_path: `/api/projects/public/${token}/documents/${d.id}` })),
+    documents: raw.documents.map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, by: d.uploaded_by, at: d.created_at, download_path: docPath(d.id) })),
     quote: {
       totals,
       lines: raw.quoteLines.map((l, i) => ({
@@ -154,7 +155,7 @@ export function projectPublicView(raw: RawForPublic, token: string): PublicProje
     },
     orders: raw.orders.map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, lines: o.line_ids, total: o.total, at: o.created_at, updated_at: o.updated_at })),
     business_trip: { title: raw.template.business_trip.title, days: raw.template.business_trip.days.map((d) => ({ day: d.day, city: d.city, program: d.program })), interested_at: raw.project.business_trip_interested_at, quote_requested_at: raw.project.business_trip_quote_requested_at },
-    final_reports: raw.finalReports.map((r) => ({ phase: r.phase, checklist: r.checklist.map((c) => ({ id: c.id, label: c.label, done: c.done })), delivered_at: r.delivered_at, download_path: r.delivered_at && r.file_id ? `/api/projects/public/${token}/documents/${r.file_id}` : null })),
+    final_reports: raw.finalReports.map((r) => ({ phase: r.phase, checklist: r.checklist.map((c) => ({ id: c.id, label: c.label, done: c.done })), delivered_at: r.delivered_at, download_path: r.delivered_at && r.file_id ? docPath(r.file_id) : null })),
     suppliers: raw.suppliers.map((s) => ({ lot: s.lot, alias: s.alias, score: s.score })),
   };
 }
