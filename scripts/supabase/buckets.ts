@@ -15,6 +15,14 @@ export const BUCKETS: BucketSpec[] = [
     fileSizeLimit: 52_428_800, // 50 Mio
     allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4'],
   },
+  // Onglet « Projets » (30 sept. 2026) : plans, contrats, captures d'échanges
+  // avec les usines. PRIVÉ : servi par liens signés depuis les routes serveur.
+  {
+    id: 'project-files',
+    public: false,
+    fileSizeLimit: 26_214_400, // 25 Mio
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel', 'text/plain', 'message/rfc822'],
+  },
 ];
 
 /** Différences entre un bucket existant et la spécification (vide = conforme). */
