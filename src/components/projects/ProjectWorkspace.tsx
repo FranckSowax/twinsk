@@ -135,8 +135,8 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
     <div className="space-y-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-0">
       <div>
         <h1 className="font-display text-xl font-bold leading-tight text-slate-900 dark:text-white sm:text-2xl">{data.title}</h1>
-        {/* Vidéo de couverture : entre le titre et le statut, au-dessus de l'encart bleu */}
-        {(data.cover_video || mode === 'team') && <div className="mt-3"><CoverVideo cover={data.cover_video} baseUrl={loadUrl} api={api} /></div>}
+        {/* Vidéo de couverture : onglet Plan d'action seulement, entre le titre et le statut */}
+        {tab === 'plan' && (data.cover_video || mode === 'team') && <div className="mt-3"><CoverVideo cover={data.cover_video} baseUrl={loadUrl} api={api} /></div>}
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
           {data.status === 'closed' ? <Badge>Clôturé</Badge> : <Badge tone="emerald">En cours</Badge>}
           <span>{Math.round(data.progress.global * 100)} % réalisé</span>

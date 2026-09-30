@@ -1,12 +1,14 @@
 'use client';
 
-// Vidéo de couverture en tête de l'espace projet, sous le titre. Le client la
-// voit (lecture muette en boucle, contrôles pour le son et le plein écran) ;
-// l'équipe la dépose, la remplace ou la retire. Adresse stable (…/cover?v=
-// version) : le rechargement automatique de la page ne relance pas la vidéo.
+// Vidéo de couverture en tête de l'onglet « Plan d'action », sous le titre.
+// Lecture automatique muette en boucle ; pause dès qu'elle sort de l'écran
+// (ou que l'onglet du navigateur est masqué), reprise quand elle revient,
+// sauf si la personne l'a mise en pause. Deux boutons seulement : lecture /
+// pause et son. L'équipe la dépose, la remplace ou la retire. Adresse stable
+// (…/cover?v=version) : le rechargement automatique ne relance pas la vidéo.
 
-import { useRef, useState } from 'react';
-import { Film, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Film, Loader2, Pause, Play, RefreshCw, Trash2, Upload, Volume2, VolumeX } from 'lucide-react';
 import { checkCoverVideo } from '@/lib/projects/cover';
 import { btn, type WorkspaceApi } from './shared';
 
@@ -65,17 +67,7 @@ export function CoverVideo({ cover, baseUrl, api }: { cover: { version: string }
   return (
     <div className="space-y-2">
       {cover ? (
-        <video
-          key={cover.version}
-          src={`${baseUrl}/cover?v=${cover.version}`}
-          className="aspect-video w-full rounded-2xl bg-black object-cover shadow-sm"
-          autoPlay
-          muted
-          loop
-          playsInline
-          controls
-          preload="metadata"
-        />
+        <CoverPlayer key={cover.version} src={`${baseUrl}/cover?v=${cover.version}`} />
       ) : (
         <button type="button" disabled={busy} onClick={() => input.current?.click()} className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-emerald-400 hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400">
           <Film className="h-7 w-7" />
@@ -102,6 +94,79 @@ export function CoverVideo({ cover, baseUrl, api }: { cover: { version: string }
       )}
       {err && <p className="text-xs text-red-600" role="alert">{err}</p>}
       {picker}
+    </div>
+  );
+}
+
+/** Lecteur : autoplay muet, pause hors écran, boutons lecture / pause et son. */
+function CoverPlayer({ src }: { src: string }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const userPaused = useRef(false);
+  const visible = useRef(false);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    // Lecture seulement si visible, onglet du navigateur affiché, et pas mise en pause à la main.
+    const sync = () => {
+      if (visible.current && !document.hidden && !userPaused.current) v.play().catch(() => setPlaying(false));
+      else v.pause();
+    };
+    const io = new IntersectionObserver(([e]) => {
+      visible.current = e.isIntersecting && e.intersectionRatio >= 0.35;
+      sync();
+    }, { threshold: [0, 0.35, 0.7] });
+    io.observe(v);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      io.disconnect();
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, []);
+
+  const toggle = () => {
+    const v = video.current;
+    if (!v) return;
+    if (v.paused) {
+      userPaused.current = false;
+      v.play().catch(() => setPlaying(false));
+    } else {
+      userPaused.current = true;
+      v.pause();
+    }
+  };
+  const toggleMute = () => {
+    const v = video.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setMuted(v.muted);
+  };
+  const ctrl = 'flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition hover:bg-black/75 active:scale-95';
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-black shadow-sm">
+      <video
+        ref={video}
+        src={src}
+        className="aspect-video w-full object-cover"
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onClick={toggle}
+      />
+      <div className="absolute bottom-2.5 right-2.5 flex gap-2">
+        <button type="button" onClick={toggle} className={ctrl} aria-label={playing ? 'Mettre en pause' : 'Lire la vidéo'}>
+          {playing ? <Pause className="h-[18px] w-[18px]" fill="currentColor" /> : <Play className="h-[18px] w-[18px] translate-x-px" fill="currentColor" />}
+        </button>
+        <button type="button" onClick={toggleMute} className={ctrl} aria-label={muted ? 'Activer le son' : 'Couper le son'}>
+          {muted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}
+        </button>
+      </div>
     </div>
   );
 }
