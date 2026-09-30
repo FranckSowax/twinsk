@@ -131,7 +131,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
   const polluted = JSON.parse(JSON.stringify(raw)) as RawForPublic & Record<string, unknown>;
   (polluted.suppliers[0] as Record<string, unknown>).real_name = 'Shenzhen Turf Co';
   (polluted.suppliers[0] as Record<string, unknown>).contact = 'wechat:xxx';
-  Object.assign(polluted.suppliers[0] as Record<string, unknown>, { email: 'sales@turf.cn', whatsapp: '+8613800000000', wechat: 'turf_sales', contact_name: 'Lily', city: 'Leling', website: 'turf.cn', indicative_price: '4,8 USD/m²', internal_note: 'secret' });
+  Object.assign(polluted.suppliers[0] as Record<string, unknown>, { email: 'sales@turf.cn', whatsapp: '+8613800000000', wechat: 'turf_sales', contact_name: 'Lily', city: 'Leling', website: 'turf.cn', indicative_price: '4,8 USD/m²', internal_note: 'secret', watch_points: ['WhatsApp partagé avec une autre usine'] });
   (polluted as Record<string, unknown>).rfq = [{ short_zh: '您好' }];
   (polluted as Record<string, unknown>).rfq_sender = { name: 'Franck' };
   Object.assign(polluted.project as Record<string, unknown>, { cover_video_path: 'projet/cover-secret.mp4' });
@@ -157,7 +157,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     // Vidéo de couverture : une version pour l'adresse …/cover?v=, jamais le chemin de stockage.
     expect(view.cover_video).toEqual({ version: String(Date.parse('2026-09-30T12:00:00Z')) });
     expect(JSON.stringify(view)).not.toContain('cover-secret');
-    expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret/);
+    expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret|WhatsApp partagé/);
   });
   it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {
     expect(view.suppliers.map((s) => [s.alias, s.rank, s.status, s.score])).toEqual([['Fournisseur B', 1, 'selected', 18], ['Fournisseur A', 2, 'candidate', 20]]);

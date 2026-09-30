@@ -84,6 +84,8 @@ export interface ImportedSupplier {
   sample_status: SampleStatus | null;
   indicative_price: string | null;
   internal_note: string | null;
+  /** Risques signalés par le skill → points à surveiller (équipe seulement). */
+  watch_points: string[];
 }
 export interface SourcingImport {
   suppliers: ImportedSupplier[];
@@ -220,7 +222,8 @@ export function validateSourcingImport(raw: unknown, opts: { knownLots?: string[
       moq: opt(s.moq, 120),
       sample_status: SAMPLES.includes(sample) ? sample : null,
       indicative_price: priceText(s.indicative_price),
-      internal_note: [element || opt(s.element, 160) ? `Élément : ${opt(s.element, 160) || element}` : '', s.rank != null ? `Rang proposé : ${str(String(s.rank), 4)}` : '', justif.length ? `Notation — ${justif.join(' ; ')}` : '', risks.length ? `Risques : ${risks.join(' ; ')}` : '', sources.length ? `Sources : ${sources.join(' ')}` : '', opt(s.internal_note ?? s.notes, 600) || '']
+      watch_points: [...risks, ...(conf === 'low' ? ['Contact de confiance faible : à vérifier avant d’écrire'] : [])].slice(0, 12),
+      internal_note: [element || opt(s.element, 160) ? `Élément : ${opt(s.element, 160) || element}` : '', s.rank != null ? `Rang proposé : ${str(String(s.rank), 4)}` : '', justif.length ? `Notation — ${justif.join(' ; ')}` : '', sources.length ? `Sources : ${sources.join(' ')}` : '', opt(s.internal_note ?? s.notes, 600) || '']
         .filter(Boolean)
         .join('\n')
         .slice(0, 3000) || null,

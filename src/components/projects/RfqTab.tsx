@@ -99,7 +99,7 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
               <label className={label}>Usine destinataire</label>
               <select className={input} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 <option value="">— choisir (remplit [Factory] et [Contact]) —</option>
-                {suppliers.map((x) => <option key={x.id} value={x.id}>{x.alias} · {x.real_name || '(sans nom)'}{x.rank ? ` · #${x.rank}` : ''}{x.score != null ? ` · ${x.score}/25` : ''}</option>)}
+                {suppliers.map((x) => <option key={x.id} value={x.id}>{x.watch_points?.length ? '⚠ ' : ''}{x.alias} · {x.real_name || '(sans nom)'}{x.rank ? ` · #${x.rank}` : ''}{x.score != null ? ` · ${x.score}/25` : ''}</option>)}
               </select>
             </div>
             {s && (
@@ -112,6 +112,12 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
               </div>
             )}
           </div>
+          {s?.watch_points?.length ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+              <p className="font-semibold">⚠ Points à surveiller avant d’envoyer</p>
+              <ul className="mt-1 list-disc pl-4">{s.watch_points.map((w, i) => <li key={i}>{w}</li>)}</ul>
+            </div>
+          ) : null}
           {missing.length > 0 && <p className="text-[11px] text-amber-700">À compléter avant envoi : {missing.join(' ')}{!s ? ' — choisissez une usine' : ''}{!admin.rfq_sender.name ? ' — renseignez la signature' : ''}</p>}
           <Field title="E-mail RFQ — objet (EN)" value={f.email_subject_en} preview={subject} rows={1} onChange={(v) => setF({ ...f, email_subject_en: v })} />
           <Field title="E-mail RFQ — corps (EN)" value={f.email_body_en} preview={body} rows={14} onChange={(v) => setF({ ...f, email_body_en: v })} />

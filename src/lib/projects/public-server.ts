@@ -19,6 +19,8 @@ export interface TeamExtras {
     real_name: string | null; contact: string | null; contact_name: string | null; email: string | null; wechat: string | null; whatsapp: string | null; phone: string | null; website: string | null; preferred_channel: ContactChannel | null; contact_source: string | null;
     country: string | null; city: string | null; indicative_price: string | null; internal_note: string | null;
     description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; selected_at: string | null;
+    /** Points à surveiller (entité, contact, homonyme…) : équipe seulement. */
+    watch_points: string[];
   }[];
   /** Messages RFQ par lot (EN + ZH), modifiables, et signature de l'expéditeur. */
   rfq: RfqMessage[];
@@ -47,6 +49,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
       real_name: s.real_name, contact: s.contact, contact_name: s.contact_name, email: s.email, wechat: s.wechat, whatsapp: s.whatsapp, phone: s.phone, website: s.website, preferred_channel: s.preferred_channel, contact_source: s.contact_source,
       country: s.country, city: s.city, indicative_price: s.indicative_price, internal_note: s.internal_note,
       description: s.description, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience, capacity: s.capacity, lead_time: s.lead_time, moq: s.moq, sample_status: s.sample_status, selected_at: s.selected_at,
+      watch_points: s.watch_points || [],
     })),
     rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
     rfq_sender: pickSender(p.rfq_sender),

@@ -36,7 +36,8 @@ describe('import du résultat du skill de sourcing', () => {
     expect(t).toMatchObject({ status: 'shortlisted', preferred_channel: 'email', scores: { certifications: 4, tropical: 4, installation: 3, price: 5, transparency: 4 }, years_experience: 48, indicative_price: '4.8–5 USD/m² FOB', country: 'Chine', element: 'Gazon non-infill 30 mm' });
     expect(t.contact_source).toBe('https://www.taishanturf.com/contact — confiance high');
     expect(t.internal_note).toContain('Notation — certifications : ISO + SGS');
-    expect(t.internal_note).toContain('Risques : Gamme FIFA plus chère');
+    expect(t.watch_points).toEqual(['Gamme FIFA plus chère']);
+    expect(t.internal_note).not.toContain('Risques');
     expect(r.byLot).toEqual({ Gazon: 2, Drones: 1 });
   });
   it('fiche client protégée : description ou caractéristique identifiante retirée, avertissements', () => {

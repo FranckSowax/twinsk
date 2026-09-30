@@ -7,7 +7,7 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { Check, Copy, Download, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Download, Eye, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
@@ -44,12 +44,30 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
   const shown = admin.exchanges.filter((e) => !filter || e.supplier_id === filter);
   const name = (id: string | null) => (id ? admin.suppliers.find((s) => s.id === id) : null);
   const lots = [...new Set([...admin.lots, ...admin.suppliers.map((s) => s.lot)])].filter((l) => admin.suppliers.some((s) => s.lot === l));
+  const watched = admin.suppliers.filter((s) => s.watch_points?.length);
   const contactOf = (s: TeamExtras['suppliers'][number]) => [s.email, s.whatsapp && `WA ${s.whatsapp}`, s.wechat && `WeChat ${s.wechat}`, s.contact].filter(Boolean).join(' · ');
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
         <ShieldAlert className="mr-1 inline h-4 w-4" /> Tout ce qui figure ici (noms d’usines, contacts, prix d’achat, captures d’échanges) est réservé à l’équipe. Le client voit les alias « Fournisseur A, B… », le classement, le statut et la fiche produit — jamais l’identité.
       </div>
+
+      {watched.length > 0 && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 dark:border-amber-800 dark:bg-amber-950/30 sm:p-4">
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-900 dark:text-amber-100"><AlertTriangle className="h-4 w-4" /> Points à surveiller · {watched.length} usine{watched.length > 1 ? 's' : ''}</p>
+          <ul className="mt-2 space-y-1.5">
+            {watched.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => setEditing(s)} className="w-full rounded-xl bg-white/70 px-3 py-2 text-left text-sm hover:bg-white dark:bg-slate-900/50 dark:hover:bg-slate-900">
+                  <span className="font-semibold text-slate-900 dark:text-white">{s.real_name || s.alias}</span> <span className="text-xs text-slate-500">({s.alias} · {s.lot})</span>
+                  <ul className="mt-0.5 list-disc pl-4 text-xs text-amber-900 dark:text-amber-200">{s.watch_points.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-amber-800/80 dark:text-amber-200/70">À lever avant d’envoyer la demande de prix. Modifiables dans la fiche de l’usine ; jamais visibles du client.</p>
+        </div>
+      )}
 
       <div className={card}>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -77,7 +95,11 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                     <tr key={s.id} className={s.status === 'rejected' ? 'opacity-50' : ''}>
                       <td className="py-2 pr-2 tabular-nums text-slate-500">{s.rank}</td>
                       <td className="py-2 pr-2"><Badge tone="blue">{s.alias}</Badge></td>
-                      <td className="py-2 pr-2 font-medium">{s.real_name || '—'}{s.city || s.country ? <span className="text-xs font-normal text-slate-500"> · {[s.city, s.country].filter(Boolean).join(', ')}</span> : null}{s.indicative_price ? <span className="block text-[11px] font-normal text-slate-500">{s.indicative_price}</span> : null}</td>
+                      <td className="py-2 pr-2 font-medium">
+                        {s.watch_points?.length ? <span className="mr-1 inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-800" title={s.watch_points.join('\n')}><AlertTriangle className="h-3 w-3" />{s.watch_points.length}</span> : null}
+                        {s.real_name || '—'}{s.city || s.country ? <span className="text-xs font-normal text-slate-500"> · {[s.city, s.country].filter(Boolean).join(', ')}</span> : null}{s.indicative_price ? <span className="block text-[11px] font-normal text-slate-500">{s.indicative_price}</span> : null}
+                        {s.watch_points?.length ? <span className="block max-w-[22rem] truncate text-[11px] font-normal text-amber-700" title={s.watch_points.join('\n')}>⚠ {s.watch_points[0]}</span> : null}
+                      </td>
                       <td className="max-w-[14rem] truncate py-2 pr-2 text-xs text-slate-600" title={contactOf(s)}>{contactOf(s) || <span className="text-amber-600">à trouver</span>}</td>
                       <td className="py-2 text-right font-semibold tabular-nums">{s.score ?? '—'}</td>
                       <td className="py-2 pr-2">
@@ -214,6 +236,7 @@ type SupplierForm = {
   status: SupplierStatus; scores: Scores;
   description: string; specs: ProductSpec[]; certifications: string; years_experience: string; capacity: string; lead_time: string; moq: string; sample_status: string;
   internal_note: string;
+  watch: string;
 };
 function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['suppliers'][number] | null; lots: string[]; rfq: TeamExtras['rfq']; api: WorkspaceApi; onClose: () => void }) {
   const [f, setF] = useState<SupplierForm>({
@@ -222,6 +245,7 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
     status: s?.status || 'candidate', scores: { ...(s?.scores || {}) },
     description: s?.description || '', specs: [...(s?.product_specs || [])], certifications: (s?.certifications || []).join(', '), years_experience: s?.years_experience == null ? '' : String(s.years_experience), capacity: s?.capacity || '', lead_time: s?.lead_time || '', moq: s?.moq || '', sample_status: s?.sample_status || '',
     internal_note: s?.internal_note || '',
+    watch: (s?.watch_points || []).join('\n'),
   });
   const [tab, setTab] = useState<'identity' | 'card' | 'scores'>('identity');
   const [busy, setBusy] = useState(false);
@@ -259,6 +283,8 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
         status: f.status, scores: f.scores,
         description: f.description, product_specs: f.specs, certifications: f.certifications.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean), years_experience: f.years_experience === '' ? null : Number(f.years_experience), capacity: f.capacity, lead_time: f.lead_time, moq: f.moq, sample_status: f.sample_status || null,
         internal_note: f.internal_note,
+        // Envoyé seulement s'il a changé (le champ n'existe qu'après la migration du 30 sept.).
+        ...(f.watch !== (s?.watch_points || []).join('\n') ? { watch_points: f.watch.split('\n').map((x) => x.trim()).filter(Boolean) } : {}),
       });
       onClose();
     } catch (e) {
@@ -297,6 +323,7 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
               <div><label className={label}>Source du contact</label><input className={input} value={f.contact_source} onChange={(e) => set({ contact_source: e.target.value })} placeholder="Page contact du site, Alibaba…" /></div>
             </div>
           </div>
+          <div className="sm:col-span-2"><label className={`${label} text-amber-700`}>Points à surveiller (un par ligne, équipe seulement)</label><textarea className={`${input} border-amber-200 dark:border-amber-900`} rows={3} value={f.watch} onChange={(e) => set({ watch: e.target.value })} placeholder="Ex. entité à confirmer (négociant du Shandong, pas une usine du Henan)" /><p className="mt-1 text-[11px] text-slate-500">Vider un point quand il est levé.</p></div>
           <div className="sm:col-span-2"><label className={label}>Note interne</label><textarea className={input} rows={2} value={f.internal_note} onChange={(e) => set({ internal_note: e.target.value })} /></div>
         </div>
       )}

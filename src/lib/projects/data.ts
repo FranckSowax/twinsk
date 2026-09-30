@@ -397,6 +397,8 @@ export interface SupplierInput {
   lead_time?: string;
   moq?: string;
   sample_status?: SampleStatus | '' | null;
+  /** Points à surveiller (équipe seulement), un par entrée. */
+  watch_points?: string[];
 }
 const SUPPLIER_STATUSES: SupplierStatus[] = ['candidate', 'shortlisted', 'selected', 'rejected'];
 const CONTACT_CHANNELS: ContactChannel[] = ['email', 'wechat', 'whatsapp', 'alibaba', 'website', 'phone'];
@@ -428,6 +430,7 @@ function supplierRow(input: SupplierInput) {
     row.score = total ?? (input.score == null ? null : Math.min(25, Math.max(0, Number(input.score))));
   } else if (input.score !== undefined) row.score = input.score == null || !Number.isFinite(Number(input.score)) ? null : Math.min(25, Math.max(0, Number(input.score)));
   if (input.product_specs !== undefined) row.product_specs = (input.product_specs || []).map((x) => ({ label: String(x.label || '').trim().slice(0, 80), value: String(x.value || '').trim().slice(0, 300) })).filter((x) => x.label && x.value).slice(0, 30);
+  if (input.watch_points !== undefined) row.watch_points = (input.watch_points || []).map((x) => String(x).replace(/\s+/g, ' ').trim().slice(0, 400)).filter(Boolean).slice(0, 12);
   if (input.certifications !== undefined) row.certifications = (input.certifications || []).map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 20);
   if (input.years_experience !== undefined) row.years_experience = input.years_experience == null || !Number.isFinite(Number(input.years_experience)) ? null : Math.max(0, Math.round(Number(input.years_experience)));
   for (const k of Object.keys(row)) if (row[k] === undefined) delete row[k];

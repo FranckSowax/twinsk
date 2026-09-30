@@ -12,7 +12,7 @@ import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, ran
 import { rateOf, toBase, type Rates } from './fx';
 
 /** Champs qui ne doivent JAMAIS apparaître dans la sortie publique. */
-export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path'];
+export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path', 'watch_points'];
 
 export interface PublicProject {
   title: string;
