@@ -4,7 +4,7 @@
 // et la surface client (/projet/<jeton>) — appels, envoi de fichiers, badges,
 // fenêtre modale, pièces jointes, mise en forme.
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
 import type { Attachment } from '@/lib/projects/types';
 
@@ -49,10 +49,21 @@ export function Progress({ value, className = '' }: { value: number; className?:
 }
 
 export function Modal({ title, onClose, children, wide = false }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  // Échap ferme la fenêtre ; la page derrière ne défile pas tant qu'elle est ouverte.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
   return (
     // Mobile : feuille plein largeur depuis le bas, en-tête collant, marge de la barre d'accueil iOS.
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 sm:items-center sm:p-4" onClick={onClose}>
-      <div className={`max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-h-[90vh] sm:rounded-3xl ${wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl'}`} onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" className={`max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-h-[90vh] sm:rounded-3xl ${wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl'}`} onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-4 pb-3 pt-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:px-5 sm:pt-5">
           <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-slate-200 dark:bg-slate-700 sm:hidden" aria-hidden />
           <div className="min-w-0 pt-1 sm:pt-0">
