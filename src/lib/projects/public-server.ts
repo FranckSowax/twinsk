@@ -91,7 +91,7 @@ function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: st
       .filter((a): a is Attachment => !!a);
   const template = templateByKey(String(p.template_key || '')) || DOM_TOM_TEMPLATE;
   const raw: RawForPublic = {
-    project: { title: String(p.title), description: (p.description as string | null) ?? null, currency: String(p.currency), rates: cleanRates(p.rates, String(p.currency)), status: String(p.status), phases: (p.phases as RawForPublic['project']['phases']) || [], business_trip_interested_at: (p.business_trip_interested_at as string | null) ?? null, business_trip_quote_requested_at: (p.business_trip_quote_requested_at as string | null) ?? null },
+    project: { title: String(p.title), description: (p.description as string | null) ?? null, currency: String(p.currency), rates: cleanRates(p.rates, String(p.currency)), cover_video_at: p.cover_video_path ? ((p.cover_video_updated_at as string | null) ?? null) : null, status: String(p.status), phases: (p.phases as RawForPublic['project']['phases']) || [], business_trip_interested_at: (p.business_trip_interested_at as string | null) ?? null, business_trip_quote_requested_at: (p.business_trip_quote_requested_at as string | null) ?? null },
     template: { business_trip: template.business_trip },
     steps: (b.steps as RawForPublic['steps']).map((s) => ({ key: s.key, title: s.title, description: s.description, position: s.position })),
     tasks: (b.tasks as (RawForPublic['tasks'][number] & { attachments: Attachment[] })[]).map((t) => ({ id: t.id, step_key: t.step_key, title: t.title, description: t.description, owner: t.owner, phase: t.phase, due_at: t.due_at, status: t.status, checklist: t.checklist || [], attachments: pub(t.attachments) })),

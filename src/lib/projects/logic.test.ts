@@ -101,7 +101,7 @@ describe('journal : jours ouvrés', () => {
 describe('projection publique : aucun champ interdit ne sort', () => {
   const phases = initialPhases(DOM_TOM_TEMPLATE);
   const raw: RawForPublic = {
-    project: { title: 'PSG Academy DOM-TOM', description: 'd', currency: 'USD', rates: { CNY: 0.14 }, status: 'active', phases, business_trip_interested_at: null, business_trip_quote_requested_at: null },
+    project: { title: 'PSG Academy DOM-TOM', description: 'd', currency: 'USD', rates: { CNY: 0.14 }, cover_video_at: '2026-09-30T12:00:00Z', status: 'active', phases, business_trip_interested_at: null, business_trip_quote_requested_at: null },
     template: DOM_TOM_TEMPLATE,
     steps: [{ key: 's', title: 'S', description: '', position: 0 }],
     tasks: [{ id: 't1', step_key: 's', title: 'T', description: '', owner: 'client', phase: 'phase2', due_at: START, status: 'todo', checklist: [{ id: 'c', label: 'l', done: false }], attachments: [] }],
@@ -134,6 +134,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
   Object.assign(polluted.suppliers[0] as Record<string, unknown>, { email: 'sales@turf.cn', whatsapp: '+8613800000000', wechat: 'turf_sales', contact_name: 'Lily', city: 'Leling', website: 'turf.cn', indicative_price: '4,8 USD/m²', internal_note: 'secret' });
   (polluted as Record<string, unknown>).rfq = [{ short_zh: '您好' }];
   (polluted as Record<string, unknown>).rfq_sender = { name: 'Franck' };
+  Object.assign(polluted.project as Record<string, unknown>, { cover_video_path: 'projet/cover-secret.mp4' });
   (polluted.quoteLines[0] as Record<string, unknown>).unit_cost = 7;
   (polluted as Record<string, unknown>).exchanges = [{ note: 'secret' }];
   const view = projectPublicView(polluted, 'TOKEN');
@@ -153,6 +154,9 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     expect(l3).toMatchObject({ unit_price: null, entered_price: 8000, price_currency: 'EUR', rate_missing: true, total: null });
     expect(l4).toMatchObject({ unit_price: 75, total: 750, status: 'validated' });
     expect(view.rates).toEqual({ CNY: 0.14 });
+    // Vidéo de couverture : une version pour l'adresse …/cover?v=, jamais le chemin de stockage.
+    expect(view.cover_video).toEqual({ version: String(Date.parse('2026-09-30T12:00:00Z')) });
+    expect(JSON.stringify(view)).not.toContain('cover-secret');
     expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret/);
   });
   it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {

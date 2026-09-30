@@ -16,12 +16,14 @@ export const BUCKETS: BucketSpec[] = [
     allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4'],
   },
   // Onglet « Projets » (30 sept. 2026) : plans, contrats, captures d'échanges
-  // avec les usines. PRIVÉ : servi par liens signés depuis les routes serveur.
+  // avec les usines, vidéo de couverture (MP4/WebM). PRIVÉ : servi par liens
+  // signés depuis les routes serveur. 50 Mio = limite globale du projet
+  // Supabase ; les documents restent plafonnés à 25 Mo par l'application.
   {
     id: 'project-files',
     public: false,
-    fileSizeLimit: 26_214_400, // 25 Mio
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel', 'text/plain', 'message/rfc822'],
+    fileSizeLimit: 52_428_800, // 50 Mio
+    allowedMimeTypes: ['video/mp4', 'video/webm', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel', 'text/plain', 'message/rfc822'],
   },
 ];
 

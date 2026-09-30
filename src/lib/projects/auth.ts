@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/collab';
 import type { CollabRole } from '@/lib/collab-roles';
 import { projectsEnabled, resolveShare, ProjectError, type Actor } from './data';
+import { checkCoverVideo } from './cover';
+export { checkCoverVideo, VIDEO_MAX, VIDEO_TYPES } from './cover';
 
 export const PROJECT_ROLES: CollabRole[] = ['production', 'sourcing'];
 
@@ -39,4 +41,11 @@ export async function readUpload(file: File): Promise<{ name: string; mime: stri
   if (!DOC_TYPES.has(mime)) throw new ProjectError(`Type de fichier refusé (${mime}) : images, PDF, Word, Excel, texte ou e-mail .eml`);
   if (file.size > DOC_MAX) throw new ProjectError('Fichier trop lourd (25 Mo maximum)');
   return { name: file.name || 'fichier', mime, size: file.size, buffer: Buffer.from(await file.arrayBuffer()) };
+}
+
+export async function readCoverVideo(file: File): Promise<{ name: string; mime: string; size: number; buffer: Buffer }> {
+  const err = checkCoverVideo(file);
+  if (err) throw new ProjectError(err);
+  const mime = file.type || (/\.webm$/i.test(file.name) ? 'video/webm' : 'video/mp4');
+  return { name: file.name || 'couverture.mp4', mime, size: file.size, buffer: Buffer.from(await file.arrayBuffer()) };
 }

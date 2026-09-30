@@ -15,6 +15,7 @@ import { OrdersTab, QuoteTab } from './QuoteOrdersTab';
 import { AccessTab, ReportTab, SuppliersTab } from './TeamTabs';
 import { RfqTab } from './RfqTab';
 import { FactoryCards } from './FactoryCards';
+import { CoverVideo } from './CoverVideo';
 import { Badge, type Mode, type WorkspaceApi } from './shared';
 
 type Tab = 'plan' | 'journal' | 'questions' | 'documents' | 'quote' | 'orders' | 'factories' | 'suppliers' | 'rfq' | 'report' | 'access';
@@ -134,7 +135,9 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
     <div className="space-y-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-0">
       <div>
         <h1 className="font-display text-xl font-bold leading-tight text-slate-900 dark:text-white sm:text-2xl">{data.title}</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+        {/* Vidéo de couverture : entre le titre et le statut, au-dessus de l'encart bleu */}
+        {(data.cover_video || mode === 'team') && <div className="mt-3"><CoverVideo cover={data.cover_video} baseUrl={loadUrl} api={api} /></div>}
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
           {data.status === 'closed' ? <Badge>Clôturé</Badge> : <Badge tone="emerald">En cours</Badge>}
           <span>{Math.round(data.progress.global * 100)} % réalisé</span>
           <span>· devise {data.currency}</span>

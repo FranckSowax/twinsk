@@ -328,6 +328,36 @@ export async function signedDocumentUrl(projectId: string, docId: string, opts: 
   if (s.error || !s.data?.signedUrl) return null;
   return { url: s.data.signedUrl, name: data.name };
 }
+// ---- Vidéo de couverture (affichée en tête de l'espace client) ----
+export async function setCoverVideo(projectId: string, file: { name: string; mime: string; size: number; buffer: Buffer }, actor: Actor) {
+  const { data: p } = await supabaseAdmin.from('projects').select('cover_video_path').eq('id', projectId).maybeSingle();
+  if (!p) throw new ProjectError('Projet introuvable', 404);
+  const path = `${projectId}/cover-${randomUUID()}.${file.mime === 'video/webm' ? 'webm' : 'mp4'}`;
+  const up = await supabaseAdmin.storage.from(PROJECT_BUCKET).upload(path, file.buffer, { contentType: file.mime, cacheControl: '86400', upsert: false });
+  if (up.error) throw new ProjectError(/not found|bucket/i.test(up.error.message) ? 'Bucket « project-files » absent : lancer recreate-buckets.ts --apply' : /mime|type/i.test(up.error.message) ? 'Le bucket « project-files » n’accepte pas encore les vidéos : relancer recreate-buckets.ts --apply' : /size|large|exceed/i.test(up.error.message) ? 'Vidéo refusée par le stockage (taille) : relancer recreate-buckets.ts --apply ou compresser la vidéo' : `Envoi impossible : ${up.error.message}`, 500);
+  const { error } = await supabaseAdmin.from('projects').update({ cover_video_path: path, cover_video_mime: file.mime, cover_video_size: file.size, cover_video_updated_at: now(), updated_at: now() }).eq('id', projectId);
+  if (error) {
+    await supabaseAdmin.storage.from(PROJECT_BUCKET).remove([path]);
+    fail(error, 'Vidéo de couverture');
+  }
+  if (p.cover_video_path) await supabaseAdmin.storage.from(PROJECT_BUCKET).remove([p.cover_video_path]);
+  await logEvent(projectId, { type: 'cover.updated', actor, detail: `${safeName(file.name)} · ${Math.round(file.size / 104857.6) / 10} Mo` });
+}
+export async function removeCoverVideo(projectId: string, actor: Actor) {
+  const { data: p } = await supabaseAdmin.from('projects').select('cover_video_path').eq('id', projectId).maybeSingle();
+  if (!p?.cover_video_path) return;
+  const { error } = await supabaseAdmin.from('projects').update({ cover_video_path: null, cover_video_mime: null, cover_video_size: null, cover_video_updated_at: now(), updated_at: now() }).eq('id', projectId);
+  if (error) fail(error, 'Vidéo de couverture');
+  await supabaseAdmin.storage.from(PROJECT_BUCKET).remove([p.cover_video_path]);
+  await logEvent(projectId, { type: 'cover.removed', actor });
+}
+/** Lien signé (1 h, lecture en ligne) : assez long pour les requêtes de plage pendant la lecture. */
+export async function signedCoverUrl(projectId: string): Promise<string | null> {
+  const { data: p } = await supabaseAdmin.from('projects').select('cover_video_path').eq('id', projectId).maybeSingle();
+  if (!p?.cover_video_path) return null;
+  const s = await supabaseAdmin.storage.from(PROJECT_BUCKET).createSignedUrl(p.cover_video_path, 3600);
+  return s.error || !s.data?.signedUrl ? null : s.data.signedUrl;
+}
 export async function deleteDocument(projectId: string, docId: string, actor: Actor) {
   const { data } = await supabaseAdmin.from('project_documents').select('storage_path, name').eq('id', docId).eq('project_id', projectId).maybeSingle();
   if (!data) throw new ProjectError('Document introuvable', 404);

@@ -12,7 +12,7 @@ import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, ran
 import { rateOf, toBase, type Rates } from './fx';
 
 /** Champs qui ne doivent JAMAIS apparaître dans la sortie publique. */
-export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh'];
+export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path'];
 
 export interface PublicProject {
   title: string;
@@ -20,6 +20,8 @@ export interface PublicProject {
   currency: string;
   status: string;
   disclaimer: string;
+  /** Vidéo de couverture : version (date de mise à jour) pour l'adresse …/cover?v= ; jamais le chemin de stockage. */
+  cover_video: { version: string } | null;
   phases: { id: string; name: string; order: number; sites: string[]; received: boolean; locked: boolean }[];
   progress: { global: number; bySteps: Record<string, number> };
   steps: { key: string; title: string; description: string; position: number }[];
@@ -94,7 +96,7 @@ export interface PublicProject {
 
 /** Entrées brutes (lues par le serveur) : seuls les champs nommés ci-dessous sont copiés. */
 export interface RawForPublic {
-  project: { title: string; description: string | null; currency: string; rates: Rates; status: string; phases: Phase[]; business_trip_interested_at: string | null; business_trip_quote_requested_at: string | null };
+  project: { title: string; description: string | null; currency: string; rates: Rates; cover_video_at: string | null; status: string; phases: Phase[]; business_trip_interested_at: string | null; business_trip_quote_requested_at: string | null };
   template: { business_trip: { title: string; days: { day: number; city: string; program: string }[] } };
   steps: { key: string; title: string; description: string; position: number }[];
   tasks: { id: string; step_key: string; title: string; description: string; owner: TaskOwner; phase: string | null; due_at: string; status: TaskStatus; checklist: ChecklistItem[]; attachments: Attachment[] }[];
@@ -127,6 +129,7 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
     rates,
     status: raw.project.status,
     disclaimer: CLIENT_DISCLAIMER,
+    cover_video: raw.project.cover_video_at ? { version: String(new Date(raw.project.cover_video_at).getTime()) } : null,
     phases: [...phases].sort((a, b) => a.order - b.order).map((p) => ({ id: p.id, name: p.name, order: p.order, sites: p.sites, received: !!p.received_at, locked: isPhaseLocked(phases, p.id) })),
     progress: progress(raw.tasks.map((t) => ({ step_key: t.step_key, status: t.status }))),
     steps: raw.steps.map((s) => ({ key: s.key, title: s.title, description: s.description, position: s.position })),
