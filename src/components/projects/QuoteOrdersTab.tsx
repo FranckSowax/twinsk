@@ -8,6 +8,7 @@ import { CheckCircle2, Pencil, Plus, ShoppingCart, Trash2, Undo2 } from 'lucide-
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { groupByLot, nextOrderStatus, orderStatusLabel } from '@/lib/projects/logic';
+import { CURRENCY_LABELS, currenciesNeeded, defaultRate, missingRates, PROJECT_CURRENCIES } from '@/lib/projects/fx';
 import { ORDER_STEPS } from '@/lib/projects/types';
 import { Badge, Empty, Modal, btn, btnPrimary, card, dateTime, input, label, money, type WorkspaceApi } from './shared';
 
@@ -27,8 +28,12 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
     }
   };
   const validated = p.quote.lines.filter((l) => l.status === 'validated');
+  const fmtEntered = (n: number, c: string) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: c, maximumFractionDigits: 2 }).format(n);
+  const missing = missingRates(p.quote.lines, cur, p.rates);
   return (
     <div className="space-y-4">
+      {api.mode === 'team' && admin && <FxCard p={p} admin={admin} api={api} />}
+      {missing.length > 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Taux manquant pour {missing.join(', ')} : {api.mode === 'team' ? 'renseignez-le dans « Devises et taux » pour que ces lignes soient chiffrées.' : 'ces lignes seront chiffrées dès que l’équipe aura renseigné le taux.'}</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi label="Validé ou commandé" value={money(p.quote.totals.committed, cur)} tone="emerald" />
         <Kpi label="En attente de validation" value={money(p.quote.totals.pending, cur)} tone="amber" />
@@ -65,7 +70,7 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
                           {l.optional && <Badge tone="violet">Option</Badge>}
                           {l.phase && <span>{p.phases.find((x) => x.id === l.phase)?.name}</span>}
                           {l.supplier_alias && <span>· {l.supplier_alias}</span>}
-                          {admin?.line_costs[l.id]?.unit_cost != null && <span className="text-slate-400">· achat {money(admin.line_costs[l.id].unit_cost, cur)}</span>}
+                          {admin?.line_costs[l.id]?.unit_cost_entered != null && <span className="text-slate-400">· achat {fmtEntered(admin.line_costs[l.id].unit_cost_entered!, admin.line_costs[l.id].cost_currency)}{admin.line_costs[l.id].cost_currency !== cur ? (admin.line_costs[l.id].unit_cost != null ? ` ≈ ${money(admin.line_costs[l.id].unit_cost, cur)}` : ' (taux manquant)') : ''}{admin.line_costs[l.id].unit_cost != null && l.unit_price != null && l.unit_price > 0 ? ` · marge ${Math.round(((l.unit_price - admin.line_costs[l.id].unit_cost!) / l.unit_price) * 100)} %` : ''}</span>}
                           {l.locked && <Badge>Phase verrouillée</Badge>}
                         </p>
                         {l.optional && draft && (
@@ -83,7 +88,10 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
                         )}
                         {l.client_quantity != null && l.client_quantity !== l.quantity && <p className="text-[10px] text-slate-400">proposé : {l.quantity}</p>}
                       </td>
-                      <td className="py-2 text-right tabular-nums">{money(l.unit_price, cur)}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        {money(l.unit_price, cur)}
+                        {l.entered_price != null && l.price_currency !== cur && <p className="text-[10px] text-slate-400">{fmtEntered(l.entered_price, l.price_currency)}{l.rate_missing ? ' · taux manquant' : ''}</p>}
+                      </td>
                       <td className="py-2 text-right font-semibold tabular-nums">{money(l.total, cur)}</td>
                       <td className="py-2">
                         {l.status === 'ordered' ? <Badge tone="violet">Commandée</Badge> : l.status === 'validated' ? <Badge tone="emerald">Validée {l.validated_at ? dateTime(l.validated_at) : ''}</Badge> : <Badge tone="amber">À valider</Badge>}
@@ -121,9 +129,84 @@ function Kpi({ label: l, value, sub, tone = 'slate' }: { label: string; value: s
   );
 }
 
+/** Devise principale et taux « 1 devise = X devise principale » (équipe). */
+function FxCard({ p, admin, api }: { p: PublicProject; admin: TeamExtras; api: WorkspaceApi }) {
+  const cur = p.currency;
+  const needed = currenciesNeeded([...p.quote.lines, ...Object.values(admin.line_costs)], cur);
+  const [rates, setRates] = useState<Record<string, string>>(() => Object.fromEntries([...new Set([...needed, ...Object.keys(p.rates)])].map((c) => [c, p.rates[c] != null ? String(p.rates[c]) : ''])));
+  const [seen, setSeen] = useState(JSON.stringify(p.rates));
+  if (seen !== JSON.stringify(p.rates)) {
+    setSeen(JSON.stringify(p.rates));
+    setRates(Object.fromEntries([...new Set([...needed, ...Object.keys(p.rates)])].map((c) => [c, p.rates[c] != null ? String(p.rates[c]) : ''])));
+  }
+  const [extra, setExtra] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState(needed.some((c) => p.rates[c] == null));
+  const locked = p.quote.lines.some((l) => l.status !== 'draft');
+  const save = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await api.act('fx.rates', { rates: Object.fromEntries(Object.entries(rates).filter(([, v]) => v !== '').map(([c, v]) => [c, Number(v)])) });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const list = Object.keys(rates);
+  return (
+    <div className={card}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-display text-base font-bold text-slate-900 dark:text-white">Devises et taux</p>
+          <p className="text-xs text-slate-500">Devise principale : <b>{cur}</b>{list.length ? ` · ${list.filter((c) => rates[c]).map((c) => `1 ${c} = ${rates[c]} ${cur}`).join(' · ')}` : ' · aucun taux'}</p>
+        </div>
+        <button type="button" onClick={() => setOpen((o) => !o)} className={btn}>{open ? 'Replier' : 'Modifier'}</button>
+      </div>
+      {open && (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className={label}>Devise principale (affichée au client)</label>
+              <select className={input} value={cur} disabled={locked || busy} onChange={async (e) => { if (!confirm(`Passer le devis en ${e.target.value} ? Les prix saisis gardent leur devise ; les taux sont recalculés.`)) return; setBusy(true); setErr(''); try { await api.act('fx.currency', { currency: e.target.value }); } catch (x) { setErr(x instanceof Error ? x.message : 'Erreur'); } finally { setBusy(false); } }}>
+                {PROJECT_CURRENCIES.map((c) => <option key={c} value={c}>{c} — {CURRENCY_LABELS[c]}</option>)}
+              </select>
+              {locked && <p className="mt-1 text-[10px] text-slate-500">Figée : des lignes sont validées ou commandées.</p>}
+            </div>
+            {list.map((c) => (
+              <div key={c}>
+                <label className={label}>1 {c} =</label>
+                <div className="flex items-center gap-1">
+                  <input type="number" step="any" min={0} className={`${input} w-32`} value={rates[c]} placeholder={String(defaultRate(c, cur) ?? '')} onChange={(e) => setRates({ ...rates, [c]: e.target.value })} />
+                  <span className="text-xs text-slate-500">{cur}</span>
+                  {!needed.includes(c) && <button type="button" onClick={() => { const r = { ...rates }; delete r[c]; setRates(r); }} className={btn} aria-label="Retirer">×</button>}
+                </div>
+                {!rates[c] && defaultRate(c, cur) != null && <button type="button" className="mt-1 text-[10px] text-emerald-700 underline" onClick={() => setRates({ ...rates, [c]: String(defaultRate(c, cur)) })}>taux indicatif {defaultRate(c, cur)}</button>}
+              </div>
+            ))}
+            <div>
+              <label className={label}>Ajouter une devise</label>
+              <div className="flex items-center gap-1">
+                <select className={input} value={extra} onChange={(e) => setExtra(e.target.value)}><option value="">—</option>{PROJECT_CURRENCIES.filter((c) => c !== cur && !list.includes(c)).map((c) => <option key={c} value={c}>{c}</option>)}</select>
+                <button type="button" disabled={!extra} onClick={() => { setRates({ ...rates, [extra]: '' }); setExtra(''); }} className={btn}><Plus className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500">Les taux s’appliquent aux lignes en brouillon ; une ligne validée garde le taux du jour de sa validation. Les taux indicatifs sont des repères : saisissez le taux du jour ou celui négocié.</p>
+          {err && <p className="text-xs text-red-600">{err}</p>}
+          <button type="button" disabled={busy} onClick={save} className={btnPrimary}>Enregistrer les taux</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LineModal({ line, p, admin, api, onClose }: { line: Line | null; p: PublicProject; admin: TeamExtras; api: WorkspaceApi; onClose: () => void }) {
   const cost = line ? admin.line_costs[line.id] : null;
-  const [f, setF] = useState({ lot: line?.lot || admin.lots[0] || '', label: line?.label || '', unit: line?.unit || 'pièce', quantity: String(line?.quantity ?? 1), unit_price: line?.unit_price == null ? '' : String(line.unit_price), unit_cost: cost?.unit_cost == null ? '' : String(cost.unit_cost), optional: !!line?.optional, phase: line?.phase || '', supplier_id: cost?.supplier_id || '' });
+  const [f, setF] = useState({ lot: line?.lot || admin.lots[0] || '', label: line?.label || '', unit: line?.unit || 'pièce', quantity: String(line?.quantity ?? 1), unit_price: line?.entered_price == null ? '' : String(line.entered_price), price_currency: line?.price_currency || p.currency, unit_cost: cost?.unit_cost_entered == null ? '' : String(cost.unit_cost_entered), cost_currency: cost?.cost_currency || p.currency, optional: !!line?.optional, phase: line?.phase || '', supplier_id: cost?.supplier_id || '' });
+  const curSel = (k: 'price_currency' | 'cost_currency') => <select className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs dark:border-slate-600 dark:bg-slate-900" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })}>{[...new Set([...PROJECT_CURRENCIES, f[k]])].map((c) => <option key={c} value={c}>{c}</option>)}</select>;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   return (
@@ -133,14 +216,14 @@ function LineModal({ line, p, admin, api, onClose }: { line: Line | null; p: Pub
         <div><label className={label}>Unité</label><input className={input} value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} /></div>
         <div className="sm:col-span-2"><label className={label}>Désignation</label><input className={input} value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} /></div>
         <div><label className={label}>Quantité proposée</label><input type="number" className={input} value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} /></div>
-        <div><label className={label}>Prix de vente unitaire ({p.currency})</label><input type="number" className={input} value={f.unit_price} onChange={(e) => setF({ ...f, unit_price: e.target.value })} /></div>
-        <div><label className={label}>Prix d’achat unitaire (jamais montré au client)</label><input type="number" className={input} value={f.unit_cost} onChange={(e) => setF({ ...f, unit_cost: e.target.value })} /></div>
+        <div><label className={label}>Prix de vente unitaire</label><div className="flex items-center gap-1"><input type="number" step="any" className={input} value={f.unit_price} onChange={(e) => setF({ ...f, unit_price: e.target.value })} />{curSel('price_currency')}</div>{f.price_currency !== p.currency && <p className="mt-1 text-[10px] text-slate-500">Converti en {p.currency} au taux du projet ; figé à la validation.</p>}</div>
+        <div><label className={label}>Prix d’achat unitaire (jamais montré au client)</label><div className="flex items-center gap-1"><input type="number" step="any" className={input} value={f.unit_cost} onChange={(e) => setF({ ...f, unit_cost: e.target.value })} />{curSel('cost_currency')}</div></div>
         <div><label className={label}>Fournisseur pressenti</label><select className={input} value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })}><option value="">—</option>{admin.suppliers.map((s) => <option key={s.id} value={s.id}>{s.alias} · {s.lot}{s.real_name ? ` (${s.real_name})` : ''}</option>)}</select></div>
         <div><label className={label}>Phase</label><select className={input} value={f.phase} onChange={(e) => setF({ ...f, phase: e.target.value })}><option value="">Commune</option>{p.phases.map((ph) => <option key={ph.id} value={ph.id}>{ph.name}</option>)}</select></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.optional} onChange={(e) => setF({ ...f, optional: e.target.checked })} /> Ligne optionnelle (le client l’active)</label>
       </div>
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      <button type="button" disabled={busy || !f.label.trim() || !f.lot.trim()} onClick={async () => { setBusy(true); setErr(''); try { await api.act('quote.upsert', { id: line?.id, lot: f.lot, label: f.label, unit: f.unit, quantity: Number(f.quantity), unit_price: f.unit_price === '' ? null : Number(f.unit_price), unit_cost: f.unit_cost === '' ? null : Number(f.unit_cost), optional: f.optional, phase: f.phase || null, supplier_id: f.supplier_id || null }); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>Enregistrer</button>
+      <button type="button" disabled={busy || !f.label.trim() || !f.lot.trim()} onClick={async () => { setBusy(true); setErr(''); try { await api.act('quote.upsert', { id: line?.id, lot: f.lot, label: f.label, unit: f.unit, quantity: Number(f.quantity), unit_price: f.unit_price === '' ? null : Number(f.unit_price), price_currency: f.price_currency, unit_cost: f.unit_cost === '' ? null : Number(f.unit_cost), cost_currency: f.cost_currency, optional: f.optional, phase: f.phase || null, supplier_id: f.supplier_id || null }); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>Enregistrer</button>
     </Modal>
   );
 }

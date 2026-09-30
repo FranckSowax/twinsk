@@ -13,7 +13,7 @@ export const DOM_TOM_TEMPLATE: ProjectTemplate = {
   title: 'Programme DOM-TOM — complexes sportifs',
   description:
     'Construction de complexes sportifs (foot five en gazon synthétique, padel, conteneurs bar/snacking, options couverture textile et mini-tribunes) en Martinique, Guadeloupe, Guyane et à La Réunion. Sourcing en Chine, transport maritime, installation supervisée.',
-  currency: 'EUR',
+  currency: 'USD',
   phases: [
     { id: P1, name: 'Phase 1 — Martinique et Guadeloupe', order: 1, sites: ['Martinique', 'Guadeloupe'] },
     { id: P2, name: 'Phase 2 — Guyane et La Réunion', order: 2, sites: ['Guyane', 'La Réunion'] },

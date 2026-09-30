@@ -9,9 +9,10 @@
 import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, ProductSpec, QuestionStatus, QuoteLineStatus, SampleStatus, Scores, SupplierStatus, TaskOwner, TaskStatus } from './types';
 import { CLIENT_DISCLAIMER } from './types';
 import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, rankSuppliers } from './logic';
+import { rateOf, toBase, type Rates } from './fx';
 
 /** Champs qui ne doivent JAMAIS apparaître dans la sortie publique. */
-export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq', 'rfq_sender', 'email_body_en', 'short_zh'];
+export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh'];
 
 export interface PublicProject {
   title: string;
@@ -39,6 +40,8 @@ export interface PublicProject {
   updates: { id: string; title: string; body: string; attachments: Attachment[]; at: string; comments: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
   questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; at: string; replies: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; by: string; at: string; download_path: string }[];
+  /** Taux « 1 devise = X devise principale » appliqués aux lignes saisies dans une autre devise. */
+  rates: Rates;
   quote: {
     totals: { committed: number; pending: number; estimated: number; unpriced: number };
     lines: {
@@ -49,7 +52,12 @@ export interface PublicProject {
       quantity: number;
       client_quantity: number | null;
       effective_quantity: number;
+      /** Prix unitaire dans la devise principale (converti) ; null si non chiffré ou taux manquant. */
       unit_price: number | null;
+      /** Montant tel que saisi et sa devise (affiché quand elle diffère de la devise principale). */
+      entered_price: number | null;
+      price_currency: string;
+      rate_missing: boolean;
       total: number | null;
       optional: boolean;
       enabled: boolean;
@@ -86,7 +94,7 @@ export interface PublicProject {
 
 /** Entrées brutes (lues par le serveur) : seuls les champs nommés ci-dessous sont copiés. */
 export interface RawForPublic {
-  project: { title: string; description: string | null; currency: string; status: string; phases: Phase[]; business_trip_interested_at: string | null; business_trip_quote_requested_at: string | null };
+  project: { title: string; description: string | null; currency: string; rates: Rates; status: string; phases: Phase[]; business_trip_interested_at: string | null; business_trip_quote_requested_at: string | null };
   template: { business_trip: { title: string; days: { day: number; city: string; program: string }[] } };
   steps: { key: string; title: string; description: string; position: number }[];
   tasks: { id: string; step_key: string; title: string; description: string; owner: TaskOwner; phase: string | null; due_at: string; status: TaskStatus; checklist: ChecklistItem[]; attachments: Attachment[] }[];
@@ -96,7 +104,7 @@ export interface RawForPublic {
   questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; created_at: string }[];
   questionReplies: { id: string; question_id: string; author: 'team' | 'client'; author_name: string; text: string; created_at: string }[];
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; uploaded_by: string; created_at: string }[];
-  quoteLines: { id: string; lot: string; label: string; unit: string; quantity: number; client_quantity: number | null; unit_price: number | null; optional: boolean; enabled: boolean; status: QuoteLineStatus; phase: string | null; validated_at: string | null; supplier_id: string | null }[];
+  quoteLines: { id: string; lot: string; label: string; unit: string; quantity: number; client_quantity: number | null; unit_price: number | null; price_currency: string | null; validated_snapshot: { unit_price: number | null; total: number | null } | null; optional: boolean; enabled: boolean; status: QuoteLineStatus; phase: string | null; validated_at: string | null; supplier_id: string | null }[];
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; line_ids: string[]; total: number; created_at: string; updated_at: string }[];
   suppliers: { id: string; lot: string; alias: string; status: SupplierStatus; scores: Scores; score: number | null; description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; country: string | null }[];
   finalReports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; file_id: string | null }[];
@@ -106,12 +114,17 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
   const docPath = opts.docPath || ((docId: string) => `/api/projects/public/${token}/documents/${docId}`);
   const phases = raw.project.phases;
   const aliasOf = new Map(raw.suppliers.map((s) => [s.id, s.alias]));
-  const lineLike = raw.quoteLines.map((l) => ({ id: l.id, lot: l.lot, quantity: l.quantity, client_quantity: l.client_quantity, unit_price: l.unit_price, optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase }));
+  const base = raw.project.currency;
+  const rates = raw.project.rates || {};
+  // Prix dans la devise principale : figé par l'instantané une fois validé, sinon converti au taux du jour.
+  const basePrice = (l: RawForPublic['quoteLines'][number]) => (l.status !== 'draft' && l.validated_snapshot ? l.validated_snapshot.unit_price : toBase(l.unit_price, l.price_currency, base, rates));
+  const lineLike = raw.quoteLines.map((l) => ({ id: l.id, lot: l.lot, quantity: l.quantity, client_quantity: l.client_quantity, unit_price: basePrice(l), optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase }));
   const totals = quoteTotals(lineLike);
   return {
     title: raw.project.title,
     description: raw.project.description,
     currency: raw.project.currency,
+    rates,
     status: raw.project.status,
     disclaimer: CLIENT_DISCLAIMER,
     phases: [...phases].sort((a, b) => a.order - b.order).map((p) => ({ id: p.id, name: p.name, order: p.order, sites: p.sites, received: !!p.received_at, locked: isPhaseLocked(phases, p.id) })),
@@ -159,7 +172,10 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
         quantity: l.quantity,
         client_quantity: l.client_quantity,
         effective_quantity: effectiveQuantity(l),
-        unit_price: l.unit_price,
+        unit_price: lineLike[i].unit_price,
+        entered_price: l.unit_price,
+        price_currency: (l.price_currency || base).toUpperCase(),
+        rate_missing: l.unit_price != null && lineLike[i].unit_price == null && rateOf(l.price_currency, base, rates) == null,
         total: lineTotal(lineLike[i]),
         optional: l.optional,
         enabled: l.enabled,

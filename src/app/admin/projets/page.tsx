@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FolderKanban, Loader2, Plus, Sparkles } from 'lucide-react';
 import { Badge, Modal, Progress, btnPrimary, card, dateShort, input, label } from '@/components/projects/shared';
+import { CURRENCY_LABELS, PROJECT_CURRENCIES } from '@/lib/projects/fx';
 
 interface Row { id: string; title: string; client_name: string | null; client_company: string | null; currency: string; status: string; started_at: string; tasks_total: number; tasks_done: number; open_questions: number; pending_team: number; updated_at: string }
 interface Template { key: string; title: string; description: string; currency: string }
@@ -69,7 +70,7 @@ export default function ProjectsPage() {
 interface Generated { title: string; description: string; phases: { name: string; sites: string[] }[]; steps: { title: string; tasks: { title: string }[] }[]; quote_lines: { label: string }[]; lots: string[] }
 
 function NewProjectModal({ templates, onClose, onCreated }: { templates: Template[]; onClose: () => void; onCreated: () => Promise<void> }) {
-  const [f, setF] = useState({ template_key: templates[0]?.key || 'dom-tom', title: '', client_name: '', client_company: '', client_phone: '', client_email: '', started_at: new Date().toISOString().slice(0, 10) });
+  const [f, setF] = useState({ template_key: templates[0]?.key || 'dom-tom', title: '', currency: 'USD', client_name: '', client_company: '', client_phone: '', client_email: '', started_at: new Date().toISOString().slice(0, 10) });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // Source du plan : un modèle prêt, ou un brief libre analysé par l'IA (Kimi via OpenRouter).
@@ -84,7 +85,7 @@ function NewProjectModal({ templates, onClose, onCreated }: { templates: Templat
     setErr('');
     setGenerated(null);
     try {
-      const r = await fetch('/api/projects/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'plan', brief, currency: 'EUR' }) });
+      const r = await fetch('/api/projects/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'plan', brief, currency: f.currency }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Génération impossible');
       setGenerated(d.template);
@@ -130,10 +131,11 @@ function NewProjectModal({ templates, onClose, onCreated }: { templates: Templat
         <div><label className={label}>Contact client</label><input className={input} value={f.client_name} onChange={(e) => setF({ ...f, client_name: e.target.value })} /></div>
         <div><label className={label}>WhatsApp du client (notifications)</label><input className={input} placeholder="+596…" value={f.client_phone} onChange={(e) => setF({ ...f, client_phone: e.target.value })} /></div>
         <div><label className={label}>E-mail</label><input className={input} value={f.client_email} onChange={(e) => setF({ ...f, client_email: e.target.value })} /></div>
+        <div><label className={label}>Devise principale du devis</label><select className={input} value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })}>{PROJECT_CURRENCIES.map((c) => <option key={c} value={c}>{c} — {CURRENCY_LABELS[c]}</option>)}</select><p className="mt-1 text-[10px] text-slate-500">Les prix restent saisis dans leur devise (yuan, dollar, euro) et sont convertis avec les taux du projet.</p></div>
         <div><label className={label}>Date de lancement (échéances calculées depuis)</label><input type="date" className={input} value={f.started_at} onChange={(e) => setF({ ...f, started_at: e.target.value })} /></div>
       </div>
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      <button type="button" disabled={busy || (source === 'brief' && !generated)} onClick={async () => { setBusy(true); setErr(''); try { const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, started_at: new Date(f.started_at).toISOString(), ...(source === 'brief' ? { generated, currency: 'EUR' } : {}) }) }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Création impossible'); await onCreated(); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {source === 'brief' ? 'Créer ce projet' : 'Créer depuis le modèle'}</button>
+      <button type="button" disabled={busy || (source === 'brief' && !generated)} onClick={async () => { setBusy(true); setErr(''); try { const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, started_at: new Date(f.started_at).toISOString(), ...(source === 'brief' ? { generated } : {}) }) }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Création impossible'); await onCreated(); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {source === 'brief' ? 'Créer ce projet' : 'Créer depuis le modèle'}</button>
     </Modal>
   );
 }

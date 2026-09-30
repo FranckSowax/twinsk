@@ -101,7 +101,7 @@ describe('journal : jours ouvrés', () => {
 describe('projection publique : aucun champ interdit ne sort', () => {
   const phases = initialPhases(DOM_TOM_TEMPLATE);
   const raw: RawForPublic = {
-    project: { title: 'PSG Academy DOM-TOM', description: 'd', currency: 'EUR', status: 'active', phases, business_trip_interested_at: null, business_trip_quote_requested_at: null },
+    project: { title: 'PSG Academy DOM-TOM', description: 'd', currency: 'USD', rates: { CNY: 0.14 }, status: 'active', phases, business_trip_interested_at: null, business_trip_quote_requested_at: null },
     template: DOM_TOM_TEMPLATE,
     steps: [{ key: 's', title: 'S', description: '', position: 0 }],
     tasks: [{ id: 't1', step_key: 's', title: 'T', description: '', owner: 'client', phase: 'phase2', due_at: START, status: 'todo', checklist: [{ id: 'c', label: 'l', done: false }], attachments: [] }],
@@ -111,7 +111,15 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     questions: [{ id: 'q', subject: 'S', detail: 'D', attachment: null, status: 'open', created_at: START }],
     questionReplies: [],
     documents: [{ id: 'd1', category: 'site', name: 'plan.pdf', size: 10, uploaded_by: 'Client', created_at: START }],
-    quoteLines: [{ id: 'l1', lot: 'Gazon', label: 'Gazon', unit: 'm²', quantity: 5800, client_quantity: null, unit_price: 12, optional: false, enabled: true, status: 'draft', phase: null, validated_at: null, supplier_id: 'sup1' }],
+    quoteLines: [
+      { id: 'l1', lot: 'Gazon', label: 'Gazon', unit: 'm²', quantity: 5800, client_quantity: null, unit_price: 12, price_currency: 'USD', validated_snapshot: null, optional: false, enabled: true, status: 'draft', phase: null, validated_at: null, supplier_id: 'sup1' },
+      // Saisie en yuans : convertie au taux du projet (1 CNY = 0,14 USD).
+      { id: 'l2', lot: 'Gazon', label: 'Shockpad', unit: 'm²', quantity: 100, client_quantity: null, unit_price: 30, price_currency: 'CNY', validated_snapshot: null, optional: false, enabled: true, status: 'draft', phase: null, validated_at: null, supplier_id: null },
+      // Saisie en euros sans taux : non chiffrée tant que le taux manque.
+      { id: 'l3', lot: 'Padel', label: 'Kit', unit: 'kit', quantity: 2, client_quantity: null, unit_price: 8000, price_currency: 'EUR', validated_snapshot: null, optional: false, enabled: true, status: 'draft', phase: null, validated_at: null, supplier_id: null },
+      // Validée : l'instantané (prix converti au taux du jour de la validation) prime sur le taux courant.
+      { id: 'l4', lot: 'Padel', label: 'LED', unit: 'pièce', quantity: 10, client_quantity: null, unit_price: 500, price_currency: 'CNY', validated_snapshot: { unit_price: 75, total: 750 }, optional: false, enabled: true, status: 'validated', phase: null, validated_at: START, supplier_id: null },
+    ],
     orders: [],
     suppliers: [
       { id: 'sup1', lot: 'Gazon', alias: 'Fournisseur A', status: 'candidate', scores: { certifications: 4, tropical: 4, installation: 5, price: 3, transparency: 4 }, score: 21, description: 'Producteur de gazon depuis 2003.', product_specs: [{ label: 'Hauteur', value: '30 mm' }], certifications: ['ISO 9001', 'SGS'], years_experience: 23, capacity: '120 000 m²/jour', lead_time: '10–15 j', moq: null, sample_status: 'requested', country: 'Chine' },
@@ -136,7 +144,15 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     expect(view.quote.lines[0]).toMatchObject({ supplier_alias: 'Fournisseur A', unit_price: 12, total: 69600 });
     expect(view.tasks[0].locked).toBe(true);
     expect(view.documents[0].download_path).toBe('/api/projects/public/TOKEN/documents/d1');
-    expect(view.quote.totals).toEqual({ committed: 0, pending: 69600, estimated: 69600, unpriced: 0 });
+    expect(view.quote.totals).toEqual({ committed: 750, pending: 70020, estimated: 70770, unpriced: 1 });
+  });
+  it('devises : prix convertis dans la devise principale, taux manquant signalé, instantané figé', () => {
+    const [l1, l2, l3, l4] = view.quote.lines;
+    expect(l1).toMatchObject({ unit_price: 12, entered_price: 12, price_currency: 'USD', rate_missing: false });
+    expect(l2).toMatchObject({ unit_price: 4.2, entered_price: 30, price_currency: 'CNY', total: 420 });
+    expect(l3).toMatchObject({ unit_price: null, entered_price: 8000, price_currency: 'EUR', rate_missing: true, total: null });
+    expect(l4).toMatchObject({ unit_price: 75, total: 750, status: 'validated' });
+    expect(view.rates).toEqual({ CNY: 0.14 });
     expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret/);
   });
   it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {

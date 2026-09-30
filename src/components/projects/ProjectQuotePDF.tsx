@@ -54,7 +54,7 @@ export default function ProjectQuotePDF({ p, logoUrl, date, clientName }: { p: P
               <View key={l.id} style={s.row}>
                 <Text style={s.cLabel}>{l.label}{l.optional ? ' (option)' : ''}{l.supplier_alias ? ` — ${l.supplier_alias}` : ''}</Text>
                 <Text style={s.cQty}>{l.effective_quantity} {l.unit}</Text>
-                <Text style={s.cUnit}>{fmt(l.unit_price, cur)}</Text>
+                <Text style={s.cUnit}>{fmt(l.unit_price, cur)}{l.entered_price != null && l.price_currency !== cur ? ` (${fmt(l.entered_price, l.price_currency)})` : ''}</Text>
                 <Text style={s.cTotal}>{fmt(l.total, cur)}</Text>
                 <Text style={s.cStatus}>{STATUS[l.status] || l.status}</Text>
               </View>
@@ -66,6 +66,7 @@ export default function ProjectQuotePDF({ p, logoUrl, date, clientName }: { p: P
           <View style={s.tRow}><Text>En attente de validation</Text><Text>{fmt(p.quote.totals.pending, cur)}</Text></View>
           <View style={[s.tRow, { borderTopWidth: 1, borderTopColor: '#0f172a', fontFamily: 'Helvetica-Bold' }]}><Text>Programme estimé</Text><Text>{fmt(p.quote.totals.estimated, cur)}</Text></View>
           {p.quote.totals.unpriced > 0 ? <Text style={[s.muted, { fontSize: 8 }]}>{p.quote.totals.unpriced} ligne(s) restant à chiffrer.</Text> : null}
+          {Object.keys(p.rates).length > 0 ? <Text style={[s.muted, { fontSize: 8 }]}>Taux appliqués : {Object.entries(p.rates).map(([c, v]) => `1 ${c} = ${v} ${cur}`).join(' · ')}</Text> : null}
         </View>
         <Text style={s.disclaimer}>{p.disclaimer}</Text>
         <Text style={s.footer} fixed>Les quantités retenues sont celles indiquées par le client ; une ligne validée est figée à la date de sa validation.</Text>

@@ -23,10 +23,11 @@ export async function POST(request: NextRequest) {
   const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : undefined);
   try {
-    const common = { title: str('title'), clientName: str('client_name'), clientCompany: str('client_company'), clientPhone: str('client_phone'), clientEmail: str('client_email'), startedAt: str('started_at'), actor };
+    const currency = (str('currency') || 'USD').toUpperCase();
+    const common = { title: str('title'), currency, clientName: str('client_name'), clientCompany: str('client_company'), clientPhone: str('client_phone'), clientEmail: str('client_email'), startedAt: str('started_at'), actor };
     // Plan proposé par l'IA et relu par l'équipe : revalidé ici, jamais pris tel quel.
     if (b.generated && typeof b.generated === 'object') {
-      const t = validateGeneratedTemplate(b.generated, { currency: str('currency') || 'EUR', title: str('title') || 'Projet' });
+      const t = validateGeneratedTemplate(b.generated, { currency, title: str('title') || 'Projet' });
       if (!t) return NextResponse.json({ error: 'Plan généré invalide' }, { status: 400 });
       return NextResponse.json({ id: await createProjectFromGenerated(t, common) });
     }

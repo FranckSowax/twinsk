@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, scoreTotal, supplierAlias, toggleChecklist } from './logic';
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
+import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
 import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 
@@ -87,6 +88,8 @@ export async function listProjects() {
 
 export interface CreateProjectArgs {
   title?: string;
+  /** Devise principale du devis (dollar par défaut ; les prix restent saisis dans leur devise). */
+  currency?: string;
   clientName?: string;
   clientCompany?: string;
   clientPhone?: string;
@@ -115,7 +118,7 @@ async function createProject(t: ProjectTemplate, args: CreateProjectArgs, detail
       client_company: args.clientCompany?.trim() || null,
       client_phone: args.clientPhone?.replace(/\D/g, '') || null,
       client_email: args.clientEmail?.trim() || null,
-      currency: t.currency,
+      currency: (args.currency && (PROJECT_CURRENCIES as readonly string[]).includes(args.currency.toUpperCase()) ? args.currency.toUpperCase() : t.currency),
       status: 'active',
       started_at: startedAt,
       phases: initialPhases(t),
@@ -132,7 +135,8 @@ async function createProject(t: ProjectTemplate, args: CreateProjectArgs, detail
   if (r1.error) fail(r1.error, 'Étapes');
   const r2 = await supabaseAdmin.from('project_tasks').insert(plan.tasks.map((x) => ({ project_id: id, step_key: x.step_key, key: x.key, title: x.title, description: x.description, owner: x.owner, phase: x.phase, due_weeks: x.due_weeks, due_at: x.due_at, checklist: x.checklist, position: x.position })));
   if (r2.error) fail(r2.error, 'Tâches');
-  const r3 = await supabaseAdmin.from('project_quote_lines').insert(t.quote_lines.map((l, i) => ({ project_id: id, lot: l.lot, label: l.label, unit: l.unit, quantity: l.quantity, unit_price: l.unit_price, optional: l.optional, enabled: !l.optional, phase: l.phase, position: i })));
+  const cur = (args.currency && (PROJECT_CURRENCIES as readonly string[]).includes(args.currency.toUpperCase()) ? args.currency.toUpperCase() : t.currency);
+  const r3 = await supabaseAdmin.from('project_quote_lines').insert(t.quote_lines.map((l, i) => ({ project_id: id, lot: l.lot, label: l.label, unit: l.unit, quantity: l.quantity, unit_price: l.unit_price, price_currency: cur, cost_currency: cur, optional: l.optional, enabled: !l.optional, phase: l.phase, position: i })));
   if (r3.error) fail(r3.error, 'Lignes de devis');
   const r4 = await supabaseAdmin.from('project_final_reports').insert(t.phases.map((p) => ({ project_id: id, phase: p.id, checklist: t.final_report_checklist.map((label, i) => ({ id: `${p.id}-r${i + 1}`, label, done: false })) })));
   if (r4.error) fail(r4.error, 'Rapports');
@@ -494,15 +498,53 @@ export async function setRfqSender(projectId: string, sender: Partial<RfqSender>
   await logEvent(projectId, { type: 'rfq.sender', actor, detail: clean.name || '' });
 }
 
+// ---- Devises et taux ----
+async function fxOf(projectId: string): Promise<{ base: string; rates: Rates }> {
+  const { data: p } = await supabaseAdmin.from('projects').select('currency, rates').eq('id', projectId).maybeSingle();
+  if (!p) throw new ProjectError('Projet introuvable', 404);
+  const base = String(p.currency || 'USD').toUpperCase();
+  return { base, rates: cleanRates(p.rates, base) };
+}
+/** Table de taux « 1 devise = X devise principale » (remplace la table). */
+export async function setRates(projectId: string, raw: unknown, actor: Actor) {
+  const { base } = await fxOf(projectId);
+  const rates = cleanRates(raw, base);
+  const { error } = await supabaseAdmin.from('projects').update({ rates, updated_at: now() }).eq('id', projectId);
+  if (error) fail(error, 'Taux');
+  await logEvent(projectId, { type: 'fx.rates', actor, detail: Object.entries(rates).map(([c, v]) => `1 ${c} = ${v} ${base}`).join(' · ') || 'aucun taux' });
+}
+/**
+ * Devise principale : les montants saisis gardent leur devise ; les taux sont
+ * recalculés vers la nouvelle base (l'ancienne base entre dans la table).
+ * Refusé si une ligne est déjà validée ou commandée (instantanés figés dans l'ancienne devise).
+ */
+export async function setProjectCurrency(projectId: string, currency: string, actor: Actor) {
+  const cur = currency.toUpperCase();
+  if (!(PROJECT_CURRENCIES as readonly string[]).includes(cur)) throw new ProjectError('Devise inconnue');
+  const { base, rates } = await fxOf(projectId);
+  if (cur === base) return;
+  const { count } = await supabaseAdmin.from('project_quote_lines').select('id', { count: 'exact', head: true }).eq('project_id', projectId).neq('status', 'draft');
+  if (count) throw new ProjectError('Des lignes sont validées ou commandées : la devise principale ne peut plus changer', 409);
+  const { data: lines } = await supabaseAdmin.from('project_quote_lines').select('price_currency, cost_currency').eq('project_id', projectId);
+  const used = (lines || []).flatMap((l) => [l.price_currency, l.cost_currency]).filter((c): c is string => !!c);
+  const next = rebaseRates(rates, base, cur, used);
+  const { error } = await supabaseAdmin.from('projects').update({ currency: cur, rates: next, updated_at: now() }).eq('id', projectId);
+  if (error) fail(error, 'Devise');
+  await logEvent(projectId, { type: 'fx.currency', actor, detail: `${base} → ${cur}`, notify: 'client' });
+}
+
 // ---- Devis ----
-type LineRow = { id: string; lot: string; label: string; quantity: number; client_quantity: number | null; unit_price: number | null; optional: boolean; enabled: boolean; status: 'draft' | 'validated' | 'ordered'; phase: string | null };
+type LineRow = { id: string; lot: string; label: string; quantity: number; client_quantity: number | null; unit_price: number | null; price_currency: string | null; optional: boolean; enabled: boolean; status: 'draft' | 'validated' | 'ordered'; phase: string | null };
 async function lineOf(projectId: string, lineId: string): Promise<LineRow> {
   const { data } = await supabaseAdmin.from('project_quote_lines').select('*').eq('id', lineId).eq('project_id', projectId).maybeSingle();
   if (!data) throw new ProjectError('Ligne introuvable', 404);
   return data as LineRow;
 }
-export async function upsertQuoteLine(projectId: string, input: { id?: string; lot: string; label: string; unit?: string; quantity?: number; unit_price?: number | null; unit_cost?: number | null; optional?: boolean; enabled?: boolean; phase?: string | null; supplier_id?: string | null }, actor: Actor) {
+const CURRENCY_RE = /^[A-Z]{3}$/;
+const currencyOr = (v: unknown, def: string) => (typeof v === 'string' && CURRENCY_RE.test(v.toUpperCase()) ? v.toUpperCase() : def);
+export async function upsertQuoteLine(projectId: string, input: { id?: string; lot: string; label: string; unit?: string; quantity?: number; unit_price?: number | null; price_currency?: string | null; unit_cost?: number | null; cost_currency?: string | null; optional?: boolean; enabled?: boolean; phase?: string | null; supplier_id?: string | null }, actor: Actor) {
   const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+  const { base } = await fxOf(projectId);
   if (input.id) {
     const l = await lineOf(projectId, input.id);
     if (l.status !== 'draft') throw new ProjectError('Ligne validée : annuler la validation avant de la modifier', 409);
@@ -513,6 +555,8 @@ export async function upsertQuoteLine(projectId: string, input: { id?: string; l
     if (input.quantity !== undefined) patch.quantity = Math.max(0, num(input.quantity) ?? 0);
     if (input.unit_price !== undefined) patch.unit_price = num(input.unit_price);
     if (input.unit_cost !== undefined) patch.unit_cost = num(input.unit_cost);
+    if (input.price_currency !== undefined || input.unit_price !== undefined) patch.price_currency = currencyOr(input.price_currency, base);
+    if (input.cost_currency !== undefined || input.unit_cost !== undefined) patch.cost_currency = currencyOr(input.cost_currency, base);
     if (typeof input.optional === 'boolean') patch.optional = input.optional;
     if (typeof input.enabled === 'boolean') patch.enabled = input.enabled;
     if (input.phase !== undefined) patch.phase = input.phase;
@@ -526,7 +570,7 @@ export async function upsertQuoteLine(projectId: string, input: { id?: string; l
   const { count } = await supabaseAdmin.from('project_quote_lines').select('id', { count: 'exact', head: true }).eq('project_id', projectId);
   const { data, error } = await supabaseAdmin
     .from('project_quote_lines')
-    .insert({ project_id: projectId, lot: input.lot.trim(), label: input.label.trim(), unit: input.unit?.trim() || 'pièce', quantity: Math.max(0, num(input.quantity) ?? 1), unit_price: num(input.unit_price), unit_cost: num(input.unit_cost), optional: !!input.optional, enabled: input.enabled ?? !input.optional, phase: input.phase || null, supplier_id: input.supplier_id || null, position: count || 0 })
+    .insert({ project_id: projectId, lot: input.lot.trim(), label: input.label.trim(), unit: input.unit?.trim() || 'pièce', quantity: Math.max(0, num(input.quantity) ?? 1), unit_price: num(input.unit_price), price_currency: currencyOr(input.price_currency, base), unit_cost: num(input.unit_cost), cost_currency: currencyOr(input.cost_currency, base), optional: !!input.optional, enabled: input.enabled ?? !input.optional, phase: input.phase || null, supplier_id: input.supplier_id || null, position: count || 0 })
     .select('id')
     .single();
   if (error || !data) fail(error, 'Ligne');
@@ -552,13 +596,18 @@ export async function setClientLineChoice(projectId: string, lineId: string, pat
   await logEvent(projectId, { type: 'quote.client_choice', actor, target_type: 'quote_line', target_id: lineId, detail: `${l.label} : ${JSON.stringify(patch)}` });
 }
 export async function validateLine(projectId: string, lineId: string, actor: Actor) {
-  const l = await lineOf(projectId, lineId);
+  const raw = await lineOf(projectId, lineId);
+  const { base, rates } = await fxOf(projectId);
+  // Prix converti dans la devise principale au taux du jour ; le taux est figé dans l'instantané.
+  const rate = rateOf(raw.price_currency, base, rates);
+  const l = { ...raw, unit_price: toBase(raw.unit_price, raw.price_currency, base, rates) };
+  if (raw.unit_price != null && rate == null) throw new ProjectError(`Taux manquant pour ${raw.price_currency} : renseignez-le dans « Devises et taux »`, 409);
   const gate = canValidateLine(l, await phasesOf(projectId));
   if (!gate.ok) throw new ProjectError(gate.reason, 409);
-  const snapshot = { quantity: effectiveQuantity(l), unit_price: l.unit_price, total: lineTotal(l) };
+  const snapshot = { quantity: effectiveQuantity(l), unit_price: l.unit_price, total: lineTotal(l), currency: base, entered: { amount: raw.unit_price, currency: raw.price_currency || base, rate } };
   const { error } = await supabaseAdmin.from('project_quote_lines').update({ status: 'validated', validated_at: now(), validated_by: actor.name, validated_snapshot: snapshot, updated_at: now() }).eq('id', lineId);
   if (error) fail(error, 'Validation');
-  await logEvent(projectId, { type: 'quote.line_validated', actor, target_type: 'quote_line', target_id: lineId, detail: `${l.label} · ${snapshot.quantity} × ${snapshot.unit_price} = ${snapshot.total}`, data: snapshot, notify: actor.kind === 'client' ? 'team' : 'client' });
+  await logEvent(projectId, { type: 'quote.line_validated', actor, target_type: 'quote_line', target_id: lineId, detail: `${l.label} · ${snapshot.quantity} × ${snapshot.unit_price} = ${snapshot.total} ${base}`, data: snapshot, notify: actor.kind === 'client' ? 'team' : 'client' });
 }
 export async function unvalidateLine(projectId: string, lineId: string, actor: Actor) {
   const l = await lineOf(projectId, lineId);

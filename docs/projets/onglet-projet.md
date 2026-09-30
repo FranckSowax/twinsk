@@ -22,6 +22,15 @@ Un projet = un programme clé en main (le premier : PSG Academy DOM-TOM) suivi a
 
 Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée : ses tâches et lignes de devis sont visibles mais grisées.
 
+## Devises du devis (30 septembre 2026)
+
+- Chaque prix (vente et achat) est **saisi dans sa devise** (yuan, dollar, euro, franc CFA…) : la ligne garde `price_currency` / `cost_currency`.
+- Le projet a une **devise principale** (`projects.currency`, **dollar par défaut**, choisie à la création) et une table de taux `projects.rates` « 1 devise = X devise principale », modifiable dans Devis › « Devises et taux » (repères indicatifs proposés, à remplacer par le taux du jour ou négocié).
+- Le client voit les prix dans la devise principale, avec le montant saisi entre parenthèses quand la devise diffère ; une ligne dont le taux manque reste « à chiffrer » (signalé aux deux côtés).
+- **Validation** : le prix converti et le taux sont figés dans l'instantané (`validated_snapshot.entered`) ; les taux changés ensuite n'affectent que les brouillons.
+- Changer la devise principale recalcule les taux (l'ancienne devise entre dans la table) ; refusé dès qu'une ligne est validée ou commandée.
+- Logique pure et testée : `src/lib/projects/fx.ts` ; migration `20260930030000_project_currencies.sql`.
+
 ## Confidentialité des fournisseurs
 
 - Le client ne voit que les alias « Fournisseur A, B… », le classement et la fiche anonymisée (description, caractéristiques, certifications) rédigée par l'équipe : ne rien y écrire qui identifie l'usine (nom, ville, site).
@@ -77,6 +86,7 @@ Le compte Moonshot direct (`KIMI_API_KEY`) n'est pas utilisé ici : Kimi est app
 | Modèle DOM-TOM | `src/lib/projects/templates/dom-tom.ts` |
 | Logique pure (plan, phases, devis, stepper, jours ouvrés, notation et classement des usines) | `src/lib/projects/logic.ts` |
 | Messages RFQ (EN + ZH), crochets, liens `mailto:` / `wa.me` | `src/lib/projects/rfq.ts` |
+| Devises et taux (conversion, changement de base) | `src/lib/projects/fx.ts` |
 | Projection publique et vue équipe | `src/lib/projects/public.ts`, `public-server.ts` |
 | Couche serveur et audit | `src/lib/projects/data.ts` |
 | Authentification équipe / client | `src/lib/projects/auth.ts` |

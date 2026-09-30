@@ -7,6 +7,7 @@ import { projectPublicView, type PublicProject, type RawForPublic } from './publ
 import { templateByKey, DOM_TOM_TEMPLATE } from './templates/dom-tom';
 import type { Attachment, ContactChannel, ProductSpec, RfqMessage, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 import { rankSuppliers } from './logic';
+import { cleanRates, toBase } from './fx';
 
 /** Vue de l'équipe : mêmes champs que le client, plus documents internes et chemins admin. */
 export interface TeamExtras {
@@ -25,7 +26,8 @@ export interface TeamExtras {
   exchanges: { id: string; supplier_id: string | null; channel: string; exchanged_at: string; summary: string; attachments: Attachment[]; next_action: string | null; next_action_at: string | null; author_name: string | null }[];
   shares: { id: string; token: string; person_name: string; role_label: string | null; expires_at: string | null; revoked_at: string | null; views: number; last_seen_at: string | null; created_at: string }[];
   events: { id: string; type: string; actor: string; actor_name: string | null; detail: string | null; notify: string | null; notified_at: string | null; created_at: string }[];
-  line_costs: Record<string, { unit_cost: number | null; supplier_id: string | null }>;
+  /** Prix d'achat : saisi (montant + devise) et converti dans la devise principale. */
+  line_costs: Record<string, { unit_cost: number | null; cost_currency: string; unit_cost_entered: number | null; supplier_id: string | null }>;
   documents_internal: string[];
   task_keys: Record<string, string>;
 }
@@ -49,7 +51,11 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name })),
     shares: (b.shares as TeamExtras['shares']).map((s) => ({ id: s.id, token: s.token, person_name: s.person_name, role_label: s.role_label, expires_at: s.expires_at, revoked_at: s.revoked_at, views: s.views, last_seen_at: s.last_seen_at, created_at: s.created_at })),
     events: (b.events as TeamExtras['events']).map((e) => ({ id: e.id, type: e.type, actor: e.actor, actor_name: e.actor_name, detail: e.detail, notify: e.notify, notified_at: e.notified_at, created_at: e.created_at })),
-    line_costs: Object.fromEntries((b.quoteLines as { id: string; unit_cost: number | null; supplier_id: string | null }[]).map((l) => [l.id, { unit_cost: l.unit_cost == null ? null : Number(l.unit_cost), supplier_id: l.supplier_id }])),
+    line_costs: Object.fromEntries((b.quoteLines as { id: string; unit_cost: number | string | null; cost_currency: string | null; supplier_id: string | null }[]).map((l) => {
+      const entered = l.unit_cost == null ? null : Number(l.unit_cost);
+      const cur = (l.cost_currency || String(p.currency)).toUpperCase();
+      return [l.id, { unit_cost: toBase(entered, cur, String(p.currency), cleanRates(p.rates, String(p.currency))), cost_currency: cur, unit_cost_entered: entered, supplier_id: l.supplier_id }];
+    })),
     documents_internal: (b.documents as { id: string; internal: boolean }[]).filter((d) => d.internal).map((d) => d.id),
     task_keys: Object.fromEntries((b.tasks as { id: string; key: string }[]).map((t) => [t.id, t.key])),
   };
@@ -82,7 +88,7 @@ function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: st
       .filter((a): a is Attachment => !!a);
   const template = templateByKey(String(p.template_key || '')) || DOM_TOM_TEMPLATE;
   const raw: RawForPublic = {
-    project: { title: String(p.title), description: (p.description as string | null) ?? null, currency: String(p.currency), status: String(p.status), phases: (p.phases as RawForPublic['project']['phases']) || [], business_trip_interested_at: (p.business_trip_interested_at as string | null) ?? null, business_trip_quote_requested_at: (p.business_trip_quote_requested_at as string | null) ?? null },
+    project: { title: String(p.title), description: (p.description as string | null) ?? null, currency: String(p.currency), rates: cleanRates(p.rates, String(p.currency)), status: String(p.status), phases: (p.phases as RawForPublic['project']['phases']) || [], business_trip_interested_at: (p.business_trip_interested_at as string | null) ?? null, business_trip_quote_requested_at: (p.business_trip_quote_requested_at as string | null) ?? null },
     template: { business_trip: template.business_trip },
     steps: (b.steps as RawForPublic['steps']).map((s) => ({ key: s.key, title: s.title, description: s.description, position: s.position })),
     tasks: (b.tasks as (RawForPublic['tasks'][number] & { attachments: Attachment[] })[]).map((t) => ({ id: t.id, step_key: t.step_key, title: t.title, description: t.description, owner: t.owner, phase: t.phase, due_at: t.due_at, status: t.status, checklist: t.checklist || [], attachments: pub(t.attachments) })),
@@ -92,7 +98,7 @@ function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: st
     questions: (b.questions as (RawForPublic['questions'][number] & { attachment: Attachment | null })[]).map((q) => ({ id: q.id, subject: q.subject, detail: q.detail, attachment: q.attachment ? pub([q.attachment])[0] || null : null, status: q.status, created_at: q.created_at })),
     questionReplies: (b.questionReplies as RawForPublic['questionReplies']).map((r) => ({ id: r.id, question_id: r.question_id, author: r.author, author_name: r.author_name, text: r.text, created_at: r.created_at })),
     documents: (b.documents as (RawForPublic['documents'][number] & { internal: boolean })[]).filter((d) => opts.includeInternal || !d.internal).map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, uploaded_by: d.uploaded_by, created_at: d.created_at })),
-    quoteLines: (b.quoteLines as RawForPublic['quoteLines']).map((l) => ({ id: l.id, lot: l.lot, label: l.label, unit: l.unit, quantity: Number(l.quantity), client_quantity: l.client_quantity == null ? null : Number(l.client_quantity), unit_price: l.unit_price == null ? null : Number(l.unit_price), optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase, validated_at: l.validated_at, supplier_id: l.supplier_id })),
+    quoteLines: (b.quoteLines as RawForPublic['quoteLines']).map((l) => ({ id: l.id, lot: l.lot, label: l.label, unit: l.unit, quantity: Number(l.quantity), client_quantity: l.client_quantity == null ? null : Number(l.client_quantity), unit_price: l.unit_price == null ? null : Number(l.unit_price), price_currency: l.price_currency ?? null, validated_snapshot: l.validated_snapshot ? { unit_price: l.validated_snapshot.unit_price == null ? null : Number(l.validated_snapshot.unit_price), total: l.validated_snapshot.total == null ? null : Number(l.validated_snapshot.total) } : null, optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase, validated_at: l.validated_at, supplier_id: l.supplier_id })),
     orders: (b.orders as RawForPublic['orders']).map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, line_ids: o.line_ids, total: Number(o.total), created_at: o.created_at, updated_at: o.updated_at })),
     suppliers: (b.suppliers as (RawForPublic['suppliers'][number] & { score: number | string | null })[]).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status || 'candidate', scores: s.scores || {}, score: s.score == null ? null : Number(s.score), description: s.description ?? null, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience ?? null, capacity: s.capacity ?? null, lead_time: s.lead_time ?? null, moq: s.moq ?? null, sample_status: s.sample_status ?? null, country: s.country ?? null })),
     finalReports: (b.finalReports as RawForPublic['finalReports']).map((r) => ({ phase: r.phase, checklist: r.checklist || [], delivered_at: r.delivered_at, file_id: r.file_id })),

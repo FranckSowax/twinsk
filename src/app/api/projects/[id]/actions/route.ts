@@ -36,6 +36,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'exchange.add': result = { id: await D.addExchange(id, { supplier_id: str(b.supplier_id) || null, channel: (str(b.channel) || 'other') as ExchangeChannel, exchanged_at: str(b.exchanged_at) || undefined, summary: str(b.summary), attachments: atts(b.attachments), next_action: str(b.next_action), next_action_at: str(b.next_action_at) || null }, actor) }; break;
       case 'exchange.delete': await D.deleteExchange(id, str(b.id), actor); break;
       case 'quote.upsert': result = { id: await D.upsertQuoteLine(id, b as Parameters<typeof D.upsertQuoteLine>[1], actor) }; break;
+      case 'fx.rates': await D.setRates(id, b.rates, actor); break;
+      case 'fx.currency': await D.setProjectCurrency(id, str(b.currency), actor); break;
       case 'quote.delete': await D.deleteQuoteLine(id, str(b.line_id), actor); break;
       case 'quote.validate': await D.validateLine(id, str(b.line_id), actor); break;
       case 'quote.unvalidate': await D.unvalidateLine(id, str(b.line_id), actor); break;
