@@ -28,7 +28,9 @@ import {
   ShoppingBag,
   Smartphone,
   Warehouse,
-  Archive, Ticket, Link2 } from 'lucide-react';
+  Archive, Ticket, Link2,
+  FolderKanban,
+} from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
 import type { TKey } from '@/lib/i18n/admin';
@@ -59,6 +61,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin/youtube', key: 'nav.youtube', icon: Youtube },
   { href: '/admin/catalog', key: 'nav.catalog', icon: BookOpen },
   { href: '/admin/sourcing', key: 'nav.supplierSourcing', icon: Factory },
+  { href: '/admin/projets', key: 'nav.projects', icon: FolderKanban },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

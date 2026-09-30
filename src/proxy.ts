@@ -19,8 +19,8 @@ export const config = {
   matcher: [
     '/',
     '/parcours/:path*', '/freight/:path*', '/request/:path*', '/proposal/:path*', '/quote/:path*',
-    '/order-summary/:path*', '/sourcing/:path*', '/kin-origins/:path*', '/kinova/:path*',
+    '/order-summary/:path*', '/sourcing/:path*', '/kin-origins/:path*', '/kinova/:path*', '/projet/:path*',
     '/admin/requests/:path*', '/admin/usines/:path*', '/admin/revisions/:path*', '/admin/freight/:path*',
-    '/admin/leads/:path*', '/admin/youtube/:path*', '/admin/catalog/:path*', '/admin/sourcing/:path*',
+    '/admin/leads/:path*', '/admin/youtube/:path*', '/admin/catalog/:path*', '/admin/sourcing/:path*', '/admin/projets/:path*',
   ],
 };

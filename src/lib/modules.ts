@@ -5,9 +5,9 @@
 import { COUNTRY, type CountryConfig } from '@/config/countries';
 
 /** Pages publiques de la partie Twinsk. */
-export const TWINSK_PUBLIC_PREFIXES = ['/parcours', '/freight', '/request', '/proposal', '/quote', '/order-summary', '/sourcing', '/kin-origins', '/kinova'] as const;
+export const TWINSK_PUBLIC_PREFIXES = ['/parcours', '/freight', '/request', '/proposal', '/quote', '/order-summary', '/sourcing', '/kin-origins', '/kinova', '/projet'] as const;
 /** Sections de l'admin propres à la partie Twinsk. */
-export const TWINSK_ADMIN_PREFIXES = ['/admin/requests', '/admin/usines', '/admin/revisions', '/admin/freight', '/admin/leads', '/admin/youtube', '/admin/catalog', '/admin/sourcing'] as const;
+export const TWINSK_ADMIN_PREFIXES = ['/admin/requests', '/admin/usines', '/admin/revisions', '/admin/freight', '/admin/leads', '/admin/youtube', '/admin/catalog', '/admin/sourcing', '/admin/projets'] as const;
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 

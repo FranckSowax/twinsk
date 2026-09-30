@@ -20,9 +20,9 @@ export const COLLAB_ROLE_LABEL: Record<CollabRole, string> = {
 /** Préfixes de pages /admin accessibles par rôle (vérifiés via startsWith). */
 export const COLLAB_ROLE_PREFIXES: Record<CollabRole, string[]> = {
   // '/admin/offer' couvre aussi '/admin/offer-b2b' (préfixe commun).
-  production: ['/admin/offer', '/admin/requests', '/admin/revisions', '/admin/archives'],
+  production: ['/admin/offer', '/admin/requests', '/admin/revisions', '/admin/archives', '/admin/projets'],
   commandes: ['/admin/commandes', '/admin/revisions', '/admin/inbox'],
-  sourcing: ['/admin/offer', '/admin/requests', '/admin/archives'],
+  sourcing: ['/admin/offer', '/admin/requests', '/admin/archives', '/admin/projets'],
   whatsapp: ['/admin/inbox'],
 };
 
@@ -36,9 +36,9 @@ export const COLLAB_ROLE_HOME: Record<CollabRole, string> = {
 
 /** Entrées du menu latéral visibles par rôle. */
 export const COLLAB_ROLE_NAV: Record<CollabRole, string[]> = {
-  production: ['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/revisions'],
+  production: ['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/revisions', '/admin/projets'],
   commandes: ['/admin/commandes', '/admin/inbox', '/admin/revisions'],
-  sourcing: ['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/archives'],
+  sourcing: ['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/projets'],
   whatsapp: ['/admin/inbox'],
 };
 
