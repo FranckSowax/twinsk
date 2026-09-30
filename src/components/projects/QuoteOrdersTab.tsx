@@ -59,7 +59,7 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
     const proposed = l.client_quantity != null && l.client_quantity !== l.quantity ? <p className="text-[10px] text-slate-400">proposé : {l.quantity}</p> : null;
     if (!editable) return <><p className="tabular-nums">{l.effective_quantity} {l.unit}</p>{proposed}</>;
     const field = (
-      <input type="number" inputMode="decimal" min={0} enterKeyHint="done" className={touch ? 'h-10 w-full min-w-0 rounded-lg border border-slate-200 px-2 text-center text-base tabular-nums dark:border-slate-600 dark:bg-slate-900' : 'w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm dark:border-slate-600 dark:bg-slate-900'} value={qty[l.id] ?? String(l.effective_quantity)} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} onBlur={() => commitQty(l)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} aria-label={`Quantité — ${l.label}`} />
+      <input type="number" inputMode="decimal" min={0} enterKeyHint="done" className={touch ? 'h-10 w-full min-w-0 rounded-lg border border-slate-200 px-2 text-center text-base tabular-nums text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white' : 'w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white'} value={qty[l.id] ?? String(l.effective_quantity)} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} onBlur={() => commitQty(l)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} aria-label={`Quantité — ${l.label}`} />
     );
     if (!touch) return <><span className="inline-flex items-center gap-1">{field}<span className="text-xs text-slate-500">{l.unit}</span></span>{proposed}</>;
     // Mobile : − / + pour les petites quantités (kits, pièces), saisie directe pour les surfaces.
@@ -72,9 +72,9 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
     return (
       <>
         <div className="mt-1 flex items-center gap-1">
-          {step && <button type="button" onClick={() => bump(-1)} disabled={l.effective_quantity <= 0} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 text-lg font-bold text-slate-600 disabled:opacity-30 dark:border-slate-600" aria-label="Moins">−</button>}
+          {step && <button type="button" onClick={() => bump(-1)} disabled={l.effective_quantity <= 0} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 text-lg font-bold text-slate-600 disabled:opacity-30 dark:border-slate-600 dark:text-slate-200" aria-label="Moins">−</button>}
           {field}
-          {step && <button type="button" onClick={() => bump(1)} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 text-lg font-bold text-slate-600 dark:border-slate-600" aria-label="Plus">+</button>}
+          {step && <button type="button" onClick={() => bump(1)} className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 text-lg font-bold text-slate-600 dark:border-slate-600 dark:text-slate-200" aria-label="Plus">+</button>}
         </div>
         <p className="mt-0.5 text-[11px] text-slate-500">{l.unit}</p>
         {proposed}

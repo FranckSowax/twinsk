@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Mode sombre : suit le réglage du système, sauf sous un conteneur qui le
+   force avec data-theme="light" ou "dark" (bouton thème de l'espace projet).
+   Sans attribut, comportement identique à la variante par défaut. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:not([data-theme="light"], [data-theme="light"] *)) {
+      @slot;
+    }
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
