@@ -46,6 +46,18 @@ Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée 
 - Envoi par le cron `GET /api/cron/projects?key=$CRON_SECRET` (toutes les 15 min ; rappel journal entre 9 h et 11 h, jours ouvrés). Service Railway à créer sur le modèle de `cron-cash` : image `curlimages/curl`, `sh -c 'curl -fsS -H "x-cron-key: $CRON_SECRET" "https://twinsk-production.up.railway.app/api/cron/projects"'`, `*/15 * * * *`.
 - Pastille dans la liste des projets : « nouveautés client » = événements équipe non encore vus.
 
+## Assistants IA (30 septembre 2026, choix de Franck)
+
+Trois aides, toutes **à relire avant validation** ; rien n'est créé ni publié sans un clic de l'équipe. Les appels passent par OpenRouter (`OPENROUTER_API_KEY`) et sont tracés dans le journal d'audit (`ai.used`, avec le coût).
+
+| Aide | Où | Modèle | Coût mesuré |
+|---|---|---|---|
+| **Plan depuis un brief** : le texte libre du client devient un plan complet (phases, étapes, tâches datées, lignes de devis à chiffrer, lots) | « Nouveau projet » › « Depuis un brief (IA) » › « Générer le plan », puis « Créer ce projet » | Kimi K2 (`moonshotai/kimi-k2-0905`, variable `PROJECT_PLAN_MODEL`) | ≈ 6,5 FCFA par plan |
+| **Résumé d'un échange usine** : lit les captures d'écran (WeChat, WhatsApp, e-mail, chinois ou anglais compris) et propose le résumé en français, les chiffres cités, le canal et la relance à prévoir | Usines & échanges › Nouvel échange › joindre des captures › « Résumer avec l'IA » | GLM 5.3 Flash (`z-ai/glm-5.3-flash`, variable `PROJECT_FLASH_MODEL`) | ≈ 0,1 FCFA par capture |
+| **Brouillon du journal** : rédige la mise à jour du jour à partir de ce qui a bougé depuis la dernière (tâches, échéances proches, commandes, questions, documents, échanges usines reformulés sans nom d'usine) | Journal › « Préparer avec l'IA » | GLM 5.3 Flash | ≈ 0,2 FCFA |
+
+Le compte Moonshot direct (`KIMI_API_KEY`) n'est pas utilisé ici : Kimi est appelé via OpenRouter. Kimi K2.6 a été écarté : il consomme tout le budget de réponse à réfléchir.
+
 ## Créer un nouveau modèle de projet
 
 1. Copier `src/lib/projects/templates/dom-tom.ts` : phases, durées de référence, étapes et tâches (responsable, échéance en semaines, checklist), lignes de devis (lot, unité, quantité, option, phase), lots, programme de voyage, checklist du rapport.

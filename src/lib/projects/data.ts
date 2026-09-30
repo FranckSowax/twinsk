@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, supplierAlias, toggleChecklist } from './logic';
 import { templateByKey } from './templates/dom-tom';
-import type { Attachment, ChecklistItem, DocumentCategory, ExchangeChannel, OrderStatus, Phase } from './types';
+import type { Attachment, ChecklistItem, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProjectTemplate } from './types';
 
 export const PROJECT_BUCKET = 'project-files';
 export const SIGNED_URL_SECONDS = 900;
@@ -84,9 +84,25 @@ export async function listProjects() {
   }));
 }
 
-export async function createProjectFromTemplate(args: { templateKey: string; title?: string; clientName?: string; clientCompany?: string; clientPhone?: string; clientEmail?: string; startedAt?: string; actor: Actor }) {
+export interface CreateProjectArgs {
+  title?: string;
+  clientName?: string;
+  clientCompany?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  startedAt?: string;
+  actor: Actor;
+}
+export async function createProjectFromTemplate(args: CreateProjectArgs & { templateKey: string }) {
   const t = templateByKey(args.templateKey);
   if (!t) throw new ProjectError('Modèle inconnu');
+  return createProject(t, args, `Projet créé depuis le modèle « ${t.title} »`);
+}
+/** Projet créé depuis un plan proposé par l'IA (déjà validé par validateGeneratedTemplate). */
+export async function createProjectFromGenerated(t: ProjectTemplate, args: CreateProjectArgs) {
+  return createProject(t, args, 'Projet créé depuis un brief (plan proposé par l’IA, relu par l’équipe)');
+}
+async function createProject(t: ProjectTemplate, args: CreateProjectArgs, detail: string) {
   const startedAt = args.startedAt || now();
   const { data: project, error } = await supabaseAdmin
     .from('projects')
@@ -118,7 +134,7 @@ export async function createProjectFromTemplate(args: { templateKey: string; tit
   if (r3.error) fail(r3.error, 'Lignes de devis');
   const r4 = await supabaseAdmin.from('project_final_reports').insert(t.phases.map((p) => ({ project_id: id, phase: p.id, checklist: t.final_report_checklist.map((label, i) => ({ id: `${p.id}-r${i + 1}`, label, done: false })) })));
   if (r4.error) fail(r4.error, 'Rapports');
-  await logEvent(id, { type: 'project.created', actor: args.actor, detail: `Projet créé depuis le modèle « ${t.title} »` });
+  await logEvent(id, { type: 'project.created', actor: args.actor, detail });
   return id;
 }
 

@@ -17,7 +17,7 @@ import { Badge, type Mode, type WorkspaceApi } from './shared';
 
 type Tab = 'plan' | 'journal' | 'questions' | 'documents' | 'quote' | 'orders' | 'suppliers' | 'report' | 'access';
 
-export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, pdfUrl, viewerName }: { mode: Mode; loadUrl: string; actionUrl: string; uploadUrl: string; pdfUrl?: string; viewerName: string }) {
+export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, pdfUrl, aiUrl, viewerName }: { mode: Mode; loadUrl: string; actionUrl: string; uploadUrl: string; pdfUrl?: string; aiUrl?: string; viewerName: string }) {
   const [data, setData] = useState<(PublicProject & { admin?: TeamExtras }) | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('plan');
@@ -51,6 +51,13 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Action impossible');
       await reload();
+      return d;
+    },
+    ai: async (action, payload = {}) => {
+      if (!aiUrl) throw new Error('Assistant indisponible');
+      const r = await fetch(aiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...payload }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Assistant indisponible');
       return d;
     },
     upload: async (files, opts = {}) => {

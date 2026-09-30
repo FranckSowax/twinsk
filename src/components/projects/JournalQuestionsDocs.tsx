@@ -4,7 +4,7 @@
 // Documents (bibliothèque par catégorie) — partagés équipe / client.
 
 import { useState } from 'react';
-import { FileText, Send, Trash2 } from 'lucide-react';
+import { FileText, Loader2, Send, Sparkles, Trash2 } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import { DOCUMENT_CATEGORIES, type Attachment } from '@/lib/projects/types';
 import { AttachButton, AttachmentList, AuthorChip, Badge, Empty, btn, btnPrimary, card, dateTime, input, label, size, type WorkspaceApi } from './shared';
@@ -15,11 +15,33 @@ export function JournalTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) 
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiInfo, setAiInfo] = useState('');
+  // Brouillon depuis ce qui a bougé (tâches, commandes, questions, documents, échanges) : à relire, rien n'est publié.
+  const prepare = async () => {
+    setAiBusy(true);
+    setErr('');
+    try {
+      const r = await api.ai('update.draft', {});
+      const d = r.draft as { title: string; body: string };
+      setF({ title: d.title, body: d.body });
+      const u = r.usage as { model: string; costFcfa: number };
+      setAiInfo(`Brouillon proposé (${u.model} · ${u.costFcfa} FCFA) — relisez avant de publier.`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Brouillon impossible');
+    } finally {
+      setAiBusy(false);
+    }
+  };
   return (
     <div className="space-y-4">
       {api.mode === 'team' && (
         <div className={card}>
-          <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">Publier la mise à jour du jour</p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">Publier la mise à jour du jour</p>
+            <button type="button" disabled={aiBusy} onClick={prepare} className={btn} title="Rédige un brouillon à partir de ce qui a bougé depuis la dernière mise à jour">{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Préparer avec l’IA</button>
+          </div>
+          {aiInfo && <p className="mb-2 text-[11px] text-emerald-700">{aiInfo}</p>}
           <div className="space-y-2">
             <input className={input} placeholder="Titre (ex. Réception des échantillons de gazon)" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
             <textarea className={input} rows={3} placeholder="Ce qui s’est passé, ce qui vient…" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />

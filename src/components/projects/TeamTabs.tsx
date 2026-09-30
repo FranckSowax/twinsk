@@ -6,7 +6,7 @@
 // Rapport final et voyage d'audit : partagés.
 
 import { useState } from 'react';
-import { Copy, Link2, Plus, ShieldAlert, Trash2 } from 'lucide-react';
+import { Copy, Link2, Loader2, Plus, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { EXCHANGE_CHANNELS, type Attachment } from '@/lib/projects/types';
@@ -121,6 +121,32 @@ function ExchangeModal({ supplierId, admin, api, onClose }: { supplierId: string
   const [files, setFiles] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiInfo, setAiInfo] = useState('');
+  // Captures → résumé, relance et canal proposés par l'IA (GLM 5.3 Flash lit l'image), à relire.
+  const summarize = async () => {
+    setAiBusy(true);
+    setErr('');
+    try {
+      const ids = files.map((a) => /\/documents\/([0-9a-f-]{36})$/i.exec(a.url || '')?.[1]).filter((x): x is string => !!x);
+      const r = await api.ai('exchange.summarize', { document_ids: ids, notes: f.summary });
+      const res = r.result as { summary: string; next_action: string | null; next_action_days: number | null; channel: string; key_figures: string[] };
+      const figures = res.key_figures?.length ? `\n\nChiffres cités : ${res.key_figures.join(' · ')}` : '';
+      setF((x) => ({
+        ...x,
+        summary: `${res.summary}${figures}`,
+        channel: ['wechat', 'email', 'whatsapp', 'phone', 'visit', 'other'].includes(res.channel) ? res.channel : x.channel,
+        next_action: res.next_action || x.next_action,
+        next_action_at: res.next_action_days != null && !x.next_action_at ? new Date(Date.now() + res.next_action_days * 86_400_000).toISOString().slice(0, 10) : x.next_action_at,
+      }));
+      const u = r.usage as { model: string; costFcfa: number };
+      setAiInfo(`${u.model} · ${u.costFcfa} FCFA — à relire avant d’enregistrer`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Résumé impossible');
+    } finally {
+      setAiBusy(false);
+    }
+  };
   return (
     <Modal title="Nouvel échange avec une usine" onClose={onClose}>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -133,8 +159,12 @@ function ExchangeModal({ supplierId, admin, api, onClose }: { supplierId: string
         <div className="sm:col-span-2">
           <label className={label}>Captures d’écran, e-mails, pièces</label>
           <AttachmentList items={files} onRemove={(i) => setFiles((x) => x.filter((_, k) => k !== i))} />
-          <div className="mt-2"><AttachButton api={api} internal category="misc" label="Joindre des captures" accept="image/*,application/pdf,.eml,.txt" onAttached={(a) => setFiles((x) => [...x, ...a])} /></div>
-          <p className="mt-1 text-[11px] text-slate-500">Stockées dans l’espace privé, réservées à l’équipe.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <AttachButton api={api} internal category="misc" label="Joindre des captures" accept="image/*,application/pdf,.eml,.txt" onAttached={(a) => setFiles((x) => [...x, ...a])} />
+            <button type="button" disabled={aiBusy || (!files.some((a) => a.kind === 'image') && !f.summary.trim())} onClick={summarize} className={btn} title="Lire les captures et proposer résumé, chiffres cités et relance">{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Résumer avec l’IA</button>
+            {aiInfo && <span className="text-[11px] text-slate-500">{aiInfo}</span>}
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">Stockées dans l’espace privé, réservées à l’équipe. Le chinois et l’anglais des captures sont traduits dans le résumé.</p>
         </div>
       </div>
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}

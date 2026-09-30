@@ -16,6 +16,8 @@ export interface WorkspaceApi {
   act: (action: string, payload?: Record<string, unknown>) => Promise<Record<string, unknown>>;
   upload: (files: File[], opts?: { category?: string; internal?: boolean }) => Promise<{ id: string; attachment: Attachment }[]>;
   reload: () => Promise<void>;
+  /** Assistants IA (équipe seulement) : plan, résumé d'échange, brouillon de journal. */
+  ai: (action: string, payload?: Record<string, unknown>) => Promise<Record<string, unknown>>;
   viewerName: string;
 }
 

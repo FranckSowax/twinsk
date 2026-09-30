@@ -9,9 +9,11 @@
 
 export type LlmProvider = 'openrouter' | 'kimi' | 'anthropic';
 
+/** Contenu d'un message : texte, ou texte + images (URL http(s) ou data:). */
+export type LlmPart = { type: 'text'; text: string } | { type: 'image'; url: string };
 export interface LlmMessage {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | LlmPart[];
 }
 export interface LlmRequest {
   system: string;
@@ -20,6 +22,11 @@ export interface LlmRequest {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+  /** Surcharges par appel (défaut : ANALYSIS_LLM_PROVIDER / ANALYSIS_MODEL). */
+  provider?: LlmProvider;
+  model?: string;
+  /** Effort de raisonnement pour ce seul appel (OpenRouter). */
+  reasoning?: 'low' | 'medium' | 'high';
 }
 export interface LlmResult {
   ok: boolean;
@@ -105,6 +112,31 @@ export function reasoningEffort(): 'low' | 'medium' | 'high' {
   return v === 'medium' || v === 'high' ? v : 'low';
 }
 
+/** Messages au format OpenAI (Kimi, OpenRouter) : parties texte + image_url. */
+function openaiMessages(req: LlmRequest) {
+  return [
+    { role: 'system', content: req.system },
+    ...req.messages.map((m) => ({
+      role: m.role,
+      content: typeof m.content === 'string' ? m.content : m.content.map((p) => (p.type === 'text' ? { type: 'text', text: p.text } : { type: 'image_url', image_url: { url: p.url } })),
+    })),
+  ];
+}
+/** Messages au format Anthropic : parties texte + image (base64 ou URL). */
+function anthropicMessages(req: LlmRequest) {
+  return req.messages.map((m) => ({
+    role: m.role,
+    content:
+      typeof m.content === 'string'
+        ? m.content
+        : m.content.map((p) => {
+            if (p.type === 'text') return { type: 'text', text: p.text };
+            const d = /^data:([^;]+);base64,(.+)$/.exec(p.url);
+            return d ? { type: 'image', source: { type: 'base64', media_type: d[1], data: d[2] } } : { type: 'image', source: { type: 'url', url: p.url } };
+          }),
+  }));
+}
+
 async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, signal: AbortSignal): Promise<Response> {
   if (provider === 'anthropic') {
     return fetch('https://api.anthropic.com/v1/messages', {
@@ -119,7 +151,7 @@ async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, s
         system: req.system,
         max_tokens: req.maxTokens ?? 1200,
         temperature: req.temperature ?? 0.2,
-        messages: req.messages,
+        messages: anthropicMessages(req),
       }),
       signal,
     });
@@ -134,7 +166,7 @@ async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, s
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'system', content: req.system }, ...req.messages],
+      messages: openaiMessages(req),
       temperature: req.temperature ?? 0.2,
       max_tokens: req.maxTokens ?? 1200,
       ...(req.jsonMode ? { response_format: { type: 'json_object' } } : {}),
@@ -142,7 +174,7 @@ async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, s
       // à raisonnement obligatoire (GLM 5.3 Flash) consomment la limite de sortie
       // en réfléchissant : effort faible (ANALYSIS_REASONING_EFFORT) et
       // raisonnement exclu de la réponse, sinon le JSON arrive vide.
-      ...(openrouter ? { usage: { include: true }, reasoning: { effort: reasoningEffort(), exclude: true } } : {}),
+      ...(openrouter ? { usage: { include: true }, reasoning: { effort: req.reasoning || reasoningEffort(), exclude: true } } : {}),
     }),
     signal,
   });
@@ -150,8 +182,8 @@ async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, s
 
 /** Appel au modèle, avec jusqu'à 3 reprises sur 429 / 5xx (1 s, 2 s, 4 s). */
 export async function chatCompletion(req: LlmRequest): Promise<LlmResult> {
-  const provider = llmProvider();
-  const model = llmModel(provider);
+  const provider = req.provider || llmProvider();
+  const model = req.model || llmModel(provider);
   const base = { model, provider, inputTokens: 0, outputTokens: 0 };
   if (!llmConfigured(provider)) return { ...base, ok: false, text: '', error: `Clé ${KEY_VAR[provider]} absente` };
 
