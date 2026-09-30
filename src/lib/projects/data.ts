@@ -10,7 +10,7 @@ import { COUNTRY } from '@/config/countries';
 import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, scoreTotal, supplierAlias, toggleChecklist } from './logic';
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
 import { templateByKey } from './templates/dom-tom';
-import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductSpec, ProjectTemplate, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
+import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 
 export const PROJECT_BUCKET = 'project-files';
 export const SIGNED_URL_SECONDS = 900;
@@ -120,6 +120,7 @@ async function createProject(t: ProjectTemplate, args: CreateProjectArgs, detail
       started_at: startedAt,
       phases: initialPhases(t),
       durations: t.durations,
+      rfq_context: t.rfq_context || {},
       created_by: args.actor.name,
     })
     .select('id')
@@ -464,9 +465,11 @@ export async function saveRfqMessage(projectId: string, lot: string, patch: Part
 }
 /** Recompose les messages d'un lot (ou de tous) depuis le modèle du projet ; les modifications manuelles sont remplacées. */
 export async function regenerateRfqMessages(projectId: string, lot: string | null, actor: Actor) {
-  const { data: p } = await supabaseAdmin.from('projects').select('template_key').eq('id', projectId).maybeSingle();
+  const { data: p } = await supabaseAdmin.from('projects').select('template_key, rfq_context').eq('id', projectId).maybeSingle();
   if (!p) throw new ProjectError('Projet introuvable', 404);
   const t = templateByKey(String(p.template_key || ''));
+  const saved = (p.rfq_context && typeof p.rfq_context === 'object' ? p.rfq_context : {}) as Partial<RfqContext>;
+  const rfq_context: RfqContext | undefined = saved.project_en ? { project_en: String(saved.project_en), project_zh: String(saved.project_zh || saved.project_en), requirements_en: Array.isArray(saved.requirements_en) ? saved.requirements_en.map(String) : [] } : t?.rfq_context;
   const { data: lines } = await supabaseAdmin.from('project_quote_lines').select('lot, label, unit, quantity').eq('project_id', projectId).order('position');
   const { data: existing } = await supabaseAdmin.from('project_rfq_messages').select('lot, product_en, product_zh, quantities_en, requirements_en').eq('project_id', projectId);
   const { data: sups } = await supabaseAdmin.from('project_suppliers').select('lot').eq('project_id', projectId);
@@ -475,7 +478,7 @@ export async function regenerateRfqMessages(projectId: string, lot: string | nul
   const rfq = [...(t?.rfq || [])];
   for (const e of existing || []) if (!rfq.some((r) => r.lot === e.lot)) rfq.push({ lot: e.lot, product_en: e.product_en, product_zh: e.product_zh, quantities_en: e.quantities_en, requirements_en: e.requirements_en || [] });
   const lots = [...new Set([...(t?.lots || []), ...rfq.map((r) => r.lot), ...quote_lines.map((l) => l.lot), ...(sups || []).map((x) => String(x.lot))])].filter((l) => !lot || l === lot);
-  const base: ProjectTemplate = { ...(t || { key: 'x', title: '', description: '', currency: '', phases: [], durations: { transit: {}, production: [0, 0], technician_visa: [0, 0], padel_slab_cure: 0 }, steps: [], lots: [], business_trip: { title: '', days: [] }, final_report_checklist: [] }), quote_lines, rfq, lots };
+  const base: ProjectTemplate = { ...(t || { key: 'x', title: '', description: '', currency: '', phases: [], durations: { transit: {}, production: [0, 0], technician_visa: [0, 0], padel_slab_cure: 0 }, steps: [], lots: [], business_trip: { title: '', days: [] }, final_report_checklist: [] }), quote_lines, rfq, lots, rfq_context };
   const rows = rfqRowsFromTemplate(base, 'template').filter((r) => lots.includes(r.lot));
   if (!rows.length) throw new ProjectError('Aucun lot à composer');
   const { error } = await supabaseAdmin.from('project_rfq_messages').upsert(rows.map((r) => ({ project_id: projectId, ...r, updated_at: now() })), { onConflict: 'project_id,lot' });
