@@ -13,7 +13,7 @@ import { Badge, Empty, Modal, btn, btnPrimary, card, dateTime, input, label, mon
 
 type Line = PublicProject['quote']['lines'][number];
 
-export function QuoteTab({ p, api, admin }: { p: PublicProject; api: WorkspaceApi; admin?: TeamExtras }) {
+export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: WorkspaceApi; admin?: TeamExtras; pdfUrl?: string }) {
   const [editing, setEditing] = useState<Line | 'new' | null>(null);
   const [err, setErr] = useState('');
   const [qty, setQty] = useState<Record<string, string>>({});
@@ -34,7 +34,10 @@ export function QuoteTab({ p, api, admin }: { p: PublicProject; api: WorkspaceAp
         <Kpi label="En attente de validation" value={money(p.quote.totals.pending, cur)} tone="amber" />
         <Kpi label="Programme estimé" value={money(p.quote.totals.estimated, cur)} sub={p.quote.totals.unpriced ? `${p.quote.totals.unpriced} ligne(s) à chiffrer` : undefined} />
       </div>
-      <p className="text-[11px] text-slate-500">{p.disclaimer}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-slate-500">{p.disclaimer}</p>
+        {pdfUrl && <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className={btn}>Télécharger le devis (PDF)</a>}
+      </div>
       {err && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
       {api.mode === 'team' && (
         <div className="flex flex-wrap gap-2">

@@ -17,7 +17,7 @@ import { Badge, type Mode, type WorkspaceApi } from './shared';
 
 type Tab = 'plan' | 'journal' | 'questions' | 'documents' | 'quote' | 'orders' | 'suppliers' | 'report' | 'access';
 
-export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, viewerName }: { mode: Mode; loadUrl: string; actionUrl: string; uploadUrl: string; viewerName: string }) {
+export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, pdfUrl, viewerName }: { mode: Mode; loadUrl: string; actionUrl: string; uploadUrl: string; pdfUrl?: string; viewerName: string }) {
   const [data, setData] = useState<(PublicProject & { admin?: TeamExtras }) | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('plan');
@@ -107,7 +107,7 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
       {tab === 'journal' && <JournalTab p={data} api={api} />}
       {tab === 'questions' && <QuestionsTab p={data} api={api} />}
       {tab === 'documents' && <DocumentsTab p={data} api={api} internalIds={data.admin?.documents_internal} />}
-      {tab === 'quote' && <QuoteTab p={data} api={api} admin={data.admin} />}
+      {tab === 'quote' && <QuoteTab p={data} api={api} admin={data.admin} pdfUrl={pdfUrl} />}
       {tab === 'orders' && <OrdersTab p={data} api={api} />}
       {tab === 'report' && <ReportTab p={data} api={api} />}
       {tab === 'suppliers' && data.admin && <SuppliersTab admin={data.admin} api={api} />}
