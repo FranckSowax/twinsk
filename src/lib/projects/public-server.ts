@@ -5,14 +5,23 @@
 import type { ProjectBundle } from './data';
 import { projectPublicView, type PublicProject, type RawForPublic } from './public';
 import { templateByKey, DOM_TOM_TEMPLATE } from './templates/dom-tom';
-import type { Attachment } from './types';
+import type { Attachment, ContactChannel, ProductSpec, RfqMessage, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
+import { rankSuppliers } from './logic';
 
 /** Vue de l'équipe : mêmes champs que le client, plus documents internes et chemins admin. */
 export interface TeamExtras {
   client: { name: string | null; company: string | null; phone: string | null; email: string | null };
   template_key: string | null;
   lots: string[];
-  suppliers: { id: string; lot: string; alias: string; real_name: string | null; contact: string | null; country: string | null; score: number | null; internal_note: string | null }[];
+  suppliers: {
+    id: string; lot: string; alias: string; rank: number; status: SupplierStatus; scores: Scores; score: number | null;
+    real_name: string | null; contact: string | null; contact_name: string | null; email: string | null; wechat: string | null; whatsapp: string | null; phone: string | null; website: string | null; preferred_channel: ContactChannel | null; contact_source: string | null;
+    country: string | null; city: string | null; indicative_price: string | null; internal_note: string | null;
+    description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; selected_at: string | null;
+  }[];
+  /** Messages RFQ par lot (EN + ZH), modifiables, et signature de l'expéditeur. */
+  rfq: RfqMessage[];
+  rfq_sender: Partial<RfqSender>;
   exchanges: { id: string; supplier_id: string | null; channel: string; exchanged_at: string; summary: string; attachments: Attachment[]; next_action: string | null; next_action_at: string | null; author_name: string | null }[];
   shares: { id: string; token: string; person_name: string; role_label: string | null; expires_at: string | null; revoked_at: string | null; views: number; last_seen_at: string | null; created_at: string }[];
   events: { id: string; type: string; actor: string; actor_name: string | null; detail: string | null; notify: string | null; notified_at: string | null; created_at: string }[];
@@ -28,8 +37,15 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
   const admin: TeamExtras = {
     client: { name: (p.client_name as string) ?? null, company: (p.client_company as string) ?? null, phone: (p.client_phone as string) ?? null, email: (p.client_email as string) ?? null },
     template_key: (p.template_key as string) ?? null,
-    lots: template.lots,
-    suppliers: (b.suppliers as TeamExtras['suppliers']).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, real_name: s.real_name, contact: s.contact, country: s.country, score: s.score == null ? null : Number(s.score), internal_note: s.internal_note })),
+    lots: [...new Set([...template.lots, ...(b.rfq as { lot: string }[]).map((r) => r.lot), ...(b.suppliers as { lot: string }[]).map((s) => s.lot)])],
+    suppliers: rankSuppliers((b.suppliers as (Omit<TeamExtras['suppliers'][number], 'rank'> & { score: number | string | null })[]).map((s) => ({ ...s, score: s.score == null ? null : Number(s.score) }))).map((s) => ({
+      id: s.id, lot: s.lot, alias: s.alias, rank: s.rank, status: s.status || 'candidate', scores: s.scores || {}, score: s.score,
+      real_name: s.real_name, contact: s.contact, contact_name: s.contact_name, email: s.email, wechat: s.wechat, whatsapp: s.whatsapp, phone: s.phone, website: s.website, preferred_channel: s.preferred_channel, contact_source: s.contact_source,
+      country: s.country, city: s.city, indicative_price: s.indicative_price, internal_note: s.internal_note,
+      description: s.description, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience, capacity: s.capacity, lead_time: s.lead_time, moq: s.moq, sample_status: s.sample_status, selected_at: s.selected_at,
+    })),
+    rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
+    rfq_sender: pickSender(p.rfq_sender),
     exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name })),
     shares: (b.shares as TeamExtras['shares']).map((s) => ({ id: s.id, token: s.token, person_name: s.person_name, role_label: s.role_label, expires_at: s.expires_at, revoked_at: s.revoked_at, views: s.views, last_seen_at: s.last_seen_at, created_at: s.created_at })),
     events: (b.events as TeamExtras['events']).map((e) => ({ id: e.id, type: e.type, actor: e.actor, actor_name: e.actor_name, detail: e.detail, notify: e.notify, notified_at: e.notified_at, created_at: e.created_at })),
@@ -38,6 +54,13 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     task_keys: Object.fromEntries((b.tasks as { id: string; key: string }[]).map((t) => [t.id, t.key])),
   };
   return { ...view, admin };
+}
+
+function pickSender(v: unknown): Partial<RfqSender> {
+  const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  const out: Partial<RfqSender> = {};
+  for (const k of ['name', 'company', 'whatsapp', 'wechat', 'email'] as const) if (typeof o[k] === 'string' && o[k]) out[k] = o[k] as string;
+  return out;
 }
 
 export function toPublicView(b: ProjectBundle, token: string): PublicProject {
@@ -71,7 +94,7 @@ function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: st
     documents: (b.documents as (RawForPublic['documents'][number] & { internal: boolean })[]).filter((d) => opts.includeInternal || !d.internal).map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, uploaded_by: d.uploaded_by, created_at: d.created_at })),
     quoteLines: (b.quoteLines as RawForPublic['quoteLines']).map((l) => ({ id: l.id, lot: l.lot, label: l.label, unit: l.unit, quantity: Number(l.quantity), client_quantity: l.client_quantity == null ? null : Number(l.client_quantity), unit_price: l.unit_price == null ? null : Number(l.unit_price), optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase, validated_at: l.validated_at, supplier_id: l.supplier_id })),
     orders: (b.orders as RawForPublic['orders']).map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, line_ids: o.line_ids, total: Number(o.total), created_at: o.created_at, updated_at: o.updated_at })),
-    suppliers: (b.suppliers as RawForPublic['suppliers']).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, score: s.score == null ? null : Number(s.score) })),
+    suppliers: (b.suppliers as (RawForPublic['suppliers'][number] & { score: number | string | null })[]).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status || 'candidate', scores: s.scores || {}, score: s.score == null ? null : Number(s.score), description: s.description ?? null, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience ?? null, capacity: s.capacity ?? null, lead_time: s.lead_time ?? null, moq: s.moq ?? null, sample_status: s.sample_status ?? null, country: s.country ?? null })),
     finalReports: (b.finalReports as RawForPublic['finalReports']).map((r) => ({ phase: r.phase, checklist: r.checklist || [], delivered_at: r.delivered_at, file_id: r.file_id })),
   };
   return projectPublicView(raw, token, { docPath });

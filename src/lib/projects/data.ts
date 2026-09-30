@@ -7,9 +7,10 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
-import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, supplierAlias, toggleChecklist } from './logic';
+import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, scoreTotal, supplierAlias, toggleChecklist } from './logic';
+import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
 import { templateByKey } from './templates/dom-tom';
-import type { Attachment, ChecklistItem, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProjectTemplate } from './types';
+import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductSpec, ProjectTemplate, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 
 export const PROJECT_BUCKET = 'project-files';
 export const SIGNED_URL_SECONDS = 900;
@@ -134,8 +135,24 @@ async function createProject(t: ProjectTemplate, args: CreateProjectArgs, detail
   if (r3.error) fail(r3.error, 'Lignes de devis');
   const r4 = await supabaseAdmin.from('project_final_reports').insert(t.phases.map((p) => ({ project_id: id, phase: p.id, checklist: t.final_report_checklist.map((label, i) => ({ id: `${p.id}-r${i + 1}`, label, done: false })) })));
   if (r4.error) fail(r4.error, 'Rapports');
+  // Messages RFQ prêts à partir (EN + ZH), un par lot, composés avec le plan.
+  const rows = rfqRowsFromTemplate(t, t.key.startsWith('ia-') ? 'ai' : 'template');
+  if (rows.length) {
+    const r5 = await supabaseAdmin.from('project_rfq_messages').insert(rows.map((r) => ({ project_id: id, ...r })));
+    if (r5.error && !isMissing(r5.error.message)) fail(r5.error, 'Messages RFQ');
+  }
   await logEvent(id, { type: 'project.created', actor: args.actor, detail });
   return id;
+}
+/** Lignes project_rfq_messages d'un modèle : matière du modèle par lot, sinon composée depuis les lignes de devis. */
+export function rfqRowsFromTemplate(t: ProjectTemplate, origin: RfqOrigin) {
+  const lots = [...new Set([...t.lots, ...(t.rfq || []).map((r) => r.lot)])];
+  return lots.map((lot) => {
+    const m = rfqLotFor(lot, t);
+    const lines = t.quote_lines.filter((l) => l.lot === lot);
+    const texts = buildRfqMessages(m, t.rfq_context || DEFAULT_RFQ_CONTEXT, { quantities_zh: t.rfq?.find((r) => r.lot === lot) ? undefined : quantitiesZhFromLines(lines) || undefined });
+    return { lot, product_en: m.product_en, product_zh: m.product_zh, quantities_en: m.quantities_en, requirements_en: m.requirements_en, ...texts, origin };
+  });
 }
 
 export async function updateProject(id: string, patch: Partial<{ title: string; description: string; client_name: string; client_company: string; client_phone: string; client_email: string; status: string }>, actor: Actor) {
@@ -154,7 +171,7 @@ export async function loadProject(id: string) {
   if (error) fail(error, 'Lecture du projet');
   if (!project) return null;
   const q = <T>(p: PromiseLike<{ data: T[] | null; error: { message: string } | null }>) => p.then((r) => (r.error ? fail(r.error, 'Lecture') : r.data || []));
-  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events] = await Promise.all([
+  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq] = await Promise.all([
     q(supabaseAdmin.from('project_steps').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_tasks').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_updates').select('*').eq('project_id', id).order('published_at', { ascending: false })),
@@ -167,6 +184,8 @@ export async function loadProject(id: string) {
     q(supabaseAdmin.from('project_final_reports').select('*').eq('project_id', id).order('phase')),
     q(supabaseAdmin.from('project_shares').select('*').eq('project_id', id).order('created_at', { ascending: false })),
     q(supabaseAdmin.from('project_events').select('*').eq('project_id', id).order('created_at', { ascending: false }).limit(300)),
+    // Table ajoutée par la migration du 30 sept. : tolérée absente le temps de la migration.
+    supabaseAdmin.from('project_rfq_messages').select('*').eq('project_id', id).order('lot').then((r) => (r.error && !isMissing(r.error.message) ? fail(r.error, 'Lecture') : r.data || [])),
   ]);
   const taskIds = tasks.map((t: { id: string }) => t.id);
   const updateIds = updates.map((u: { id: string }) => u.id);
@@ -176,7 +195,7 @@ export async function loadProject(id: string) {
     updateIds.length ? q(supabaseAdmin.from('project_update_comments').select('*').in('update_id', updateIds).order('created_at')) : Promise.resolve([]),
     questionIds.length ? q(supabaseAdmin.from('project_question_replies').select('*').in('question_id', questionIds).order('created_at')) : Promise.resolve([]),
   ]);
-  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events };
+  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq };
 }
 export type ProjectBundle = NonNullable<Awaited<ReturnType<typeof loadProject>>>;
 
@@ -313,19 +332,106 @@ export async function deleteDocument(projectId: string, docId: string, actor: Ac
 }
 
 // ---- Fournisseurs et échanges (équipe seulement) ----
-export async function upsertSupplier(projectId: string, input: { id?: string; lot: string; real_name?: string; contact?: string; country?: string; score?: number | null; internal_note?: string }, actor: Actor) {
+export interface SupplierInput {
+  id?: string;
+  lot: string;
+  real_name?: string;
+  contact?: string;
+  contact_name?: string;
+  email?: string;
+  wechat?: string;
+  whatsapp?: string;
+  phone?: string;
+  website?: string;
+  preferred_channel?: ContactChannel | '' | null;
+  contact_source?: string;
+  country?: string;
+  city?: string;
+  indicative_price?: string;
+  internal_note?: string;
+  status?: SupplierStatus;
+  scores?: Scores | null;
+  /** Note globale /25 saisie à la main (ignorée si la grille est remplie). */
+  score?: number | null;
+  description?: string;
+  product_specs?: ProductSpec[];
+  certifications?: string[];
+  years_experience?: number | null;
+  capacity?: string;
+  lead_time?: string;
+  moq?: string;
+  sample_status?: SampleStatus | '' | null;
+}
+const SUPPLIER_STATUSES: SupplierStatus[] = ['candidate', 'shortlisted', 'selected', 'rejected'];
+const CONTACT_CHANNELS: ContactChannel[] = ['email', 'wechat', 'whatsapp', 'alibaba', 'website', 'phone'];
+const SAMPLE_STATUSES: SampleStatus[] = ['none', 'requested', 'received', 'validated'];
+function cleanScores(v: Scores | null | undefined): Scores {
+  const out: Scores = {};
+  for (const k of ['certifications', 'tropical', 'installation', 'price', 'transparency'] as const) {
+    const n = Number(v?.[k]);
+    if (v && v[k] != null && Number.isFinite(n)) out[k] = Math.min(5, Math.max(0, Math.round(n)));
+  }
+  return out;
+}
+function supplierRow(input: SupplierInput) {
+  const t = (v: string | undefined | null) => (typeof v === 'string' ? v.trim() || null : undefined);
+  const scores = input.scores === undefined ? undefined : cleanScores(input.scores);
+  const total = scores ? scoreTotal(scores) : undefined;
+  const row: Record<string, unknown> = {
+    lot: input.lot.trim(),
+    real_name: t(input.real_name), contact: t(input.contact), contact_name: t(input.contact_name), email: t(input.email), wechat: t(input.wechat), whatsapp: t(input.whatsapp), phone: t(input.phone), website: t(input.website), contact_source: t(input.contact_source),
+    country: t(input.country), city: t(input.city), indicative_price: t(input.indicative_price), internal_note: t(input.internal_note),
+    description: t(input.description), capacity: t(input.capacity), lead_time: t(input.lead_time), moq: t(input.moq),
+    updated_at: now(),
+  };
+  if (input.preferred_channel !== undefined) row.preferred_channel = CONTACT_CHANNELS.includes(input.preferred_channel as ContactChannel) ? input.preferred_channel : null;
+  if (input.sample_status !== undefined) row.sample_status = SAMPLE_STATUSES.includes(input.sample_status as SampleStatus) ? input.sample_status : null;
+  if (input.status !== undefined && SUPPLIER_STATUSES.includes(input.status)) row.status = input.status;
+  if (scores) {
+    row.scores = scores;
+    row.score = total ?? (input.score == null ? null : Math.min(25, Math.max(0, Number(input.score))));
+  } else if (input.score !== undefined) row.score = input.score == null || !Number.isFinite(Number(input.score)) ? null : Math.min(25, Math.max(0, Number(input.score)));
+  if (input.product_specs !== undefined) row.product_specs = (input.product_specs || []).map((x) => ({ label: String(x.label || '').trim().slice(0, 80), value: String(x.value || '').trim().slice(0, 300) })).filter((x) => x.label && x.value).slice(0, 30);
+  if (input.certifications !== undefined) row.certifications = (input.certifications || []).map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 20);
+  if (input.years_experience !== undefined) row.years_experience = input.years_experience == null || !Number.isFinite(Number(input.years_experience)) ? null : Math.max(0, Math.round(Number(input.years_experience)));
+  for (const k of Object.keys(row)) if (row[k] === undefined) delete row[k];
+  return row;
+}
+export async function upsertSupplier(projectId: string, input: SupplierInput, actor: Actor) {
   const lot = input.lot.trim();
   if (!lot) throw new ProjectError('Lot requis');
+  const row = supplierRow(input);
   if (input.id) {
-    const { error } = await supabaseAdmin.from('project_suppliers').update({ lot, real_name: input.real_name?.trim() || null, contact: input.contact?.trim() || null, country: input.country?.trim() || null, score: input.score ?? null, internal_note: input.internal_note?.trim() || null }).eq('id', input.id).eq('project_id', projectId);
+    const { data: before } = await supabaseAdmin.from('project_suppliers').select('status, alias').eq('id', input.id).eq('project_id', projectId).maybeSingle();
+    if (!before) throw new ProjectError('Fournisseur introuvable', 404);
+    if (row.status && row.status !== before.status) row.selected_at = row.status === 'selected' ? now() : null;
+    const { error } = await supabaseAdmin.from('project_suppliers').update(row).eq('id', input.id).eq('project_id', projectId);
     if (error) fail(error, 'Fournisseur');
+    await logEvent(projectId, { type: 'supplier.updated', actor, target_type: 'supplier', target_id: input.id, detail: `${lot} · ${before.alias}` });
+    if (row.status && row.status !== before.status) await logStatus(projectId, input.id, lot, String(before.alias), row.status as SupplierStatus, actor);
     return input.id;
   }
   const { count } = await supabaseAdmin.from('project_suppliers').select('id', { count: 'exact', head: true }).eq('project_id', projectId).eq('lot', lot);
-  const { data, error } = await supabaseAdmin.from('project_suppliers').insert({ project_id: projectId, lot, alias: supplierAlias(count || 0), real_name: input.real_name?.trim() || null, contact: input.contact?.trim() || null, country: input.country?.trim() || null, score: input.score ?? null, internal_note: input.internal_note?.trim() || null }).select('id').single();
+  const alias = supplierAlias(count || 0);
+  const { data, error } = await supabaseAdmin.from('project_suppliers').insert({ project_id: projectId, alias, ...row, selected_at: row.status === 'selected' ? now() : null }).select('id').single();
   if (error || !data) fail(error, 'Fournisseur');
-  await logEvent(projectId, { type: 'supplier.added', actor, target_type: 'supplier', target_id: data.id, detail: `${lot} · ${supplierAlias(count || 0)}` });
+  await logEvent(projectId, { type: 'supplier.added', actor, target_type: 'supplier', target_id: data.id, detail: `${lot} · ${alias}` });
+  if (row.status && row.status !== 'candidate') await logStatus(projectId, data.id, lot, alias, row.status as SupplierStatus, actor);
   return data.id as string;
+}
+/** Statut de sélection : retenue (le client est prévenu, sous alias), présélectionnée, écartée, candidate. */
+export async function setSupplierStatus(projectId: string, id: string, status: SupplierStatus, actor: Actor) {
+  if (!SUPPLIER_STATUSES.includes(status)) throw new ProjectError('Statut inconnu');
+  const { data: s } = await supabaseAdmin.from('project_suppliers').select('lot, alias, status').eq('id', id).eq('project_id', projectId).maybeSingle();
+  if (!s) throw new ProjectError('Fournisseur introuvable', 404);
+  if (s.status === status) return;
+  const { error } = await supabaseAdmin.from('project_suppliers').update({ status, selected_at: status === 'selected' ? now() : null, updated_at: now() }).eq('id', id);
+  if (error) fail(error, 'Fournisseur');
+  await logStatus(projectId, id, s.lot, s.alias, status, actor);
+}
+async function logStatus(projectId: string, id: string, lot: string, alias: string, status: SupplierStatus, actor: Actor) {
+  const type = status === 'selected' ? 'supplier.selected' : status === 'shortlisted' ? 'supplier.shortlisted' : status === 'rejected' ? 'supplier.rejected' : 'supplier.candidate';
+  await logEvent(projectId, { type, actor, target_type: 'supplier', target_id: id, detail: `${lot} · ${alias}`, notify: status === 'selected' ? 'client' : null });
 }
 export async function deleteSupplier(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_suppliers').delete().eq('id', id).eq('project_id', projectId);
@@ -343,6 +449,46 @@ export async function deleteExchange(projectId: string, id: string, actor: Actor
   const { error } = await supabaseAdmin.from('project_supplier_exchanges').delete().eq('id', id).eq('project_id', projectId);
   if (error) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.deleted', actor, target_type: 'exchange', target_id: id });
+}
+
+// ---- Messages RFQ (équipe seulement) ----
+export async function saveRfqMessage(projectId: string, lot: string, patch: Partial<{ product_en: string; product_zh: string; quantities_en: string; requirements_en: string[]; email_subject_en: string; email_body_en: string; short_en: string; short_zh: string }>, actor: Actor) {
+  const l = lot.trim();
+  if (!l) throw new ProjectError('Lot requis');
+  const row: Record<string, unknown> = { origin: 'manual', updated_at: now() };
+  for (const k of ['product_en', 'product_zh', 'quantities_en', 'email_subject_en', 'email_body_en', 'short_en', 'short_zh'] as const) if (typeof patch[k] === 'string') row[k] = patch[k]!.trim().slice(0, k === 'email_body_en' ? 6000 : 600);
+  if (Array.isArray(patch.requirements_en)) row.requirements_en = patch.requirements_en.map((x) => String(x).trim().slice(0, 200)).filter(Boolean).slice(0, 10);
+  const { error } = await supabaseAdmin.from('project_rfq_messages').upsert({ project_id: projectId, lot: l, ...row }, { onConflict: 'project_id,lot' });
+  if (error) fail(error, 'Message RFQ');
+  await logEvent(projectId, { type: 'rfq.saved', actor, target_type: 'rfq', target_id: l, detail: l });
+}
+/** Recompose les messages d'un lot (ou de tous) depuis le modèle du projet ; les modifications manuelles sont remplacées. */
+export async function regenerateRfqMessages(projectId: string, lot: string | null, actor: Actor) {
+  const { data: p } = await supabaseAdmin.from('projects').select('template_key').eq('id', projectId).maybeSingle();
+  if (!p) throw new ProjectError('Projet introuvable', 404);
+  const t = templateByKey(String(p.template_key || ''));
+  const { data: lines } = await supabaseAdmin.from('project_quote_lines').select('lot, label, unit, quantity').eq('project_id', projectId).order('position');
+  const { data: existing } = await supabaseAdmin.from('project_rfq_messages').select('lot, product_en, product_zh, quantities_en, requirements_en').eq('project_id', projectId);
+  const { data: sups } = await supabaseAdmin.from('project_suppliers').select('lot').eq('project_id', projectId);
+  const quote_lines = (lines || []).map((l) => ({ lot: String(l.lot), label: String(l.label), unit: String(l.unit), quantity: Number(l.quantity), unit_price: null, optional: false, phase: null }));
+  // Matière : celle du modèle, sinon celle déjà enregistrée (produit, quantités, exigences), sinon les lignes de devis.
+  const rfq = [...(t?.rfq || [])];
+  for (const e of existing || []) if (!rfq.some((r) => r.lot === e.lot)) rfq.push({ lot: e.lot, product_en: e.product_en, product_zh: e.product_zh, quantities_en: e.quantities_en, requirements_en: e.requirements_en || [] });
+  const lots = [...new Set([...(t?.lots || []), ...rfq.map((r) => r.lot), ...quote_lines.map((l) => l.lot), ...(sups || []).map((x) => String(x.lot))])].filter((l) => !lot || l === lot);
+  const base: ProjectTemplate = { ...(t || { key: 'x', title: '', description: '', currency: '', phases: [], durations: { transit: {}, production: [0, 0], technician_visa: [0, 0], padel_slab_cure: 0 }, steps: [], lots: [], business_trip: { title: '', days: [] }, final_report_checklist: [] }), quote_lines, rfq, lots };
+  const rows = rfqRowsFromTemplate(base, 'template').filter((r) => lots.includes(r.lot));
+  if (!rows.length) throw new ProjectError('Aucun lot à composer');
+  const { error } = await supabaseAdmin.from('project_rfq_messages').upsert(rows.map((r) => ({ project_id: projectId, ...r, updated_at: now() })), { onConflict: 'project_id,lot' });
+  if (error) fail(error, 'Messages RFQ');
+  await logEvent(projectId, { type: 'rfq.regenerated', actor, detail: lot || `${rows.length} lot(s)` });
+  return rows.length;
+}
+export async function setRfqSender(projectId: string, sender: Partial<RfqSender>, actor: Actor) {
+  const clean: Partial<RfqSender> = {};
+  for (const k of ['name', 'company', 'whatsapp', 'wechat', 'email'] as const) if (typeof sender[k] === 'string' && sender[k]!.trim()) clean[k] = sender[k]!.trim().slice(0, 120);
+  const { error } = await supabaseAdmin.from('projects').update({ rfq_sender: clean, updated_at: now() }).eq('id', projectId);
+  if (error) fail(error, 'Signature RFQ');
+  await logEvent(projectId, { type: 'rfq.sender', actor, detail: clean.name || '' });
 }
 
 // ---- Devis ----

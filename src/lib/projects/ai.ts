@@ -28,9 +28,11 @@ export function planSystemPrompt(currency: string): string {
     `"durations":{"transit":{"site":[min_jours,max_jours]},"production":[min,max],"technician_visa":[min,max],"padel_slab_cure":0},`,
     `"steps":[{"title":"Étape 0 — …","description":"…","tasks":[{"title":"…","description":"…","owner":"team|client","due_weeks":entier,"phase":"phase1|null","checklist":["point 1","point 2"]}]}],`,
     `"quote_lines":[{"lot":"…","label":"…","unit":"m²|pièce|kit|forfait","quantity":nombre,"optional":false,"phase":"phase1|null"}],`,
-    `"lots":["…"]}`,
+    `"lots":["…"],`,
+    `"rfq_context":{"project_en":"the program in one sentence, in English (sites, climate)","project_zh":"same sentence in Chinese","requirements_en":["common mandatory requirements, English, 3 to 5"]},`,
+    `"rfq":[{"lot":"one entry per lot","product_en":"product name with key specs, English","product_zh":"same in Chinese","quantities_en":"approx. quantities with phasing, English","requirements_en":["lot-specific requirements, English, 2 to 4"]}]}`,
     'Règles : 6 à 9 étapes dans l’ordre cadrage → consultation des usines par lot → due diligence et audits → devis et validation → production et contrôle qualité → logistique → montage et réception → rapport final ; 2 à 6 tâches par étape ; owner "client" pour ce que seul le client peut décider ou fournir (plans, validation, paiements, taxes locales) ; due_weeks croissants et cohérents avec les durées ; une ligne de devis par équipement ou service, quantités estimées depuis le brief, options marquées optional ; phases seulement si le brief découpe le programme (sinon une seule phase) ;',
-    `montants absents (les prix sont chiffrés ensuite par l’équipe) ; devise ${currency} ; ne rien inventer qui contredise le brief ; JSON seul, sans commentaire.`,
+    `montants absents (les prix sont chiffrés ensuite par l’équipe) ; devise ${currency} ; rfq_context et rfq en anglais et en chinois simplifié (ils servent aux messages envoyés aux usines), un rfq par lot ; ne rien inventer qui contredise le brief ; JSON seul, sans commentaire.`,
   ].join('\n');
 }
 
@@ -97,6 +99,19 @@ export function validateGeneratedTemplate(raw: unknown, fallback: { currency: st
     })
     .filter((l): l is NonNullable<typeof l> => !!l);
   const lots = [...new Set([...arr(r.lots).map((x) => str(x, 60)).filter(Boolean), ...quote_lines.map((l) => l.lot)])].slice(0, 20);
+  const rc = (r.rfq_context && typeof r.rfq_context === 'object' ? r.rfq_context : {}) as Record<string, unknown>;
+  const rfq_context = str(rc.project_en, 400) ? { project_en: str(rc.project_en, 400), project_zh: str(rc.project_zh, 400) || str(rc.project_en, 400), requirements_en: arr(rc.requirements_en).map((x) => str(x, 200)).filter(Boolean).slice(0, 6) } : undefined;
+  const lotByNorm = new Map(lots.map((l) => [norm(l), l]));
+  const rfq = arr(r.rfq)
+    .slice(0, 20)
+    .map((x) => {
+      const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+      const lot = lotByNorm.get(norm(str(o.lot, 60))) || '';
+      if (!lot) return null;
+      return { lot, product_en: str(o.product_en, 200) || lot, product_zh: str(o.product_zh, 200) || str(o.product_en, 200) || lot, quantities_en: str(o.quantities_en, 200), requirements_en: arr(o.requirements_en).map((q) => str(q, 200)).filter(Boolean).slice(0, 6) };
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x)
+    .filter((x, i, a) => a.findIndex((y) => y.lot === x.lot) === i);
   return {
     key: `ia-${slug(str(r.title, 60) || fallback.title)}`,
     title: str(r.title, 120) || fallback.title,
@@ -109,7 +124,51 @@ export function validateGeneratedTemplate(raw: unknown, fallback: { currency: st
     quote_lines,
     business_trip: { title: 'Voyage d’audit des usines', days: [] },
     final_report_checklist: ['Dossier des ouvrages exécutés (plans, certificats)', 'Rapports de tests et de réception', 'Contrats de garantie', 'Manuel d’exploitation en français et formation', 'Bilan financier vs devis'],
+    rfq_context,
+    rfq,
   };
+}
+
+// ---- 4. Recherche des contacts d'une usine (modèle avec recherche web) ----
+export function contactSystemPrompt(): string {
+  return (
+    'Tu aides une équipe d’import à trouver comment joindre une usine chinoise. On te donne le nom de l’usine, éventuellement son site web, sa ville et son produit. ' +
+    'Cherche sur le web (site officiel, page contact, Alibaba, Made-in-China, LinkedIn) et réponds UNIQUEMENT par un JSON : ' +
+    '{"contact_name":"nom du commercial export ou null","email":"adresse e-mail ou null","wechat":"identifiant WeChat ou null","whatsapp":"numéro WhatsApp international (+86…) ou null","phone":"téléphone ou null","website":"site officiel ou null","preferred_channel":"email|wechat|whatsapp|alibaba|website|phone","source":"URL où le contact a été trouvé","confidence":"high|medium|low","notes":"1 phrase en français : ce qui a été vérifié ou pas"}. ' +
+    'Ne jamais inventer un contact : null si rien n’est trouvé. Préférer l’adresse générique du site officiel (sales@, info@) à une adresse trouvée sur un annuaire tiers.'
+  );
+}
+export interface ContactFind {
+  contact_name: string | null;
+  email: string | null;
+  wechat: string | null;
+  whatsapp: string | null;
+  phone: string | null;
+  website: string | null;
+  preferred_channel: 'email' | 'wechat' | 'whatsapp' | 'alibaba' | 'website' | 'phone';
+  source: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  notes: string;
+}
+export function validateContactFind(raw: unknown): ContactFind | null {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const opt = (v: unknown, max: number) => str(v, max) || null;
+  const email = opt(r.email, 120);
+  const whatsapp = opt(r.whatsapp, 40);
+  const out: ContactFind = {
+    contact_name: opt(r.contact_name, 80),
+    email: email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null,
+    wechat: opt(r.wechat, 60),
+    whatsapp: whatsapp && whatsapp.replace(/\D/g, '').length >= 8 ? whatsapp : null,
+    phone: opt(r.phone, 40),
+    website: opt(r.website, 200),
+    preferred_channel: (['email', 'wechat', 'whatsapp', 'alibaba', 'website', 'phone'] as const).find((c) => c === str(r.preferred_channel, 20).toLowerCase()) || 'email',
+    source: opt(r.source, 300),
+    confidence: (['high', 'medium', 'low'] as const).find((c) => c === str(r.confidence, 10).toLowerCase()) || 'low',
+    notes: str(r.notes, 300),
+  };
+  if (!out.email && !out.wechat && !out.whatsapp && !out.phone && !out.website) return null;
+  return out;
 }
 
 // ---- 2. Résumé d'une capture d'échange ----

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { teamActor, unauthorized, errorResponse } from '@/lib/projects/auth';
 import * as D from '@/lib/projects/data';
-import type { Attachment, ExchangeChannel, OrderStatus } from '@/lib/projects/types';
+import type { Attachment, ExchangeChannel, OrderStatus, RfqSender, SupplierStatus } from '@/lib/projects/types';
 
 // POST { action, ... } : toutes les actions de l'équipe sur un projet.
 export const dynamic = 'force-dynamic';
@@ -27,8 +27,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'update.publish': result = { id: await D.publishUpdate(id, { title: str(b.title), body: str(b.body), attachments: atts(b.attachments) }, actor) }; break;
       case 'update.comment': await D.addUpdateComment(id, str(b.update_id), str(b.text), actor); break;
       case 'question.reply': await D.replyQuestion(id, str(b.question_id), str(b.text), actor); break;
-      case 'supplier.upsert': result = { id: await D.upsertSupplier(id, { id: str(b.id) || undefined, lot: str(b.lot), real_name: str(b.real_name), contact: str(b.contact), country: str(b.country), score: b.score === null || b.score === '' || b.score === undefined ? null : Number(b.score), internal_note: str(b.internal_note) }, actor) }; break;
+      case 'supplier.upsert': result = { id: await D.upsertSupplier(id, { ...(b as unknown as D.SupplierInput), id: str(b.id) || undefined, lot: str(b.lot), score: b.score === null || b.score === '' || b.score === undefined ? (b.score === undefined ? undefined : null) : Number(b.score) }, actor) }; break;
+      case 'supplier.status': await D.setSupplierStatus(id, str(b.id), str(b.status) as SupplierStatus, actor); break;
       case 'supplier.delete': await D.deleteSupplier(id, str(b.id), actor); break;
+      case 'rfq.save': await D.saveRfqMessage(id, str(b.lot), b as Parameters<typeof D.saveRfqMessage>[2], actor); break;
+      case 'rfq.regenerate': result = { count: await D.regenerateRfqMessages(id, str(b.lot) || null, actor) }; break;
+      case 'rfq.sender': await D.setRfqSender(id, (b.sender && typeof b.sender === 'object' ? b.sender : {}) as Partial<RfqSender>, actor); break;
       case 'exchange.add': result = { id: await D.addExchange(id, { supplier_id: str(b.supplier_id) || null, channel: (str(b.channel) || 'other') as ExchangeChannel, exchanged_at: str(b.exchanged_at) || undefined, summary: str(b.summary), attachments: atts(b.attachments), next_action: str(b.next_action), next_action_at: str(b.next_action_at) || null }, actor) }; break;
       case 'exchange.delete': await D.deleteExchange(id, str(b.id), actor); break;
       case 'quote.upsert': result = { id: await D.upsertQuoteLine(id, b as Parameters<typeof D.upsertQuoteLine>[1], actor) }; break;

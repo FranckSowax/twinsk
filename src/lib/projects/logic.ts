@@ -3,7 +3,7 @@
 // progression, règles de validation des tâches, devis (totaux, validation
 // ligne par ligne), stepper des commandes, jours ouvrés du journal.
 
-import type { ChecklistItem, OrderStatus, Phase, ProjectTemplate, QuoteLineStatus, StepTemplate, TaskOwner, TaskStatus } from './types';
+import type { ChecklistItem, OrderStatus, Phase, ProjectTemplate, QuoteLineStatus, Scores, StepTemplate, SupplierStatus, TaskOwner, TaskStatus } from './types';
 import { ORDER_STEPS } from './types';
 
 // ---- Plan d'action ----
@@ -222,4 +222,38 @@ export function missingDailyUpdate(updateDates: string[], now: Date, tz: string)
 /** Alias d'un fournisseur par rang dans son lot : A, B, C… */
 export function supplierAlias(index: number): string {
   return `Fournisseur ${String.fromCharCode(65 + (index % 26))}`;
+}
+
+// ---- Usines : notation et classement ----
+const SCORE_KEYS = ['certifications', 'tropical', 'installation', 'price', 'transparency'] as const;
+/** Note /25 (somme des 5 critères /5) ; null si aucun critère noté. */
+export function scoreTotal(scores: Scores | null | undefined): number | null {
+  let total = 0;
+  let n = 0;
+  for (const k of SCORE_KEYS) {
+    const v = scores?.[k];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      total += Math.min(5, Math.max(0, v));
+      n += 1;
+    }
+  }
+  return n ? total : null;
+}
+/**
+ * Classement dans un lot : retenue d'abord, puis présélectionnée, candidate,
+ * écartée ; à statut égal par note /25 (grille, sinon note globale saisie),
+ * puis par alias.
+ */
+export function rankSuppliers<T extends { lot: string; alias: string; status: SupplierStatus; scores?: Scores | null; score?: number | null }>(list: T[]): (T & { score: number | null; rank: number })[] {
+  const weight: Record<SupplierStatus, number> = { selected: 0, shortlisted: 1, candidate: 2, rejected: 3 };
+  const byLot = new Map<string, T[]>();
+  for (const s of list) byLot.set(s.lot, [...(byLot.get(s.lot) || []), s]);
+  const out: (T & { score: number | null; rank: number })[] = [];
+  for (const items of byLot.values()) {
+    const sorted = items
+      .map((s) => ({ ...s, score: scoreTotal(s.scores) ?? s.score ?? null }))
+      .sort((a, b) => weight[a.status] - weight[b.status] || (b.score ?? -1) - (a.score ?? -1) || a.alias.localeCompare(b.alias));
+    sorted.forEach((s, i) => out.push({ ...s, rank: i + 1 }));
+  }
+  return out;
 }

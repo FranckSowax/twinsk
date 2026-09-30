@@ -6,12 +6,12 @@
  * échanges avec les usines, jetons).
  */
 
-import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, QuestionStatus, QuoteLineStatus, TaskOwner, TaskStatus } from './types';
+import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, ProductSpec, QuestionStatus, QuoteLineStatus, SampleStatus, Scores, SupplierStatus, TaskOwner, TaskStatus } from './types';
 import { CLIENT_DISCLAIMER } from './types';
-import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals } from './logic';
+import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, rankSuppliers } from './logic';
 
 /** Champs qui ne doivent JAMAIS apparaître dans la sortie publique. */
-export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory'];
+export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq', 'rfq_sender', 'email_body_en', 'short_zh'];
 
 export interface PublicProject {
   title: string;
@@ -64,7 +64,24 @@ export interface PublicProject {
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; lines: string[]; total: number; at: string; updated_at: string }[];
   business_trip: { title: string; days: { day: number; city: string; program: string }[]; interested_at: string | null; quote_requested_at: string | null };
   final_reports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; download_path: string | null }[];
-  suppliers: { lot: string; alias: string; score: number | null }[];
+  /** Usines anonymisées : classement due diligence par lot, fiche produit, statut de sélection. */
+  suppliers: {
+    lot: string;
+    alias: string;
+    rank: number;
+    status: SupplierStatus;
+    score: number | null;
+    scores: Scores;
+    description: string | null;
+    product_specs: ProductSpec[];
+    certifications: string[];
+    years_experience: number | null;
+    capacity: string | null;
+    lead_time: string | null;
+    moq: string | null;
+    sample_status: SampleStatus | null;
+    country: string | null;
+  }[];
 }
 
 /** Entrées brutes (lues par le serveur) : seuls les champs nommés ci-dessous sont copiés. */
@@ -81,7 +98,7 @@ export interface RawForPublic {
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; uploaded_by: string; created_at: string }[];
   quoteLines: { id: string; lot: string; label: string; unit: string; quantity: number; client_quantity: number | null; unit_price: number | null; optional: boolean; enabled: boolean; status: QuoteLineStatus; phase: string | null; validated_at: string | null; supplier_id: string | null }[];
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; line_ids: string[]; total: number; created_at: string; updated_at: string }[];
-  suppliers: { id: string; lot: string; alias: string; score: number | null }[];
+  suppliers: { id: string; lot: string; alias: string; status: SupplierStatus; scores: Scores; score: number | null; description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; country: string | null }[];
   finalReports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; file_id: string | null }[];
 }
 
@@ -156,8 +173,33 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
     orders: raw.orders.map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, lines: o.line_ids, total: o.total, at: o.created_at, updated_at: o.updated_at })),
     business_trip: { title: raw.template.business_trip.title, days: raw.template.business_trip.days.map((d) => ({ day: d.day, city: d.city, program: d.program })), interested_at: raw.project.business_trip_interested_at, quote_requested_at: raw.project.business_trip_quote_requested_at },
     final_reports: raw.finalReports.map((r) => ({ phase: r.phase, checklist: r.checklist.map((c) => ({ id: c.id, label: c.label, done: c.done })), delivered_at: r.delivered_at, download_path: r.delivered_at && r.file_id ? docPath(r.file_id) : null })),
-    suppliers: raw.suppliers.map((s) => ({ lot: s.lot, alias: s.alias, score: s.score })),
+    suppliers: rankSuppliers(raw.suppliers.map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status, scores: s.scores, score: s.score }))).map((r) => {
+      const s = raw.suppliers.find((x) => x.id === r.id)!;
+      return {
+        lot: s.lot,
+        alias: s.alias,
+        rank: r.rank,
+        status: s.status,
+        score: r.score ?? s.score,
+        scores: pickScores(s.scores),
+        description: s.description,
+        product_specs: (s.product_specs || []).map((x) => ({ label: x.label, value: x.value })),
+        certifications: [...(s.certifications || [])],
+        years_experience: s.years_experience,
+        capacity: s.capacity,
+        lead_time: s.lead_time,
+        moq: s.moq,
+        sample_status: s.sample_status,
+        country: s.country,
+      };
+    }),
   };
+}
+
+function pickScores(s: Scores | null | undefined): Scores {
+  const out: Scores = {};
+  for (const k of ['certifications', 'tropical', 'installation', 'price', 'transparency'] as const) if (typeof s?.[k] === 'number') out[k] = s[k];
+  return out;
 }
 
 function att(a: Attachment): Attachment {

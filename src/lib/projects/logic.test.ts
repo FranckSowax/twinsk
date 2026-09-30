@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DOM_TOM_TEMPLATE } from './templates/dom-tom';
-import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, groupByLot, initialPhases, isPhaseLocked, lineTotal, missingDailyUpdate, nextOrderStatus, previousBusinessDay, progress, quoteTotals, supplierAlias, toggleChecklist, type QuoteLineLike } from './logic';
+import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, groupByLot, initialPhases, isPhaseLocked, lineTotal, missingDailyUpdate, nextOrderStatus, previousBusinessDay, progress, quoteTotals, rankSuppliers, scoreTotal, supplierAlias, toggleChecklist, type QuoteLineLike } from './logic';
 import { deepKeys, FORBIDDEN_PUBLIC_FIELDS, projectPublicView, type RawForPublic } from './public';
 
 const START = '2026-10-05T08:00:00.000Z';
@@ -113,13 +113,19 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     documents: [{ id: 'd1', category: 'site', name: 'plan.pdf', size: 10, uploaded_by: 'Client', created_at: START }],
     quoteLines: [{ id: 'l1', lot: 'Gazon', label: 'Gazon', unit: 'm²', quantity: 5800, client_quantity: null, unit_price: 12, optional: false, enabled: true, status: 'draft', phase: null, validated_at: null, supplier_id: 'sup1' }],
     orders: [],
-    suppliers: [{ id: 'sup1', lot: 'Gazon', alias: 'Fournisseur A', score: 21 }],
+    suppliers: [
+      { id: 'sup1', lot: 'Gazon', alias: 'Fournisseur A', status: 'candidate', scores: { certifications: 4, tropical: 4, installation: 5, price: 3, transparency: 4 }, score: 21, description: 'Producteur de gazon depuis 2003.', product_specs: [{ label: 'Hauteur', value: '30 mm' }], certifications: ['ISO 9001', 'SGS'], years_experience: 23, capacity: '120 000 m²/jour', lead_time: '10–15 j', moq: null, sample_status: 'requested', country: 'Chine' },
+      { id: 'sup2', lot: 'Gazon', alias: 'Fournisseur B', status: 'selected', scores: { certifications: 3, tropical: 3, installation: 3, price: 5, transparency: 4 }, score: 18, description: null, product_specs: [], certifications: [], years_experience: null, capacity: null, lead_time: null, moq: null, sample_status: null, country: 'Chine' },
+    ],
     finalReports: [{ phase: 'phase1', checklist: [], delivered_at: null, file_id: null }],
   };
   // Simule une base qui contiendrait ces champs sensibles : ils ne doivent jamais transiter.
   const polluted = JSON.parse(JSON.stringify(raw)) as RawForPublic & Record<string, unknown>;
   (polluted.suppliers[0] as Record<string, unknown>).real_name = 'Shenzhen Turf Co';
   (polluted.suppliers[0] as Record<string, unknown>).contact = 'wechat:xxx';
+  Object.assign(polluted.suppliers[0] as Record<string, unknown>, { email: 'sales@turf.cn', whatsapp: '+8613800000000', wechat: 'turf_sales', contact_name: 'Lily', city: 'Leling', website: 'turf.cn', indicative_price: '4,8 USD/m²', internal_note: 'secret' });
+  (polluted as Record<string, unknown>).rfq = [{ short_zh: '您好' }];
+  (polluted as Record<string, unknown>).rfq_sender = { name: 'Franck' };
   (polluted.quoteLines[0] as Record<string, unknown>).unit_cost = 7;
   (polluted as Record<string, unknown>).exchanges = [{ note: 'secret' }];
   const view = projectPublicView(polluted, 'TOKEN');
@@ -131,5 +137,31 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     expect(view.tasks[0].locked).toBe(true);
     expect(view.documents[0].download_path).toBe('/api/projects/public/TOKEN/documents/d1');
     expect(view.quote.totals).toEqual({ committed: 0, pending: 69600, estimated: 69600, unpriced: 0 });
+    expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret/);
+  });
+  it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {
+    expect(view.suppliers.map((s) => [s.alias, s.rank, s.status, s.score])).toEqual([['Fournisseur B', 1, 'selected', 18], ['Fournisseur A', 2, 'candidate', 20]]);
+    expect(view.suppliers[1]).toMatchObject({ description: 'Producteur de gazon depuis 2003.', product_specs: [{ label: 'Hauteur', value: '30 mm' }], certifications: ['ISO 9001', 'SGS'], years_experience: 23, sample_status: 'requested', scores: { installation: 5 } });
+    expect(Object.keys(view.suppliers[0]).sort()).toEqual(['alias', 'capacity', 'certifications', 'country', 'description', 'lead_time', 'lot', 'moq', 'product_specs', 'rank', 'sample_status', 'score', 'scores', 'status', 'years_experience']);
+  });
+});
+
+describe('usines : notation /25 et classement par lot', () => {
+  it('total des 5 critères, bornés 0-5 ; null sans note', () => {
+    expect(scoreTotal({ certifications: 4, tropical: 4, installation: 5, price: 3, transparency: 4 })).toBe(20);
+    expect(scoreTotal({ certifications: 9, price: -2 })).toBe(5);
+    expect(scoreTotal({})).toBeNull();
+    expect(scoreTotal(null)).toBeNull();
+  });
+  it('retenue > présélectionnée > candidate > écartée, puis note décroissante, repli sur la note saisie', () => {
+    const r = rankSuppliers([
+      { lot: 'Gazon', alias: 'Fournisseur A', status: 'candidate', scores: { certifications: 5, tropical: 5, installation: 5, price: 5, transparency: 5 } },
+      { lot: 'Gazon', alias: 'Fournisseur B', status: 'rejected', scores: { certifications: 5, tropical: 5, installation: 5, price: 5, transparency: 5 } },
+      { lot: 'Gazon', alias: 'Fournisseur C', status: 'shortlisted', scores: {}, score: 17 },
+      { lot: 'Gazon', alias: 'Fournisseur D', status: 'shortlisted', scores: { certifications: 4, tropical: 4, installation: 4, price: 4, transparency: 4 } },
+      { lot: 'Padel', alias: 'Fournisseur A', status: 'candidate', scores: {} },
+    ]);
+    expect(r.filter((x) => x.lot === 'Gazon').map((x) => `${x.alias}#${x.rank}:${x.score}`)).toEqual(['Fournisseur D#1:20', 'Fournisseur C#2:17', 'Fournisseur A#3:25', 'Fournisseur B#4:25']);
+    expect(r.find((x) => x.lot === 'Padel')).toMatchObject({ rank: 1, score: null });
   });
 });

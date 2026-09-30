@@ -37,6 +37,7 @@ const LABELS: Record<string, string> = {
   'phase.received': 'Phase réceptionnée',
   'phase.reopened': 'Phase rouverte',
   'report.delivered': 'Rapport final remis',
+  'supplier.selected': 'Usine retenue pour un lot',
   'document.uploaded': 'Document déposé',
   'trip.interested': 'Intérêt pour le voyage d’audit',
   'trip.quote_requested': 'Devis du voyage demandé',

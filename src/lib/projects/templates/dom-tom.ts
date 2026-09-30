@@ -146,6 +146,26 @@ export const DOM_TOM_TEMPLATE: ProjectTemplate = {
     'Manuel d’exploitation en français et formation de l’équipe locale',
     'Bilan financier vs devis',
   ],
+  // Messages RFQ (fiche technique sourcing du 30 sept. 2026, section 13).
+  rfq_context: {
+    project_en: '8 five-a-side football pitches + 8 padel courts + 4 container bars in the French Caribbean (Martinique, Guadeloupe, French Guiana) & Réunion Island — hurricane zone, marine climate',
+    project_zh: '法属加勒比地区（马提尼克、瓜德罗普、法属圭亚那）和留尼汪岛的 8 个五人制足球场 + 8 个板式网球场 + 4 个集装箱酒吧（飓风区、海洋性气候）',
+    requirements_en: [
+      'Tropical marine climate, hurricane zone: hot-dip galvanized + powder coating C4/C5-M, stainless steel fasteners A4/316',
+      'UV ≥ 5,000 h test report (SGS or equivalent)',
+      'Wind load calculation assumptions and execution drawings (to be validated by our local engineering office)',
+      'French installation manual (or English with drawings)',
+    ],
+  },
+  rfq: [
+    { lot: 'Gazon', product_en: 'Non-infill football turf 30 mm (PU backing, tufted white lines) + shockpad 10–12 mm', product_zh: '免填充足球草 30 mm（PU 背胶、簇绒白线）及 10–12 mm 减震垫', quantities_en: 'approx. 5,800 m² turf + 4,800 m² shockpad total, Phase 1: 2,900 m² + 2,400 m²', requirements_en: ['Monofilament + curled yarn, 16,000–17,000 dtex, 30,000–45,000 stitches/m²', 'PU coating preferred over SBR latex (heat and humidity)', 'Rolls 4 m, cut to length, white lines tufted at factory', 'Heavy metals test report; written warranty 6–8 years; samples required'] },
+    { lot: 'Cages', product_en: 'Five-a-side football cage kit 30 × 20 m (steel fence h 4–6 m, goals 3 × 2 m, nets, gates)', product_zh: '五人制足球笼式球场套件 30 × 20 米（钢制围栏高 4–6 米、3 × 2 米球门、球网、门）', quantities_en: '8 sets total, 4 sets per phase', requirements_en: ['Posts 80 × 80 mm min., hot-dip galvanized C5-M + powder coating', 'Wind load calculation for hurricane zone (≥ 250 km/h gusts)', 'Rebound boards, gates, stainless steel fasteners A4'] },
+    { lot: 'Éclairage LED', product_en: 'LED floodlight 200 W IP66 + galvanized masts 6–8 m + DIALux lighting study', product_zh: '200 W IP66 LED 投光灯、6–8 米热镀锌灯杆及 DIALux 照明设计', quantities_en: '128 floodlights + 32 masts total (8 × 200 W per pitch), 64 + 16 per phase', requirements_en: ['CREE/Lumileds chips, MeanWell driver, ≥ 150 lm/W, IP66/IK08, 5-year warranty', 'Double powder coating for salt air; DIALux study for 200 lux average', 'Masts: Q235 steel 3 mm min., hot-dip galvanized, wind resistance certificate'] },
+    { lot: 'Padel', product_en: 'Panoramic padel court kit 20 × 10 m (galvanized structure, 12 mm tempered glass EN 12150, turf, LED)', product_zh: '全景板式网球场套件 20 × 10 米（热镀锌结构、12 mm EN 12150 钢化玻璃、人造草、LED）', quantities_en: '8 sets total, Phase 1: 2 sets (Guadeloupe), Phase 2: 6 sets', requirements_en: ['Stainless steel A4 fasteners, wind certification ≥ 165 mph', 'Packing list per set and containers per 40\' HC', 'Foundation requirements and 3D assembly tutorial'] },
+    { lot: 'Conteneurs', product_en: "20' container bar/snack unit (hydraulic hatch, 304 stainless steel counter, 230 V / 50 Hz, C5-M paint, CSC plate)", product_zh: '20 尺集装箱酒吧/快餐单元（液压窗口、304 不锈钢台面、230 V / 50 Hz、C5-M 涂装、CSC 铭牌）', quantities_en: '4 units total, 2 per phase', requirements_en: ['Shipper-owned container (SOC) with valid CSC plate', '230 V / 50 Hz electrical, EU sockets, 304 stainless steel kitchen', 'EPS/rock wool 50 mm insulation, hurricane tie-down points'] },
+    { lot: 'Tribunes', product_en: 'Aluminium bleacher 3 rows × 10 m (~60 seats), HDPE anti-UV seats, site wind calculation', product_zh: '铝合金看台 3 排 × 10 米（约 60 座）、抗紫外线 HDPE 座椅、现场风载计算', quantities_en: '8 units (~480 seats) total, 4 per phase', requirements_en: ['Aluminium 6061-T6 marine grade or hot-dip galvanized steel C5-M', 'EN 13200 compliance, calculation note, stainless steel fasteners'] },
+    { lot: 'Couverture', product_en: 'PVDF tensile membrane roof over five-a-side pitches (~800 m² per pitch) with galvanized steel frame', product_zh: '五人制足球场 PVDF 张拉膜顶棚（每场约 800 平方米）及热镀锌钢结构', quantities_en: 'approx. 6,400 m² total (8 pitches), per-site decision', requirements_en: ['Ferrari / Mehler / Sioen PVDF membrane, 15-year warranty', 'Wind load assumptions provided for our local engineering office (hurricane zone)', 'Execution drawings, CNC cutting, installation supervision option'] },
+  ],
 };
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [DOM_TOM_TEMPLATE];

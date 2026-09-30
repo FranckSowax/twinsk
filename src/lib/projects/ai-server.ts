@@ -5,7 +5,7 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { chatCompletion, llmCostFcfa, parseJsonLoose, type LlmPart } from '@/lib/llm';
-import { EXCHANGE_SYSTEM_PROMPT, FLASH_MODEL, PLAN_MODEL, planSystemPrompt, UPDATE_SYSTEM_PROMPT, updateFactsPrompt, validateExchangeSummary, validateGeneratedTemplate, validateUpdateDraft, type ExchangeSummary, type UpdateFacts } from './ai';
+import { contactSystemPrompt, EXCHANGE_SYSTEM_PROMPT, FLASH_MODEL, PLAN_MODEL, planSystemPrompt, UPDATE_SYSTEM_PROMPT, updateFactsPrompt, validateContactFind, validateExchangeSummary, validateGeneratedTemplate, validateUpdateDraft, type ContactFind, type ExchangeSummary, type UpdateFacts } from './ai';
 import { logEvent, PROJECT_BUCKET, ProjectError, type Actor } from './data';
 import { orderStatusLabel, progress } from './logic';
 import type { ProjectTemplate } from './types';
@@ -17,8 +17,8 @@ export interface AiUsage {
   costFcfa: number;
 }
 
-async function ask(args: { system: string; parts: LlmPart[]; model: string; maxTokens: number; projectId: string | null; actor: Actor; usage: string }): Promise<{ json: unknown; usage: AiUsage }> {
-  const r = await chatCompletion({ provider: 'openrouter', model: args.model, system: args.system, messages: [{ role: 'user', content: args.parts }], jsonMode: true, maxTokens: args.maxTokens, timeoutMs: 120_000, reasoning: 'low' });
+async function ask(args: { system: string; parts: LlmPart[]; model: string; maxTokens: number; projectId: string | null; actor: Actor; usage: string; jsonMode?: boolean }): Promise<{ json: unknown; usage: AiUsage }> {
+  const r = await chatCompletion({ provider: 'openrouter', model: args.model, system: args.system, messages: [{ role: 'user', content: args.parts }], jsonMode: args.jsonMode ?? true, maxTokens: args.maxTokens, timeoutMs: 120_000, reasoning: 'low' });
   if (!r.ok) throw new ProjectError(`IA indisponible : ${r.error}`, 502);
   const json = parseJsonLoose(r.text);
   if (!json || typeof json !== 'object') throw new ProjectError('Réponse du modèle illisible', 502);
@@ -100,4 +100,21 @@ export async function draftDailyUpdate(projectId: string, actor: Actor): Promise
   const draft = validateUpdateDraft(json);
   if (!draft) throw new ProjectError('Brouillon illisible ; réessayez.', 502);
   return { draft, facts, usage };
+}
+
+/**
+ * 4. Contacts d'une usine (e-mail, WeChat, WhatsApp) cherchés sur le web par le
+ * modèle : suffixe OpenRouter « :online » (recherche web injectée dans le
+ * contexte, facturée en plus des jetons). Rien n'est enregistré : l'équipe
+ * vérifie puis colle dans la fiche. Le nom de l'usine ne quitte pas l'équipe.
+ */
+export const CONTACT_MODEL = process.env.PROJECT_CONTACT_MODEL || `${FLASH_MODEL}:online`;
+export async function findSupplierContacts(projectId: string, s: { name: string; website?: string; city?: string; product?: string }, actor: Actor): Promise<{ result: ContactFind; usage: AiUsage }> {
+  if (s.name.trim().length < 3) throw new ProjectError('Indiquez le nom de l’usine.');
+  const text = [`Usine : ${s.name.trim().slice(0, 120)}`, s.website ? `Site : ${s.website.trim().slice(0, 200)}` : '', s.city ? `Ville : ${s.city.trim().slice(0, 80)}` : '', s.product ? `Produit : ${s.product.trim().slice(0, 200)}` : '', 'Trouve la page contact officielle et les identifiants WeChat / WhatsApp publiés.'].filter(Boolean).join('\n');
+  // Pas de mode JSON strict : certains modèles avec recherche web le refusent ; parseJsonLoose suffit.
+  const { json, usage } = await ask({ system: contactSystemPrompt(), parts: [{ type: 'text', text }], model: CONTACT_MODEL, maxTokens: 1200, projectId, actor, usage: 'recherche contacts usine', jsonMode: false });
+  const result = validateContactFind(json);
+  if (!result) throw new ProjectError('Aucun contact trouvé pour cette usine ; cherchez sur son site ou Alibaba.', 404);
+  return { result, usage };
 }

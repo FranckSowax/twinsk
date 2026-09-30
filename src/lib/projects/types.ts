@@ -74,6 +74,24 @@ export interface QuoteLineTemplate {
   optional: boolean;
   phase: string | null;
 }
+/** Matière des messages RFQ d'un lot (anglais + chinois), générés avec le plan. */
+export interface RfqLotTemplate {
+  lot: string;
+  product_en: string;
+  product_zh: string;
+  /** Ligne de quantités prête à coller (« approx. 5,800 m² total, Phase 1: 2,900 m² »). */
+  quantities_en: string;
+  /** Exigences propres au lot, en anglais (3 à 6 points). */
+  requirements_en: string[];
+}
+/** Contexte du programme pour tous les messages RFQ. */
+export interface RfqContext {
+  /** « 8 five-a-side football pitches + 8 padel courts + 4 container bars in the French Caribbean & Réunion Island (hurricane zone, marine climate) » */
+  project_en: string;
+  project_zh: string;
+  /** Exigences communes (climat, normes, documents attendus), en anglais. */
+  requirements_en: string[];
+}
 export interface ProjectTemplate {
   key: string;
   title: string;
@@ -87,6 +105,9 @@ export interface ProjectTemplate {
   lots: string[];
   business_trip: { title: string; days: { day: number; city: string; program: string }[] };
   final_report_checklist: string[];
+  /** Messages RFQ : contexte du programme et matière par lot (facultatif : composés depuis les lots sinon). */
+  rfq_context?: RfqContext;
+  rfq?: RfqLotTemplate[];
 }
 
 export const ORDER_STEPS: { value: OrderStatus; label: string }[] = [
@@ -115,6 +136,68 @@ export const EXCHANGE_CHANNELS: { value: ExchangeChannel; label: string }[] = [
   { value: 'phone', label: 'Téléphone' },
   { value: 'visit', label: 'Visite' },
   { value: 'other', label: 'Autre' },
+];
+
+export type SupplierStatus = 'candidate' | 'shortlisted' | 'selected' | 'rejected';
+export const SUPPLIER_STATUS: { value: SupplierStatus; label: string }[] = [
+  { value: 'candidate', label: 'Candidate' },
+  { value: 'shortlisted', label: 'Présélectionnée' },
+  { value: 'selected', label: 'Retenue' },
+  { value: 'rejected', label: 'Écartée' },
+];
+/** Grille due diligence : 5 critères notés /5, total /25. */
+export const SCORE_CRITERIA: { key: ScoreKey; label: string; hint: string }[] = [
+  { key: 'certifications', label: 'Certifications', hint: 'ISO, rapports de tests, normes visées' },
+  { key: 'tropical', label: 'Adéquation tropicale', hint: 'UV, humidité, cyclones, corrosion saline' },
+  { key: 'installation', label: 'Capacité d’installation', hint: 'Techniciens, supervision, références export' },
+  { key: 'price', label: 'Prix', hint: 'Prix et conditions par rapport au panel' },
+  { key: 'transparency', label: 'Transparence', hint: 'Réactivité, documents fournis, visite possible' },
+];
+export type ScoreKey = 'certifications' | 'tropical' | 'installation' | 'price' | 'transparency';
+export type Scores = Partial<Record<ScoreKey, number>>;
+export type SampleStatus = 'none' | 'requested' | 'received' | 'validated';
+export type ContactChannel = 'email' | 'wechat' | 'whatsapp' | 'alibaba' | 'website' | 'phone';
+export const CONTACT_CHANNELS: { value: ContactChannel; label: string }[] = [
+  { value: 'email', label: 'E-mail' },
+  { value: 'wechat', label: 'WeChat' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'alibaba', label: 'Alibaba (TradeManager)' },
+  { value: 'website', label: 'Formulaire du site' },
+  { value: 'phone', label: 'Téléphone' },
+];
+/** Caractéristique produit ou usine montrée au client (« Hauteur : 30 mm »). */
+export interface ProductSpec {
+  label: string;
+  value: string;
+}
+/** Signature de l'expéditeur des RFQ (remplace les crochets des messages). */
+export interface RfqSender {
+  name: string;
+  company: string;
+  whatsapp: string;
+  wechat: string;
+  email: string;
+}
+export type RfqOrigin = 'template' | 'ai' | 'manual';
+export interface RfqMessage {
+  id: string;
+  lot: string;
+  product_en: string;
+  product_zh: string;
+  quantities_en: string;
+  requirements_en: string[];
+  email_subject_en: string;
+  email_body_en: string;
+  short_en: string;
+  short_zh: string;
+  origin: RfqOrigin;
+  updated_at: string;
+}
+export const SAMPLE_STATUS: { value: SampleStatus; label: string }[] = [
+  { value: 'none', label: 'Pas d’échantillon' },
+  { value: 'requested', label: 'Échantillon demandé' },
+  { value: 'received', label: 'Échantillon reçu' },
+  { value: 'validated', label: 'Échantillon validé' },
 ];
 
 /** Mention permanente côté client. */
