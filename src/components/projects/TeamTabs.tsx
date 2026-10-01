@@ -26,6 +26,9 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
   const [importing, setImporting] = useState(false);
   const [mailTo, setMailTo] = useState<TeamExtras['suppliers'][number] | null>(null);
   const [showExchanges, setShowExchanges] = useState(false);
+  const [showSuppliers, setShowSuppliers] = useState(false);
+  const contactedCount = admin.suppliers.filter((x) => contactsOf(admin, x.id).length > 0).length;
+  const selectedCount = admin.suppliers.filter((x) => x.status === 'selected').length;
   // Relance en retard : seul le dernier échange de chaque usine compte (une réponse plus récente lève la relance).
   const overdue = [...new Map([...admin.exchanges].sort((a, b) => a.exchanged_at.localeCompare(b.exchanged_at)).map((e) => [e.supplier_id || e.id, e])).values()].filter((e) => e.next_action_at && new Date(e.next_action_at) < new Date()).length;
   const [copied, setCopied] = useState(false);
@@ -76,19 +79,28 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
       )}
 
       <div className={card}>
+        {/* Repliable : l'en-tête (compteurs, actions) reste visible. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="font-display text-base font-bold text-slate-900 dark:text-white">Usines consultées, classées par lot</p>
-            <p className="text-xs text-slate-500">Note due diligence /25 (certifications, adéquation tropicale, installation, prix, transparence). Retenue → le client est prévenu, sous alias.</p>
-          </div>
-          <span className="flex gap-2">
+          <button type="button" onClick={() => setShowSuppliers((v) => !v)} className="flex min-w-0 flex-1 items-start gap-2 text-left" aria-expanded={showSuppliers}>
+            <ChevronDown className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-transform ${showSuppliers ? '' : '-rotate-90'}`} />
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2 font-display text-base font-bold text-slate-900 dark:text-white">
+                Usines consultées, classées par lot
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200">{admin.suppliers.length} usine{admin.suppliers.length > 1 ? 's' : ''} · {lots.length} lot{lots.length > 1 ? 's' : ''}</span>
+                {contactedCount > 0 && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-sans text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">{contactedCount} contactée{contactedCount > 1 ? 's' : ''}</span>}
+                {selectedCount > 0 && <span className="rounded-full bg-emerald-600 px-2 py-0.5 font-sans text-[11px] font-semibold text-white">{selectedCount} retenue{selectedCount > 1 ? 's' : ''}</span>}
+              </span>
+              <span className="block text-xs font-normal text-slate-500">Note due diligence /25 (certifications, adéquation tropicale, installation, prix, transparence). Retenue → le client est prévenu, sous alias.</span>
+            </span>
+          </button>
+          <span className="flex flex-wrap gap-2">
             <button type="button" onClick={exportBrief} className={btn} title="Lots, quantités, exigences et usines déjà connues : à donner au skill de sourcing">{copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Download className="h-3.5 w-3.5" />} Besoin de sourcing (JSON)</button>
             <button type="button" onClick={() => setImporting(true)} className={btn}><Upload className="h-3.5 w-3.5" /> Importer (JSON)</button>
             <button type="button" onClick={() => setPreview((v) => !v)} className={btn}><Eye className="h-3.5 w-3.5" /> {preview ? 'Masquer l’aperçu client' : 'Aperçu client'}</button>
             <button type="button" onClick={() => setEditing('new')} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Usine</button>
           </span>
         </div>
-        {admin.suppliers.length === 0 ? (
+        {showSuppliers && (admin.suppliers.length === 0 ? (
           <Empty>Aucune usine. Ajoutez-en une par lot : l’alias (A, B, C…) est attribué automatiquement.</Empty>
         ) : (
           lots.map((lot) => (
@@ -122,7 +134,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
               </table>
             </div>
           ))
-        )}
+        ))}
       </div>
 
       {preview && (
