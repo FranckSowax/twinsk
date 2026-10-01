@@ -53,6 +53,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'exchange.add': result = { id: await D.addExchange(id, { supplier_id: str(b.supplier_id) || null, channel: (str(b.channel) || 'other') as ExchangeChannel, exchanged_at: str(b.exchanged_at) || undefined, summary: str(b.summary), attachments: atts(b.attachments), next_action: str(b.next_action), next_action_at: str(b.next_action_at) || null, analysis: b.analysis && typeof b.analysis === 'object' ? (b.analysis as Record<string, unknown>) : null, direction: (['out', 'in', 'note'].includes(str(b.direction)) ? str(b.direction) : undefined) as 'out' | 'in' | 'note' | undefined }, actor) };
         if (Array.isArray(b.question_ids)) await D.linkQuestionsToExchange(id, String((result as { id: string }).id), (b.question_ids as unknown[]).map(String));
         break;
+      case 'offer.upsert': result = { id: await D.upsertOffer(id, b as unknown as D.OfferInput, actor) }; break;
+      case 'offer.delete': await D.deleteOffer(id, str(b.id), actor); break;
+      case 'offer.margin': await D.setDefaultMargin(id, Number(b.pct), actor); break;
+      case 'offer.apply': result = await D.applyOfferToQuote(id, str(b.offer_id), str(b.item_id), str(b.quote_line_id), actor); break;
       case 'exchange.set_analysis': if (!b.analysis || typeof b.analysis !== 'object') throw new D.ProjectError('Analyse manquante'); await D.setExchangeAnalysis(id, str(b.id), b.analysis as Record<string, unknown>, actor); break;
       case 'exchange.assign': await D.assignExchange(id, str(b.id), str(b.supplier_id), (['out', 'in', 'note'].includes(str(b.direction)) ? str(b.direction) : null) as 'out' | 'in' | 'note' | null, actor); break;
       case 'exchange.delete': await D.deleteExchange(id, str(b.id), actor); break;

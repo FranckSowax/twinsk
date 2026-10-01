@@ -6,6 +6,7 @@
 // Les appels réseau sont dans ai-server.ts.
 
 import type { ProjectTemplate, TaskOwner } from './types';
+import { validateExtractedOffer, type ExtractedOffer } from './offers';
 
 // Kimi K2 (0905, sans phase de réflexion) : K2.6 consomme tout le budget de sortie à réfléchir.
 export const PLAN_MODEL = process.env.PROJECT_PLAN_MODEL || 'moonshotai/kimi-k2-0905';
@@ -260,7 +261,9 @@ export function exchangeAnalysisPrompt(c: ExchangeContext): string {
     '"reply_fr":"la même réponse traduite en français, pour relecture",',
     '"reply_zh":"la même réponse en chinois simplifié si l’usine écrit en chinois, sinon null",',
     '"factory_questions":[{"original":"question posée par l’usine, telle quelle","fr":"la question reformulée en français comme une question de NOTRE équipe AU client : vouvoiement, claire, autonome, sans « nous » désignant l’usine (parler du « fabricant »), SANS nom, marque, ville ni contact de l’usine","needs_client":true,"why":"pourquoi seul le client peut répondre, ou comment l’équipe peut y répondre seule"}],',
-    '"next_action":"prochaine action concrète pour l’équipe ou null","next_action_days":entier ou null}',
+    '"next_action":"prochaine action concrète pour l’équipe ou null","next_action_days":entier ou null,',
+    '"price_offer": null si le message ne contient AUCUN prix ; sinon {"currency":"USD|CNY|EUR…","incoterm":"FOB|EXW|CIF|DAP… ou null","port":"port ou null","valid_until":"AAAA-MM-JJ ou null","lead_time":"délai ou null","moq":"minimum de commande ou null","payment_terms":"conditions de paiement ou null","notes":"conditions importantes (ce qui est inclus ou exclu) ou null","items":[{"kind":"base|option|fee","label":"produit ou option","variant":{"caractéristique":"valeur"},"unit":"m²|set|pcs|kit|forfait…","price":nombre ou null,"tiers":[{"min_qty":nombre,"price":nombre}],"per":"unit|order"}]}}',
+    'Pour price_offer : une ligne « base » par produit ou par variante (hauteur, couleur, épaisseur… dans variant) ; « tiers » quand le prix dépend de la quantité ; « option » pour les suppléments ; « fee » pour les frais fixes (moule, échantillons, transport local), per "order" s’ils sont payés une fois ; clés de variant en français (Hauteur, Couleur, Épaisseur, Dimensions…) ; prix exactement comme écrits, en nombres (4.9, pas « 4,9 $ ») ; valid_until dans l’année en cours si l’année n’est pas précisée ; devise d’après le symbole (¥, RMB → CNY ; $ → USD) ; ne jamais inventer un prix.',
     'Règles : ne rien inventer (prix, délais, quantités, certifications) ; la réponse proposée ne prend AUCUN engagement non décidé (pas de commande, de prix cible ni de quantité ferme qui ne figurent pas dans le contexte) ; needs_client=true seulement pour ce que le client est seul à savoir ou décider (dimensions et plans des sites, couleurs, quantités définitives, options, budget, calendrier des chantiers, normes ou contraintes locales, logos) ; needs_client=false pour ce que l’équipe traite seule en tant qu’acheteur (conditions de paiement à l’usine, incoterm, port, logistique, emballage, documents et certificats, échantillons) ; si l’usine ne pose aucune question, factory_questions = [] ; si une capture est illisible, dis-le dans summary.',
     '',
     'Contexte :',
@@ -279,6 +282,8 @@ export interface FactoryQuestion {
   why: string;
 }
 export interface ExchangeAnalysis extends ExchangeSummary {
+  /** Prix trouvés dans le message, structurés (à relire avant d'enregistrer l'offre). */
+  price_offer?: ExtractedOffer | null;
   analysis: string;
   reply_en: string;
   reply_fr: string;
@@ -300,6 +305,7 @@ export function validateExchangeAnalysis(raw: unknown): ExchangeAnalysis | null 
     reply_en,
     reply_fr: longText(r.reply_fr, 6000),
     reply_zh: zh && zh.toLowerCase() !== 'null' ? zh : null,
+    price_offer: validateExtractedOffer(r.price_offer),
     factory_questions: arr(r.factory_questions)
       .map((q) => {
         const o = (q && typeof q === 'object' ? q : {}) as Record<string, unknown>;

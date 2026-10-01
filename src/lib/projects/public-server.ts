@@ -3,7 +3,8 @@
 // pointent vers la route de téléchargement du jeton ; les documents internes
 // sont écartés. Le module ne connaît ni fournisseurs réels ni échanges usines.
 import type { ProjectBundle } from './data';
-import { projectPublicView, type PublicProject, type RawForPublic } from './public';
+import { projectPublicView, type PublicProject, type RawForPublic, type RawOffer } from './public';
+import { cleanItem, type OfferItem } from './offers';
 import { templateByKey, DOM_TOM_TEMPLATE } from './templates/dom-tom';
 import type { Attachment, ContactChannel, ProductPhoto, ProductSpec, RfqMessage, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 import { rankSuppliers } from './logic';
@@ -29,6 +30,9 @@ export interface TeamExtras {
   rfq_sender: Partial<RfqSender>;
   /** Historique des contacts usines (plus récent d'abord) : envois de la plateforme et envois notés à la main. */
   contacts: SupplierContact[];
+  /** Offres de prix complètes (équipe) : prix usine, conditions, marge, statut, intérêt du client. */
+  offers: (RawOffer & { exchange_id: string | null; port: string | null; payment_terms: string | null; notes: string | null; raw: string | null; supersedes: string | null; client_interested_by: string | null; created_by: string | null; created_at: string })[];
+  default_margin_pct: number;
   /** Envoi d'e-mails par la plateforme (Resend) : configuré ou non, adresse d'expédition. */
   email: { configured: boolean; from: string | null };
   /** Contexte du programme pour les RFQ et le besoin de sourcing (phrase EN/ZH, exigences communes). */
@@ -65,6 +69,11 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
     rfq_sender: pickSender(p.rfq_sender),
     email: { configured: emailConfigured(), from: emailSender()?.address ?? null },
+    offers: rawOffers(b).map((o) => {
+      const src = ((b as { offers?: Record<string, unknown>[] }).offers || []).find((x) => String(x.id) === o.id) || {};
+      return { ...o, exchange_id: (src.exchange_id as string | null) ?? null, port: (src.port as string | null) ?? null, payment_terms: (src.payment_terms as string | null) ?? null, notes: (src.notes as string | null) ?? null, raw: (src.raw as string | null) ?? null, supersedes: (src.supersedes as string | null) ?? null, client_interested_by: (src.client_interested_by as string | null) ?? null, created_by: (src.created_by as string | null) ?? null, created_at: String(src.created_at || '') };
+    }),
+    default_margin_pct: p.default_margin_pct == null ? 25 : Number(p.default_margin_pct),
     contacts: contactHistory((b as { contacts?: ContactEvent[] }).contacts || []),
     rfq_context: p.rfq_context && typeof p.rfq_context === 'object' && (p.rfq_context as { project_en?: string }).project_en ? (p.rfq_context as TeamExtras['rfq_context']) : template.rfq_context || null,
     exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name, analysis: e.analysis ?? null, direction: e.direction || (e.analysis ? 'in' : 'note') })),
@@ -114,6 +123,28 @@ export function contactHistory(events: ContactEvent[]): SupplierContact[] {
     .sort((a, b) => b.at.localeCompare(a.at));
 }
 
+/** Offres brutes de la base, champs nommés (jamais de décomposition d'objet). */
+export function rawOffers(b: ProjectBundle): RawOffer[] {
+  return ((b as { offers?: Record<string, unknown>[] }).offers || []).map((o) => ({
+    id: String(o.id),
+    supplier_id: String(o.supplier_id),
+    lot: String(o.lot),
+    title: String(o.title || ''),
+    currency: String(o.currency || 'USD'),
+    incoterm: (o.incoterm as string | null) ?? null,
+    valid_until: (o.valid_until as string | null) ?? null,
+    lead_time: (o.lead_time as string | null) ?? null,
+    moq: (o.moq as string | null) ?? null,
+    items: ((o.items as unknown[]) || []).map((x, i) => cleanItem(x, i)).filter((x): x is OfferItem => !!x),
+    margin_mode: o.margin_mode === 'amount' ? 'amount' : 'pct',
+    margin_value: o.margin_value == null ? null : Number(o.margin_value),
+    client_visible: !!o.client_visible,
+    status: o.status === 'superseded' ? 'superseded' : 'active',
+    client_interested_at: (o.client_interested_at as string | null) ?? null,
+    updated_at: String(o.updated_at || o.created_at || ''),
+  }));
+}
+
 function pickSender(v: unknown): Partial<RfqSender> {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const out: Partial<RfqSender> = {};
@@ -156,6 +187,8 @@ function buildView(b: ProjectBundle, token: string, opts: { docPath?: (docId: st
     orders: (b.orders as RawForPublic['orders']).map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, line_ids: o.line_ids, total: Number(o.total), created_at: o.created_at, updated_at: o.updated_at })),
     suppliers: (b.suppliers as (RawForPublic['suppliers'][number] & { score: number | string | null })[]).map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status || 'candidate', scores: s.scores || {}, score: s.score == null ? null : Number(s.score), description: s.description ?? null, product_specs: s.product_specs || [], certifications: s.certifications || [], years_experience: s.years_experience ?? null, capacity: s.capacity ?? null, lead_time: s.lead_time ?? null, moq: s.moq ?? null, sample_status: s.sample_status ?? null, country: s.country ?? null, product_photos: (s.product_photos || []).map((x) => ({ doc_id: String(x.doc_id), caption: String(x.caption || '') })) })),
     finalReports: (b.finalReports as RawForPublic['finalReports']).map((r) => ({ phase: r.phase, checklist: r.checklist || [], delivered_at: r.delivered_at, file_id: r.file_id })),
+    offers: rawOffers(b),
+    defaultMarginPct: p.default_margin_pct == null ? 25 : Number(p.default_margin_pct),
   };
   return projectPublicView(raw, token, { docPath, photoPath: opts.photoPath });
 }

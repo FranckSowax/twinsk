@@ -5,7 +5,7 @@
 // et des données différents (le client ne reçoit que la projection filtrée).
 
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
-import { Building2, ClipboardList, FileCheck2, FileText, Factory, FolderOpen, HelpCircle, KeyRound, Loader2, Mail, MoreHorizontal, Newspaper, Package, X } from 'lucide-react';
+import { Building2, ClipboardList, FileCheck2, FileText, Factory, FolderOpen, HelpCircle, KeyRound, Loader2, Mail, MoreHorizontal, Newspaper, Package, Scale, X } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import type { Attachment } from '@/lib/projects/types';
@@ -16,11 +16,12 @@ import { AccessTab, ReportTab, SuppliersTab } from './TeamTabs';
 import { RfqTab } from './RfqTab';
 import { FactoryCards } from './FactoryCards';
 import { CoverVideo } from './CoverVideo';
+import { ComparisonTab } from './Comparison';
 import { Badge, type Mode, type WorkspaceApi } from './shared';
 
-type Tab = 'plan' | 'journal' | 'questions' | 'documents' | 'quote' | 'orders' | 'factories' | 'suppliers' | 'rfq' | 'report' | 'access';
-const TABS: Tab[] = ['plan', 'journal', 'questions', 'documents', 'quote', 'orders', 'factories', 'suppliers', 'rfq', 'report', 'access'];
-const ICONS: Record<Tab, ComponentType<{ className?: string }>> = { plan: ClipboardList, journal: Newspaper, questions: HelpCircle, documents: FolderOpen, quote: FileText, orders: Package, factories: Factory, suppliers: Building2, rfq: Mail, report: FileCheck2, access: KeyRound };
+type Tab = 'plan' | 'journal' | 'questions' | 'documents' | 'quote' | 'compare' | 'orders' | 'factories' | 'suppliers' | 'rfq' | 'report' | 'access';
+const TABS: Tab[] = ['plan', 'journal', 'questions', 'documents', 'quote', 'compare', 'orders', 'factories', 'suppliers', 'rfq', 'report', 'access'];
+const ICONS: Record<Tab, ComponentType<{ className?: string }>> = { plan: ClipboardList, journal: Newspaper, questions: HelpCircle, documents: FolderOpen, quote: FileText, compare: Scale, orders: Package, factories: Factory, suppliers: Building2, rfq: Mail, report: FileCheck2, access: KeyRound };
 // Barre du bas sur mobile : les onglets les plus utilisés, le reste sous « Plus ».
 const MOBILE_MAIN: Record<Mode, Tab[]> = { client: ['plan', 'journal', 'quote', 'questions'], team: ['plan', 'journal', 'quote', 'suppliers'] };
 const tabFromHash = (): Tab | null => {
@@ -118,6 +119,7 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
     { key: 'questions', label: 'Questions', badge: openQuestions },
     { key: 'documents', label: 'Documents', badge: data.documents.length },
     { key: 'quote', label: 'Devis', badge: toValidate },
+    { key: 'compare', label: 'Comparaison', badge: mode === 'client' ? data.offers.length : data.admin?.offers.filter((o) => o.status === 'active' && o.client_interested_at).length },
     { key: 'orders', label: 'Commandes', badge: data.orders.length },
     { key: 'factories', label: 'Usines', client: true, badge: data.suppliers.length },
     { key: 'report', label: 'Rapport & voyage' },
@@ -168,6 +170,7 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
       {tab === 'questions' && <QuestionsTab p={data} api={api} admin={data.admin} />}
       {tab === 'documents' && <DocumentsTab p={data} api={api} internalIds={data.admin?.documents_internal} />}
       {tab === 'quote' && <QuoteTab p={data} api={api} admin={data.admin} pdfUrl={pdfUrl} />}
+      {tab === 'compare' && <ComparisonTab p={data} api={api} admin={data.admin} />}
       {tab === 'orders' && <OrdersTab p={data} api={api} />}
       {tab === 'report' && <ReportTab p={data} api={api} />}
       {tab === 'factories' && <FactoryCards suppliers={data.suppliers} />}

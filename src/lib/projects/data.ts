@@ -11,6 +11,7 @@ import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canVali
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
 import { identifyingTokens, leaks, type ImportedSupplier } from './sourcing';
 import { emailSender, parseRecipients, sendEmail } from '@/lib/email';
+import { cleanItem as cleanOfferItem, priceOffer, type OfferItem } from './offers';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
 import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductPhoto, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
@@ -178,7 +179,7 @@ export async function loadProject(id: string) {
   if (error) fail(error, 'Lecture du projet');
   if (!project) return null;
   const q = <T>(p: PromiseLike<{ data: T[] | null; error: { message: string } | null }>) => p.then((r) => (r.error ? fail(r.error, 'Lecture') : r.data || []));
-  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts] = await Promise.all([
+  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts, offers] = await Promise.all([
     q(supabaseAdmin.from('project_steps').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_tasks').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_updates').select('*').eq('project_id', id).order('published_at', { ascending: false })),
@@ -195,6 +196,8 @@ export async function loadProject(id: string) {
     supabaseAdmin.from('project_rfq_messages').select('*').eq('project_id', id).order('lot').then((r) => (r.error && !isMissing(r.error.message) ? fail(r.error, 'Lecture') : r.data || [])),
     // Historique complet des contacts usines (le journal d'audit ci-dessus est limité aux 300 derniers événements).
     q(supabaseAdmin.from('project_events').select('id, type, target_id, actor_name, detail, data, created_at').eq('project_id', id).in('type', ['email.sent', 'contact.manual']).order('created_at', { ascending: false })),
+    // Offres de prix (table du 1er oct.) : tolérée absente le temps de la migration.
+    supabaseAdmin.from('project_offers').select('*').eq('project_id', id).order('created_at', { ascending: false }).then((r) => (r.error && !isMissing(r.error.message) ? fail(r.error, 'Lecture') : r.data || [])),
   ]);
   const taskIds = tasks.map((t: { id: string }) => t.id);
   const updateIds = updates.map((u: { id: string }) => u.id);
@@ -204,7 +207,7 @@ export async function loadProject(id: string) {
     updateIds.length ? q(supabaseAdmin.from('project_update_comments').select('*').in('update_id', updateIds).order('created_at')) : Promise.resolve([]),
     questionIds.length ? q(supabaseAdmin.from('project_question_replies').select('*').in('question_id', questionIds).order('created_at')) : Promise.resolve([]),
   ]);
-  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts };
+  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts, offers };
 }
 export type ProjectBundle = NonNullable<Awaited<ReturnType<typeof loadProject>>>;
 
@@ -689,6 +692,110 @@ export async function linkQuestionsToExchange(projectId: string, exchangeId: str
   const ids = questionIds.filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 20);
   if (ids.length) await supabaseAdmin.from('project_questions').update({ exchange_id: exchangeId }).in('id', ids).eq('project_id', projectId);
 }
+// ---- Prix reçus des usines (offres) ----
+export interface OfferInput {
+  id?: string;
+  supplier_id: string;
+  exchange_id?: string | null;
+  title?: string;
+  currency?: string;
+  incoterm?: string | null;
+  port?: string | null;
+  valid_until?: string | null;
+  lead_time?: string | null;
+  moq?: string | null;
+  payment_terms?: string | null;
+  notes?: string | null;
+  items: unknown[];
+  margin_mode?: 'pct' | 'amount';
+  margin_value?: number | null;
+  client_visible?: boolean;
+  raw?: string | null;
+  /** Nouvelle offre qui remplace l'offre active précédente de cette usine. */
+  supersede?: boolean;
+}
+export async function upsertOffer(projectId: string, input: OfferInput, actor: Actor) {
+  const { data: sup } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias, status').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
+  if (!sup) throw new ProjectError('Usine introuvable', 404);
+  const items = input.items.map((x, i) => cleanOfferItem(x, i)).filter((x): x is NonNullable<typeof x> => !!x);
+  if (!items.length) throw new ProjectError('Au moins une ligne de prix (libellé et prix) est requise');
+  const t = (v: string | null | undefined, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) || null : null);
+  const cur = String(input.currency || 'USD').toUpperCase();
+  const mv = input.margin_value == null || (input.margin_value as unknown) === '' ? null : Number(input.margin_value);
+  const row: Record<string, unknown> = {
+    lot: sup.lot,
+    title: (input.title || '').trim().slice(0, 160),
+    currency: /^[A-Z]{3}$/.test(cur) ? cur : 'USD',
+    incoterm: t(input.incoterm, 12)?.toUpperCase() ?? null,
+    port: t(input.port, 60),
+    valid_until: input.valid_until && /^\d{4}-\d{2}-\d{2}$/.test(input.valid_until) ? input.valid_until : null,
+    lead_time: t(input.lead_time, 80),
+    moq: t(input.moq, 80),
+    payment_terms: t(input.payment_terms, 160),
+    notes: t(input.notes, 2000),
+    items,
+    margin_mode: input.margin_mode === 'amount' ? 'amount' : 'pct',
+    margin_value: mv != null && Number.isFinite(mv) ? mv : null,
+    updated_at: now(),
+  };
+  if (typeof input.client_visible === 'boolean') row.client_visible = input.client_visible;
+  if (input.id) {
+    const { data: before } = await supabaseAdmin.from('project_offers').select('client_visible').eq('id', input.id).eq('project_id', projectId).maybeSingle();
+    if (!before) throw new ProjectError('Offre introuvable', 404);
+    const { error } = await supabaseAdmin.from('project_offers').update(row).eq('id', input.id);
+    if (error) fail(error, 'Offre');
+    await logEvent(projectId, { type: 'offer.updated', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias}` });
+    if (row.client_visible === true && !before.client_visible) await logEvent(projectId, { type: 'offer.published', actor, target_type: 'offer', target_id: input.id, detail: sup.lot, notify: 'client' });
+    return input.id;
+  }
+  // Visible du client par défaut pour une usine présélectionnée ou retenue.
+  if (row.client_visible === undefined) row.client_visible = sup.status === 'selected' || sup.status === 'shortlisted';
+  const { data: prev } = await supabaseAdmin.from('project_offers').select('id').eq('project_id', projectId).eq('supplier_id', sup.id).eq('status', 'active').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await supabaseAdmin.from('project_offers').insert({ project_id: projectId, supplier_id: sup.id, exchange_id: input.exchange_id || null, raw: t(input.raw ?? null, 20000), created_by: actor.name, supersedes: input.supersede && prev ? prev.id : null, ...row }).select('id').single();
+  if (error || !data) fail(error, 'Offre');
+  if (input.supersede && prev) await supabaseAdmin.from('project_offers').update({ status: 'superseded', updated_at: now() }).eq('id', prev.id);
+  await logEvent(projectId, { type: 'offer.added', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias} : ${items.length} ligne(s) de prix` });
+  if (row.client_visible) await logEvent(projectId, { type: 'offer.published', actor, target_type: 'offer', target_id: data.id, detail: sup.lot, notify: 'client' });
+  return data.id as string;
+}
+export async function deleteOffer(projectId: string, id: string, actor: Actor) {
+  const { error } = await supabaseAdmin.from('project_offers').delete().eq('id', id).eq('project_id', projectId);
+  if (error) fail(error, 'Offre');
+  await logEvent(projectId, { type: 'offer.deleted', actor, target_type: 'offer', target_id: id });
+}
+export async function setDefaultMargin(projectId: string, pct: number, actor: Actor) {
+  if (!Number.isFinite(pct) || pct < 0 || pct > 500) throw new ProjectError('Marge entre 0 et 500 %');
+  const { error } = await supabaseAdmin.from('projects').update({ default_margin_pct: Math.round(pct * 100) / 100, updated_at: now() }).eq('id', projectId);
+  if (error) fail(error, 'Marge');
+  await logEvent(projectId, { type: 'offer.margin', actor, detail: `${pct} %` });
+}
+/** Client : « Cette offre m'intéresse » (ou retrait) sur une offre qui lui est visible. */
+export async function setOfferInterest(projectId: string, offerId: string, on: boolean, actor: Actor) {
+  const { data: o } = await supabaseAdmin.from('project_offers').select('id, lot, client_visible, status').eq('id', offerId).eq('project_id', projectId).maybeSingle();
+  if (!o || !o.client_visible || o.status !== 'active') throw new ProjectError('Offre introuvable', 404);
+  const { error } = await supabaseAdmin.from('project_offers').update({ client_interested_at: on ? now() : null, client_interested_by: on ? actor.name : null }).eq('id', offerId);
+  if (error) fail(error, 'Offre');
+  await logEvent(projectId, { type: on ? 'offer.interest' : 'offer.interest_removed', actor, target_type: 'offer', target_id: offerId, detail: o.lot, notify: 'team' });
+}
+/** « Retenir pour le devis » : prix d'achat (devise de l'usine), prix de vente (devise du projet) et usine sur une ligne du devis. */
+export async function applyOfferToQuote(projectId: string, offerId: string, itemId: string, quoteLineId: string, actor: Actor) {
+  const [{ data: o }, { data: p }, { data: line }] = await Promise.all([
+    supabaseAdmin.from('project_offers').select('*').eq('id', offerId).eq('project_id', projectId).maybeSingle(),
+    supabaseAdmin.from('projects').select('currency, rates, default_margin_pct').eq('id', projectId).maybeSingle(),
+    supabaseAdmin.from('project_quote_lines').select('id, quantity, client_quantity').eq('id', quoteLineId).eq('project_id', projectId).maybeSingle(),
+  ]);
+  if (!o || !p || !line) throw new ProjectError('Offre ou ligne introuvable', 404);
+  const item = ((o.items || []) as OfferItem[]).find((i) => i.id === itemId);
+  if (!item) throw new ProjectError('Ligne de prix introuvable', 404);
+  const base = String(p.currency || 'USD');
+  const qty = effectiveQuantity({ quantity: Number(line.quantity), client_quantity: line.client_quantity == null ? null : Number(line.client_quantity) });
+  const [priced] = priceOffer({ items: [item], currency: o.currency, margin: { mode: o.margin_mode, value: o.margin_value == null ? null : Number(o.margin_value) } }, { base, rates: cleanRates(p.rates, base), defaultPct: Number(p.default_margin_pct ?? 25), qtyOf: () => qty });
+  if (priced.cost == null || priced.sell == null) throw new ProjectError(`Taux manquant pour ${o.currency} : renseignez-le dans « Devises et taux »`, 409);
+  await upsertQuoteLine(projectId, { id: line.id, lot: '', label: '', unit_cost: priced.cost, cost_currency: o.currency, unit_price: priced.sell, price_currency: base, supplier_id: o.supplier_id }, actor);
+  await logEvent(projectId, { type: 'offer.applied', actor, target_type: 'quote_line', target_id: line.id, detail: `${o.lot} : ${item.label} → ${priced.sell} ${base}` });
+  return { unit_price: priced.sell, unit_cost: priced.cost };
+}
+
 /** Analyse ajoutée à un échange déjà enregistré (réponse reçue) ; le sens passe à « reçu ». Le texte d'origine est conservé. */
 export async function setExchangeAnalysis(projectId: string, id: string, analysis: Record<string, unknown>, actor: Actor) {
   const { data: ex } = await supabaseAdmin.from('project_supplier_exchanges').select('id, analysis, supplier_id').eq('id', id).eq('project_id', projectId).maybeSingle();

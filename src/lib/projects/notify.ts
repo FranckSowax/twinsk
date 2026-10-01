@@ -40,6 +40,8 @@ const LABELS: Record<string, string> = {
   'report.delivered': 'Rapport final remis',
   'supplier.selected': 'Usine retenue pour un lot',
   'fx.currency': 'Devise du devis changée',
+  'offer.published': 'Nouvelle offre de prix à comparer',
+  'offer.interest': 'Le client s’intéresse à une offre',
   'document.uploaded': 'Document déposé',
   'trip.interested': 'Intérêt pour le voyage d’audit',
   'trip.quote_requested': 'Devis du voyage demandé',

@@ -6,16 +6,18 @@
 // client — reformulées sans nom d'usine, le lien reste interne.
 
 import { useState } from 'react';
-import { Check, CheckCheck, CheckCircle2, Copy, HelpCircle, Lightbulb, Loader2, MessageCircle, Send } from 'lucide-react';
+import { Check, CheckCheck, CheckCircle2, Copy, HelpCircle, Lightbulb, Loader2, MessageCircle, Send, Tag } from 'lucide-react';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import type { ExchangeAnalysis as Analysis } from '@/lib/projects/ai';
 import { fillPlaceholders, whatsappLink } from '@/lib/projects/rfq';
 import { EmailCompose } from './EmailCompose';
+import { OfferEditor } from './Offers';
+import type { PublicProject } from '@/lib/projects/public';
 import { btn, btnPrimary, input, type WorkspaceApi } from './shared';
 
 type Supplier = TeamExtras['suppliers'][number];
 
-export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchangeId = null, compact = false, onQuestionsSent }: { analysis: Analysis; supplier: Supplier | null; admin: TeamExtras; api: WorkspaceApi; exchangeId?: string | null; compact?: boolean; onQuestionsSent?: (ids: string[]) => void }) {
+export function ExchangeAnalysisPanel({ analysis, supplier, p, admin, api, exchangeId = null, raw = null, compact = false, onQuestionsSent }: { analysis: Analysis; supplier: Supplier | null; p?: PublicProject; admin: TeamExtras; api: WorkspaceApi; exchangeId?: string | null; raw?: string | null; compact?: boolean; onQuestionsSent?: (ids: string[]) => void }) {
   const fill = (t: string) => fillPlaceholders(t, { factory: supplier?.real_name, contact: supplier?.contact_name, sender: admin.rfq_sender });
   const langs = [
     { key: 'en', label: 'Anglais (à envoyer)', text: fill(analysis.reply_en) },
@@ -25,7 +27,10 @@ export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchange
   const [lang, setLang] = useState(langs[0]?.key || 'en');
   const [copied, setCopied] = useState(false);
   const [compose, setCompose] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
   const [marking, setMarking] = useState(false);
+  const offer = analysis.price_offer || null;
+  const savedOffer = exchangeId ? admin.offers.find((o) => o.exchange_id === exchangeId) : null;
   const sent = analysis.reply_sent || null;
   // Réponse partie hors plateforme : notée dans le fil (message envoyé) et sur cet échange.
   const markSent = async (channel: string) => {
@@ -88,7 +93,24 @@ export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchange
           </div>
         </div>
       )}
+      {offer && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+          <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-100"><Tag className="h-3.5 w-3.5" /> Prix trouvés dans ce message ({offer.items.length} ligne{offer.items.length > 1 ? 's' : ''}, {offer.currency}{offer.incoterm ? ` ${offer.incoterm}` : ''})</p>
+          <ul className="mt-1 space-y-0.5 text-xs text-slate-700 dark:text-slate-200">
+            {offer.items.slice(0, 6).map((i) => <li key={i.id}>{i.kind === 'option' ? '+ ' : i.kind === 'fee' ? 'Frais : ' : ''}{i.label}{Object.keys(i.variant).length ? ` (${Object.values(i.variant).join(', ')})` : ''} — {i.price != null ? `${i.price} ${offer.currency}` : ''}{i.tiers.length ? ` ${i.tiers.map((t) => `dès ${t.min_qty} : ${t.price}`).join(' · ')}` : ''} /{i.unit}</li>)}
+            {offer.items.length > 6 && <li>… et {offer.items.length - 6} autre(s)</li>}
+          </ul>
+          {savedOffer ? (
+            <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Offre enregistrée (fiche › « Prix reçus » et onglet Comparaison).</p>
+          ) : supplier && p ? (
+            <button type="button" onClick={() => setOfferOpen(true)} className={`${btnPrimary} mt-2`}><Tag className="h-3.5 w-3.5" /> Vérifier et enregistrer l’offre de prix</button>
+          ) : (
+            <p className="mt-2 text-[11px] text-slate-500">Rattachez l’échange à une usine pour enregistrer l’offre.</p>
+          )}
+        </div>
+      )}
       {analysis.factory_questions.length > 0 && <FactoryQuestions analysis={analysis} supplier={supplier} admin={admin} api={api} exchangeId={exchangeId} onSent={onQuestionsSent} />}
+      {offerOpen && supplier && p && offer && <OfferEditor supplier={supplier} p={p} admin={admin} api={api} initial={offer} exchangeId={exchangeId} raw={raw} onClose={() => setOfferOpen(false)} />}
       {compose && supplier && current && <EmailCompose supplier={supplier} admin={admin} api={api} initial={{ subject: rfq?.email_subject_en ? `Re: ${fill(rfq.email_subject_en)}` : '', body: current.text, lot: supplier.lot, replyToExchange: exchangeId || undefined }} onClose={() => setCompose(false)} />}
     </div>
   );

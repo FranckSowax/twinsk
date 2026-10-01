@@ -10,9 +10,10 @@ import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, P
 import { CLIENT_DISCLAIMER } from './types';
 import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, rankSuppliers } from './logic';
 import { rateOf, toBase, type Rates } from './fx';
+import { priceOffer, projectLine, type OfferItem } from './offers';
 
 /** Champs qui ne doivent JAMAIS apparaître dans la sortie publique. */
-export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path', 'watch_points', 'supplier_id', 'exchange_id', 'analysis'];
+export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path', 'watch_points', 'supplier_id', 'exchange_id', 'analysis', 'margin_mode', 'margin_value', 'currency_cost', 'payment_terms', 'raw'];
 
 export interface PublicProject {
   title: string;
@@ -75,6 +76,8 @@ export interface PublicProject {
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; lines: string[]; total: number; at: string; updated_at: string }[];
   business_trip: { title: string; days: { day: number; city: string; program: string }[]; interested_at: string | null; quote_requested_at: string | null };
   final_reports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; download_path: string | null }[];
+  /** Offres de prix visibles du client : prix retravaillés (devise du projet), sous alias ; jamais le prix usine ni la marge. */
+  offers: PublicOffer[];
   /** Usines anonymisées : classement due diligence par lot, fiche produit, statut de sélection. */
   suppliers: {
     lot: string;
@@ -97,6 +100,59 @@ export interface PublicProject {
   }[];
 }
 
+export interface PublicOfferItem {
+  id: string;
+  kind: OfferItem['kind'];
+  label: string;
+  variant: Record<string, string>;
+  unit: string;
+  per: OfferItem['per'];
+  /** Quantité du projet utilisée pour le total (null si inconnue). */
+  qty: number | null;
+  /** Ligne du devis rattachée (comparaison : alternatives sur une même ligne, lignes différentes additionnées). */
+  line_id: string | null;
+  /** Prix unitaire client à cette quantité (devise du projet). */
+  price: number | null;
+  /** Paliers au prix client. */
+  tiers: { min_qty: number; price: number | null }[];
+  total: number | null;
+  below_min: boolean;
+}
+export interface PublicOffer {
+  id: string;
+  lot: string;
+  alias: string;
+  supplier_status: SupplierStatus;
+  score: number | null;
+  title: string;
+  incoterm: string | null;
+  valid_until: string | null;
+  lead_time: string | null;
+  moq: string | null;
+  items: PublicOfferItem[];
+  /** Le client a signalé « Cette offre m'intéresse ». */
+  interested: boolean;
+  updated_at: string;
+}
+export interface RawOffer {
+  id: string;
+  supplier_id: string;
+  lot: string;
+  title: string;
+  currency: string;
+  incoterm: string | null;
+  valid_until: string | null;
+  lead_time: string | null;
+  moq: string | null;
+  items: OfferItem[];
+  margin_mode: 'pct' | 'amount';
+  margin_value: number | null;
+  client_visible: boolean;
+  status: 'active' | 'superseded';
+  client_interested_at: string | null;
+  updated_at: string;
+}
+
 /** Entrées brutes (lues par le serveur) : seuls les champs nommés ci-dessous sont copiés. */
 export interface RawForPublic {
   project: { title: string; description: string | null; currency: string; rates: Rates; cover_video_at: string | null; status: string; phases: Phase[]; business_trip_interested_at: string | null; business_trip_quote_requested_at: string | null };
@@ -113,6 +169,8 @@ export interface RawForPublic {
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; line_ids: string[]; total: number; created_at: string; updated_at: string }[];
   suppliers: { id: string; lot: string; alias: string; status: SupplierStatus; scores: Scores; score: number | null; description: string | null; product_specs: ProductSpec[]; certifications: string[]; years_experience: number | null; capacity: string | null; lead_time: string | null; moq: string | null; sample_status: SampleStatus | null; country: string | null; product_photos: ProductPhoto[] }[];
   finalReports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; file_id: string | null }[];
+  offers?: RawOffer[];
+  defaultMarginPct?: number;
 }
 
 export function projectPublicView(raw: RawForPublic, token: string, opts: { docPath?: (docId: string) => string; photoPath?: (docId: string) => string } = {}): PublicProject {
@@ -126,11 +184,35 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
   const basePrice = (l: RawForPublic['quoteLines'][number]) => (l.status !== 'draft' && l.validated_snapshot ? l.validated_snapshot.unit_price : toBase(l.unit_price, l.price_currency, base, rates));
   const lineLike = raw.quoteLines.map((l) => ({ id: l.id, lot: l.lot, quantity: l.quantity, client_quantity: l.client_quantity, unit_price: basePrice(l), optional: l.optional, enabled: l.enabled, status: l.status, phase: l.phase }));
   const totals = quoteTotals(lineLike);
+  const linesForQty = raw.quoteLines.map((l) => ({ id: l.id, lot: l.lot, unit: l.unit, label: l.label, effective_quantity: effectiveQuantity(l) }));
+  const supplierById = new Map(raw.suppliers.map((x) => [x.id, x]));
+  const offers: PublicOffer[] = (raw.offers || [])
+    .filter((o) => o.client_visible && o.status === 'active' && supplierById.has(o.supplier_id))
+    .map((o) => {
+      const sup = supplierById.get(o.supplier_id)!;
+      const priced = priceOffer({ items: o.items || [], currency: o.currency, margin: { mode: o.margin_mode, value: o.margin_value } }, { base, rates, defaultPct: raw.defaultMarginPct ?? 25, qtyOf: (it) => (it.kind === 'fee' && it.per === 'order' ? null : projectLine(it, o.lot, linesForQty)?.effective_quantity ?? null) });
+      return {
+        id: o.id,
+        lot: o.lot,
+        alias: sup.alias,
+        supplier_status: sup.status,
+        score: sup.score,
+        title: o.title,
+        incoterm: o.incoterm,
+        valid_until: o.valid_until,
+        lead_time: o.lead_time,
+        moq: o.moq,
+        items: priced.map((x) => ({ id: x.item.id, kind: x.item.kind, label: x.item.label, variant: { ...x.item.variant }, unit: x.item.unit, per: x.item.per, qty: x.qty, line_id: x.item.kind === 'fee' ? null : projectLine(x.item, o.lot, linesForQty)?.id ?? null, price: x.sell, tiers: x.tiersSell.map((t) => ({ min_qty: t.min_qty, price: t.sell })), total: x.totalSell, below_min: x.belowMin })),
+        interested: !!o.client_interested_at,
+        updated_at: o.updated_at,
+      };
+    });
   return {
     title: raw.project.title,
     description: raw.project.description,
     currency: raw.project.currency,
     rates,
+    offers,
     status: raw.project.status,
     disclaimer: CLIENT_DISCLAIMER,
     cover_video: raw.project.cover_video_at ? { version: String(new Date(raw.project.cover_video_at).getTime()) } : null,

@@ -15,6 +15,7 @@ import { CONTACT_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type 
 import { FactoryCards } from './FactoryCards';
 import { EmailCompose } from './EmailCompose';
 import { SupplierExchanges, overdueOf } from './SupplierExchanges';
+import { SupplierOffers } from './Offers';
 import { ContactBadge, contactsOf } from './ContactTrace';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
 import { AttachButton, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
@@ -169,7 +170,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
         </div>
       )}
 
-      {editing && <SupplierModal s={editing === 'new' ? null : admin.suppliers.find((x) => x.id === editing.id) || editing} admin={admin} initialTab={editingTab} api={api} onClose={() => setEditing(null)} />}
+      {editing && <SupplierModal s={editing === 'new' ? null : admin.suppliers.find((x) => x.id === editing.id) || editing} p={p} admin={admin} initialTab={editingTab} api={api} onClose={() => setEditing(null)} />}
       {importing && <ImportModal api={api} onClose={() => setImporting(false)} />}
       {mailTo && <EmailCompose supplier={mailTo} admin={admin} api={api} onClose={() => setMailTo(null)} />}
     </div>
@@ -324,8 +325,8 @@ type SupplierForm = {
   internal_note: string;
   watch: string;
 };
-type SupplierTab = 'identity' | 'card' | 'scores' | 'photos' | 'exchanges';
-function SupplierModal({ s, admin, initialTab = 'identity', api, onClose }: { s: TeamExtras['suppliers'][number] | null; admin: TeamExtras; initialTab?: SupplierTab; api: WorkspaceApi; onClose: () => void }) {
+type SupplierTab = 'identity' | 'card' | 'scores' | 'photos' | 'exchanges' | 'offers';
+function SupplierModal({ s, p, admin, initialTab = 'identity', api, onClose }: { s: TeamExtras['suppliers'][number] | null; p: PublicProject; admin: TeamExtras; initialTab?: SupplierTab; api: WorkspaceApi; onClose: () => void }) {
   const lots = admin.lots;
   const rfq = admin.rfq;
   const [f, setF] = useState<SupplierForm>({
@@ -338,6 +339,7 @@ function SupplierModal({ s, admin, initialTab = 'identity', api, onClose }: { s:
   });
   const [tab, setTab] = useState<SupplierTab>(s ? initialTab : 'identity');
   const exchangeCount = s ? admin.exchanges.filter((e) => e.supplier_id === s.id).length : 0;
+  const offerCount = s ? admin.offers.filter((o) => o.supplier_id === s.id && o.status === 'active').length : 0;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
@@ -384,10 +386,10 @@ function SupplierModal({ s, admin, initialTab = 'identity', api, onClose }: { s:
       setBusy(false);
     }
   };
-  const tabBtn = (k: typeof tab, l: string) => <button type="button" onClick={() => setTab(k)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${tab === k ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white' : 'text-slate-500'}`}>{l}</button>;
+  const tabBtn = (k: typeof tab, l: string) => <button type="button" onClick={() => setTab(k)} className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold ${tab === k ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white' : 'text-slate-500'}`}>{l}</button>;
   return (
     <Modal title={s ? `${s.alias} — ${s.lot}` : 'Nouvelle usine'} onClose={onClose} wide>
-      <div className="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}{s && tabBtn('photos', `Photos produit${photoCount ? ` (${photoCount})` : ''}`)}{s && tabBtn('exchanges', `Échanges${exchangeCount ? ` (${exchangeCount})` : ''}`)}</div>
+      <div className="mb-3 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60 [scrollbar-width:none]">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}{s && tabBtn('photos', `Photos produit${photoCount ? ` (${photoCount})` : ''}`)}{s && tabBtn('exchanges', `Échanges${exchangeCount ? ` (${exchangeCount})` : ''}`)}{s && tabBtn('offers', `Prix reçus${offerCount ? ` (${offerCount})` : ''}`)}</div>
       {tab === 'identity' && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className={label}>Lot</label><input list="lots2" className={input} value={f.lot} onChange={(e) => set({ lot: e.target.value })} /><datalist id="lots2">{lots.map((x) => <option key={x} value={x} />)}</datalist></div>
@@ -459,9 +461,10 @@ function SupplierModal({ s, admin, initialTab = 'identity', api, onClose }: { s:
         </div>
       )}
       {tab === 'photos' && s && <SupplierPhotos supplierId={s.id} initial={s.product_photos || []} api={api} onCount={setPhotoCount} />}
-      {tab === 'exchanges' && s && <SupplierExchanges supplier={s} admin={admin} api={api} />}
+      {tab === 'exchanges' && s && <SupplierExchanges supplier={s} p={p} admin={admin} api={api} />}
+      {tab === 'offers' && s && <SupplierOffers supplier={s} p={p} admin={admin} api={api} />}
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      {tab !== 'photos' && tab !== 'exchanges' && <button type="button" disabled={busy || !f.lot.trim()} onClick={save} className={`${btnPrimary} mt-4`}>Enregistrer</button>}
+      {tab !== 'photos' && tab !== 'exchanges' && tab !== 'offers' && <button type="button" disabled={busy || !f.lot.trim()} onClick={save} className={`${btnPrimary} mt-4`}>Enregistrer</button>}
     </Modal>
   );
 }

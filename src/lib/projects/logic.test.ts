@@ -126,6 +126,11 @@ describe('projection publique : aucun champ interdit ne sort', () => {
       { id: 'sup2', lot: 'Gazon', alias: 'Fournisseur B', status: 'selected', scores: { certifications: 3, tropical: 3, installation: 3, price: 5, transparency: 4 }, score: 18, description: null, product_specs: [], certifications: [], years_experience: null, capacity: null, lead_time: null, moq: null, sample_status: null, country: 'Chine', product_photos: [] },
     ],
     finalReports: [{ phase: 'phase1', checklist: [], delivered_at: null, file_id: null }],
+    defaultMarginPct: 25,
+    offers: [
+      { id: 'o1', supplier_id: 'sup1', lot: 'Gazon', title: 'Offre 1', currency: 'CNY', incoterm: 'FOB', valid_until: null, lead_time: '15 j', moq: '2 000 m²', items: [{ id: 'g', kind: 'base', label: 'Gazon 30 mm', variant: {}, unit: 'm²', price: 35, tiers: [], per: 'unit', quote_line_id: 'l1' }], margin_mode: 'pct', margin_value: null, client_visible: true, status: 'active', client_interested_at: null, updated_at: START },
+      { id: 'o2', supplier_id: 'sup2', lot: 'Gazon', title: 'Offre cachée', currency: 'USD', incoterm: 'FOB', valid_until: null, lead_time: null, moq: null, items: [{ id: 'g', kind: 'base', label: 'Secret', variant: {}, unit: 'm²', price: 3, tiers: [], per: 'unit', quote_line_id: null }], margin_mode: 'pct', margin_value: null, client_visible: false, status: 'active', client_interested_at: null, updated_at: START },
+    ],
   };
   // Simule une base qui contiendrait ces champs sensibles : ils ne doivent jamais transiter.
   const polluted = JSON.parse(JSON.stringify(raw)) as RawForPublic & Record<string, unknown>;
@@ -136,6 +141,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
   (polluted as Record<string, unknown>).rfq_sender = { name: 'Franck' };
   Object.assign(polluted.project as Record<string, unknown>, { cover_video_path: 'projet/cover-secret.mp4' });
   Object.assign(polluted.questions[1] as Record<string, unknown>, { supplier_id: 'sup1', exchange_id: 'ex-secret' });
+  Object.assign((polluted.offers as unknown as Record<string, unknown>[])[0], { raw: 'texte usine', notes: 'note interne', payment_terms: 'T/T 30 %' });
   (polluted.quoteLines[0] as Record<string, unknown>).unit_cost = 7;
   (polluted as Record<string, unknown>).exchanges = [{ note: 'secret' }];
   const view = projectPublicView(polluted, 'TOKEN');
@@ -161,6 +167,9 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     // Question de l'équipe au client : sens et lot visibles, usine et échange d'origine jamais.
     expect(view.questions.map((q) => [q.direction, q.lot])).toEqual([['from_client', null], ['to_client', 'Gazon']]);
     expect(JSON.stringify(view)).not.toContain('ex-secret');
+    // Offres : seules les offres cochées, prix client (35 CNY × 0,14 = 4,90 $ + 25 % = 6,13 $), jamais le prix usine ni la marge.
+    expect(view.offers.map((o) => [o.alias, o.items[0].price, o.items[0].qty, o.items[0].total])).toEqual([['Fournisseur A', 6.13, 5800, 35554]]);
+    expect(JSON.stringify(view.offers)).not.toMatch(/"35"|Secret|margin|CNY/);
     expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret|WhatsApp partagé/);
   });
   it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {
