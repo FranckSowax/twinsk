@@ -33,7 +33,7 @@ export interface TeamExtras {
   email: { configured: boolean; from: string | null };
   /** Contexte du programme pour les RFQ et le besoin de sourcing (phrase EN/ZH, exigences communes). */
   rfq_context: { project_en?: string; project_zh?: string; requirements_en?: string[] } | null;
-  exchanges: { id: string; supplier_id: string | null; channel: string; exchanged_at: string; summary: string; attachments: Attachment[]; next_action: string | null; next_action_at: string | null; author_name: string | null; analysis: Record<string, unknown> | null }[];
+  exchanges: { id: string; supplier_id: string | null; channel: string; exchanged_at: string; summary: string; attachments: Attachment[]; next_action: string | null; next_action_at: string | null; author_name: string | null; analysis: Record<string, unknown> | null; direction: 'out' | 'in' | 'note' }[];
   /** Questions posées au client depuis un échange usine : usine et échange d'origine (interne). */
   question_links: Record<string, { supplier_id: string | null; exchange_id: string | null }>;
   shares: { id: string; token: string; person_name: string; role_label: string | null; expires_at: string | null; revoked_at: string | null; views: number; last_seen_at: string | null; created_at: string }[];
@@ -65,7 +65,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     email: { configured: emailConfigured(), from: emailSender()?.address ?? null },
     contacts: contactHistory((b as { contacts?: ContactEvent[] }).contacts || []),
     rfq_context: p.rfq_context && typeof p.rfq_context === 'object' && (p.rfq_context as { project_en?: string }).project_en ? (p.rfq_context as TeamExtras['rfq_context']) : template.rfq_context || null,
-    exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name, analysis: e.analysis ?? null })),
+    exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name, analysis: e.analysis ?? null, direction: e.direction || (e.analysis ? 'in' : 'note') })),
     question_links: Object.fromEntries((b.questions as { id: string; supplier_id?: string | null; exchange_id?: string | null }[]).filter((q) => q.supplier_id || q.exchange_id).map((q) => [q.id, { supplier_id: q.supplier_id ?? null, exchange_id: q.exchange_id ?? null }])),
     shares: (b.shares as TeamExtras['shares']).map((s) => ({ id: s.id, token: s.token, person_name: s.person_name, role_label: s.role_label, expires_at: s.expires_at, revoked_at: s.revoked_at, views: s.views, last_seen_at: s.last_seen_at, created_at: s.created_at })),
     events: (b.events as TeamExtras['events']).map((e) => ({ id: e.id, type: e.type, actor: e.actor, actor_name: e.actor_name, detail: e.detail, notify: e.notify, notified_at: e.notified_at, created_at: e.created_at })),

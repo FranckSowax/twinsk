@@ -614,7 +614,7 @@ export async function sendSupplierEmail(projectId: string, input: { supplier_id:
   });
   if (!r.ok) throw new ProjectError(r.error, 502);
   const from = emailSender()?.address || '';
-  await addExchange(projectId, { supplier_id: s.id, channel: 'email', summary: `E-mail envoyé depuis ${from} à ${to.join(', ')}${input.cc ? ` (cc ${parseRecipients(input.cc).join(', ')})` : ''}\nObjet : ${input.subject.trim()}\n\n${input.body.trim().slice(0, 1500)}${input.body.trim().length > 1500 ? '…' : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString() }, actor);
+  await addExchange(projectId, { supplier_id: s.id, channel: 'email', summary: `E-mail envoyé depuis ${from} à ${to.join(', ')}${input.cc ? ` (cc ${parseRecipients(input.cc).join(', ')})` : ''}\nObjet : ${input.subject.trim()}\n\n${input.body.trim().slice(0, 1500)}${input.body.trim().length > 1500 ? '…' : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString(), direction: 'out' }, actor);
   await logEvent(projectId, { type: 'email.sent', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${input.subject.trim().slice(0, 100)}`, data: { resend_id: r.id, to, channel: 'email', subject: input.subject.trim().slice(0, 200), rfq_lot: input.lot || null } });
   return { id: r.id, to };
 }
@@ -629,7 +629,7 @@ export async function markContacted(projectId: string, input: { supplier_id: str
   if (!s) throw new ProjectError('Usine introuvable', 404);
   const label = { email: 'e-mail (messagerie personnelle)', whatsapp: 'WhatsApp', wechat: 'WeChat', phone: 'téléphone', alibaba: 'Alibaba', other: 'autre canal' }[input.channel] || 'autre canal';
   const what = input.lot ? `Demande de prix (lot ${input.lot})` : 'Message';
-  await addExchange(projectId, { supplier_id: s.id, channel: ch, summary: `${what} envoyée par ${label}, hors plateforme.${input.note?.trim() ? `\n${input.note.trim().slice(0, 1000)}` : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString() }, actor);
+  await addExchange(projectId, { supplier_id: s.id, channel: ch, summary: `${what} envoyée par ${label}, hors plateforme.${input.note?.trim() ? `\n${input.note.trim().slice(0, 1000)}` : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString(), direction: 'out' }, actor);
   await logEvent(projectId, { type: 'contact.manual', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${label}`, data: { channel: input.channel, rfq_lot: input.lot || null } });
 }
 /** E-mail d'essai (vérifier la configuration Resend). */
@@ -645,12 +645,20 @@ export async function deleteSupplier(projectId: string, id: string, actor: Actor
   if (error) fail(error, 'Fournisseur');
   await logEvent(projectId, { type: 'supplier.deleted', actor, target_type: 'supplier', target_id: id });
 }
-export async function addExchange(projectId: string, input: { supplier_id: string | null; channel: ExchangeChannel; exchanged_at?: string; summary: string; attachments: Attachment[]; next_action?: string; next_action_at?: string | null; analysis?: Record<string, unknown> | null }, actor: Actor) {
+export async function addExchange(projectId: string, input: { supplier_id: string | null; channel: ExchangeChannel; exchanged_at?: string; summary: string; attachments: Attachment[]; next_action?: string; next_action_at?: string | null; analysis?: Record<string, unknown> | null; direction?: 'out' | 'in' | 'note' }, actor: Actor) {
   if (!input.summary.trim() && !input.attachments.length) throw new ProjectError('Résumé ou capture requis');
-  const { data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert({ project_id: projectId, supplier_id: input.supplier_id, channel: input.channel, exchanged_at: input.exchanged_at || now(), summary: input.summary.trim(), attachments: input.attachments, next_action: input.next_action?.trim() || null, next_action_at: input.next_action_at || null, author_name: actor.name, ...(input.analysis ? { analysis: input.analysis } : {}) }).select('id').single();
+  const { data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert({ project_id: projectId, supplier_id: input.supplier_id, channel: input.channel, exchanged_at: input.exchanged_at || now(), summary: input.summary.trim(), attachments: input.attachments, next_action: input.next_action?.trim() || null, next_action_at: input.next_action_at || null, author_name: actor.name, ...(input.analysis ? { analysis: input.analysis } : {}), ...(input.direction && ['out', 'in', 'note'].includes(input.direction) ? { direction: input.direction } : {}) }).select('id').single();
   if (error || !data) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.added', actor, target_type: 'exchange', target_id: data.id, detail: input.summary.trim().slice(0, 120) });
   return data.id as string;
+}
+/** Rattache un échange à une usine (échanges enregistrés sans usine) et en fixe le sens. */
+export async function assignExchange(projectId: string, id: string, supplierId: string, direction: 'out' | 'in' | 'note' | null, actor: Actor) {
+  const { data: sup } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias').eq('id', supplierId).eq('project_id', projectId).maybeSingle();
+  if (!sup) throw new ProjectError('Usine introuvable', 404);
+  const { error } = await supabaseAdmin.from('project_supplier_exchanges').update({ supplier_id: sup.id, ...(direction ? { direction } : {}) }).eq('id', id).eq('project_id', projectId);
+  if (error) fail(error, 'Échange');
+  await logEvent(projectId, { type: 'exchange.assigned', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias}` });
 }
 export async function deleteExchange(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_supplier_exchanges').delete().eq('id', id).eq('project_id', projectId);

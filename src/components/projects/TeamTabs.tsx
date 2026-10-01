@@ -7,32 +7,33 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Mail, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Mail, MessagesSquare, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
-import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
+import { CONTACT_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
 import { EmailCompose } from './EmailCompose';
-import { ExchangeAnalysisPanel } from './ExchangeAnalysis';
-import type { ExchangeAnalysis } from '@/lib/projects/ai';
+import { SupplierExchanges, overdueOf } from './SupplierExchanges';
 import { ContactBadge, contactsOf } from './ContactTrace';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
-import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
+import { AttachButton, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
 
 export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamExtras; api: WorkspaceApi }) {
   const [editing, setEditing] = useState<TeamExtras['suppliers'][number] | 'new' | null>(null);
-  const [exchange, setExchange] = useState<string | null | false>(false); // supplier_id | null (sans fournisseur) | false (fermé)
-  const [filter, setFilter] = useState('');
+  const [editingTab, setEditingTab] = useState<SupplierTab>('identity');
+  const openFiche = (s: TeamExtras['suppliers'][number], tab: SupplierTab = 'identity') => {
+    setEditingTab(tab);
+    setEditing(s);
+  };
   const [preview, setPreview] = useState(false);
   const [importing, setImporting] = useState(false);
   const [mailTo, setMailTo] = useState<TeamExtras['suppliers'][number] | null>(null);
-  const [showExchanges, setShowExchanges] = useState(false);
   const [showSuppliers, setShowSuppliers] = useState(false);
   const contactedCount = admin.suppliers.filter((x) => contactsOf(admin, x.id).length > 0).length;
   const selectedCount = admin.suppliers.filter((x) => x.status === 'selected').length;
   // Relance en retard : seul le dernier échange de chaque usine compte (une réponse plus récente lève la relance).
-  const overdue = [...new Map([...admin.exchanges].sort((a, b) => a.exchanged_at.localeCompare(b.exchanged_at)).map((e) => [e.supplier_id || e.id, e])).values()].filter((e) => e.next_action_at && new Date(e.next_action_at) < new Date()).length;
+  const overdue = admin.suppliers.filter((x) => overdueOf(admin, x.id)).length;
   const [copied, setCopied] = useState(false);
   // Besoin de sourcing (entrée du skill) : lots, lignes, quantités, exigences, usines déjà connues.
   const brief = () => JSON.stringify(buildSourcingBrief({ title: p.title, description: p.description, currency: p.currency, phases: p.phases, lines: p.quote.lines.map((l) => ({ lot: l.lot, label: l.label, unit: l.unit, quantity: l.effective_quantity, optional: l.optional })), rfq: admin.rfq, rfqContext: admin.rfq_context, knownSuppliers: admin.suppliers, lots: admin.lots }), null, 2);
@@ -52,8 +53,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
     URL.revokeObjectURL(a.href);
   };
   const bySupplier = (id: string | null) => admin.exchanges.filter((e) => e.supplier_id === id);
-  const shown = admin.exchanges.filter((e) => !filter || e.supplier_id === filter);
-  const name = (id: string | null) => (id ? admin.suppliers.find((s) => s.id === id) : null);
+  const orphans = admin.exchanges.filter((e) => !e.supplier_id);
   const lots = [...new Set([...admin.lots, ...admin.suppliers.map((s) => s.lot)])].filter((l) => admin.suppliers.some((s) => s.lot === l));
   const watched = admin.suppliers.filter((s) => s.watch_points?.length);
   const contactOf = (s: TeamExtras['suppliers'][number]) => [s.email, s.whatsapp && `WA ${s.whatsapp}`, s.wechat && `WeChat ${s.wechat}`, s.contact].filter(Boolean).join(' · ');
@@ -69,7 +69,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
           <ul className="mt-2 space-y-1.5">
             {watched.map((s) => (
               <li key={s.id}>
-                <button type="button" onClick={() => setEditing(s)} className="w-full rounded-xl bg-white/70 px-3 py-2 text-left text-sm hover:bg-white dark:bg-slate-900/50 dark:hover:bg-slate-900">
+                <button type="button" onClick={() => openFiche(s)} className="w-full rounded-xl bg-white/70 px-3 py-2 text-left text-sm hover:bg-white dark:bg-slate-900/50 dark:hover:bg-slate-900">
                   <span className="font-semibold text-slate-900 dark:text-white">{s.real_name || s.alias}</span> <span className="text-xs text-slate-500">({s.alias} · {s.lot})</span>
                   <ul className="mt-0.5 list-disc pl-4 text-xs text-amber-900 dark:text-amber-200">{s.watch_points.map((w, i) => <li key={i}>{w}</li>)}</ul>
                 </button>
@@ -91,6 +91,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200">{admin.suppliers.length} usine{admin.suppliers.length > 1 ? 's' : ''} · {lots.length} lot{lots.length > 1 ? 's' : ''}</span>
                 {contactedCount > 0 && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-sans text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">{contactedCount} contactée{contactedCount > 1 ? 's' : ''}</span>}
                 {selectedCount > 0 && <span className="rounded-full bg-emerald-600 px-2 py-0.5 font-sans text-[11px] font-semibold text-white">{selectedCount} retenue{selectedCount > 1 ? 's' : ''}</span>}
+                {overdue > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800">{overdue} relance{overdue > 1 ? 's' : ''} en retard</span>}
               </span>
               <span className="block text-xs font-normal text-slate-500">Note due diligence /25 (certifications, adéquation tropicale, installation, prix, transparence). Retenue → le client est prévenu, sous alias.</span>
             </span>
@@ -99,7 +100,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
             <button type="button" onClick={exportBrief} className={btn} title="Lots, quantités, exigences et usines déjà connues : à donner au skill de sourcing">{copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Download className="h-3.5 w-3.5" />} Besoin de sourcing (JSON)</button>
             <button type="button" onClick={() => setImporting(true)} className={btn}><Upload className="h-3.5 w-3.5" /> Importer (JSON)</button>
             <button type="button" onClick={() => setPreview((v) => !v)} className={btn}><Eye className="h-3.5 w-3.5" /> {preview ? 'Masquer l’aperçu client' : 'Aperçu client'}</button>
-            <button type="button" onClick={() => setEditing('new')} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Usine</button>
+            <button type="button" onClick={() => { setEditingTab('identity'); setEditing('new'); }} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Usine</button>
           </span>
         </div>
         {showSuppliers && (admin.suppliers.length === 0 ? (
@@ -128,8 +129,8 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                           {SUPPLIER_STATUS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
                         </select>
                       </td>
-                      <td className="py-2 text-right tabular-nums">{bySupplier(s.id).length}</td>
-                      <td className="py-2 text-right"><span className="inline-flex gap-1">{s.email && <button type="button" onClick={() => setMailTo(s)} className={btn} title={admin.email.configured ? `E-mail depuis ${admin.email.from}` : 'Envoi par e-mail non configuré'} aria-label={`E-mail à ${s.real_name || s.alias}`}><Mail className="h-3.5 w-3.5" /></button>}<button type="button" onClick={() => setExchange(s.id)} className={btn}>+ Échange</button><button type="button" onClick={() => setEditing(s)} className={btn}>Fiche</button><button type="button" onClick={() => { if (confirm(`Retirer ${s.alias} (${s.real_name || s.lot}) ?`)) api.act('supplier.delete', { id: s.id }); }} className={btn}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button></span></td>
+                      <td className="py-2 text-right tabular-nums"><button type="button" onClick={() => openFiche(s, 'exchanges')} className="hover:underline" title="Voir le fil des échanges">{bySupplier(s.id).length}</button>{overdueOf(admin, s.id) && <span className="ml-1 rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-800" title="Relance en retard">relance</span>}</td>
+                      <td className="py-2 text-right"><span className="inline-flex gap-1">{s.email && <button type="button" onClick={() => setMailTo(s)} className={btn} title={admin.email.configured ? `E-mail depuis ${admin.email.from}` : 'Envoi par e-mail non configuré'} aria-label={`E-mail à ${s.real_name || s.alias}`}><Mail className="h-3.5 w-3.5" /></button>}<button type="button" onClick={() => openFiche(s, 'exchanges')} className={btn} title="Fil des échanges avec cette usine : envois, réponses, analyses"><MessagesSquare className="h-3.5 w-3.5" /> Échanges</button><button type="button" onClick={() => openFiche(s)} className={btn}>Fiche</button><button type="button" onClick={() => { if (confirm(`Retirer ${s.alias} (${s.real_name || s.lot}) ?`)) api.act('supplier.delete', { id: s.id }); }} className={btn}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button></span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -146,66 +147,31 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
         </div>
       )}
 
-      <div className={card}>
-        {/* Repliable : l'en-tête (compteur, relances en retard, nouvel échange) reste visible. */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <button type="button" onClick={() => setShowExchanges((v) => !v)} className="flex min-w-0 flex-1 items-start gap-2 text-left" aria-expanded={showExchanges}>
-            <ChevronDown className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-transform ${showExchanges ? '' : '-rotate-90'}`} />
-            <span className="min-w-0">
-              <span className="flex flex-wrap items-center gap-2 font-display text-base font-bold text-slate-900 dark:text-white">
-                Échanges avec les usines
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200">{admin.exchanges.length}</span>
-                {overdue > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800">{overdue} relance{overdue > 1 ? 's' : ''} en retard</span>}
-              </span>
-              <span className="block text-xs font-normal text-slate-500">Captures d’écran de conversations (WeChat, WhatsApp), e-mails, comptes rendus d’appels : le fil de ce qui a été dit et promis.</span>
-            </span>
-          </button>
-          <button type="button" onClick={() => setExchange(null)} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Nouvel échange</button>
-        </div>
-        {showExchanges && (
-        <>
-        <div className="mt-3">
-          <select className={`${input} sm:max-w-xs`} value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">Toutes les usines</option>{admin.suppliers.map((s) => <option key={s.id} value={s.id}>{s.alias} · {s.real_name || s.lot}</option>)}</select>
-        </div>
-        {shown.length === 0 ? (
-          <Empty>Aucun échange enregistré.</Empty>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {shown.map((e) => {
-              const s = name(e.supplier_id);
-              return (
-                <li key={e.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <Badge tone="slate">{EXCHANGE_CHANNELS.find((c) => c.value === e.channel)?.label || e.channel}</Badge>
-                      {s ? <span className="font-semibold text-slate-800 dark:text-slate-100">{s.real_name || s.alias} <span className="font-normal text-slate-500">({s.alias} · {s.lot})</span></span> : <span>Sans usine</span>}
-                      <span>{dateTime(e.exchanged_at)}</span>
-                      {e.author_name && <span>· {e.author_name}</span>}
-                    </span>
-                    <button type="button" onClick={() => { if (confirm('Supprimer cet échange ?')) api.act('exchange.delete', { id: e.id }); }} className="rounded p-1 text-red-500 hover:bg-red-50" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button>
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{e.summary}</p>
-                  {e.analysis && typeof (e.analysis as { reply_en?: unknown }).reply_en === 'string' && (
-                    <details className="mt-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-700">
-                      <summary className="cursor-pointer text-xs font-semibold text-violet-700 dark:text-violet-300">Réponse proposée, explication et questions de l’usine</summary>
-                      <div className="mt-2"><ExchangeAnalysisPanel analysis={e.analysis as unknown as ExchangeAnalysis} supplier={s || null} admin={admin} api={api} exchangeId={e.id} compact /></div>
-                    </details>
-                  )}
-                  <AttachmentList items={e.attachments} />
-                  {e.next_action && <p className="mt-2 text-xs"><span className="font-semibold text-amber-700">À faire :</span> {e.next_action}{e.next_action_at ? ` (${dateShort(e.next_action_at)})` : ''}</p>}
-                </li>
-              );
-            })}
+      {orphans.length > 0 && (
+        <div className={`${card} border-amber-300 dark:border-amber-800`}>
+          <p className="text-sm font-bold text-slate-900 dark:text-white">Échanges à rattacher à une usine ({orphans.length})</p>
+          <p className="text-xs text-slate-500">Enregistrés sans usine : choisissez la bonne fiche pour qu’ils apparaissent dans son onglet « Échanges ».</p>
+          <ul className="mt-2 space-y-2">
+            {orphans.map((e) => (
+              <li key={e.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+                <p className="text-[11px] text-slate-500">{dateTime(e.exchanged_at)} · {e.channel}{e.author_name ? ` · ${e.author_name}` : ''}</p>
+                <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{e.summary}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <select className={`${input} sm:max-w-xs`} defaultValue="" onChange={async (ev) => { if (ev.target.value) await api.act('exchange.assign', { id: e.id, supplier_id: ev.target.value, direction: e.direction === 'note' ? 'in' : e.direction }); }}>
+                    <option value="">Rattacher à…</option>
+                    {admin.suppliers.map((x) => <option key={x.id} value={x.id}>{x.lot} · {x.real_name || x.alias}</option>)}
+                  </select>
+                  <button type="button" onClick={() => { if (confirm('Supprimer cet échange ?')) api.act('exchange.delete', { id: e.id }); }} className={btn}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button>
+                </div>
+              </li>
+            ))}
           </ul>
-        )}
-        </>
-        )}
-      </div>
+        </div>
+      )}
 
-      {editing && <SupplierModal s={editing === 'new' ? null : editing} lots={admin.lots} rfq={admin.rfq} api={api} onClose={() => setEditing(null)} />}
+      {editing && <SupplierModal s={editing === 'new' ? null : admin.suppliers.find((x) => x.id === editing.id) || editing} admin={admin} initialTab={editingTab} api={api} onClose={() => setEditing(null)} />}
       {importing && <ImportModal api={api} onClose={() => setImporting(false)} />}
       {mailTo && <EmailCompose supplier={mailTo} admin={admin} api={api} onClose={() => setMailTo(null)} />}
-      {exchange !== false && <ExchangeModal supplierId={exchange} admin={admin} api={api} onClose={() => setExchange(false)} />}
     </div>
   );
 }
@@ -358,7 +324,10 @@ type SupplierForm = {
   internal_note: string;
   watch: string;
 };
-function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['suppliers'][number] | null; lots: string[]; rfq: TeamExtras['rfq']; api: WorkspaceApi; onClose: () => void }) {
+type SupplierTab = 'identity' | 'card' | 'scores' | 'photos' | 'exchanges';
+function SupplierModal({ s, admin, initialTab = 'identity', api, onClose }: { s: TeamExtras['suppliers'][number] | null; admin: TeamExtras; initialTab?: SupplierTab; api: WorkspaceApi; onClose: () => void }) {
+  const lots = admin.lots;
+  const rfq = admin.rfq;
   const [f, setF] = useState<SupplierForm>({
     lot: s?.lot || lots[0] || '', real_name: s?.real_name || '', country: s?.country || 'Chine', city: s?.city || '', website: s?.website || '', indicative_price: s?.indicative_price || '',
     contact_name: s?.contact_name || '', email: s?.email || '', wechat: s?.wechat || '', whatsapp: s?.whatsapp || '', phone: s?.phone || '', contact: s?.contact || '', preferred_channel: s?.preferred_channel || '', contact_source: s?.contact_source || '',
@@ -367,7 +336,8 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
     internal_note: s?.internal_note || '',
     watch: (s?.watch_points || []).join('\n'),
   });
-  const [tab, setTab] = useState<'identity' | 'card' | 'scores' | 'photos'>('identity');
+  const [tab, setTab] = useState<SupplierTab>(s ? initialTab : 'identity');
+  const exchangeCount = s ? admin.exchanges.filter((e) => e.supplier_id === s.id).length : 0;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
@@ -417,7 +387,7 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
   const tabBtn = (k: typeof tab, l: string) => <button type="button" onClick={() => setTab(k)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${tab === k ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white' : 'text-slate-500'}`}>{l}</button>;
   return (
     <Modal title={s ? `${s.alias} — ${s.lot}` : 'Nouvelle usine'} onClose={onClose} wide>
-      <div className="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}{s && tabBtn('photos', `Photos produit${photoCount ? ` (${photoCount})` : ''}`)}</div>
+      <div className="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}{s && tabBtn('photos', `Photos produit${photoCount ? ` (${photoCount})` : ''}`)}{s && tabBtn('exchanges', `Échanges${exchangeCount ? ` (${exchangeCount})` : ''}`)}</div>
       {tab === 'identity' && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className={label}>Lot</label><input list="lots2" className={input} value={f.lot} onChange={(e) => set({ lot: e.target.value })} /><datalist id="lots2">{lots.map((x) => <option key={x} value={x} />)}</datalist></div>
@@ -489,76 +459,9 @@ function SupplierModal({ s, lots, rfq, api, onClose }: { s: TeamExtras['supplier
         </div>
       )}
       {tab === 'photos' && s && <SupplierPhotos supplierId={s.id} initial={s.product_photos || []} api={api} onCount={setPhotoCount} />}
+      {tab === 'exchanges' && s && <SupplierExchanges supplier={s} admin={admin} api={api} />}
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      {tab !== 'photos' && <button type="button" disabled={busy || !f.lot.trim()} onClick={save} className={`${btnPrimary} mt-4`}>Enregistrer</button>}
-    </Modal>
-  );
-}
-
-function ExchangeModal({ supplierId, admin, api, onClose }: { supplierId: string | null; admin: TeamExtras; api: WorkspaceApi; onClose: () => void }) {
-  const [f, setF] = useState({ supplier_id: supplierId || '', channel: 'wechat', exchanged_at: new Date().toISOString().slice(0, 16), summary: '', next_action: '', next_action_at: '' });
-  const [files, setFiles] = useState<Attachment[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiInfo, setAiInfo] = useState('');
-  // Captures → résumé, relance et canal proposés par l'IA (GLM 5.3 Flash lit l'image), à relire.
-  // Analyse (captures et/ou texte collé) : résumé, explication, réponse proposée EN/FR(/ZH), questions de l'usine. À relire.
-  const [raw, setRaw] = useState('');
-  const [analysis, setAnalysis] = useState<ExchangeAnalysis | null>(null);
-  const analyze = async () => {
-    setAiBusy(true);
-    setErr('');
-    try {
-      const ids = files.map((a) => /\/documents\/([0-9a-f-]{36})$/i.exec(a.url || '')?.[1]).filter((x): x is string => !!x);
-      const r = await api.ai('exchange.analyze', { document_ids: ids, notes: [raw, f.summary].filter((x) => x.trim()).join('\n\n'), supplier_id: f.supplier_id || null });
-      const res = r.result as ExchangeAnalysis;
-      const figures = res.key_figures?.length ? `\n\nChiffres cités : ${res.key_figures.join(' · ')}` : '';
-      setAnalysis(res);
-      setF((x) => ({
-        ...x,
-        summary: `${res.summary}${figures}`,
-        channel: ['wechat', 'email', 'whatsapp', 'phone', 'visit', 'other'].includes(res.channel) ? res.channel : x.channel,
-        next_action: res.next_action || x.next_action,
-        next_action_at: res.next_action_days != null && !x.next_action_at ? new Date(Date.now() + res.next_action_days * 86_400_000).toISOString().slice(0, 10) : x.next_action_at,
-      }));
-      const u = r.usage as { model: string; costFcfa: number };
-      setAiInfo(`${u.model} · ${u.costFcfa} FCFA — à relire avant d’envoyer`);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Analyse impossible');
-    } finally {
-      setAiBusy(false);
-    }
-  };
-  const supplier = admin.suppliers.find((s) => s.id === f.supplier_id) || null;
-  return (
-    <Modal title="Nouvel échange avec une usine" onClose={onClose} wide>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div><label className={label}>Fournisseur</label><select className={input} value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })}><option value="">— sans fournisseur —</option>{admin.suppliers.map((s) => <option key={s.id} value={s.id}>{s.alias} · {s.real_name || s.lot}</option>)}</select></div>
-        <div><label className={label}>Canal</label><select className={input} value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value })}>{EXCHANGE_CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
-        <div><label className={label}>Date et heure</label><input type="datetime-local" className={input} value={f.exchanged_at} onChange={(e) => setF({ ...f, exchanged_at: e.target.value })} /></div>
-        <div><label className={label}>Relance prévue</label><input type="date" className={input} value={f.next_action_at} onChange={(e) => setF({ ...f, next_action_at: e.target.value })} /></div>
-        <div className="sm:col-span-2"><label className={label}>Texte de l’échange (coller la conversation, l’e-mail…)</label><textarea className={`${input} font-mono text-xs`} rows={5} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Collez ici le message de l’usine (chinois, anglais ou français), ou joignez des captures plus bas." /></div>
-        <div className="sm:col-span-2"><label className={label}>Résumé (ce qui a été dit, promis, chiffré)</label><textarea className={input} rows={4} value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} /></div>
-        <div className="sm:col-span-2"><label className={label}>À faire ensuite</label><input className={input} value={f.next_action} onChange={(e) => setF({ ...f, next_action: e.target.value })} placeholder="Ex. relancer pour la fiche technique du shockpad" /></div>
-        <div className="sm:col-span-2">
-          <label className={label}>Captures d’écran, e-mails, pièces</label>
-          <AttachmentList items={files} onRemove={(i) => setFiles((x) => x.filter((_, k) => k !== i))} />
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <AttachButton api={api} internal category="misc" label="Joindre des captures" accept="image/*,application/pdf,.eml,.txt" onAttached={(a) => setFiles((x) => [...x, ...a])} />
-            <button type="button" disabled={aiBusy || (!files.some((a) => a.kind === 'image') && !raw.trim() && !f.summary.trim())} onClick={analyze} className={btnPrimary} title="Lire l’échange, l’expliquer, proposer une réponse en anglais et en français, extraire les questions de l’usine">{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Analyser et proposer une réponse</button>
-            {aiInfo && <span className="text-[11px] text-slate-500">{aiInfo}</span>}
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">Stockées dans l’espace privé, réservées à l’équipe. Le chinois et l’anglais des captures sont traduits dans le résumé.</p>
-        </div>
-      </div>
-      {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      {analysis && (
-        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700">
-          <ExchangeAnalysisPanel analysis={analysis} supplier={supplier} admin={admin} api={api} />
-        </div>
-      )}
-      <button type="button" disabled={busy || (!f.summary.trim() && !raw.trim() && !files.length)} onClick={async () => { setBusy(true); setErr(''); try { await api.act('exchange.add', { ...f, summary: f.summary.trim() || raw.trim().slice(0, 4000), supplier_id: f.supplier_id || null, exchanged_at: f.exchanged_at ? new Date(f.exchanged_at).toISOString() : undefined, next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null, attachments: files, analysis: analysis ? { ...analysis, raw: raw.trim().slice(0, 20000) || null } : null }); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>Enregistrer l’échange{analysis ? ' et l’analyse' : ''}</button>
+      {tab !== 'photos' && tab !== 'exchanges' && <button type="button" disabled={busy || !f.lot.trim()} onClick={save} className={`${btnPrimary} mt-4`}>Enregistrer</button>}
     </Modal>
   );
 }
