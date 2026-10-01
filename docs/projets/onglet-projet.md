@@ -44,6 +44,14 @@ Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée 
 - **Onglet Comparaison** (équipe et client) : une ligne par usine et par lot, une colonne par ligne du devis, total projet frais compris, meilleur prix en vert, filtre de variante. Le client voit les alias et les prix retravaillés et peut cliquer « Cette offre m'intéresse » (l'équipe est prévenue). « Devis » reporte le coût, le prix et l'usine sur la ligne du devis.
 - Code : `src/lib/projects/offers.ts` (logique pure et testée), `Offers.tsx`, `Comparison.tsx` ; migration `20261001030000_project_offers.sql`. Champs interdits côté client : usine réelle, coût, devise d'achat, marge, conditions de paiement, texte brut.
 
+## Rapport et voyages construits depuis les commandes (1er octobre 2026)
+
+- L'onglet **Rapport & voyage** part **vierge** : plus d'itinéraire ni de liste de rapport tirés du modèle.
+- **Rapport final** (par phase) : éléments saisis à la main ou « Ajouter depuis les commandes » (un élément par commande, rangé dans la phase de ses lignes, rattaché par `order_id`). Le client ne voit que les phases qui ont un élément ou un PDF.
+- **Voyages d'audit** (`project_trips`) : « Planifier un voyage » › cocher les commandes › une étape par usine (ville de l'usine et programme pré-remplis, modifiables ; lot sans usine = étape « usine à préciser »), étapes libres possibles, note interne par voyage et par étape. Statuts : brouillon (invisible du client), proposé, confirmé, effectué ; le client est prévenu à chaque statut visible et peut cliquer « Je suis intéressé » / « Recevoir le devis du voyage ». Sans voyage proposé, il peut signaler un intérêt général.
+- La ville d'une étape est visible du client : la vérifier avant de proposer le voyage.
+- Code : `src/lib/projects/trips.ts` (logique testée), `ReportTrip.tsx` ; migration `20261001040000_project_trips.sql`.
+
 ## Confidentialité des fournisseurs
 
 - Le client ne voit que les alias « Fournisseur A, B… », le classement et la fiche anonymisée (description, caractéristiques, certifications) rédigée par l'équipe : ne rien y écrire qui identifie l'usine (nom, ville, site).
