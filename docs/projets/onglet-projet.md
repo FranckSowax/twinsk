@@ -35,6 +35,15 @@ Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée 
 - Changer la devise principale recalcule les taux (l'ancienne devise entre dans la table) ; refusé dès qu'une ligne est validée ou commandée.
 - Logique pure et testée : `src/lib/projects/fx.ts` ; migration `20260930030000_project_currencies.sql`.
 
+## Prix reçus des usines et comparaison (1er octobre 2026)
+
+- **Fiche usine › Prix reçus** (équipe) : une offre = conditions (devise de l'usine, incoterm, port, délai, MOQ, validité, paiement, notes) + lignes : **produit** (avec variante « Hauteur=30 mm » et paliers « 2000:35; 5000:32.8 »), **option** (supplément) ou **frais** (montant fixe, ex. échantillons). Chaque produit est rattaché à une ligne du devis (automatique par unité et libellé, ou choisi). L'affichage s'adapte : colonnes de variantes, colonnes « dès N », prix usine et prix client côte à côte.
+- **Depuis un message analysé** : quand l'analyse trouve des prix, « Vérifier et enregistrer l'offre de prix » ouvre l'offre déjà remplie (rattachée à l'échange).
+- **Marge** : pourcentage par défaut du projet (`projects.default_margin_pct`, 25 %), remplaçable par offre en % ou en montant fixe par unité. Prix client = coût converti dans la devise du projet + marge, au palier correspondant à la quantité du devis.
+- **Visibilité** : offre visible du client par défaut si l'usine est présélectionnée ou retenue ; œil pour masquer/montrer. Une nouvelle offre peut remplacer la précédente (gardée dans « Offres remplacées »).
+- **Onglet Comparaison** (équipe et client) : une ligne par usine et par lot, une colonne par ligne du devis, total projet frais compris, meilleur prix en vert, filtre de variante. Le client voit les alias et les prix retravaillés et peut cliquer « Cette offre m'intéresse » (l'équipe est prévenue). « Devis » reporte le coût, le prix et l'usine sur la ligne du devis.
+- Code : `src/lib/projects/offers.ts` (logique pure et testée), `Offers.tsx`, `Comparison.tsx` ; migration `20261001030000_project_offers.sql`. Champs interdits côté client : usine réelle, coût, devise d'achat, marge, conditions de paiement, texte brut.
+
 ## Confidentialité des fournisseurs
 
 - Le client ne voit que les alias « Fournisseur A, B… », le classement et la fiche anonymisée (description, caractéristiques, certifications) rédigée par l'équipe : ne rien y écrire qui identifie l'usine (nom, ville, site).
