@@ -123,8 +123,6 @@ export function validateGeneratedTemplate(raw: unknown, fallback: { currency: st
     lots,
     steps,
     quote_lines,
-    business_trip: { title: 'Voyage d’audit des usines', days: [] },
-    final_report_checklist: ['Dossier des ouvrages exécutés (plans, certificats)', 'Rapports de tests et de réception', 'Contrats de garantie', 'Manuel d’exploitation en français et formation', 'Bilan financier vs devis'],
     rfq_context,
     rfq,
   };

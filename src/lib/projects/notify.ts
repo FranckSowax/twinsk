@@ -43,6 +43,7 @@ const LABELS: Record<string, string> = {
   'offer.published': 'Nouvelle offre de prix à comparer',
   'offer.interest': 'Le client s’intéresse à une offre',
   'document.uploaded': 'Document déposé',
+  'trip.status': 'Voyage d’audit',
   'trip.interested': 'Intérêt pour le voyage d’audit',
   'trip.quote_requested': 'Devis du voyage demandé',
   'journal.missing': 'Mise à jour du jour non publiée',

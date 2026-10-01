@@ -102,7 +102,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
   const phases = initialPhases(DOM_TOM_TEMPLATE);
   const raw: RawForPublic = {
     project: { title: 'PSG Academy DOM-TOM', description: 'd', currency: 'USD', rates: { CNY: 0.14 }, cover_video_at: '2026-09-30T12:00:00Z', status: 'active', phases, business_trip_interested_at: null, business_trip_quote_requested_at: null },
-    template: DOM_TOM_TEMPLATE,
+
     steps: [{ key: 's', title: 'S', description: '', position: 0 }],
     tasks: [{ id: 't1', step_key: 's', title: 'T', description: '', owner: 'client', phase: 'phase2', due_at: START, status: 'todo', checklist: [{ id: 'c', label: 'l', done: false }], attachments: [] }],
     taskComments: [{ id: 'k', task_id: 't1', author: 'team', author_name: 'Franck', text: 'ok', attachments: [], created_at: START }],
@@ -126,6 +126,10 @@ describe('projection publique : aucun champ interdit ne sort', () => {
       { id: 'sup2', lot: 'Gazon', alias: 'Fournisseur B', status: 'selected', scores: { certifications: 3, tropical: 3, installation: 3, price: 5, transparency: 4 }, score: 18, description: null, product_specs: [], certifications: [], years_experience: null, capacity: null, lead_time: null, moq: null, sample_status: null, country: 'Chine', product_photos: [] },
     ],
     finalReports: [{ phase: 'phase1', checklist: [], delivered_at: null, file_id: null }],
+    trips: [
+      { id: 't1', title: 'Audit gazon', start_date: '2026-11-02', end_date: null, status: 'proposed', stops: [{ id: 'st', day: 1, date: null, city: 'Guangzhou', supplier_id: 'sup1', order_ids: [], line_ids: ['l1'], program: 'Contrôle', internal_note: 'Contact Lily' }], internal_note: 'budget', interested_at: null, interested_by: null, quote_requested_at: null, quote_requested_by: null, created_at: START },
+      { id: 't2', title: 'Brouillon', start_date: null, end_date: null, status: 'draft', stops: [], internal_note: null, interested_at: null, interested_by: null, quote_requested_at: null, quote_requested_by: null, created_at: START },
+    ],
     defaultMarginPct: 25,
     offers: [
       { id: 'o1', supplier_id: 'sup1', lot: 'Gazon', title: 'Offre 1', currency: 'CNY', incoterm: 'FOB', valid_until: null, lead_time: '15 j', moq: '2 000 m²', items: [{ id: 'g', kind: 'base', label: 'Gazon 30 mm', variant: {}, unit: 'm²', price: 35, tiers: [], per: 'unit', quote_line_id: 'l1' }], margin_mode: 'pct', margin_value: null, client_visible: true, status: 'active', client_interested_at: null, updated_at: START },
@@ -149,6 +153,8 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     const keys = deepKeys(view);
     for (const f of FORBIDDEN_PUBLIC_FIELDS) expect(keys.has(f), f).toBe(false);
     expect(JSON.stringify(view)).not.toContain('Shenzhen');
+    expect(view.trips.map((t) => [t.title, t.stops[0]?.alias, t.stops[0]?.items])).toEqual([['Audit gazon', 'Fournisseur A', [view.quote.lines[0].label]]]);
+    expect(JSON.stringify(view.trips)).not.toMatch(/Lily|budget|sup1/);
     expect(view.quote.lines[0]).toMatchObject({ supplier_alias: 'Fournisseur A', unit_price: 12, total: 69600 });
     expect(view.tasks[0].locked).toBe(true);
     expect(view.documents[0].download_path).toBe('/api/projects/public/TOKEN/documents/d1');

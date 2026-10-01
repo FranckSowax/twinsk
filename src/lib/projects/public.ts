@@ -8,6 +8,7 @@
 
 import type { Attachment, ChecklistItem, DocumentCategory, OrderStatus, Phase, ProductPhoto, ProductSpec, QuestionStatus, QuoteLineStatus, SampleStatus, Scores, SupplierStatus, TaskOwner, TaskStatus } from './types';
 import { CLIENT_DISCLAIMER } from './types';
+import { publicTrips, type PublicTrip, type RawTrip } from './trips';
 import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, rankSuppliers } from './logic';
 import { rateOf, toBase, type Rates } from './fx';
 import { priceOffer, projectLine, type OfferItem } from './offers';
@@ -74,7 +75,10 @@ export interface PublicProject {
     }[];
   };
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; lines: string[]; total: number; at: string; updated_at: string }[];
-  business_trip: { title: string; days: { day: number; city: string; program: string }[]; interested_at: string | null; quote_requested_at: string | null };
+  /** Intérêt général du client pour un voyage d'audit (avant qu'un voyage soit proposé). */
+  business_trip: { interested_at: string | null; quote_requested_at: string | null };
+  /** Voyages proposés par l'équipe (brouillons exclus), étapes sous alias. */
+  trips: PublicTrip[];
   final_reports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; download_path: string | null }[];
   /** Offres de prix visibles du client : prix retravaillés (devise du projet), sous alias ; jamais le prix usine ni la marge. */
   offers: PublicOffer[];
@@ -156,7 +160,6 @@ export interface RawOffer {
 /** Entrées brutes (lues par le serveur) : seuls les champs nommés ci-dessous sont copiés. */
 export interface RawForPublic {
   project: { title: string; description: string | null; currency: string; rates: Rates; cover_video_at: string | null; status: string; phases: Phase[]; business_trip_interested_at: string | null; business_trip_quote_requested_at: string | null };
-  template: { business_trip: { title: string; days: { day: number; city: string; program: string }[] } };
   steps: { key: string; title: string; description: string; position: number }[];
   tasks: { id: string; step_key: string; title: string; description: string; owner: TaskOwner; phase: string | null; due_at: string; status: TaskStatus; checklist: ChecklistItem[]; attachments: Attachment[] }[];
   taskComments: { id: string; task_id: string; author: 'team' | 'client'; author_name: string; text: string; attachments: Attachment[]; created_at: string }[];
@@ -171,6 +174,7 @@ export interface RawForPublic {
   finalReports: { phase: string; checklist: ChecklistItem[]; delivered_at: string | null; file_id: string | null }[];
   offers?: RawOffer[];
   defaultMarginPct?: number;
+  trips?: RawTrip[];
 }
 
 export function projectPublicView(raw: RawForPublic, token: string, opts: { docPath?: (docId: string) => string; photoPath?: (docId: string) => string } = {}): PublicProject {
@@ -278,7 +282,8 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
       })),
     },
     orders: raw.orders.map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, lines: o.line_ids, total: o.total, at: o.created_at, updated_at: o.updated_at })),
-    business_trip: { title: raw.template.business_trip.title, days: raw.template.business_trip.days.map((d) => ({ day: d.day, city: d.city, program: d.program })), interested_at: raw.project.business_trip_interested_at, quote_requested_at: raw.project.business_trip_quote_requested_at },
+    business_trip: { interested_at: raw.project.business_trip_interested_at, quote_requested_at: raw.project.business_trip_quote_requested_at },
+    trips: publicTrips(raw.trips || [], raw.suppliers, raw.quoteLines, raw.orders.map((o) => ({ id: o.id, reference: o.reference, lines: o.line_ids }))),
     final_reports: raw.finalReports.map((r) => ({ phase: r.phase, checklist: r.checklist.map((c) => ({ id: c.id, label: c.label, done: c.done })), delivered_at: r.delivered_at, download_path: r.delivered_at && r.file_id ? docPath(r.file_id) : null })),
     suppliers: rankSuppliers(raw.suppliers.map((s) => ({ id: s.id, lot: s.lot, alias: s.alias, status: s.status, scores: s.scores, score: s.score }))).map((r) => {
       const s = raw.suppliers.find((x) => x.id === r.id)!;

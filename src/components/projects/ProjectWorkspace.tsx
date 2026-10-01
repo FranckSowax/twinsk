@@ -12,7 +12,8 @@ import type { Attachment } from '@/lib/projects/types';
 import PlanTab from './PlanTab';
 import { DocumentsTab, JournalTab, QuestionsTab } from './JournalQuestionsDocs';
 import { OrdersTab, QuoteTab } from './QuoteOrdersTab';
-import { AccessTab, ReportTab, SuppliersTab } from './TeamTabs';
+import { AccessTab, SuppliersTab } from './TeamTabs';
+import { ReportTab } from './ReportTrip';
 import { RfqTab } from './RfqTab';
 import { FactoryCards } from './FactoryCards';
 import { CoverVideo } from './CoverVideo';
@@ -172,7 +173,7 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
       {tab === 'quote' && <QuoteTab p={data} api={api} admin={data.admin} pdfUrl={pdfUrl} />}
       {tab === 'compare' && <ComparisonTab p={data} api={api} admin={data.admin} />}
       {tab === 'orders' && <OrdersTab p={data} api={api} />}
-      {tab === 'report' && <ReportTab p={data} api={api} />}
+      {tab === 'report' && <ReportTab p={data} api={api} admin={data.admin} />}
       {tab === 'factories' && <FactoryCards suppliers={data.suppliers} />}
       {tab === 'suppliers' && data.admin && <SuppliersTab p={data} admin={data.admin} api={api} />}
       {tab === 'rfq' && data.admin && <RfqTab admin={data.admin} api={api} />}

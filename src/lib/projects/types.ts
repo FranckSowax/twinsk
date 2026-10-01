@@ -103,8 +103,6 @@ export interface ProjectTemplate {
   quote_lines: QuoteLineTemplate[];
   /** Lots pour lesquels des fournisseurs sont à consulter (alias A, B, C…). */
   lots: string[];
-  business_trip: { title: string; days: { day: number; city: string; program: string }[] };
-  final_report_checklist: string[];
   /** Messages RFQ : contexte du programme et matière par lot (facultatif : composés depuis les lots sinon). */
   rfq_context?: RfqContext;
   rfq?: RfqLotTemplate[];

@@ -7,7 +7,7 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Mail, MessagesSquare, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Eye, Link2, Loader2, Mail, MessagesSquare, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
@@ -18,7 +18,7 @@ import { SupplierExchanges, overdueOf } from './SupplierExchanges';
 import { SupplierOffers } from './Offers';
 import { ContactBadge, contactsOf } from './ContactTrace';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
-import { AttachButton, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
+import { Badge, Empty, Modal, btn, btnPrimary, card, dateTime, input, label, type WorkspaceApi } from './shared';
 
 export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamExtras; api: WorkspaceApi }) {
   const [editing, setEditing] = useState<TeamExtras['suppliers'][number] | 'new' | null>(null);
@@ -527,67 +527,6 @@ export function AccessTab({ admin, api }: { admin: TeamExtras; api: WorkspaceApi
             <li key={e.id} className="flex gap-2"><span className="shrink-0 tabular-nums text-slate-400">{dateTime(e.created_at)}</span><span className="shrink-0 font-semibold">{e.actor_name || e.actor}</span><span className="text-slate-500">{e.type}</span><span className="min-w-0 truncate text-slate-700 dark:text-slate-200" title={e.detail || ''}>{e.detail}</span></li>
           ))}
         </ul>
-      </div>
-    </div>
-  );
-}
-
-export function ReportTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
-  const [busy, setBusy] = useState(false);
-  const bt = p.business_trip;
-  return (
-    <div className="space-y-4">
-      {p.final_reports.map((r) => {
-        const ph = p.phases.find((x) => x.id === r.phase);
-        const done = r.checklist.filter((c) => c.done).length;
-        return (
-          <div key={r.phase} className={card}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-display text-base font-bold text-slate-900 dark:text-white">Rapport final — {ph?.name || r.phase}</p>
-              {r.delivered_at ? <Badge tone="emerald">Remis le {dateShort(r.delivered_at)}</Badge> : <Badge tone="amber">Remis à la réception</Badge>}
-            </div>
-            <p className="text-xs text-slate-500">{done}/{r.checklist.length} éléments prêts</p>
-            <ul className="mt-2 space-y-1.5">
-              {r.checklist.map((c) => (
-                <li key={c.id}>
-                  <label className={`flex min-h-10 items-center gap-2 text-sm sm:min-h-0 ${api.mode === 'team' ? 'cursor-pointer' : ''}`}>
-                    <input type="checkbox" checked={c.done} disabled={api.mode !== 'team' || busy} onChange={async (e) => { setBusy(true); try { await api.act('report.set', { phase: r.phase, checklist: r.checklist.map((x) => (x.id === c.id ? { ...x, done: e.target.checked } : x)) }); } finally { setBusy(false); } }} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
-                    <span className={c.done ? 'text-slate-400 line-through' : ''}>{c.label}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {r.download_path && (
-                <>
-                  <a href={r.download_path} target="_blank" rel="noopener noreferrer" className={btnPrimary}><ExternalLink className="h-3.5 w-3.5" /> Ouvrir le rapport</a>
-                  <a href={downloadHref(r.download_path)} className={btn}><Download className="h-3.5 w-3.5" /> Télécharger</a>
-                </>
-              )}
-              {api.mode === 'team' && (
-                <>
-                  <AttachButton api={api} category="reports" label={r.download_path ? 'Remplacer le PDF' : 'Joindre le PDF du rapport'} accept="application/pdf" onAttached={async (a) => { const m = /\/documents\/([0-9a-f-]{36})$/i.exec(a[0]?.url || ''); if (m) await api.act('report.set', { phase: r.phase, file_id: m[1] }); }} />
-                  <button type="button" onClick={() => api.act('report.set', { phase: r.phase, delivered: !r.delivered_at })} className={btn}>{r.delivered_at ? 'Marquer non remis' : 'Marquer remis au client'}</button>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      <div className={card}>
-        <p className="font-display text-base font-bold text-slate-900 dark:text-white">{bt.title} (option)</p>
-        <p className="text-xs text-slate-500">Auditer les usines retenues, sous alias, avant la signature des accords-cadres.</p>
-        <ol className="mt-2 space-y-1 text-sm">{bt.days.map((d) => <li key={d.day}><span className="font-semibold">J{d.day} · {d.city}</span> — {d.program}</li>)}</ol>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {api.mode === 'client' ? (
-            <>
-              <button type="button" disabled={!!bt.interested_at} onClick={() => api.act('trip.interested')} className={`${btnPrimary} w-full sm:w-auto`}>{bt.interested_at ? `Intérêt signalé le ${dateShort(bt.interested_at)}` : 'Je suis intéressé'}</button>
-              <button type="button" disabled={!!bt.quote_requested_at} onClick={() => api.act('trip.quote')} className={`${btn} w-full sm:w-auto`}>{bt.quote_requested_at ? `Devis demandé le ${dateShort(bt.quote_requested_at)}` : 'Recevoir le devis du voyage'}</button>
-            </>
-          ) : (
-            <p className="text-xs text-slate-600">{bt.interested_at ? `Client intéressé le ${dateShort(bt.interested_at)}.` : 'Le client n’a pas encore signalé d’intérêt.'} {bt.quote_requested_at ? `Devis du voyage demandé le ${dateShort(bt.quote_requested_at)} : chiffrer la ligne « Voyage d’audit » du devis.` : ''}</p>
-          )}
-        </div>
       </div>
     </div>
   );

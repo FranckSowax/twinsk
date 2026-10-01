@@ -14,6 +14,7 @@ import { emailSender, parseRecipients, sendEmail } from '@/lib/email';
 import { cleanItem as cleanOfferItem, priceOffer, type OfferItem } from './offers';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
+import { cleanDate, cleanReportItems, cleanStops, TRIP_STATUS_CLIENT, TRIP_STATUSES, type TripStatus } from './trips';
 import type { Attachment, ChecklistItem, ContactChannel, DocumentCategory, ExchangeChannel, OrderStatus, Phase, ProductPhoto, ProductSpec, ProjectTemplate, RfqContext, RfqOrigin, RfqSender, SampleStatus, Scores, SupplierStatus } from './types';
 
 export const PROJECT_BUCKET = 'project-files';
@@ -141,7 +142,7 @@ async function createProject(t: ProjectTemplate, args: CreateProjectArgs, detail
   const cur = (args.currency && (PROJECT_CURRENCIES as readonly string[]).includes(args.currency.toUpperCase()) ? args.currency.toUpperCase() : t.currency);
   const r3 = await supabaseAdmin.from('project_quote_lines').insert(t.quote_lines.map((l, i) => ({ project_id: id, lot: l.lot, label: l.label, unit: l.unit, quantity: l.quantity, unit_price: l.unit_price, price_currency: cur, cost_currency: cur, optional: l.optional, enabled: !l.optional, phase: l.phase, position: i })));
   if (r3.error) fail(r3.error, 'Lignes de devis');
-  const r4 = await supabaseAdmin.from('project_final_reports').insert(t.phases.map((p) => ({ project_id: id, phase: p.id, checklist: t.final_report_checklist.map((label, i) => ({ id: `${p.id}-r${i + 1}`, label, done: false })) })));
+  const r4 = await supabaseAdmin.from('project_final_reports').insert(t.phases.map((p) => ({ project_id: id, phase: p.id, checklist: [] })));
   if (r4.error) fail(r4.error, 'Rapports');
   // Messages RFQ prêts à partir (EN + ZH), un par lot, composés avec le plan.
   const rows = rfqRowsFromTemplate(t, t.key.startsWith('ia-') ? 'ai' : 'template');
@@ -179,7 +180,7 @@ export async function loadProject(id: string) {
   if (error) fail(error, 'Lecture du projet');
   if (!project) return null;
   const q = <T>(p: PromiseLike<{ data: T[] | null; error: { message: string } | null }>) => p.then((r) => (r.error ? fail(r.error, 'Lecture') : r.data || []));
-  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts, offers] = await Promise.all([
+  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts, offers, trips] = await Promise.all([
     q(supabaseAdmin.from('project_steps').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_tasks').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_updates').select('*').eq('project_id', id).order('published_at', { ascending: false })),
@@ -198,6 +199,8 @@ export async function loadProject(id: string) {
     q(supabaseAdmin.from('project_events').select('id, type, target_id, actor_name, detail, data, created_at').eq('project_id', id).in('type', ['email.sent', 'contact.manual']).order('created_at', { ascending: false })),
     // Offres de prix (table du 1er oct.) : tolérée absente le temps de la migration.
     supabaseAdmin.from('project_offers').select('*').eq('project_id', id).order('created_at', { ascending: false }).then((r) => (r.error && !isMissing(r.error.message) ? fail(r.error, 'Lecture') : r.data || [])),
+    // Voyages planifiés depuis les commandes (table du 1er oct.) : tolérée absente le temps de la migration.
+    supabaseAdmin.from('project_trips').select('*').eq('project_id', id).order('start_date', { ascending: true, nullsFirst: false }).order('created_at').then((r) => (r.error && !isMissing(r.error.message) ? fail(r.error, 'Lecture') : r.data || [])),
   ]);
   const taskIds = tasks.map((t: { id: string }) => t.id);
   const updateIds = updates.map((u: { id: string }) => u.id);
@@ -207,7 +210,7 @@ export async function loadProject(id: string) {
     updateIds.length ? q(supabaseAdmin.from('project_update_comments').select('*').in('update_id', updateIds).order('created_at')) : Promise.resolve([]),
     questionIds.length ? q(supabaseAdmin.from('project_question_replies').select('*').in('question_id', questionIds).order('created_at')) : Promise.resolve([]),
   ]);
-  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts, offers };
+  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts, offers, trips };
 }
 export type ProjectBundle = NonNullable<Awaited<ReturnType<typeof loadProject>>>;
 
@@ -847,7 +850,7 @@ export async function regenerateRfqMessages(projectId: string, lot: string | nul
   const rfq = [...(t?.rfq || [])];
   for (const e of existing || []) if (!rfq.some((r) => r.lot === e.lot)) rfq.push({ lot: e.lot, product_en: e.product_en, product_zh: e.product_zh, quantities_en: e.quantities_en, requirements_en: e.requirements_en || [] });
   const lots = [...new Set([...(t?.lots || []), ...rfq.map((r) => r.lot), ...quote_lines.map((l) => l.lot), ...(sups || []).map((x) => String(x.lot))])].filter((l) => !lot || l === lot);
-  const base: ProjectTemplate = { ...(t || { key: 'x', title: '', description: '', currency: '', phases: [], durations: { transit: {}, production: [0, 0], technician_visa: [0, 0], padel_slab_cure: 0 }, steps: [], lots: [], business_trip: { title: '', days: [] }, final_report_checklist: [] }), quote_lines, rfq, lots, rfq_context };
+  const base: ProjectTemplate = { ...(t || { key: 'x', title: '', description: '', currency: '', phases: [], durations: { transit: {}, production: [0, 0], technician_visa: [0, 0], padel_slab_cure: 0 }, steps: [], lots: [] }), quote_lines, rfq, lots, rfq_context };
   const rows = rfqRowsFromTemplate(base, 'template').filter((r) => lots.includes(r.lot));
   if (!rows.length) throw new ProjectError('Aucun lot à composer');
   const { error } = await supabaseAdmin.from('project_rfq_messages').upsert(rows.map((r) => ({ project_id: projectId, ...r, updated_at: now() })), { onConflict: 'project_id,lot' });
@@ -1024,8 +1027,10 @@ export async function receivePhase(projectId: string, phaseId: string, received:
   await logEvent(projectId, { type: received ? 'phase.received' : 'phase.reopened', actor, target_type: 'phase', target_id: phaseId, notify: 'client' });
 }
 export async function setReport(projectId: string, phase: string, patch: { checklist?: ChecklistItem[]; delivered?: boolean; file_id?: string | null }, actor: Actor) {
+  const phases = await phasesOf(projectId);
+  if (!phases.some((p) => p.id === phase)) throw new ProjectError('Phase introuvable', 404);
   const clean: Record<string, unknown> = {};
-  if (Array.isArray(patch.checklist)) clean.checklist = patch.checklist;
+  if (Array.isArray(patch.checklist)) clean.checklist = cleanReportItems(patch.checklist);
   if (typeof patch.delivered === 'boolean') clean.delivered_at = patch.delivered ? now() : null;
   if (patch.file_id !== undefined) clean.file_id = patch.file_id;
   const { error } = await supabaseAdmin.from('project_final_reports').upsert({ project_id: projectId, phase, ...clean }, { onConflict: 'project_id,phase' });
@@ -1037,6 +1042,48 @@ export async function businessTrip(projectId: string, what: 'interested' | 'quot
   const { error } = await supabaseAdmin.from('projects').update({ [col]: now(), updated_at: now() }).eq('id', projectId);
   if (error) fail(error, 'Voyage');
   await logEvent(projectId, { type: what === 'interested' ? 'trip.interested' : 'trip.quote_requested', actor, notify: 'team' });
+}
+
+// ---- Voyages planifiés depuis les commandes ----
+export interface TripInput { id?: string; title: string; start_date?: string | null; end_date?: string | null; status?: TripStatus; stops?: unknown; internal_note?: string | null }
+export async function upsertTrip(projectId: string, input: TripInput, actor: Actor) {
+  const title = (input.title || '').trim().slice(0, 160);
+  if (!title) throw new ProjectError('Titre du voyage requis');
+  const status: TripStatus = TRIP_STATUSES.includes(input.status as TripStatus) ? (input.status as TripStatus) : 'draft';
+  const row = { title, start_date: cleanDate(input.start_date), end_date: cleanDate(input.end_date), status, stops: cleanStops(input.stops), internal_note: (input.internal_note || '').trim().slice(0, 2000) || null, updated_at: now() };
+  let prev: { status: TripStatus } | null = null;
+  let id = input.id;
+  if (id) {
+    const { data } = await supabaseAdmin.from('project_trips').select('status').eq('id', id).eq('project_id', projectId).maybeSingle();
+    if (!data) throw new ProjectError('Voyage introuvable', 404);
+    prev = data as { status: TripStatus };
+    const { error } = await supabaseAdmin.from('project_trips').update(row).eq('id', id);
+    if (error) fail(error, 'Voyage');
+  } else {
+    const { data, error } = await supabaseAdmin.from('project_trips').insert({ project_id: projectId, ...row, created_by: actor.name }).select('id').single();
+    if (error) fail(error, 'Voyage');
+    id = (data as { id: string }).id;
+  }
+  // Le client est prévenu quand le voyage lui devient visible ou change d'étape.
+  const shown = status !== 'draft';
+  if (shown && prev?.status !== status) await logEvent(projectId, { type: 'trip.status', actor, target_type: 'trip', target_id: id, detail: `${title} : ${TRIP_STATUS_CLIENT[status]}`, notify: 'client' });
+  else await logEvent(projectId, { type: input.id ? 'trip.updated' : 'trip.created', actor, target_type: 'trip', target_id: id, detail: title });
+  return { id };
+}
+export async function deleteTrip(projectId: string, tripId: string, actor: Actor) {
+  const { data, error } = await supabaseAdmin.from('project_trips').delete().eq('id', tripId).eq('project_id', projectId).select('title');
+  if (error) fail(error, 'Voyage');
+  if (!data?.length) throw new ProjectError('Voyage introuvable', 404);
+  await logEvent(projectId, { type: 'trip.deleted', actor, target_type: 'trip', target_id: tripId, detail: (data[0] as { title: string }).title });
+}
+/** Intérêt ou demande de devis du client pour un voyage proposé. */
+export async function tripRequest(projectId: string, tripId: string, what: 'interested' | 'quote', actor: Actor) {
+  const { data: t } = await supabaseAdmin.from('project_trips').select('id, title, status').eq('id', tripId).eq('project_id', projectId).maybeSingle();
+  if (!t || t.status === 'draft') throw new ProjectError('Voyage introuvable', 404);
+  const patch = what === 'interested' ? { interested_at: now(), interested_by: actor.name } : { quote_requested_at: now(), quote_requested_by: actor.name };
+  const { error } = await supabaseAdmin.from('project_trips').update(patch).eq('id', tripId);
+  if (error) fail(error, 'Voyage');
+  await logEvent(projectId, { type: what === 'interested' ? 'trip.interested' : 'trip.quote_requested', actor, target_type: 'trip', target_id: tripId, detail: String(t.title), notify: 'team' });
 }
 
 // ---- Liens client ----

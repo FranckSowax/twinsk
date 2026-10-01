@@ -128,24 +128,6 @@ export const DOM_TOM_TEMPLATE: ProjectTemplate = {
     { lot: 'Logistique', label: 'Transport maritime Chine → Guyane', unit: 'forfait', quantity: 1, unit_price: null, optional: false, phase: P2 },
     { lot: 'Logistique', label: 'Transport maritime Chine → La Réunion', unit: 'forfait', quantity: 1, unit_price: null, optional: false, phase: P2 },
   ],
-  business_trip: {
-    title: 'Voyage d’audit des usines — 5 jours',
-    days: [
-      { day: 1, city: 'Guangzhou', program: 'Usine gazon synthétique et shockpad : ligne de production, tests UV, échantillons.' },
-      { day: 2, city: 'Guangzhou', program: 'Usines conteneurs aménagés et tribunes : atelier, finitions, plans.' },
-      { day: 3, city: 'Tianjin', program: 'Usine padel : structures, vitrage trempé, montage témoin.' },
-      { day: 4, city: 'Hebei', program: 'Usine cages et clôtures : galvanisation, soudures, emballage.' },
-      { day: 5, city: 'Guangzhou', program: 'Synthèse, signature des protocoles qualité, planning de production.' },
-    ],
-  },
-  final_report_checklist: [
-    'Dossier des ouvrages exécutés (DOE) : plans de récolement, certificats',
-    'Rapports de tests : planéité, éclairement (lux), rebond',
-    'Retour d’expérience chantier',
-    'Contrats de garantie (gazon 6–8 ans, structures 5–20 ans, LED 5 ans)',
-    'Manuel d’exploitation en français et formation de l’équipe locale',
-    'Bilan financier vs devis',
-  ],
   // Messages RFQ (fiche technique sourcing du 30 sept. 2026, section 13).
   rfq_context: {
     project_en: '8 five-a-side football pitches + 8 padel courts + 4 container bars in the French Caribbean (Martinique, Guadeloupe, French Guiana) & Réunion Island — hurricane zone, marine climate',

@@ -29,8 +29,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'quote.choice': await D.setClientLineChoice(projectId, str(b.line_id), { client_quantity: b.client_quantity === undefined ? undefined : b.client_quantity === null ? null : Number(b.client_quantity), enabled: typeof b.enabled === 'boolean' ? b.enabled : undefined }, actor); break;
       case 'quote.validate': await D.validateLine(projectId, str(b.line_id), actor); break;
       case 'quote.unvalidate': await D.unvalidateLine(projectId, str(b.line_id), actor); break;
-      case 'trip.interested': await D.businessTrip(projectId, 'interested', actor); break;
-      case 'trip.quote': await D.businessTrip(projectId, 'quote', actor); break;
+      // Avec trip_id : voyage proposé par l'équipe ; sans : intérêt général pour un voyage d'audit.
+      case 'trip.interested': if (str(b.trip_id)) await D.tripRequest(projectId, str(b.trip_id), 'interested', actor); else await D.businessTrip(projectId, 'interested', actor); break;
+      case 'trip.quote': if (str(b.trip_id)) await D.tripRequest(projectId, str(b.trip_id), 'quote', actor); else await D.businessTrip(projectId, 'quote', actor); break;
       default: return NextResponse.json({ error: 'Action inconnue' }, { status: 400 });
     }
     return NextResponse.json(result);
