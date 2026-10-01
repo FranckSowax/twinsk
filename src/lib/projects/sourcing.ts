@@ -113,7 +113,8 @@ export function identifyingTokens(s: { real_name: string; website?: string | nul
   const domain = (s.website || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/.]/)[0];
   return [...new Set([...words, ...(domain && domain.length >= 4 ? [domain] : [])])];
 }
-function leaks(text: string, tokens: string[]): string[] {
+/** Mots identifiants (identifyingTokens) présents dans un texte. */
+export function leaks(text: string, tokens: string[]): string[] {
   const t = text.toLowerCase();
   // Sigles courts : mot entier seulement (« avg » ne doit pas toucher « average »).
   return tokens.filter((k) => (k.length <= 4 ? new RegExp(`(^|[^\\p{L}\\p{N}])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\p{L}\\p{N}]|$)`, 'u').test(t) : t.includes(k)));

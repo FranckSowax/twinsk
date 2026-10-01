@@ -14,6 +14,8 @@ import { scoreTotal } from '@/lib/projects/logic';
 import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
 import { EmailCompose } from './EmailCompose';
+import { ExchangeAnalysisPanel } from './ExchangeAnalysis';
+import type { ExchangeAnalysis } from '@/lib/projects/ai';
 import { ContactBadge, contactsOf } from './ContactTrace';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
 import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
@@ -183,6 +185,12 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                     <button type="button" onClick={() => { if (confirm('Supprimer cet échange ?')) api.act('exchange.delete', { id: e.id }); }} className="rounded p-1 text-red-500 hover:bg-red-50" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{e.summary}</p>
+                  {e.analysis && typeof (e.analysis as { reply_en?: unknown }).reply_en === 'string' && (
+                    <details className="mt-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-700">
+                      <summary className="cursor-pointer text-xs font-semibold text-violet-700 dark:text-violet-300">Réponse proposée, explication et questions de l’usine</summary>
+                      <div className="mt-2"><ExchangeAnalysisPanel analysis={e.analysis as unknown as ExchangeAnalysis} supplier={s || null} admin={admin} api={api} exchangeId={e.id} compact /></div>
+                    </details>
+                  )}
                   <AttachmentList items={e.attachments} />
                   {e.next_action && <p className="mt-2 text-xs"><span className="font-semibold text-amber-700">À faire :</span> {e.next_action}{e.next_action_at ? ` (${dateShort(e.next_action_at)})` : ''}</p>}
                 </li>
@@ -495,14 +503,18 @@ function ExchangeModal({ supplierId, admin, api, onClose }: { supplierId: string
   const [aiBusy, setAiBusy] = useState(false);
   const [aiInfo, setAiInfo] = useState('');
   // Captures → résumé, relance et canal proposés par l'IA (GLM 5.3 Flash lit l'image), à relire.
-  const summarize = async () => {
+  // Analyse (captures et/ou texte collé) : résumé, explication, réponse proposée EN/FR(/ZH), questions de l'usine. À relire.
+  const [raw, setRaw] = useState('');
+  const [analysis, setAnalysis] = useState<ExchangeAnalysis | null>(null);
+  const analyze = async () => {
     setAiBusy(true);
     setErr('');
     try {
       const ids = files.map((a) => /\/documents\/([0-9a-f-]{36})$/i.exec(a.url || '')?.[1]).filter((x): x is string => !!x);
-      const r = await api.ai('exchange.summarize', { document_ids: ids, notes: f.summary });
-      const res = r.result as { summary: string; next_action: string | null; next_action_days: number | null; channel: string; key_figures: string[] };
+      const r = await api.ai('exchange.analyze', { document_ids: ids, notes: [raw, f.summary].filter((x) => x.trim()).join('\n\n'), supplier_id: f.supplier_id || null });
+      const res = r.result as ExchangeAnalysis;
       const figures = res.key_figures?.length ? `\n\nChiffres cités : ${res.key_figures.join(' · ')}` : '';
+      setAnalysis(res);
       setF((x) => ({
         ...x,
         summary: `${res.summary}${figures}`,
@@ -511,20 +523,22 @@ function ExchangeModal({ supplierId, admin, api, onClose }: { supplierId: string
         next_action_at: res.next_action_days != null && !x.next_action_at ? new Date(Date.now() + res.next_action_days * 86_400_000).toISOString().slice(0, 10) : x.next_action_at,
       }));
       const u = r.usage as { model: string; costFcfa: number };
-      setAiInfo(`${u.model} · ${u.costFcfa} FCFA — à relire avant d’enregistrer`);
+      setAiInfo(`${u.model} · ${u.costFcfa} FCFA — à relire avant d’envoyer`);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Résumé impossible');
+      setErr(e instanceof Error ? e.message : 'Analyse impossible');
     } finally {
       setAiBusy(false);
     }
   };
+  const supplier = admin.suppliers.find((s) => s.id === f.supplier_id) || null;
   return (
-    <Modal title="Nouvel échange avec une usine" onClose={onClose}>
+    <Modal title="Nouvel échange avec une usine" onClose={onClose} wide>
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label className={label}>Fournisseur</label><select className={input} value={f.supplier_id} onChange={(e) => setF({ ...f, supplier_id: e.target.value })}><option value="">— sans fournisseur —</option>{admin.suppliers.map((s) => <option key={s.id} value={s.id}>{s.alias} · {s.real_name || s.lot}</option>)}</select></div>
         <div><label className={label}>Canal</label><select className={input} value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value })}>{EXCHANGE_CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
         <div><label className={label}>Date et heure</label><input type="datetime-local" className={input} value={f.exchanged_at} onChange={(e) => setF({ ...f, exchanged_at: e.target.value })} /></div>
         <div><label className={label}>Relance prévue</label><input type="date" className={input} value={f.next_action_at} onChange={(e) => setF({ ...f, next_action_at: e.target.value })} /></div>
+        <div className="sm:col-span-2"><label className={label}>Texte de l’échange (coller la conversation, l’e-mail…)</label><textarea className={`${input} font-mono text-xs`} rows={5} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Collez ici le message de l’usine (chinois, anglais ou français), ou joignez des captures plus bas." /></div>
         <div className="sm:col-span-2"><label className={label}>Résumé (ce qui a été dit, promis, chiffré)</label><textarea className={input} rows={4} value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} /></div>
         <div className="sm:col-span-2"><label className={label}>À faire ensuite</label><input className={input} value={f.next_action} onChange={(e) => setF({ ...f, next_action: e.target.value })} placeholder="Ex. relancer pour la fiche technique du shockpad" /></div>
         <div className="sm:col-span-2">
@@ -532,14 +546,19 @@ function ExchangeModal({ supplierId, admin, api, onClose }: { supplierId: string
           <AttachmentList items={files} onRemove={(i) => setFiles((x) => x.filter((_, k) => k !== i))} />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <AttachButton api={api} internal category="misc" label="Joindre des captures" accept="image/*,application/pdf,.eml,.txt" onAttached={(a) => setFiles((x) => [...x, ...a])} />
-            <button type="button" disabled={aiBusy || (!files.some((a) => a.kind === 'image') && !f.summary.trim())} onClick={summarize} className={btn} title="Lire les captures et proposer résumé, chiffres cités et relance">{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Résumer avec l’IA</button>
+            <button type="button" disabled={aiBusy || (!files.some((a) => a.kind === 'image') && !raw.trim() && !f.summary.trim())} onClick={analyze} className={btnPrimary} title="Lire l’échange, l’expliquer, proposer une réponse en anglais et en français, extraire les questions de l’usine">{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Analyser et proposer une réponse</button>
             {aiInfo && <span className="text-[11px] text-slate-500">{aiInfo}</span>}
           </div>
           <p className="mt-1 text-[11px] text-slate-500">Stockées dans l’espace privé, réservées à l’équipe. Le chinois et l’anglais des captures sont traduits dans le résumé.</p>
         </div>
       </div>
       {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-      <button type="button" disabled={busy || (!f.summary.trim() && !files.length)} onClick={async () => { setBusy(true); setErr(''); try { await api.act('exchange.add', { ...f, supplier_id: f.supplier_id || null, exchanged_at: f.exchanged_at ? new Date(f.exchanged_at).toISOString() : undefined, next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null, attachments: files }); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>Enregistrer l’échange</button>
+      {analysis && (
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700">
+          <ExchangeAnalysisPanel analysis={analysis} supplier={supplier} admin={admin} api={api} />
+        </div>
+      )}
+      <button type="button" disabled={busy || (!f.summary.trim() && !raw.trim() && !files.length)} onClick={async () => { setBusy(true); setErr(''); try { await api.act('exchange.add', { ...f, summary: f.summary.trim() || raw.trim().slice(0, 4000), supplier_id: f.supplier_id || null, exchanged_at: f.exchanged_at ? new Date(f.exchanged_at).toISOString() : undefined, next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null, attachments: files, analysis: analysis ? { ...analysis, raw: raw.trim().slice(0, 20000) || null } : null }); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} mt-4`}>Enregistrer l’échange{analysis ? ' et l’analyse' : ''}</button>
     </Modal>
   );
 }

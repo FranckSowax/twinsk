@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { teamActor, unauthorized, errorResponse } from '@/lib/projects/auth';
-import { draftDailyUpdate, findSupplierContacts, summarizeExchange } from '@/lib/projects/ai-server';
+import { analyzeExchange, draftDailyUpdate, findSupplierContacts, summarizeExchange } from '@/lib/projects/ai-server';
 
 // POST { action: 'exchange.summarize', document_ids[], notes } → résumé d'un
 // échange usine depuis des captures (GLM 5.3 Flash lit l'image).
+// POST { action: 'exchange.analyze', document_ids[], notes, supplier_id } → analyse
+// de l'échange : explication, réponse proposée EN/FR(/ZH), questions de l'usine.
 // POST { action: 'update.draft' } → brouillon de la mise à jour du jour.
 // POST { action: 'supplier.contacts', name, website?, city?, product? } →
 // contacts trouvés sur le web (e-mail, WeChat, WhatsApp), à vérifier.
@@ -21,6 +23,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (b.action === 'exchange.summarize') {
       const ids = Array.isArray(b.document_ids) ? (b.document_ids as unknown[]).filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)) : [];
       return NextResponse.json(await summarizeExchange(id, ids, typeof b.notes === 'string' ? b.notes : '', actor));
+    }
+    if (b.action === 'exchange.analyze') {
+      const ids = Array.isArray(b.document_ids) ? (b.document_ids as unknown[]).filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)) : [];
+      return NextResponse.json(await analyzeExchange(id, { docIds: ids, notes: typeof b.notes === 'string' ? b.notes : '', supplierId: str((b as { supplier_id?: unknown }).supplier_id) || null }, actor));
     }
     if (b.action === 'update.draft') return NextResponse.json(await draftDailyUpdate(id, actor));
     if (b.action === 'supplier.contacts') return NextResponse.json(await findSupplierContacts(id, { name: str(b.name), website: str(b.website), city: str(b.city), product: str(b.product) }, actor));

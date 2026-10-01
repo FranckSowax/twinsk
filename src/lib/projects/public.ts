@@ -12,7 +12,7 @@ import { effectiveQuantity, isPhaseLocked, lineTotal, progress, quoteTotals, ran
 import { rateOf, toBase, type Rates } from './fx';
 
 /** Champs qui ne doivent JAMAIS apparaître dans la sortie publique. */
-export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path', 'watch_points'];
+export const FORBIDDEN_PUBLIC_FIELDS = ['supplier_name', 'real_name', 'contact', 'unit_cost', 'cost', 'margin', 'token', 'exchanges', 'internal_note', 'wechat', 'factory', 'website', 'email', 'whatsapp', 'phone', 'contact_name', 'contact_source', 'indicative_price', 'rfq_sender', 'email_body_en', 'short_zh', 'cover_video_path', 'storage_path', 'watch_points', 'supplier_id', 'exchange_id', 'analysis'];
 
 export interface PublicProject {
   title: string;
@@ -40,7 +40,8 @@ export interface PublicProject {
     comments: { id: string; author: 'team' | 'client'; author_name: string; text: string; attachments: Attachment[]; at: string }[];
   }[];
   updates: { id: string; title: string; body: string; attachments: Attachment[]; at: string; comments: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
-  questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; at: string; replies: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
+  /** direction : from_client = posée par le client ; to_client = posée par l'équipe, le client répond. */
+  questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; direction: 'from_client' | 'to_client'; lot: string | null; at: string; replies: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; by: string; at: string; download_path: string }[];
   /** Taux « 1 devise = X devise principale » appliqués aux lignes saisies dans une autre devise. */
   rates: Rates;
@@ -105,7 +106,7 @@ export interface RawForPublic {
   taskComments: { id: string; task_id: string; author: 'team' | 'client'; author_name: string; text: string; attachments: Attachment[]; created_at: string }[];
   updates: { id: string; title: string; body: string; attachments: Attachment[]; published_at: string }[];
   updateComments: { id: string; update_id: string; author: 'team' | 'client'; author_name: string; text: string; created_at: string }[];
-  questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; created_at: string }[];
+  questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; direction?: 'from_client' | 'to_client' | null; lot?: string | null; created_at: string }[];
   questionReplies: { id: string; question_id: string; author: 'team' | 'client'; author_name: string; text: string; created_at: string }[];
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; uploaded_by: string; created_at: string }[];
   quoteLines: { id: string; lot: string; label: string; unit: string; quantity: number; client_quantity: number | null; unit_price: number | null; price_currency: string | null; validated_snapshot: { unit_price: number | null; total: number | null } | null; optional: boolean; enabled: boolean; status: QuoteLineStatus; phase: string | null; validated_at: string | null; supplier_id: string | null }[];
@@ -164,6 +165,8 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
       detail: q.detail,
       attachment: q.attachment ? att(q.attachment) : null,
       status: q.status,
+      direction: q.direction === 'to_client' ? 'to_client' : 'from_client',
+      lot: q.lot ?? null,
       at: q.created_at,
       replies: raw.questionReplies.filter((r) => r.question_id === q.id).map((r) => ({ id: r.id, author: r.author, author_name: r.author_name, text: r.text, at: r.created_at })),
     })),

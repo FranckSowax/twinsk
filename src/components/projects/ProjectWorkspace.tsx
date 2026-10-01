@@ -109,7 +109,8 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
   if (error) return <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p>;
   if (!data) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>;
 
-  const openQuestions = data.questions.filter((q) => q.status === 'open').length;
+  // Questions qui attendent la personne qui regarde : le client répond à celles de l'équipe, l'équipe à celles du client.
+  const openQuestions = data.questions.filter((q) => q.status === 'open' && (mode === 'client' ? q.direction === 'to_client' : q.direction !== 'to_client')).length;
   const toValidate = data.quote.lines.filter((l) => l.status === 'draft' && l.unit_price != null && !(l.optional && !l.enabled) && !l.locked).length;
   const tabs: { key: Tab; label: string; badge?: number; team?: boolean; client?: boolean }[] = [
     { key: 'plan', label: 'Plan d’action' },
@@ -164,7 +165,7 @@ export default function ProjectWorkspace({ mode, loadUrl, actionUrl, uploadUrl, 
 
       {tab === 'plan' && <PlanTab p={data} api={api} />}
       {tab === 'journal' && <JournalTab p={data} api={api} />}
-      {tab === 'questions' && <QuestionsTab p={data} api={api} />}
+      {tab === 'questions' && <QuestionsTab p={data} api={api} admin={data.admin} />}
       {tab === 'documents' && <DocumentsTab p={data} api={api} internalIds={data.admin?.documents_internal} />}
       {tab === 'quote' && <QuoteTab p={data} api={api} admin={data.admin} pdfUrl={pdfUrl} />}
       {tab === 'orders' && <OrdersTab p={data} api={api} />}

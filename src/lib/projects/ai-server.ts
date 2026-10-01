@@ -5,7 +5,7 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { chatCompletion, llmCostFcfa, parseJsonLoose, type LlmPart } from '@/lib/llm';
-import { contactSystemPrompt, EXCHANGE_SYSTEM_PROMPT, FLASH_MODEL, PLAN_MODEL, planSystemPrompt, UPDATE_SYSTEM_PROMPT, updateFactsPrompt, validateContactFind, validateExchangeSummary, validateGeneratedTemplate, validateUpdateDraft, type ContactFind, type ExchangeSummary, type UpdateFacts } from './ai';
+import { contactSystemPrompt, EXCHANGE_SYSTEM_PROMPT, exchangeAnalysisPrompt, validateExchangeAnalysis, type ExchangeAnalysis, FLASH_MODEL, PLAN_MODEL, planSystemPrompt, UPDATE_SYSTEM_PROMPT, updateFactsPrompt, validateContactFind, validateExchangeSummary, validateGeneratedTemplate, validateUpdateDraft, type ContactFind, type ExchangeSummary, type UpdateFacts } from './ai';
 import { logEvent, PROJECT_BUCKET, ProjectError, type Actor } from './data';
 import { orderStatusLabel, progress } from './logic';
 import type { ProjectTemplate } from './types';
@@ -116,5 +116,48 @@ export async function findSupplierContacts(projectId: string, s: { name: string;
   const { json, usage } = await ask({ system: contactSystemPrompt(), parts: [{ type: 'text', text }], model: CONTACT_MODEL, maxTokens: 1200, projectId, actor, usage: 'recherche contacts usine', jsonMode: false });
   const result = validateContactFind(json);
   if (!result) throw new ProjectError('Aucun contact trouvé pour cette usine ; cherchez sur son site ou Alibaba.', 404);
+  return { result, usage };
+}
+
+/**
+ * 5. Analyse d'un échange avec une usine : résumé, explication, réponse
+ * proposée (EN + FR, ZH si l'usine écrit en chinois) et questions de l'usine,
+ * en séparant celles que seul le client peut trancher. Rien n'est envoyé ni
+ * enregistré : l'équipe relit.
+ */
+export const REPLY_MODEL = process.env.PROJECT_REPLY_MODEL || FLASH_MODEL;
+export async function analyzeExchange(projectId: string, input: { docIds: string[]; notes: string; supplierId: string | null }, actor: Actor): Promise<{ result: ExchangeAnalysis; usage: AiUsage }> {
+  const parts: LlmPart[] = [];
+  for (const id of input.docIds.slice(0, 6)) {
+    const url = await imageDataUrl(projectId, id);
+    if (url) parts.push({ type: 'image', url });
+  }
+  if (!parts.length && !input.notes.trim()) throw new ProjectError('Joignez au moins une capture d’écran ou collez le texte de l’échange.');
+  const [{ data: p }, { data: s }] = await Promise.all([
+    supabaseAdmin.from('projects').select('title, rfq_context, rfq_sender').eq('id', projectId).maybeSingle(),
+    input.supplierId ? supabaseAdmin.from('project_suppliers').select('id, lot, alias, real_name').eq('id', input.supplierId).eq('project_id', projectId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  if (!p) throw new ProjectError('Projet introuvable', 404);
+  const [{ data: rfq }, { data: history }] = await Promise.all([
+    s ? supabaseAdmin.from('project_rfq_messages').select('product_en, quantities_en, requirements_en').eq('project_id', projectId).eq('lot', s.lot).maybeSingle() : Promise.resolve({ data: null }),
+    s ? supabaseAdmin.from('project_supplier_exchanges').select('exchanged_at, channel, summary').eq('project_id', projectId).eq('supplier_id', s.id).order('exchanged_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
+  ]);
+  const ctx = (p.rfq_context && typeof p.rfq_context === 'object' ? p.rfq_context : {}) as { project_en?: string; requirements_en?: string[] };
+  const sender = (p.rfq_sender && typeof p.rfq_sender === 'object' ? p.rfq_sender : {}) as { name?: string; company?: string };
+  const system = exchangeAnalysisPrompt({
+    company: COUNTRY.senderName,
+    project: ctx.project_en || p.title,
+    lot: s?.lot || null,
+    factory: s ? `${s.real_name || s.alias} (${s.alias})` : null,
+    product: rfq?.product_en || null,
+    quantities: rfq?.quantities_en || null,
+    requirements: [...(ctx.requirements_en || []), ...((rfq?.requirements_en as string[] | null) || [])].slice(0, 10),
+    history: ((history || []) as { exchanged_at: string; channel: string; summary: string }[]).map((h) => `${new Date(h.exchanged_at).toLocaleDateString('fr-FR')} (${h.channel}) : ${h.summary.replace(/\s+/g, ' ').slice(0, 280)}`),
+    sender: [sender.name, sender.company].filter(Boolean).join(', ') || null,
+  });
+  parts.push({ type: 'text', text: `${parts.length ? `${parts.length} capture(s) d’écran ci-dessus. ` : ''}${input.notes.trim() ? `Texte ou notes de l’équipe :\n${input.notes.trim().slice(0, 8000)}` : 'Aucun texte.'}\nDate du jour : ${new Date().toLocaleDateString('fr-FR', { timeZone: COUNTRY.timezone })}.` });
+  const { json, usage } = await ask({ system, parts, model: REPLY_MODEL, maxTokens: 4000, projectId, actor, usage: 'analyse échange usine' });
+  const result = validateExchangeAnalysis(json);
+  if (!result) throw new ProjectError('Analyse illisible ; réessayez ou complétez à la main.', 502);
   return { result, usage };
 }

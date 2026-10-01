@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Loader2, Send, Sparkles, Trash2 } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
+import type { TeamExtras } from '@/lib/projects/public-server';
 import { DOCUMENT_CATEGORIES, type Attachment } from '@/lib/projects/types';
 import { AttachButton, AttachmentList, AuthorChip, Badge, Empty, FileActions, btn, btnPrimary, card, dateTime, downloadHref, fileKind, input, label, size, type WorkspaceApi } from './shared';
 
@@ -76,53 +77,105 @@ export function JournalTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) 
   );
 }
 
-export function QuestionsTab({ p, api }: { p: PublicProject; api: WorkspaceApi }) {
-  const [f, setF] = useState({ subject: '', detail: '' });
+export function QuestionsTab({ p, api, admin }: { p: PublicProject; api: WorkspaceApi; admin?: TeamExtras }) {
+  const [f, setF] = useState({ subject: '', detail: '', lot: '' });
   const [file, setFile] = useState<Attachment | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const open = p.questions.filter((q) => q.status === 'open');
-  return (
-    <div className="space-y-4">
-      {api.mode === 'client' && (
-        <div className={card}>
-          <p className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">Poser une question</p>
-          <p className="mb-2 text-xs text-slate-500">Réponse sous 24 h ouvrées.</p>
-          <div className="space-y-2">
-            <input className={input} placeholder="Objet" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} />
-            <textarea className={input} rows={3} placeholder="Détail de votre demande" value={f.detail} onChange={(e) => setF({ ...f, detail: e.target.value })} />
-            {file && <AttachmentList items={[file]} onRemove={() => setFile(null)} />}
-            <div className="flex flex-wrap gap-2">
-              {!file && <AttachButton api={api} label="Pièce jointe (facultatif)" onAttached={(a) => setFile(a[0] || null)} />}
-              <button type="button" disabled={busy || !f.subject.trim()} onClick={async () => { setBusy(true); setErr(''); try { await api.act('question.ask', { ...f, attachment: file }); setF({ subject: '', detail: '' }); setFile(null); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={`${btnPrimary} flex-1 sm:flex-none`}><Send className="h-3.5 w-3.5" /> Envoyer</button>
-            </div>
-            {err && <p className="text-xs text-red-600">{err}</p>}
+  const team = api.mode === 'team';
+  // Questions qui attendent une réponse de la personne qui regarde : client → celles de l'équipe ; équipe → celles du client.
+  const waitingMe = p.questions.filter((q) => q.status === 'open' && (team ? q.direction === 'from_client' : q.direction === 'to_client'));
+  const toClient = p.questions.filter((q) => q.direction === 'to_client');
+  const fromClient = p.questions.filter((q) => q.direction !== 'to_client');
+  const lots = [...new Set(p.quote.lines.map((l) => l.lot))];
+  const supplierOf = (qid: string) => {
+    const link = admin?.question_links?.[qid];
+    return link?.supplier_id ? admin?.suppliers.find((s) => s.id === link.supplier_id) || null : null;
+  };
+  const submit = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      if (team) await api.act('question.to_client', { questions: [{ subject: f.subject, detail: f.detail }], lot: f.lot });
+      else await api.act('question.ask', { subject: f.subject, detail: f.detail, attachment: file });
+      setF({ subject: '', detail: '', lot: '' });
+      setFile(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const card_ = (q: PublicProject['questions'][number]) => {
+    const ask = q.direction === 'to_client';
+    const s = team ? supplierOf(q.id) : null;
+    return (
+      <article key={q.id} className={`${card} ${ask && !team && q.status === 'open' ? 'border-sky-300 dark:border-sky-800' : ''}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">{q.subject}</h3>
+          {ask
+            ? q.status === 'open' ? <Badge tone="blue">{team ? 'En attente du client' : 'Votre réponse est attendue'}</Badge> : <Badge tone="emerald">Répondu</Badge>
+            : q.status === 'open' ? <Badge tone="amber">{team ? 'À répondre' : 'En attente · réponse sous 24 h ouvrées'}</Badge> : <Badge tone="emerald">Répondu</Badge>}
+        </div>
+        <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+          {ask ? <span className="font-semibold text-sky-700 dark:text-sky-300">Question de l’équipe</span> : <span>Question du client</span>}
+          {q.lot && <span>· lot {q.lot}</span>}
+          <span>· {dateTime(q.at)}</span>
+          {s && <span className="text-violet-700 dark:text-violet-300">· venue de {s.real_name || s.alias} ({s.alias}) — interne</span>}
+        </p>
+        {q.detail && q.detail !== q.subject && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{q.detail}</p>}
+        {q.attachment && <AttachmentList items={[q.attachment]} />}
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700">
+          {q.replies.map((r) => (
+            <p key={r.id} className="text-sm"><AuthorChip author={r.author} name={r.author_name} /> <span className="text-[11px] text-slate-400">{dateTime(r.at)}</span><br /><span className="whitespace-pre-wrap">{r.text}</span></p>
+          ))}
+          <div className="flex gap-2">
+            {ask && !team ? (
+              <textarea className={input} rows={2} placeholder="Votre réponse…" value={drafts[q.id] || ''} onChange={(e) => setDrafts({ ...drafts, [q.id]: e.target.value })} />
+            ) : (
+              <input className={input} placeholder={team ? (ask ? 'Préciser la question…' : 'Répondre…') : 'Préciser…'} value={drafts[q.id] || ''} onChange={(e) => setDrafts({ ...drafts, [q.id]: e.target.value })} />
+            )}
+            <button type="button" disabled={!(drafts[q.id] || '').trim()} onClick={async () => { await api.act('question.reply', { question_id: q.id, text: drafts[q.id] }); setDrafts({ ...drafts, [q.id]: '' }); }} className={`${btnPrimary} shrink-0 self-end`} aria-label="Envoyer"><Send className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>
           </div>
         </div>
-      )}
-      {api.mode === 'team' && open.length > 0 && <p className="text-sm font-semibold text-amber-700">{open.length} question(s) en attente de réponse.</p>}
+      </article>
+    );
+  };
+  const form = (
+      <div className={card}>
+        <p className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">{team ? 'Poser une question au client' : 'Poser une question'}</p>
+        <p className="mb-2 text-xs text-slate-500">{team ? 'Le client est prévenu et répond dans son espace. Ne jamais nommer une usine.' : 'Réponse sous 24 h ouvrées.'}</p>
+        <div className="space-y-2">
+          <input className={input} placeholder={team ? 'Question (ex. Quelle couleur pour les lignes de jeu ?)' : 'Objet'} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} />
+          <textarea className={input} rows={3} placeholder={team ? 'Précisions ou contexte (facultatif)' : 'Détail de votre demande'} value={f.detail} onChange={(e) => setF({ ...f, detail: e.target.value })} />
+          {team && lots.length > 0 && <select className={`${input} sm:max-w-xs`} value={f.lot} onChange={(e) => setF({ ...f, lot: e.target.value })}><option value="">Lot concerné (facultatif)</option>{lots.map((l) => <option key={l} value={l}>{l}</option>)}</select>}
+          {!team && file && <AttachmentList items={[file]} onRemove={() => setFile(null)} />}
+          <div className="flex flex-wrap gap-2">
+            {!team && !file && <AttachButton api={api} label="Pièce jointe (facultatif)" onAttached={(a) => setFile(a[0] || null)} />}
+            <button type="button" disabled={busy || !f.subject.trim()} onClick={submit} className={`${btnPrimary} flex-1 sm:flex-none`}><Send className="h-3.5 w-3.5" /> {team ? 'Envoyer au client' : 'Envoyer'}</button>
+          </div>
+          {err && <p className="text-xs text-red-600" role="alert">{err}</p>}
+        </div>
+      </div>
+  );
+  // Client avec des questions de l'équipe en attente : elles passent avant le formulaire.
+  const clientFirst = !team && waitingMe.length > 0;
+  return (
+    <div className="space-y-4">
+      {!clientFirst && form}
+      {waitingMe.length > 0 && <p className="text-sm font-semibold text-amber-700">{team ? `${waitingMe.length} question(s) du client en attente de réponse.` : `L’équipe a besoin de vos réponses : ${waitingMe.length} question(s).`}</p>}
       {p.questions.length === 0 && <Empty>Aucune question.</Empty>}
-      {p.questions.map((q) => (
-        <article key={q.id} className={card}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">{q.subject}</h3>
-            {q.status === 'open' ? <Badge tone="amber">En attente · réponse sous 24 h ouvrées</Badge> : <Badge tone="emerald">Répondu</Badge>}
-          </div>
-          <p className="text-[11px] text-slate-500">{dateTime(q.at)}</p>
-          {q.detail && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{q.detail}</p>}
-          {q.attachment && <AttachmentList items={[q.attachment]} />}
-          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700">
-            {q.replies.map((r) => (
-              <p key={r.id} className="text-sm"><AuthorChip author={r.author} name={r.author_name} /> <span className="text-[11px] text-slate-400">{dateTime(r.at)}</span><br /><span className="whitespace-pre-wrap">{r.text}</span></p>
-            ))}
-            <div className="flex gap-2">
-              <input className={input} placeholder={api.mode === 'team' ? 'Répondre…' : 'Préciser…'} value={drafts[q.id] || ''} onChange={(e) => setDrafts({ ...drafts, [q.id]: e.target.value })} />
-              <button type="button" disabled={!(drafts[q.id] || '').trim()} onClick={async () => { await api.act('question.reply', { question_id: q.id, text: drafts[q.id] }); setDrafts({ ...drafts, [q.id]: '' }); }} className={`${btnPrimary} shrink-0`} aria-label="Envoyer"><Send className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>
-            </div>
-          </div>
-        </article>
-      ))}
+      {/* Client : questions de l'équipe d'abord (ouvertes en tête) ; équipe : questions du client d'abord. */}
+      {(team ? [fromClient, toClient] : [toClient, fromClient]).map((list, i) =>
+        list.length ? (
+          <section key={i} className="space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{team ? (i === 0 ? 'Questions du client' : 'Questions posées au client') : i === 0 ? 'Questions de l’équipe' : 'Vos questions'}</p>
+            {[...list].sort((a, b) => Number(b.status === 'open') - Number(a.status === 'open')).map(card_)}
+          </section>
+        ) : null,
+      )}
+      {clientFirst && form}
     </div>
   );
 }

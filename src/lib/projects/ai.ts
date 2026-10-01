@@ -235,3 +235,77 @@ export function validateUpdateDraft(raw: unknown): { title: string; body: string
   const body = typeof r.body === 'string' ? r.body.trim().slice(0, 4000) : '';
   return title && body ? { title, body } : null;
 }
+
+// ---- 5. Analyse d'un échange avec une usine : réponse proposée et questions pour le client ----
+export interface ExchangeContext {
+  company: string;
+  project: string | null;
+  lot: string | null;
+  factory: string | null;
+  product: string | null;
+  quantities: string | null;
+  requirements: string[];
+  history: string[];
+  sender: string | null;
+}
+export function exchangeAnalysisPrompt(c: ExchangeContext): string {
+  return [
+    `Tu es acheteur senior chez ${c.company}, importateur qui source en Chine des équipements pour des programmes clé en main. Tu négocies avec une usine pour le compte d'un client (le « porteur de projet »), qui ne doit jamais connaître le nom ni les contacts de l'usine.`,
+    'On te donne un échange avec cette usine (captures d’écran WeChat, WhatsApp ou e-mail, ou texte collé, en chinois, anglais ou français) et le contexte ci-dessous. Analyse-le comme un acheteur expérimenté, puis réponds UNIQUEMENT par un JSON :',
+    '{"summary":"résumé en français, 3 à 6 phrases : ce que dit l’usine, prix, délais, conditions, engagements",',
+    '"key_figures":["prix, MOQ, délais, conditions cités, tels quels"],',
+    '"language":"zh|en|fr|autre","channel":"wechat|email|whatsapp|phone|other",',
+    '"analysis":"explication et réflexion en français, 5 à 10 phrases : ce qui est solide, ce qui est flou ou manquant, les risques (négociant déguisé, prix anormal, certificats non fournis…), le levier de négociation, ce qu’il faut obtenir avant d’avancer, et pourquoi la réponse proposée est formulée ainsi",',
+    '"reply_en":"réponse proposée en anglais, prête à envoyer : professionnelle, courtoise, précise ; remercie, reprend les points obtenus, demande ce qui manque (documents, prix détaillés, délais, conditions), répond aux questions de l’usine que l’équipe peut traiter seule, indique que les autres seront confirmées sous peu ; signée [Name]",',
+    '"reply_fr":"la même réponse traduite en français, pour relecture",',
+    '"reply_zh":"la même réponse en chinois simplifié si l’usine écrit en chinois, sinon null",',
+    '"factory_questions":[{"original":"question posée par l’usine, telle quelle","fr":"la question reformulée en français comme une question de NOTRE équipe AU client : vouvoiement, claire, autonome, sans « nous » désignant l’usine (parler du « fabricant »), SANS nom, marque, ville ni contact de l’usine","needs_client":true,"why":"pourquoi seul le client peut répondre, ou comment l’équipe peut y répondre seule"}],',
+    '"next_action":"prochaine action concrète pour l’équipe ou null","next_action_days":entier ou null}',
+    'Règles : ne rien inventer (prix, délais, quantités, certifications) ; la réponse proposée ne prend AUCUN engagement non décidé (pas de commande, de prix cible ni de quantité ferme qui ne figurent pas dans le contexte) ; needs_client=true seulement pour ce que le client est seul à savoir ou décider (dimensions et plans des sites, couleurs, quantités définitives, options, budget, calendrier des chantiers, normes ou contraintes locales, logos) ; needs_client=false pour ce que l’équipe traite seule en tant qu’acheteur (conditions de paiement à l’usine, incoterm, port, logistique, emballage, documents et certificats, échantillons) ; si l’usine ne pose aucune question, factory_questions = [] ; si une capture est illisible, dis-le dans summary.',
+    '',
+    'Contexte :',
+    `- Programme : ${c.project || 'non précisé'}`,
+    `- Lot : ${c.lot || 'non précisé'}${c.product ? ` — produit demandé : ${c.product}` : ''}${c.quantities ? ` — quantités : ${c.quantities}` : ''}`,
+    c.requirements.length ? `- Exigences communiquées à l’usine : ${c.requirements.join(' ; ')}` : '',
+    `- Usine (interne, ne jamais la nommer côté client) : ${c.factory || 'non précisée'}`,
+    c.history.length ? `- Échanges précédents avec cette usine (plus récent d’abord) :\n${c.history.map((h) => `  • ${h}`).join('\n')}` : '- Pas d’échange précédent enregistré.',
+    `- Signature : ${c.sender || '[Name]'}`,
+  ].filter(Boolean).join('\n');
+}
+export interface FactoryQuestion {
+  original: string;
+  fr: string;
+  needs_client: boolean;
+  why: string;
+}
+export interface ExchangeAnalysis extends ExchangeSummary {
+  analysis: string;
+  reply_en: string;
+  reply_fr: string;
+  reply_zh: string | null;
+  factory_questions: FactoryQuestion[];
+}
+const longText = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim().slice(0, max) : '');
+export function validateExchangeAnalysis(raw: unknown): ExchangeAnalysis | null {
+  const base = validateExchangeSummary(raw);
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const reply_en = longText(r.reply_en, 6000);
+  if (!base || !reply_en) return null;
+  const zh = longText(r.reply_zh, 6000);
+  return {
+    ...base,
+    analysis: longText(r.analysis, 4000),
+    reply_en,
+    reply_fr: longText(r.reply_fr, 6000),
+    reply_zh: zh && zh.toLowerCase() !== 'null' ? zh : null,
+    factory_questions: arr(r.factory_questions)
+      .map((q) => {
+        const o = (q && typeof q === 'object' ? q : {}) as Record<string, unknown>;
+        const fr = longText(o.fr, 600);
+        if (!fr) return null;
+        return { original: longText(o.original, 600), fr, needs_client: o.needs_client === true || o.needs_client === 'true', why: longText(o.why, 400) };
+      })
+      .filter((q): q is FactoryQuestion => !!q)
+      .slice(0, 12),
+  };
+}

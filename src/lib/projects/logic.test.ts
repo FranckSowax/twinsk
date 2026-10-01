@@ -108,7 +108,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     taskComments: [{ id: 'k', task_id: 't1', author: 'team', author_name: 'Franck', text: 'ok', attachments: [], created_at: START }],
     updates: [{ id: 'u', title: 'Jour 1', body: 'b', attachments: [], published_at: START }],
     updateComments: [],
-    questions: [{ id: 'q', subject: 'S', detail: 'D', attachment: null, status: 'open', created_at: START }],
+    questions: [{ id: 'q', subject: 'S', detail: 'D', attachment: null, status: 'open', created_at: START }, { id: 'q2', subject: 'Couleur des lignes de jeu ?', detail: 'Blanc ou jaune ?', attachment: null, status: 'open', direction: 'to_client', lot: 'Gazon', created_at: START }],
     questionReplies: [],
     documents: [{ id: 'd1', category: 'site', name: 'plan.pdf', size: 10, uploaded_by: 'Client', created_at: START }],
     quoteLines: [
@@ -135,6 +135,7 @@ describe('projection publique : aucun champ interdit ne sort', () => {
   (polluted as Record<string, unknown>).rfq = [{ short_zh: '您好' }];
   (polluted as Record<string, unknown>).rfq_sender = { name: 'Franck' };
   Object.assign(polluted.project as Record<string, unknown>, { cover_video_path: 'projet/cover-secret.mp4' });
+  Object.assign(polluted.questions[1] as Record<string, unknown>, { supplier_id: 'sup1', exchange_id: 'ex-secret' });
   (polluted.quoteLines[0] as Record<string, unknown>).unit_cost = 7;
   (polluted as Record<string, unknown>).exchanges = [{ note: 'secret' }];
   const view = projectPublicView(polluted, 'TOKEN');
@@ -157,6 +158,9 @@ describe('projection publique : aucun champ interdit ne sort', () => {
     // Vidéo de couverture : une version pour l'adresse …/cover?v=, jamais le chemin de stockage.
     expect(view.cover_video).toEqual({ version: String(Date.parse('2026-09-30T12:00:00Z')) });
     expect(JSON.stringify(view)).not.toContain('cover-secret');
+    // Question de l'équipe au client : sens et lot visibles, usine et échange d'origine jamais.
+    expect(view.questions.map((q) => [q.direction, q.lot])).toEqual([['from_client', null], ['to_client', 'Gazon']]);
+    expect(JSON.stringify(view)).not.toContain('ex-secret');
     expect(JSON.stringify(view)).not.toMatch(/Lily|Leling|turf\.cn|138000|secret|WhatsApp partagé/);
   });
   it('usines anonymisées : retenue en tête, note /25, fiche produit, rien d’autre', () => {

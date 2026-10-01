@@ -57,3 +57,24 @@ describe('résumé d’échange et brouillon de journal', () => {
     expect(validateUpdateDraft({ title: 'x' })).toBeNull();
   });
 });
+
+describe('analyse d’un échange usine : réponse proposée et questions pour le client', () => {
+  it('réponse EN/FR, explication, questions filtrées ; null sans réponse proposée', async () => {
+    const { validateExchangeAnalysis, exchangeAnalysisPrompt } = await import('./ai');
+    const a = validateExchangeAnalysis({
+      summary: 'L’usine propose 4,9 USD/m² FOB Qingdao, MOQ 2 000 m².', key_figures: ['4,9 USD/m² FOB'], channel: 'WeChat', language: 'zh',
+      analysis: 'Prix bas mais pas de rapport SGS.', reply_en: 'Dear Lily,\nThank you…\n[Name]', reply_fr: 'Bonjour Lily…', reply_zh: 'null',
+      factory_questions: [{ original: '球场的尺寸是多少？', fr: 'Quelles sont les dimensions exactes de chaque terrain ?', needs_client: 'true', why: 'Plans des sites' }, { original: 'Payment?', fr: '', needs_client: false }, { original: 'Port?', fr: 'Port de destination ?', needs_client: false, why: 'L’équipe le sait' }],
+    })!;
+    expect(a).toMatchObject({ channel: 'wechat', reply_zh: null, reply_en: 'Dear Lily,\nThank you…\n[Name]' });
+    expect(a.factory_questions).toEqual([
+      { original: '球场的尺寸是多少？', fr: 'Quelles sont les dimensions exactes de chaque terrain ?', needs_client: true, why: 'Plans des sites' },
+      { original: 'Port?', fr: 'Port de destination ?', needs_client: false, why: 'L’équipe le sait' },
+    ]);
+    expect(validateExchangeAnalysis({ summary: 'x', reply_en: '' })).toBeNull();
+    const prompt = exchangeAnalysisPrompt({ company: 'TWINSK', project: 'Sports complexes', lot: 'Gazon', factory: 'Taishan Turf (Fournisseur B)', product: 'Non-infill turf', quantities: '5,800 m²', requirements: ['UV ≥ 5,000 h'], history: ['30/09/2026 (email) : RFQ envoyée'], sender: 'Franck, Twinsk' });
+    expect(prompt).toContain('ne jamais la nommer côté client');
+    expect(prompt).toContain('needs_client=true seulement');
+    expect(prompt).toContain('- Lot : Gazon — produit demandé : Non-infill turf — quantités : 5,800 m²');
+  });
+});

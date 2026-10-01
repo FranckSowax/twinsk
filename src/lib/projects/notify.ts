@@ -25,6 +25,7 @@ const LABELS: Record<string, string> = {
   'update.comment': 'Commentaire sur une mise à jour',
   'question.replied': 'Réponse à une question',
   'question.asked': 'Nouvelle question du client',
+  'question.to_client': 'Question de l’équipe : votre réponse est attendue',
   'task.done': 'Tâche terminée',
   'task.reopened': 'Tâche rouverte',
   'task.comment': 'Commentaire sur une tâche',

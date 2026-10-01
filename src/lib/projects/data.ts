@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canValidateLine, effectiveQuantity, initialPhases, lineTotal, scoreTotal, supplierAlias, toggleChecklist } from './logic';
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
-import type { ImportedSupplier } from './sourcing';
+import { identifyingTokens, leaks, type ImportedSupplier } from './sourcing';
 import { emailSender, parseRecipients, sendEmail } from '@/lib/email';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
@@ -303,13 +303,44 @@ export async function askQuestion(projectId: string, input: { subject: string; d
 export async function replyQuestion(projectId: string, questionId: string, text: string, actor: Actor) {
   const body = text.trim();
   if (!body) throw new ProjectError('Réponse vide');
-  const { data: qn } = await supabaseAdmin.from('project_questions').select('id, subject').eq('id', questionId).eq('project_id', projectId).maybeSingle();
+  const { data: qn } = await supabaseAdmin.from('project_questions').select('*').eq('id', questionId).eq('project_id', projectId).maybeSingle();
   if (!qn) throw new ProjectError('Question introuvable', 404);
   const { error } = await supabaseAdmin.from('project_question_replies').insert({ question_id: questionId, author: actor.kind, author_name: actor.name, text: body });
   if (error) fail(error, 'Réponse');
-  if (actor.kind === 'team') await supabaseAdmin.from('project_questions').update({ status: 'answered', answered_at: now() }).eq('id', questionId);
+  // Question du client : répondue quand l'équipe répond. Question de l'équipe au client : répondue quand le client répond.
+  const answeredBy = qn.direction === 'to_client' ? 'client' : 'team';
+  if (actor.kind === answeredBy) await supabaseAdmin.from('project_questions').update({ status: 'answered', answered_at: now() }).eq('id', questionId);
   else await supabaseAdmin.from('project_questions').update({ status: 'open' }).eq('id', questionId);
   await logEvent(projectId, { type: 'question.replied', actor, target_type: 'question', target_id: questionId, detail: `${qn.subject} : ${body.slice(0, 120)}`, notify: actor.kind === 'team' ? 'client' : 'team' });
+}
+
+/**
+ * Questions de l'équipe au client (souvent extraites d'un échange avec une
+ * usine). Le lien vers l'usine et l'échange reste interne ; une question qui
+ * citerait l'usine (nom, sigle, site, ville) est refusée.
+ */
+export async function askClientQuestions(projectId: string, input: { questions: { subject: string; detail?: string }[]; lot?: string | null; supplier_id?: string | null; exchange_id?: string | null }, actor: Actor) {
+  const qs = input.questions.map((q) => ({ subject: String(q.subject || '').replace(/\s+/g, ' ').trim().slice(0, 200), detail: String(q.detail || '').trim().slice(0, 3000) })).filter((q) => q.subject);
+  if (!qs.length) throw new ProjectError('Aucune question');
+  if (qs.length > 20) throw new ProjectError('20 questions au plus à la fois');
+  let supplier: { id: string; real_name: string | null; website: string | null; city: string | null } | null = null;
+  if (input.supplier_id) {
+    const { data } = await supabaseAdmin.from('project_suppliers').select('id, real_name, website, city').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
+    if (!data) throw new ProjectError('Usine introuvable', 404);
+    supplier = data;
+  }
+  if (supplier?.real_name) {
+    const tokens = identifyingTokens({ real_name: supplier.real_name, website: supplier.website, city: supplier.city });
+    for (const q of qs) {
+      const found = leaks(`${q.subject} ${q.detail}`, tokens);
+      if (found.length) throw new ProjectError(`La question « ${q.subject.slice(0, 60)} » cite l’usine (${found.join(', ')}) : reformulez-la sans la nommer`);
+    }
+  }
+  const rows = qs.map((q) => ({ project_id: projectId, subject: q.subject, detail: q.detail, attachment: null, asked_by: actor.name, direction: 'to_client', lot: input.lot?.trim() || null, supplier_id: supplier?.id || null, exchange_id: input.exchange_id || null }));
+  const { data, error } = await supabaseAdmin.from('project_questions').insert(rows).select('id');
+  if (error || !data) fail(error, 'Questions');
+  for (const [i, r] of data.entries()) await logEvent(projectId, { type: 'question.to_client', actor, target_type: 'question', target_id: r.id, detail: qs[i].subject, notify: 'client' });
+  return data.map((r) => r.id as string);
 }
 
 // ---- Documents (bucket privé) ----
@@ -614,9 +645,9 @@ export async function deleteSupplier(projectId: string, id: string, actor: Actor
   if (error) fail(error, 'Fournisseur');
   await logEvent(projectId, { type: 'supplier.deleted', actor, target_type: 'supplier', target_id: id });
 }
-export async function addExchange(projectId: string, input: { supplier_id: string | null; channel: ExchangeChannel; exchanged_at?: string; summary: string; attachments: Attachment[]; next_action?: string; next_action_at?: string | null }, actor: Actor) {
+export async function addExchange(projectId: string, input: { supplier_id: string | null; channel: ExchangeChannel; exchanged_at?: string; summary: string; attachments: Attachment[]; next_action?: string; next_action_at?: string | null; analysis?: Record<string, unknown> | null }, actor: Actor) {
   if (!input.summary.trim() && !input.attachments.length) throw new ProjectError('Résumé ou capture requis');
-  const { data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert({ project_id: projectId, supplier_id: input.supplier_id, channel: input.channel, exchanged_at: input.exchanged_at || now(), summary: input.summary.trim(), attachments: input.attachments, next_action: input.next_action?.trim() || null, next_action_at: input.next_action_at || null, author_name: actor.name }).select('id').single();
+  const { data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert({ project_id: projectId, supplier_id: input.supplier_id, channel: input.channel, exchanged_at: input.exchanged_at || now(), summary: input.summary.trim(), attachments: input.attachments, next_action: input.next_action?.trim() || null, next_action_at: input.next_action_at || null, author_name: actor.name, ...(input.analysis ? { analysis: input.analysis } : {}) }).select('id').single();
   if (error || !data) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.added', actor, target_type: 'exchange', target_id: data.id, detail: input.summary.trim().slice(0, 120) });
   return data.id as string;
