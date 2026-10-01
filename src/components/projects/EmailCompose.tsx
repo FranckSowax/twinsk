@@ -9,8 +9,9 @@ import { useState } from 'react';
 import { CheckCircle2, Loader2, Mail, Send } from 'lucide-react';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { Modal, btn, btnPrimary, input, label, type WorkspaceApi } from './shared';
+import { CHANNEL_LABEL, ContactHistory, contactsOf } from './ContactTrace';
 
-export function EmailCompose({ supplier, admin, api, initial, onClose }: { supplier: TeamExtras['suppliers'][number]; admin: TeamExtras; api: WorkspaceApi; initial?: { subject?: string; body?: string }; onClose: () => void }) {
+export function EmailCompose({ supplier, admin, api, initial, onClose }: { supplier: TeamExtras['suppliers'][number]; admin: TeamExtras; api: WorkspaceApi; initial?: { subject?: string; body?: string; lot?: string }; onClose: () => void }) {
   const [f, setF] = useState({ to: supplier.email || '', cc: '', subject: initial?.subject || '', body: initial?.body || '' });
   // Une clé par fenêtre : un double clic ou une requête rejouée n'envoie pas deux fois.
   const [nonce] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -18,12 +19,14 @@ export function EmailCompose({ supplier, admin, api, initial, onClose }: { suppl
   const [err, setErr] = useState('');
   const [sent, setSent] = useState<string[] | null>(null);
   const placeholders = [...new Set(`${f.subject}\n${f.body}`.match(/\[[^\]\n]{1,40}\]/g) || [])];
+  const previous = contactsOf(admin, supplier.id);
   const send = async () => {
+    if (previous.length && !confirm(`Cette usine a déjà été contactée le ${new Date(previous[0].at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} (${CHANNEL_LABEL[previous[0].channel] || previous[0].channel}). Envoyer quand même ?`)) return;
     if (placeholders.length && !confirm(`Il reste des champs à compléter : ${placeholders.join(' ')}. Envoyer quand même ?`)) return;
     setBusy(true);
     setErr('');
     try {
-      const r = await api.act('email.send', { supplier_id: supplier.id, ...f, nonce });
+      const r = await api.act('email.send', { supplier_id: supplier.id, ...f, nonce, lot: initial?.lot });
       setSent((r.to as string[]) || [f.to]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Envoi impossible');
@@ -58,6 +61,7 @@ export function EmailCompose({ supplier, admin, api, initial, onClose }: { suppl
           <div><label className={label}>Objet</label><input className={input} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} /></div>
           <div><label className={label}>Message</label><textarea className={`${input} font-mono text-xs`} rows={14} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} /></div>
           {placeholders.length > 0 && <p className="text-[11px] text-amber-700">À compléter : {placeholders.join(' ')}</p>}
+          <ContactHistory contacts={previous} />
           {supplier.watch_points?.length ? <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">⚠ {supplier.watch_points.join(' · ')}</p> : null}
           {err && <p className="text-xs text-red-600" role="alert">{err}</p>}
           <div className="flex flex-wrap gap-2">

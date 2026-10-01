@@ -27,6 +27,8 @@ export interface TeamExtras {
   /** Messages RFQ par lot (EN + ZH), modifiables, et signature de l'expéditeur. */
   rfq: RfqMessage[];
   rfq_sender: Partial<RfqSender>;
+  /** Historique des contacts usines (plus récent d'abord) : envois de la plateforme et envois notés à la main. */
+  contacts: SupplierContact[];
   /** Envoi d'e-mails par la plateforme (Resend) : configuré ou non, adresse d'expédition. */
   email: { configured: boolean; from: string | null };
   /** Contexte du programme pour les RFQ et le besoin de sourcing (phrase EN/ZH, exigences communes). */
@@ -59,6 +61,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     rfq: (b.rfq as RfqMessage[]).map((r) => ({ id: r.id, lot: r.lot, product_en: r.product_en, product_zh: r.product_zh, quantities_en: r.quantities_en, requirements_en: r.requirements_en || [], email_subject_en: r.email_subject_en, email_body_en: r.email_body_en, short_en: r.short_en, short_zh: r.short_zh, origin: r.origin, updated_at: r.updated_at })),
     rfq_sender: pickSender(p.rfq_sender),
     email: { configured: emailConfigured(), from: emailSender()?.address ?? null },
+    contacts: contactHistory((b as { contacts?: ContactEvent[] }).contacts || []),
     rfq_context: p.rfq_context && typeof p.rfq_context === 'object' && (p.rfq_context as { project_en?: string }).project_en ? (p.rfq_context as TeamExtras['rfq_context']) : template.rfq_context || null,
     exchanges: (b.exchanges as TeamExtras['exchanges']).map((e) => ({ id: e.id, supplier_id: e.supplier_id, channel: e.channel, exchanged_at: e.exchanged_at, summary: e.summary, attachments: e.attachments || [], next_action: e.next_action, next_action_at: e.next_action_at, author_name: e.author_name })),
     shares: (b.shares as TeamExtras['shares']).map((s) => ({ id: s.id, token: s.token, person_name: s.person_name, role_label: s.role_label, expires_at: s.expires_at, revoked_at: s.revoked_at, views: s.views, last_seen_at: s.last_seen_at, created_at: s.created_at })),
@@ -72,6 +75,37 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     task_keys: Object.fromEntries((b.tasks as { id: string; key: string }[]).map((t) => [t.id, t.key])),
   };
   return { ...view, admin };
+}
+
+export interface SupplierContact {
+  supplier_id: string;
+  at: string;
+  by: string | null;
+  channel: string;
+  /** platform = envoyé par la plateforme (Resend) ; manual = noté par l'équipe. */
+  via: 'platform' | 'manual';
+  subject: string | null;
+  to: string[];
+  lot: string | null;
+}
+type ContactEvent = { type: string; target_id: string | null; actor_name: string | null; detail: string | null; data: Record<string, unknown> | null; created_at: string };
+export function contactHistory(events: ContactEvent[]): SupplierContact[] {
+  return events
+    .filter((e) => e.target_id && (e.type === 'email.sent' || e.type === 'contact.manual'))
+    .map((e) => {
+      const d = e.data || {};
+      return {
+        supplier_id: String(e.target_id),
+        at: e.created_at,
+        by: e.actor_name,
+        channel: e.type === 'email.sent' ? 'email' : String(d.channel || 'other'),
+        via: e.type === 'email.sent' ? ('platform' as const) : ('manual' as const),
+        subject: typeof d.subject === 'string' ? d.subject : e.type === 'email.sent' ? (e.detail || '').split(' : ').slice(1).join(' : ') || null : null,
+        to: Array.isArray(d.to) ? (d.to as unknown[]).map(String) : [],
+        lot: typeof d.rfq_lot === 'string' ? d.rfq_lot : null,
+      };
+    })
+    .sort((a, b) => b.at.localeCompare(a.at));
 }
 
 function pickSender(v: unknown): Partial<RfqSender> {

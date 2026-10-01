@@ -7,8 +7,9 @@
 // La signature de l'expéditeur remplit [Name], [Company], [WhatsApp/WeChat ID], [E-mail].
 
 import { useState } from 'react';
-import { Copy, Check, Mail, MessageCircle, RefreshCw, Save, Send } from 'lucide-react';
+import { Copy, Check, CheckCheck, Mail, MessageCircle, RefreshCw, Save, Send } from 'lucide-react';
 import { EmailCompose, EmailTest } from './EmailCompose';
+import { CHANNEL_LABEL, ContactHistory, contactsOf } from './ContactTrace';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { fillPlaceholders, mailtoLink, remainingPlaceholders, whatsappLink } from '@/lib/projects/rfq';
 import { CONTACT_CHANNELS, type RfqMessage, type RfqSender } from '@/lib/projects/types';
@@ -70,6 +71,8 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
   const [err, setErr] = useState('');
   const [open, setOpen] = useState(false);
   const suppliers = admin.suppliers.filter((s) => s.lot === m.lot && s.status !== 'rejected');
+  const contacted = suppliers.filter((x) => contactsOf(admin, x.id).length > 0).length;
+  const [marking, setMarking] = useState(false);
   const s = suppliers.find((x) => x.id === supplierId) || null;
   const dirty = f.email_subject_en !== m.email_subject_en || f.email_body_en !== m.email_body_en || f.short_en !== m.short_en || f.short_zh !== m.short_zh;
   const fill = (t: string) => fillPlaceholders(t, { factory: s?.real_name, contact: s?.contact_name, sender: admin.rfq_sender });
@@ -88,6 +91,7 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
         <button type="button" onClick={() => setOpen((o) => !o)} className="text-left">
           <p className="font-display text-base font-bold text-slate-900 dark:text-white">{m.lot}</p>
           <p className="text-xs text-slate-500">{m.product_en}{m.quantities_en ? ` — ${m.quantities_en}` : ''}</p>
+          {suppliers.length > 0 && <p className={`mt-0.5 text-[11px] font-semibold ${contacted === suppliers.length ? 'text-emerald-700' : 'text-slate-500'}`}>{contacted}/{suppliers.length} usine{suppliers.length > 1 ? 's' : ''} contactée{contacted > 1 ? 's' : ''} pour ce lot</p>}
         </button>
         <span className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <Badge tone={m.origin === 'manual' ? 'amber' : 'slate'}>{m.origin === 'manual' ? 'Modifié' : m.origin === 'ai' ? 'Plan IA' : 'Modèle'}</Badge>
@@ -102,7 +106,7 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
               <label className={label}>Usine destinataire</label>
               <select className={input} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 <option value="">— choisir (remplit [Factory] et [Contact]) —</option>
-                {suppliers.map((x) => <option key={x.id} value={x.id}>{x.watch_points?.length ? '⚠ ' : ''}{x.alias} · {x.real_name || '(sans nom)'}{x.rank ? ` · #${x.rank}` : ''}{x.score != null ? ` · ${x.score}/25` : ''}</option>)}
+                {suppliers.map((x) => <option key={x.id} value={x.id}>{x.watch_points?.length ? '⚠ ' : ''}{x.alias} · {x.real_name || '(sans nom)'}{x.rank ? ` · #${x.rank}` : ''}{x.score != null ? ` · ${x.score}/25` : ''}{contactsOf(admin, x.id).length ? ` · ✓ contactée le ${new Date(contactsOf(admin, x.id)[0].at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : ''}</option>)}
               </select>
             </div>
             {s && (
@@ -116,6 +120,17 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
               </div>
             )}
           </div>
+          {s && <ContactHistory contacts={contactsOf(admin, s.id)} />}
+          {s && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+              <span>Envoyé hors plateforme ?</span>
+              {(['whatsapp', 'wechat', 'email', 'alibaba'] as const).map((ch) => (
+                <button key={ch} type="button" disabled={marking} onClick={async () => { setMarking(true); try { await api.act('contact.mark', { supplier_id: s.id, channel: ch, lot: m.lot }); } finally { setMarking(false); } }} className={`${btn} !min-h-8 !px-2 !text-[11px]`}>
+                  <CheckCheck className="h-3 w-3" /> J’ai envoyé par {CHANNEL_LABEL[ch]}
+                </button>
+              ))}
+            </div>
+          )}
           {s?.watch_points?.length ? (
             <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
               <p className="font-semibold">⚠ Points à surveiller avant d’envoyer</p>
@@ -136,7 +151,7 @@ function LotMessages({ m, admin, api }: { m: RfqMessage; admin: TeamExtras; api:
           </div>
         </div>
       )}
-      {compose && s && <EmailCompose supplier={s} admin={admin} api={api} initial={{ subject, body }} onClose={() => setCompose(false)} />}
+      {compose && s && <EmailCompose supplier={s} admin={admin} api={api} initial={{ subject, body, lot: m.lot }} onClose={() => setCompose(false)} />}
     </div>
   );
 }

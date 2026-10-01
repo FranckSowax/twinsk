@@ -14,6 +14,7 @@ import { scoreTotal } from '@/lib/projects/logic';
 import { CONTACT_CHANNELS, EXCHANGE_CHANNELS, SAMPLE_STATUS, SCORE_CRITERIA, SUPPLIER_STATUS, type Attachment, type ProductPhoto, type ProductSpec, type Scores, type SupplierStatus } from '@/lib/projects/types';
 import { FactoryCards } from './FactoryCards';
 import { EmailCompose } from './EmailCompose';
+import { ContactBadge, contactsOf } from './ContactTrace';
 import { buildSourcingBrief, type SourcingImport } from '@/lib/projects/sourcing';
 import { AttachButton, AttachmentList, Badge, Empty, Modal, btn, btnPrimary, card, dateShort, dateTime, downloadHref, input, label, type WorkspaceApi } from './shared';
 
@@ -101,6 +102,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                         {s.watch_points?.length ? <span className="mr-1 inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-800" title={s.watch_points.join('\n')}><AlertTriangle className="h-3 w-3" />{s.watch_points.length}</span> : null}
                         {s.real_name || '—'}{s.product_photos?.length ? <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-normal text-slate-500" title="Photos produit visibles du client"><Camera className="h-3 w-3" />{s.product_photos.length}</span> : null}{s.city || s.country ? <span className="text-xs font-normal text-slate-500"> · {[s.city, s.country].filter(Boolean).join(', ')}</span> : null}{s.indicative_price ? <span className="block text-[11px] font-normal text-slate-500">{s.indicative_price}</span> : null}
                         {s.watch_points?.length ? <span className="block max-w-[22rem] truncate text-[11px] font-normal text-amber-700" title={s.watch_points.join('\n')}>⚠ {s.watch_points[0]}</span> : null}
+                        <span className="mt-0.5 block"><ContactBadge contacts={contactsOf(admin, s.id)} showNever /></span>
                       </td>
                       <td className="max-w-[14rem] truncate py-2 pr-2 text-xs text-slate-600" title={contactOf(s)}>{contactOf(s) || <span className="text-amber-600">à trouver</span>}</td>
                       <td className="py-2 text-right font-semibold tabular-nums">{s.score ?? '—'}</td>

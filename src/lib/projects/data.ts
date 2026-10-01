@@ -178,7 +178,7 @@ export async function loadProject(id: string) {
   if (error) fail(error, 'Lecture du projet');
   if (!project) return null;
   const q = <T>(p: PromiseLike<{ data: T[] | null; error: { message: string } | null }>) => p.then((r) => (r.error ? fail(r.error, 'Lecture') : r.data || []));
-  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq] = await Promise.all([
+  const [steps, tasks, updates, questions, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts] = await Promise.all([
     q(supabaseAdmin.from('project_steps').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_tasks').select('*').eq('project_id', id).order('position')),
     q(supabaseAdmin.from('project_updates').select('*').eq('project_id', id).order('published_at', { ascending: false })),
@@ -193,6 +193,8 @@ export async function loadProject(id: string) {
     q(supabaseAdmin.from('project_events').select('*').eq('project_id', id).order('created_at', { ascending: false }).limit(300)),
     // Table ajoutée par la migration du 30 sept. : tolérée absente le temps de la migration.
     supabaseAdmin.from('project_rfq_messages').select('*').eq('project_id', id).order('lot').then((r) => (r.error && !isMissing(r.error.message) ? fail(r.error, 'Lecture') : r.data || [])),
+    // Historique complet des contacts usines (le journal d'audit ci-dessus est limité aux 300 derniers événements).
+    q(supabaseAdmin.from('project_events').select('id, type, target_id, actor_name, detail, data, created_at').eq('project_id', id).in('type', ['email.sent', 'contact.manual']).order('created_at', { ascending: false })),
   ]);
   const taskIds = tasks.map((t: { id: string }) => t.id);
   const updateIds = updates.map((u: { id: string }) => u.id);
@@ -202,7 +204,7 @@ export async function loadProject(id: string) {
     updateIds.length ? q(supabaseAdmin.from('project_update_comments').select('*').in('update_id', updateIds).order('created_at')) : Promise.resolve([]),
     questionIds.length ? q(supabaseAdmin.from('project_question_replies').select('*').in('question_id', questionIds).order('created_at')) : Promise.resolve([]),
   ]);
-  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq };
+  return { project, steps, tasks, taskComments, updates, updateComments, questions, questionReplies, documents, suppliers, exchanges, quoteLines, orders, finalReports, shares, events, rfq, contacts };
 }
 export type ProjectBundle = NonNullable<Awaited<ReturnType<typeof loadProject>>>;
 
@@ -566,7 +568,7 @@ export async function signedSupplierPhotoUrl(projectId: string, docId: string): 
 }
 // ---- E-mails aux usines depuis la plateforme (Resend) ----
 /** Envoie un e-mail à une usine et le note dans les échanges (canal e-mail). */
-export async function sendSupplierEmail(projectId: string, input: { supplier_id: string; to: string; cc?: string; subject: string; body: string; nonce?: string }, actor: Actor) {
+export async function sendSupplierEmail(projectId: string, input: { supplier_id: string; to: string; cc?: string; subject: string; body: string; nonce?: string; lot?: string }, actor: Actor) {
   const { data: s } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias, real_name').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
   if (!s) throw new ProjectError('Usine introuvable', 404);
   const to = parseRecipients(input.to);
@@ -582,8 +584,22 @@ export async function sendSupplierEmail(projectId: string, input: { supplier_id:
   if (!r.ok) throw new ProjectError(r.error, 502);
   const from = emailSender()?.address || '';
   await addExchange(projectId, { supplier_id: s.id, channel: 'email', summary: `E-mail envoyé depuis ${from} à ${to.join(', ')}${input.cc ? ` (cc ${parseRecipients(input.cc).join(', ')})` : ''}\nObjet : ${input.subject.trim()}\n\n${input.body.trim().slice(0, 1500)}${input.body.trim().length > 1500 ? '…' : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString() }, actor);
-  await logEvent(projectId, { type: 'email.sent', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${input.subject.trim().slice(0, 100)}`, data: { resend_id: r.id, to } });
+  await logEvent(projectId, { type: 'email.sent', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${input.subject.trim().slice(0, 100)}`, data: { resend_id: r.id, to, channel: 'email', subject: input.subject.trim().slice(0, 200), rfq_lot: input.lot || null } });
   return { id: r.id, to };
+}
+/**
+ * Contact fait hors plateforme (WhatsApp, WeChat, messagerie personnelle,
+ * Alibaba…) : noté dans les échanges et l'historique des contacts.
+ */
+export async function markContacted(projectId: string, input: { supplier_id: string; channel: string; lot?: string; note?: string }, actor: Actor) {
+  const channels: Record<string, ExchangeChannel> = { email: 'email', whatsapp: 'whatsapp', wechat: 'wechat', phone: 'phone', alibaba: 'other', other: 'other' };
+  const ch = channels[input.channel] || 'other';
+  const { data: s } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
+  if (!s) throw new ProjectError('Usine introuvable', 404);
+  const label = { email: 'e-mail (messagerie personnelle)', whatsapp: 'WhatsApp', wechat: 'WeChat', phone: 'téléphone', alibaba: 'Alibaba', other: 'autre canal' }[input.channel] || 'autre canal';
+  const what = input.lot ? `Demande de prix (lot ${input.lot})` : 'Message';
+  await addExchange(projectId, { supplier_id: s.id, channel: ch, summary: `${what} envoyée par ${label}, hors plateforme.${input.note?.trim() ? `\n${input.note.trim().slice(0, 1000)}` : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString() }, actor);
+  await logEvent(projectId, { type: 'contact.manual', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${label}`, data: { channel: input.channel, rfq_lot: input.lot || null } });
 }
 /** E-mail d'essai (vérifier la configuration Resend). */
 export async function sendTestEmail(projectId: string, to: string, actor: Actor) {
