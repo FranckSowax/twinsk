@@ -7,6 +7,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Download, ExternalLink, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Mail, Paperclip, X } from 'lucide-react';
 import type { Attachment } from '@/lib/projects/types';
+import { checkUpload } from '@/lib/projects/uploads';
 
 export type Mode = 'team' | 'client';
 
@@ -36,7 +37,7 @@ export function fileKind(name: string): { label: string; icon: typeof FileText; 
   const ext = name.includes('.') ? (name.split('.').pop() || '').toLowerCase() : '';
   if (ext === 'pdf') return { label: 'PDF', icon: FileText, viewable: true };
   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return { label: 'Image', icon: ImageIcon, viewable: true };
-  if (['mp4', 'webm'].includes(ext)) return { label: 'Vidéo', icon: FileText, viewable: true };
+  if (['mp4', 'webm', 'mov', 'm4v'].includes(ext)) return { label: 'Vidéo', icon: FileText, viewable: true };
   if (ext === 'txt') return { label: 'Texte', icon: FileText, viewable: true };
   if (['doc', 'docx'].includes(ext)) return { label: 'Word', icon: FileText, viewable: false };
   if (['xls', 'xlsx', 'csv'].includes(ext)) return { label: 'Excel', icon: FileSpreadsheet, viewable: false };
@@ -143,13 +144,19 @@ export function AttachmentList({ items, onRemove }: { items: Attachment[]; onRem
 }
 
 /** Bouton « Joindre » : envoie les fichiers puis renvoie les pièces jointes créées. */
+/**
+ * Bouton « Joindre » : plusieurs fichiers à la fois, formats et tailles vérifiés
+ * avant l'envoi (25 Mo, 50 Mo pour une vidéo), envoyés un par un avec un
+ * compteur ; les fichiers refusés sont listés, les autres partent quand même.
+ */
 export function AttachButton({ api, onAttached, category = 'misc', internal = false, label: text = 'Joindre', accept = 'image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.eml' }: { api: WorkspaceApi; onAttached: (a: Attachment[]) => void; category?: string; internal?: boolean; label?: string; accept?: string }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+  const [progress, setProgress] = useState<string | null>(null);
+  const [errs, setErrs] = useState<string[]>([]);
+  const busy = progress != null;
   return (
     <span className="inline-flex flex-col">
-      <label className={`${btn} cursor-pointer`}>
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />} {text}
+      <label className={`${btn} cursor-pointer ${busy ? 'pointer-events-none opacity-70' : ''}`}>
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />} {busy ? progress : text}
         <input
           type="file"
           multiple
@@ -157,23 +164,32 @@ export function AttachButton({ api, onAttached, category = 'misc', internal = fa
           className="hidden"
           disabled={busy}
           onChange={async (e) => {
-            const files = Array.from(e.target.files || []);
+            const picked = Array.from(e.target.files || []);
             e.target.value = '';
-            if (!files.length) return;
-            setBusy(true);
-            setErr('');
-            try {
-              const docs = await api.upload(files, { category, internal });
-              onAttached(docs.map((d) => d.attachment));
-            } catch (x) {
-              setErr(x instanceof Error ? x.message : 'Envoi impossible');
-            } finally {
-              setBusy(false);
+            if (!picked.length) return;
+            const problems: string[] = [];
+            const ok = picked.filter((f) => {
+              const err = checkUpload({ name: f.name, type: f.type, size: f.size });
+              if (err) problems.push(err);
+              return !err;
+            });
+            const done: Attachment[] = [];
+            for (const [i, f] of ok.entries()) {
+              setProgress(ok.length > 1 ? `Envoi ${i + 1}/${ok.length}…` : 'Envoi…');
+              try {
+                const docs = await api.upload([f], { category, internal });
+                done.push(...docs.map((d) => d.attachment));
+              } catch (x) {
+                problems.push(`« ${f.name} » : ${x instanceof Error ? x.message : 'envoi impossible'}`);
+              }
             }
+            setProgress(null);
+            setErrs(problems);
+            if (done.length) onAttached(done);
           }}
         />
       </label>
-      {err && <span className="mt-1 text-[11px] text-red-600">{err}</span>}
+      {errs.length > 0 && <span className="mt-1 space-y-0.5 text-[11px] text-red-600">{errs.map((x, i) => <span key={i} className="block">{x}</span>)}</span>}
     </span>
   );
 }

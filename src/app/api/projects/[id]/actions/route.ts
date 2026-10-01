@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'task.create': result = { id: await D.addTask(id, { step_key: str(b.step_key), title: str(b.title), description: str(b.description), owner: b.owner === 'client' ? 'client' : 'team', due_at: str(b.due_at) || null, phase: str(b.phase) || null, checklist: Array.isArray(b.checklist) ? (b.checklist as string[]) : [] }, actor) }; break;
       case 'update.publish': result = { id: await D.publishUpdate(id, { title: str(b.title), body: str(b.body), attachments: atts(b.attachments) }, actor) }; break;
       case 'update.comment': await D.addUpdateComment(id, str(b.update_id), str(b.text), actor); break;
-      case 'question.reply': await D.replyQuestion(id, str(b.question_id), str(b.text), actor); break;
+      case 'question.reply': await D.replyQuestion(id, str(b.question_id), str(b.text), actor, atts(b.attachments)); break;
       case 'question.to_client': result = { ids: await D.askClientQuestions(id, { questions: Array.isArray(b.questions) ? (b.questions as { subject: string; detail?: string }[]) : [], lot: str(b.lot) || null, supplier_id: str(b.supplier_id) || null, exchange_id: str(b.exchange_id) || null }, actor) }; break;
       case 'supplier.upsert': result = { id: await D.upsertSupplier(id, { ...(b as unknown as D.SupplierInput), id: str(b.id) || undefined, lot: str(b.lot), score: b.score === null || b.score === '' || b.score === undefined ? (b.score === undefined ? undefined : null) : Number(b.score) }, actor) }; break;
       case 'supplier.import': {

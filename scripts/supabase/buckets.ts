@@ -23,7 +23,7 @@ export const BUCKETS: BucketSpec[] = [
     id: 'project-files',
     public: false,
     fileSizeLimit: 52_428_800, // 50 Mio
-    allowedMimeTypes: ['video/mp4', 'video/webm', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel', 'text/plain', 'message/rfc822'],
+    allowedMimeTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel', 'text/plain', 'message/rfc822'],
   },
 ];
 

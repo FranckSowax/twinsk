@@ -41,7 +41,7 @@ export interface PublicProject {
   }[];
   updates: { id: string; title: string; body: string; attachments: Attachment[]; at: string; comments: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
   /** direction : from_client = posée par le client ; to_client = posée par l'équipe, le client répond. */
-  questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; direction: 'from_client' | 'to_client'; lot: string | null; at: string; replies: { id: string; author: 'team' | 'client'; author_name: string; text: string; at: string }[] }[];
+  questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; direction: 'from_client' | 'to_client'; lot: string | null; at: string; replies: { id: string; author: 'team' | 'client'; author_name: string; text: string; attachments: Attachment[]; at: string }[] }[];
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; by: string; at: string; download_path: string }[];
   /** Taux « 1 devise = X devise principale » appliqués aux lignes saisies dans une autre devise. */
   rates: Rates;
@@ -107,7 +107,7 @@ export interface RawForPublic {
   updates: { id: string; title: string; body: string; attachments: Attachment[]; published_at: string }[];
   updateComments: { id: string; update_id: string; author: 'team' | 'client'; author_name: string; text: string; created_at: string }[];
   questions: { id: string; subject: string; detail: string; attachment: Attachment | null; status: QuestionStatus; direction?: 'from_client' | 'to_client' | null; lot?: string | null; created_at: string }[];
-  questionReplies: { id: string; question_id: string; author: 'team' | 'client'; author_name: string; text: string; created_at: string }[];
+  questionReplies: { id: string; question_id: string; author: 'team' | 'client'; author_name: string; text: string; attachments?: Attachment[]; created_at: string }[];
   documents: { id: string; category: DocumentCategory; name: string; size: number | null; uploaded_by: string; created_at: string }[];
   quoteLines: { id: string; lot: string; label: string; unit: string; quantity: number; client_quantity: number | null; unit_price: number | null; price_currency: string | null; validated_snapshot: { unit_price: number | null; total: number | null } | null; optional: boolean; enabled: boolean; status: QuoteLineStatus; phase: string | null; validated_at: string | null; supplier_id: string | null }[];
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; line_ids: string[]; total: number; created_at: string; updated_at: string }[];
@@ -168,7 +168,7 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
       direction: q.direction === 'to_client' ? 'to_client' : 'from_client',
       lot: q.lot ?? null,
       at: q.created_at,
-      replies: raw.questionReplies.filter((r) => r.question_id === q.id).map((r) => ({ id: r.id, author: r.author, author_name: r.author_name, text: r.text, at: r.created_at })),
+      replies: raw.questionReplies.filter((r) => r.question_id === q.id).map((r) => ({ id: r.id, author: r.author, author_name: r.author_name, text: r.text, attachments: (r.attachments || []).map(att), at: r.created_at })),
     })),
     documents: raw.documents.map((d) => ({ id: d.id, category: d.category, name: d.name, size: d.size, by: d.uploaded_by, at: d.created_at, download_path: docPath(d.id) })),
     quote: {

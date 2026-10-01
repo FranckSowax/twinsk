@@ -6,6 +6,7 @@ import { resolveActor } from '@/lib/collab';
 import type { CollabRole } from '@/lib/collab-roles';
 import { projectsEnabled, resolveShare, ProjectError, type Actor } from './data';
 import { checkCoverVideo } from './cover';
+import { checkUpload, uploadMime } from './uploads';
 export { checkCoverVideo, VIDEO_MAX, VIDEO_TYPES } from './cover';
 
 export const PROJECT_ROLES: CollabRole[] = ['production', 'sourcing'];
@@ -37,10 +38,10 @@ export function errorResponse(e: unknown): NextResponse {
 export const DOC_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel', 'text/plain', 'message/rfc822']);
 export const DOC_MAX = 25 * 1024 * 1024;
 export async function readUpload(file: File): Promise<{ name: string; mime: string; size: number; buffer: Buffer }> {
-  const mime = file.type || 'application/octet-stream';
-  if (!DOC_TYPES.has(mime)) throw new ProjectError(`Type de fichier refusé (${mime}) : images, PDF, Word, Excel, texte ou e-mail .eml`);
-  if (file.size > DOC_MAX) throw new ProjectError('Fichier trop lourd (25 Mo maximum)');
-  return { name: file.name || 'fichier', mime, size: file.size, buffer: Buffer.from(await file.arrayBuffer()) };
+  // Mêmes règles que dans le navigateur (src/lib/projects/uploads.ts) : PDF, photos, vidéos, Word, Excel, texte ; 25 Mo, 50 Mo pour une vidéo.
+  const err = checkUpload({ name: file.name || 'fichier', type: file.type, size: file.size });
+  if (err) throw new ProjectError(err);
+  return { name: file.name || 'fichier', mime: uploadMime({ name: file.name || '', type: file.type }), size: file.size, buffer: Buffer.from(await file.arrayBuffer()) };
 }
 
 export async function readCoverVideo(file: File): Promise<{ name: string; mime: string; size: number; buffer: Buffer }> {

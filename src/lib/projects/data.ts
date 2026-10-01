@@ -300,18 +300,20 @@ export async function askQuestion(projectId: string, input: { subject: string; d
   await logEvent(projectId, { type: 'question.asked', actor, target_type: 'question', target_id: data.id, detail: input.subject.trim(), notify: 'team' });
   return data.id as string;
 }
-export async function replyQuestion(projectId: string, questionId: string, text: string, actor: Actor) {
+export async function replyQuestion(projectId: string, questionId: string, text: string, actor: Actor, attachments: Attachment[] = []) {
   const body = text.trim();
-  if (!body) throw new ProjectError('Réponse vide');
+  if (!body && !attachments.length) throw new ProjectError('Réponse vide');
   const { data: qn } = await supabaseAdmin.from('project_questions').select('*').eq('id', questionId).eq('project_id', projectId).maybeSingle();
   if (!qn) throw new ProjectError('Question introuvable', 404);
-  const { error } = await supabaseAdmin.from('project_question_replies').insert({ question_id: questionId, author: actor.kind, author_name: actor.name, text: body });
+  const row: Record<string, unknown> = { question_id: questionId, author: actor.kind, author_name: actor.name, text: body };
+  if (attachments.length) row.attachments = attachments.slice(0, 20);
+  const { error } = await supabaseAdmin.from('project_question_replies').insert(row);
   if (error) fail(error, 'Réponse');
   // Question du client : répondue quand l'équipe répond. Question de l'équipe au client : répondue quand le client répond.
   const answeredBy = qn.direction === 'to_client' ? 'client' : 'team';
   if (actor.kind === answeredBy) await supabaseAdmin.from('project_questions').update({ status: 'answered', answered_at: now() }).eq('id', questionId);
   else await supabaseAdmin.from('project_questions').update({ status: 'open' }).eq('id', questionId);
-  await logEvent(projectId, { type: 'question.replied', actor, target_type: 'question', target_id: questionId, detail: `${qn.subject} : ${body.slice(0, 120)}`, notify: actor.kind === 'team' ? 'client' : 'team' });
+  await logEvent(projectId, { type: 'question.replied', actor, target_type: 'question', target_id: questionId, detail: `${qn.subject} : ${body.slice(0, 120) || `${attachments.length} pièce(s) jointe(s)`}${body && attachments.length ? ` (+ ${attachments.length} pièce(s) jointe(s))` : ''}`, notify: actor.kind === 'team' ? 'client' : 'team' });
 }
 
 /**

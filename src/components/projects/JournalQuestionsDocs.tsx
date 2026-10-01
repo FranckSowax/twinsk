@@ -81,9 +81,23 @@ export function QuestionsTab({ p, api, admin }: { p: PublicProject; api: Workspa
   const [f, setF] = useState({ subject: '', detail: '', lot: '' });
   const [file, setFile] = useState<Attachment | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [replyFiles, setReplyFiles] = useState<Record<string, Attachment[]>>({});
+  const [sending, setSending] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const team = api.mode === 'team';
+  const sendReply = async (qid: string) => {
+    setSending(qid);
+    try {
+      await api.act('question.reply', { question_id: qid, text: drafts[qid] || '', attachments: replyFiles[qid] || [] });
+      setDrafts((x) => ({ ...x, [qid]: '' }));
+      setReplyFiles((x) => ({ ...x, [qid]: [] }));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Envoi impossible');
+    } finally {
+      setSending(null);
+    }
+  };
   // Questions qui attendent une réponse de la personne qui regarde : client → celles de l'équipe ; équipe → celles du client.
   const waitingMe = p.questions.filter((q) => q.status === 'open' && (team ? q.direction === 'from_client' : q.direction === 'to_client'));
   const toClient = p.questions.filter((q) => q.direction === 'to_client');
@@ -128,7 +142,11 @@ export function QuestionsTab({ p, api, admin }: { p: PublicProject; api: Workspa
         {q.attachment && <AttachmentList items={[q.attachment]} />}
         <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700">
           {q.replies.map((r) => (
-            <p key={r.id} className="text-sm"><AuthorChip author={r.author} name={r.author_name} /> <span className="text-[11px] text-slate-400">{dateTime(r.at)}</span><br /><span className="whitespace-pre-wrap">{r.text}</span></p>
+            <div key={r.id} className="text-sm">
+              <p><AuthorChip author={r.author} name={r.author_name} /> <span className="text-[11px] text-slate-400">{dateTime(r.at)}</span></p>
+              {r.text && <p className="whitespace-pre-wrap">{r.text}</p>}
+              <AttachmentList items={r.attachments || []} />
+            </div>
           ))}
           <div className="flex gap-2">
             {ask && !team ? (
@@ -136,7 +154,12 @@ export function QuestionsTab({ p, api, admin }: { p: PublicProject; api: Workspa
             ) : (
               <input className={input} placeholder={team ? (ask ? 'Préciser la question…' : 'Répondre…') : 'Préciser…'} value={drafts[q.id] || ''} onChange={(e) => setDrafts({ ...drafts, [q.id]: e.target.value })} />
             )}
-            <button type="button" disabled={!(drafts[q.id] || '').trim()} onClick={async () => { await api.act('question.reply', { question_id: q.id, text: drafts[q.id] }); setDrafts({ ...drafts, [q.id]: '' }); }} className={`${btnPrimary} shrink-0 self-end`} aria-label="Envoyer"><Send className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>
+            <button type="button" disabled={sending === q.id || (!(drafts[q.id] || '').trim() && !(replyFiles[q.id] || []).length)} onClick={() => sendReply(q.id)} className={`${btnPrimary} shrink-0 self-end`} aria-label="Envoyer">{sending === q.id ? <Loader2 className="h-4 w-4 animate-spin sm:h-3.5 sm:w-3.5" /> : <Send className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}</button>
+          </div>
+          <AttachmentList items={replyFiles[q.id] || []} onRemove={(i) => setReplyFiles({ ...replyFiles, [q.id]: (replyFiles[q.id] || []).filter((_, k) => k !== i) })} />
+          <div className="flex flex-wrap items-center gap-2">
+            <AttachButton api={api} label="Joindre (PDF, photos, vidéos)" accept="application/pdf,image/*,video/mp4,video/webm,video/quicktime,.mov,.m4v" onAttached={(a) => setReplyFiles((x) => ({ ...x, [q.id]: [...(x[q.id] || []), ...a] }))} />
+            <span className="text-[11px] text-slate-500">Plusieurs fichiers possibles · 25 Mo par fichier, 50 Mo par vidéo</span>
           </div>
         </div>
       </article>

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'task.comment': await D.addTaskComment(projectId, str(b.task_id), str(b.text), atts(b.attachments), actor); break;
       case 'update.comment': await D.addUpdateComment(projectId, str(b.update_id), str(b.text), actor); break;
       case 'question.ask': result = { id: await D.askQuestion(projectId, { subject: str(b.subject), detail: str(b.detail), attachment: atts([b.attachment])[0] || null }, actor) }; break;
-      case 'question.reply': await D.replyQuestion(projectId, str(b.question_id), str(b.text), actor); break;
+      case 'question.reply': await D.replyQuestion(projectId, str(b.question_id), str(b.text), actor, atts(b.attachments)); break;
       case 'quote.choice': await D.setClientLineChoice(projectId, str(b.line_id), { client_quantity: b.client_quantity === undefined ? undefined : b.client_quantity === null ? null : Number(b.client_quantity), enabled: typeof b.enabled === 'boolean' ? b.enabled : undefined }, actor); break;
       case 'quote.validate': await D.validateLine(projectId, str(b.line_id), actor); break;
       case 'quote.unvalidate': await D.unvalidateLine(projectId, str(b.line_id), actor); break;
