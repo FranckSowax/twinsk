@@ -7,7 +7,7 @@
 // voyage d'audit : partagés. Messages RFQ : RfqTab.tsx.
 
 import { useState } from 'react';
-import { AlertTriangle, Camera, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Mail, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Eye, Link2, Loader2, Mail, Plus, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { scoreTotal } from '@/lib/projects/logic';
@@ -25,6 +25,9 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
   const [preview, setPreview] = useState(false);
   const [importing, setImporting] = useState(false);
   const [mailTo, setMailTo] = useState<TeamExtras['suppliers'][number] | null>(null);
+  const [showExchanges, setShowExchanges] = useState(false);
+  // Relance en retard : seul le dernier échange de chaque usine compte (une réponse plus récente lève la relance).
+  const overdue = [...new Map([...admin.exchanges].sort((a, b) => a.exchanged_at.localeCompare(b.exchanged_at)).map((e) => [e.supplier_id || e.id, e])).values()].filter((e) => e.next_action_at && new Date(e.next_action_at) < new Date()).length;
   const [copied, setCopied] = useState(false);
   // Besoin de sourcing (entrée du skill) : lots, lignes, quantités, exigences, usines déjà connues.
   const brief = () => JSON.stringify(buildSourcingBrief({ title: p.title, description: p.description, currency: p.currency, phases: p.phases, lines: p.quote.lines.map((l) => ({ lot: l.lot, label: l.label, unit: l.unit, quantity: l.effective_quantity, optional: l.optional })), rfq: admin.rfq, rfqContext: admin.rfq_context, knownSuppliers: admin.suppliers, lots: admin.lots }), null, 2);
@@ -130,15 +133,25 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
       )}
 
       <div className={card}>
+        {/* Repliable : l'en-tête (compteur, relances en retard, nouvel échange) reste visible. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="font-display text-base font-bold text-slate-900 dark:text-white">Échanges avec les usines</p>
-            <p className="text-xs text-slate-500">Captures d’écran de conversations (WeChat, WhatsApp), e-mails, comptes rendus d’appels : le fil de ce qui a été dit et promis.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <select className={input} value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">Toutes les usines</option>{admin.suppliers.map((s) => <option key={s.id} value={s.id}>{s.alias} · {s.real_name || s.lot}</option>)}</select>
-            <button type="button" onClick={() => setExchange(null)} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Nouvel échange</button>
-          </div>
+          <button type="button" onClick={() => setShowExchanges((v) => !v)} className="flex min-w-0 flex-1 items-start gap-2 text-left" aria-expanded={showExchanges}>
+            <ChevronDown className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-transform ${showExchanges ? '' : '-rotate-90'}`} />
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2 font-display text-base font-bold text-slate-900 dark:text-white">
+                Échanges avec les usines
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200">{admin.exchanges.length}</span>
+                {overdue > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800">{overdue} relance{overdue > 1 ? 's' : ''} en retard</span>}
+              </span>
+              <span className="block text-xs font-normal text-slate-500">Captures d’écran de conversations (WeChat, WhatsApp), e-mails, comptes rendus d’appels : le fil de ce qui a été dit et promis.</span>
+            </span>
+          </button>
+          <button type="button" onClick={() => setExchange(null)} className={btnPrimary}><Plus className="h-3.5 w-3.5" /> Nouvel échange</button>
+        </div>
+        {showExchanges && (
+        <>
+        <div className="mt-3">
+          <select className={`${input} sm:max-w-xs`} value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">Toutes les usines</option>{admin.suppliers.map((s) => <option key={s.id} value={s.id}>{s.alias} · {s.real_name || s.lot}</option>)}</select>
         </div>
         {shown.length === 0 ? (
           <Empty>Aucun échange enregistré.</Empty>
@@ -164,6 +177,8 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
               );
             })}
           </ul>
+        )}
+        </>
         )}
       </div>
 
