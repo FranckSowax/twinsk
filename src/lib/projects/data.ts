@@ -647,7 +647,13 @@ export async function deleteSupplier(projectId: string, id: string, actor: Actor
 }
 export async function addExchange(projectId: string, input: { supplier_id: string | null; channel: ExchangeChannel; exchanged_at?: string; summary: string; attachments: Attachment[]; next_action?: string; next_action_at?: string | null; analysis?: Record<string, unknown> | null; direction?: 'out' | 'in' | 'note' }, actor: Actor) {
   if (!input.summary.trim() && !input.attachments.length) throw new ProjectError('Résumé ou capture requis');
-  const { data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert({ project_id: projectId, supplier_id: input.supplier_id, channel: input.channel, exchanged_at: input.exchanged_at || now(), summary: input.summary.trim(), attachments: input.attachments, next_action: input.next_action?.trim() || null, next_action_at: input.next_action_at || null, author_name: actor.name, ...(input.analysis ? { analysis: input.analysis } : {}), ...(input.direction && ['out', 'in', 'note'].includes(input.direction) ? { direction: input.direction } : {}) }).select('id').single();
+  const row: Record<string, unknown> = { project_id: projectId, supplier_id: input.supplier_id, channel: input.channel, exchanged_at: input.exchanged_at || now(), summary: input.summary.trim(), attachments: input.attachments, next_action: input.next_action?.trim() || null, next_action_at: input.next_action_at || null, author_name: actor.name, ...(input.analysis ? { analysis: input.analysis } : {}), ...(input.direction && ['out', 'in', 'note'].includes(input.direction) ? { direction: input.direction } : {}) };
+  let { data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert(row).select('id').single();
+  // Colonne « direction » pas encore migrée (fenêtre avant approbation au Gabon) : enregistrer sans le sens.
+  if (error && 'direction' in row && /direction/.test(error.message) && isMissing(error.message)) {
+    delete row.direction;
+    ({ data, error } = await supabaseAdmin.from('project_supplier_exchanges').insert(row).select('id').single());
+  }
   if (error || !data) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.added', actor, target_type: 'exchange', target_id: data.id, detail: input.summary.trim().slice(0, 120) });
   return data.id as string;
@@ -656,7 +662,9 @@ export async function addExchange(projectId: string, input: { supplier_id: strin
 export async function assignExchange(projectId: string, id: string, supplierId: string, direction: 'out' | 'in' | 'note' | null, actor: Actor) {
   const { data: sup } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias').eq('id', supplierId).eq('project_id', projectId).maybeSingle();
   if (!sup) throw new ProjectError('Usine introuvable', 404);
-  const { error } = await supabaseAdmin.from('project_supplier_exchanges').update({ supplier_id: sup.id, ...(direction ? { direction } : {}) }).eq('id', id).eq('project_id', projectId);
+  let { error } = await supabaseAdmin.from('project_supplier_exchanges').update({ supplier_id: sup.id, ...(direction ? { direction } : {}) }).eq('id', id).eq('project_id', projectId);
+  // Colonne « direction » pas encore migrée : rattacher quand même.
+  if (error && direction && /direction/.test(error.message) && isMissing(error.message)) ({ error } = await supabaseAdmin.from('project_supplier_exchanges').update({ supplier_id: sup.id }).eq('id', id).eq('project_id', projectId));
   if (error) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.assigned', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias}` });
 }
