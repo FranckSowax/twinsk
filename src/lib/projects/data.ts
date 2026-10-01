@@ -599,7 +599,7 @@ export async function signedSupplierPhotoUrl(projectId: string, docId: string): 
 }
 // ---- E-mails aux usines depuis la plateforme (Resend) ----
 /** Envoie un e-mail à une usine et le note dans les échanges (canal e-mail). */
-export async function sendSupplierEmail(projectId: string, input: { supplier_id: string; to: string; cc?: string; subject: string; body: string; nonce?: string; lot?: string }, actor: Actor) {
+export async function sendSupplierEmail(projectId: string, input: { supplier_id: string; to: string; cc?: string; subject: string; body: string; nonce?: string; lot?: string; reply_to_exchange?: string }, actor: Actor) {
   const { data: s } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias, real_name').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
   if (!s) throw new ProjectError('Usine introuvable', 404);
   const to = parseRecipients(input.to);
@@ -615,6 +615,7 @@ export async function sendSupplierEmail(projectId: string, input: { supplier_id:
   if (!r.ok) throw new ProjectError(r.error, 502);
   const from = emailSender()?.address || '';
   await addExchange(projectId, { supplier_id: s.id, channel: 'email', summary: `E-mail envoyé depuis ${from} à ${to.join(', ')}${input.cc ? ` (cc ${parseRecipients(input.cc).join(', ')})` : ''}\nObjet : ${input.subject.trim()}\n\n${input.body.trim().slice(0, 1500)}${input.body.trim().length > 1500 ? '…' : ''}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString(), direction: 'out' }, actor);
+  if (input.reply_to_exchange) await flagReplySent(projectId, input.reply_to_exchange, { channel: 'email', via: 'platform' }, actor);
   await logEvent(projectId, { type: 'email.sent', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : ${input.subject.trim().slice(0, 100)}`, data: { resend_id: r.id, to, channel: 'email', subject: input.subject.trim().slice(0, 200), rfq_lot: input.lot || null } });
   return { id: r.id, to };
 }
@@ -657,6 +658,34 @@ export async function addExchange(projectId: string, input: { supplier_id: strin
   if (error || !data) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.added', actor, target_type: 'exchange', target_id: data.id, detail: input.summary.trim().slice(0, 120) });
   return data.id as string;
+}
+/** Note sur l'échange reçu que la réponse proposée est partie (canal, date, auteur). */
+async function flagReplySent(projectId: string, exchangeId: string, info: { channel: string; via: 'platform' | 'manual' }, actor: Actor) {
+  const { data: ex } = await supabaseAdmin.from('project_supplier_exchanges').select('analysis').eq('id', exchangeId).eq('project_id', projectId).maybeSingle();
+  if (!ex?.analysis || typeof ex.analysis !== 'object') return;
+  await supabaseAdmin.from('project_supplier_exchanges').update({ analysis: { ...(ex.analysis as Record<string, unknown>), reply_sent: { at: now(), channel: info.channel, via: info.via, by: actor.name } } }).eq('id', exchangeId);
+}
+/**
+ * Réponse envoyée hors plateforme (WhatsApp, WeChat, messagerie) depuis une
+ * analyse : ajoutée au fil comme message envoyé, comptée dans l'historique des
+ * contacts, et notée sur l'échange reçu.
+ */
+export async function markReplySent(projectId: string, exchangeId: string, input: { channel: string; text: string }, actor: Actor) {
+  const { data: ex } = await supabaseAdmin.from('project_supplier_exchanges').select('id, supplier_id').eq('id', exchangeId).eq('project_id', projectId).maybeSingle();
+  if (!ex?.supplier_id) throw new ProjectError('Échange introuvable', 404);
+  const { data: s } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias').eq('id', ex.supplier_id).maybeSingle();
+  const channels: Record<string, ExchangeChannel> = { whatsapp: 'whatsapp', wechat: 'wechat', email: 'email', other: 'other' };
+  const ch = channels[input.channel] || 'other';
+  const labels: Record<string, string> = { whatsapp: 'WhatsApp', wechat: 'WeChat', email: 'e-mail (messagerie personnelle)' };
+  const label = labels[ch] || 'autre canal';
+  await addExchange(projectId, { supplier_id: ex.supplier_id, channel: ch, summary: `Réponse envoyée par ${label}, hors plateforme :\n\n${input.text.trim().slice(0, 3000)}`, attachments: [], next_action: 'Relancer si pas de réponse', next_action_at: new Date(Date.now() + 3 * 86_400_000).toISOString(), direction: 'out' }, actor);
+  await flagReplySent(projectId, exchangeId, { channel: ch, via: 'manual' }, actor);
+  if (s) await logEvent(projectId, { type: 'contact.manual', actor, target_type: 'supplier', target_id: s.id, detail: `${s.lot} · ${s.alias} : réponse par ${label}`, data: { channel: ch, rfq_lot: s.lot } });
+}
+/** Rattache des questions posées au client à l'échange d'où elles viennent. */
+export async function linkQuestionsToExchange(projectId: string, exchangeId: string, questionIds: string[]) {
+  const ids = questionIds.filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 20);
+  if (ids.length) await supabaseAdmin.from('project_questions').update({ exchange_id: exchangeId }).in('id', ids).eq('project_id', projectId);
 }
 /** Analyse ajoutée à un échange déjà enregistré (réponse reçue) ; le sens passe à « reçu ». Le texte d'origine est conservé. */
 export async function setExchangeAnalysis(projectId: string, id: string, analysis: Record<string, unknown>, actor: Actor) {

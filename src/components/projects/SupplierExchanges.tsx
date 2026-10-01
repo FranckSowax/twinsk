@@ -127,6 +127,7 @@ function ExchangeForm({ supplier, admin, api, onDone }: { supplier: Supplier; ad
   const [raw, setRaw] = useState('');
   const [files, setFiles] = useState<Attachment[]>([]);
   const [analysis, setAnalysis] = useState<ExchangeAnalysis | null>(null);
+  const [questionIds, setQuestionIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiInfo, setAiInfo] = useState('');
@@ -160,7 +161,7 @@ function ExchangeForm({ supplier, admin, api, onDone }: { supplier: Supplier; ad
     setBusy(true);
     setErr('');
     try {
-      await api.act('exchange.add', { ...f, summary: f.summary.trim() || raw.trim().slice(0, 4000), supplier_id: supplier.id, exchanged_at: f.exchanged_at ? new Date(f.exchanged_at).toISOString() : undefined, next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null, attachments: files, analysis: analysis ? { ...analysis, raw: raw.trim().slice(0, 20000) || null } : raw.trim() ? { raw: raw.trim().slice(0, 20000) } : null });
+      await api.act('exchange.add', { ...f, summary: f.summary.trim() || raw.trim().slice(0, 4000), supplier_id: supplier.id, exchanged_at: f.exchanged_at ? new Date(f.exchanged_at).toISOString() : undefined, next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null, attachments: files, analysis: analysis ? { ...analysis, raw: raw.trim().slice(0, 20000) || null } : raw.trim() ? { raw: raw.trim().slice(0, 20000) } : null, question_ids: questionIds });
       onDone();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur');
@@ -189,7 +190,7 @@ function ExchangeForm({ supplier, admin, api, onDone }: { supplier: Supplier; ad
         <div><label className={label}>À faire ensuite</label><input className={input} value={f.next_action} onChange={(e) => setF({ ...f, next_action: e.target.value })} placeholder="Ex. relancer pour le rapport SGS" /></div>
         <div><label className={label}>Relance prévue</label><input type="date" className={input} value={f.next_action_at} onChange={(e) => setF({ ...f, next_action_at: e.target.value })} /></div>
       </div>
-      {analysis && <div className="border-t border-emerald-200 pt-3 dark:border-emerald-900"><ExchangeAnalysisPanel analysis={analysis} supplier={supplier} admin={admin} api={api} /></div>}
+      {analysis && <div className="border-t border-emerald-200 pt-3 dark:border-emerald-900"><ExchangeAnalysisPanel analysis={analysis} supplier={supplier} admin={admin} api={api} onQuestionsSent={(ids) => setQuestionIds((x) => [...x, ...ids])} /></div>}
       {err && <p className="text-xs text-red-600" role="alert">{err}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy || (!f.summary.trim() && !raw.trim() && !files.length)} onClick={save} className={btnPrimary}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Enregistrer dans le fil{analysis ? ' avec l’analyse' : ''}</button>

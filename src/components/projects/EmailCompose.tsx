@@ -11,7 +11,7 @@ import type { TeamExtras } from '@/lib/projects/public-server';
 import { Modal, btn, btnPrimary, input, label, type WorkspaceApi } from './shared';
 import { CHANNEL_LABEL, ContactHistory, contactsOf } from './ContactTrace';
 
-export function EmailCompose({ supplier, admin, api, initial, onClose }: { supplier: TeamExtras['suppliers'][number]; admin: TeamExtras; api: WorkspaceApi; initial?: { subject?: string; body?: string; lot?: string }; onClose: () => void }) {
+export function EmailCompose({ supplier, admin, api, initial, onClose }: { supplier: TeamExtras['suppliers'][number]; admin: TeamExtras; api: WorkspaceApi; initial?: { subject?: string; body?: string; lot?: string; replyToExchange?: string }; onClose: () => void }) {
   const [f, setF] = useState({ to: supplier.email || '', cc: '', subject: initial?.subject || '', body: initial?.body || '' });
   // Une clé par fenêtre : un double clic ou une requête rejouée n'envoie pas deux fois.
   const [nonce] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -26,7 +26,7 @@ export function EmailCompose({ supplier, admin, api, initial, onClose }: { suppl
     setBusy(true);
     setErr('');
     try {
-      const r = await api.act('email.send', { supplier_id: supplier.id, ...f, nonce, lot: initial?.lot });
+      const r = await api.act('email.send', { supplier_id: supplier.id, ...f, nonce, lot: initial?.lot, reply_to_exchange: initial?.replyToExchange });
       setSent((r.to as string[]) || [f.to]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Envoi impossible');

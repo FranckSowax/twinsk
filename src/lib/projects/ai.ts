@@ -284,6 +284,8 @@ export interface ExchangeAnalysis extends ExchangeSummary {
   reply_fr: string;
   reply_zh: string | null;
   factory_questions: FactoryQuestion[];
+  /** Posé quand la réponse proposée est partie (e-mail de la plateforme ou envoi noté à la main). */
+  reply_sent?: { at: string; channel: string; via: 'platform' | 'manual'; by: string } | null;
 }
 const longText = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim().slice(0, max) : '');
 export function validateExchangeAnalysis(raw: unknown): ExchangeAnalysis | null {

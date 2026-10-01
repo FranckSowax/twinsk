@@ -6,7 +6,7 @@
 // client — reformulées sans nom d'usine, le lien reste interne.
 
 import { useState } from 'react';
-import { Check, CheckCircle2, Copy, HelpCircle, Lightbulb, Loader2, MessageCircle, Send } from 'lucide-react';
+import { Check, CheckCheck, CheckCircle2, Copy, HelpCircle, Lightbulb, Loader2, MessageCircle, Send } from 'lucide-react';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import type { ExchangeAnalysis as Analysis } from '@/lib/projects/ai';
 import { fillPlaceholders, whatsappLink } from '@/lib/projects/rfq';
@@ -15,7 +15,7 @@ import { btn, btnPrimary, input, type WorkspaceApi } from './shared';
 
 type Supplier = TeamExtras['suppliers'][number];
 
-export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchangeId = null, compact = false }: { analysis: Analysis; supplier: Supplier | null; admin: TeamExtras; api: WorkspaceApi; exchangeId?: string | null; compact?: boolean }) {
+export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchangeId = null, compact = false, onQuestionsSent }: { analysis: Analysis; supplier: Supplier | null; admin: TeamExtras; api: WorkspaceApi; exchangeId?: string | null; compact?: boolean; onQuestionsSent?: (ids: string[]) => void }) {
   const fill = (t: string) => fillPlaceholders(t, { factory: supplier?.real_name, contact: supplier?.contact_name, sender: admin.rfq_sender });
   const langs = [
     { key: 'en', label: 'Anglais (à envoyer)', text: fill(analysis.reply_en) },
@@ -25,6 +25,18 @@ export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchange
   const [lang, setLang] = useState(langs[0]?.key || 'en');
   const [copied, setCopied] = useState(false);
   const [compose, setCompose] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const sent = analysis.reply_sent || null;
+  // Réponse partie hors plateforme : notée dans le fil (message envoyé) et sur cet échange.
+  const markSent = async (channel: string) => {
+    if (!exchangeId || !current) return;
+    setMarking(true);
+    try {
+      await api.act('exchange.reply_sent', { exchange_id: exchangeId, channel, text: current.text });
+    } finally {
+      setMarking(false);
+    }
+  };
   const current = langs.find((l) => l.key === lang) || langs[0];
   const rfq = supplier ? admin.rfq.find((r) => r.lot === supplier.lot) : null;
   const wa = supplier?.whatsapp && current ? whatsappLink(supplier.whatsapp, current.text) : null;
@@ -60,21 +72,49 @@ export function ExchangeAnalysisPanel({ analysis, supplier, admin, api, exchange
             {wa && lang !== 'fr' && <a href={wa} target="_blank" rel="noopener noreferrer" className={btn}><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>}
             {lang === 'fr' && <span className="self-center text-[11px] text-slate-500">Version française pour relecture : envoyer l’anglais{analysis.reply_zh ? ' ou le chinois' : ''}.</span>}
           </div>
+          <div className="border-t border-slate-100 px-3 py-2 text-[11px] dark:border-slate-700">
+            {sent ? (
+              <p className="flex items-center gap-1 font-semibold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Réponse envoyée le {new Date(sent.at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} par {CHANNELS[sent.channel] || sent.channel}{sent.via === 'platform' ? ' depuis la plateforme' : ''}{sent.by ? ` · ${sent.by}` : ''}</p>
+            ) : exchangeId ? (
+              <span className="flex flex-wrap items-center gap-1.5 text-slate-500">
+                Envoyée hors plateforme ?
+                {(['whatsapp', 'wechat', 'email'] as const).map((ch) => (
+                  <button key={ch} type="button" disabled={marking} onClick={() => markSent(ch)} className={`${btn} !min-h-8 !px-2 !text-[11px]`}><CheckCheck className="h-3 w-3" /> J’ai envoyé cette réponse par {CHANNELS[ch]}</button>
+                ))}
+              </span>
+            ) : (
+              <span className="text-slate-500">Après l’envoi par WhatsApp ou copier-coller : enregistrez dans le fil, puis cliquez « J’ai envoyé cette réponse ». Un envoi par e-mail depuis la plateforme est noté tout seul.</span>
+            )}
+          </div>
         </div>
       )}
-      {analysis.factory_questions.length > 0 && <FactoryQuestions analysis={analysis} supplier={supplier} api={api} exchangeId={exchangeId} />}
-      {compose && supplier && current && <EmailCompose supplier={supplier} admin={admin} api={api} initial={{ subject: rfq?.email_subject_en ? `Re: ${fill(rfq.email_subject_en)}` : '', body: current.text, lot: supplier.lot }} onClose={() => setCompose(false)} />}
+      {analysis.factory_questions.length > 0 && <FactoryQuestions analysis={analysis} supplier={supplier} admin={admin} api={api} exchangeId={exchangeId} onSent={onQuestionsSent} />}
+      {compose && supplier && current && <EmailCompose supplier={supplier} admin={admin} api={api} initial={{ subject: rfq?.email_subject_en ? `Re: ${fill(rfq.email_subject_en)}` : '', body: current.text, lot: supplier.lot, replyToExchange: exchangeId || undefined }} onClose={() => setCompose(false)} />}
     </div>
   );
 }
 
-/** Questions posées par l'usine : à poser au client (cochées si seul le client peut répondre). */
-function FactoryQuestions({ analysis, supplier, api, exchangeId }: { analysis: Analysis; supplier: Supplier | null; api: WorkspaceApi; exchangeId: string | null }) {
+/** Comparaison souple (casse, accents, ponctuation) pour reconnaître une question déjà posée. */
+const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, ' ').trim();
+const CHANNELS: Record<string, string> = { whatsapp: 'WhatsApp', wechat: 'WeChat', email: 'e-mail', other: 'autre canal' };
+
+/** Questions posées par l'usine : à poser au client (cochées si seul le client peut répondre) ; celles déjà posées sont marquées. */
+function FactoryQuestions({ analysis, supplier, admin, api, exchangeId, onSent }: { analysis: Analysis; supplier: Supplier | null; admin: TeamExtras; api: WorkspaceApi; exchangeId: string | null; onSent?: (ids: string[]) => void }) {
   const [items, setItems] = useState(analysis.factory_questions.map((q) => ({ ...q, checked: q.needs_client })));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [sent, setSent] = useState(0);
-  const selected = items.filter((q) => q.checked && q.fr.trim());
+  // Déjà posées : questions au client de cette usine (ou de cet échange) dont le texte correspond.
+  const asked = (admin.asked_questions || []).filter((a) => (supplier && a.supplier_id === supplier.id) || (exchangeId && a.exchange_id === exchangeId));
+  const askedFor = (fr: string) => {
+    const k = norm(fr);
+    if (!k) return null;
+    return asked.find((a) => {
+      const t = norm(`${a.subject} ${a.detail}`);
+      return t.includes(k.slice(0, 120)) || k.includes(norm(a.subject).replace(/ $/, '').slice(0, 120));
+    }) || null;
+  };
+  const selected = items.filter((q) => q.checked && q.fr.trim() && !askedFor(q.fr));
+  const already = items.filter((q) => askedFor(q.fr)).length;
   const send = async () => {
     setBusy(true);
     setErr('');
@@ -83,8 +123,8 @@ function FactoryQuestions({ analysis, supplier, api, exchangeId }: { analysis: A
         const t = q.fr.replace(/\s+/g, ' ').trim();
         return t.length <= 200 ? { subject: t } : { subject: `${t.slice(0, 197)}…`, detail: t };
       });
-      await api.act('question.to_client', { questions, lot: supplier?.lot || '', supplier_id: supplier?.id || '', exchange_id: exchangeId || '' });
-      setSent(questions.length);
+      const r = await api.act('question.to_client', { questions, lot: supplier?.lot || '', supplier_id: supplier?.id || '', exchange_id: exchangeId || '' });
+      onSent?.((r.ids as string[]) || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Envoi impossible');
     } finally {
@@ -93,28 +133,32 @@ function FactoryQuestions({ analysis, supplier, api, exchangeId }: { analysis: A
   };
   return (
     <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20">
-      <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-sky-900 dark:text-sky-100"><HelpCircle className="h-3.5 w-3.5" /> Questions de l’usine ({items.length})</p>
+      <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-sky-900 dark:text-sky-100"><HelpCircle className="h-3.5 w-3.5" /> Questions de l’usine ({items.length}){already ? ` · ${already} déjà posée${already > 1 ? 's' : ''} au client` : ''}</p>
       <p className="mt-0.5 text-[11px] text-sky-800/80 dark:text-sky-200/70">Cochées : celles que seul le client peut trancher. Relisez la formulation : le client ne doit pas savoir de quelle usine il s’agit.</p>
       <ul className="mt-2 space-y-2">
-        {items.map((q, i) => (
-          <li key={i} className="rounded-lg bg-white p-2 dark:bg-slate-900">
-            <label className="flex items-start gap-2">
-              <input type="checkbox" className="mt-1 h-4 w-4" checked={q.checked} disabled={!!sent} onChange={(e) => setItems((x) => x.map((y, k) => (k === i ? { ...y, checked: e.target.checked } : y)))} />
-              <span className="min-w-0 flex-1 space-y-1">
-                <textarea className={`${input} !py-1.5 !text-sm`} rows={2} value={q.fr} disabled={!!sent} onChange={(e) => setItems((x) => x.map((y, k) => (k === i ? { ...y, fr: e.target.value } : y)))} />
-                {q.original && q.original !== q.fr && <span className="block text-[11px] text-slate-500">Texte d’origine : {q.original}</span>}
-                {q.why && <span className="block text-[11px] text-slate-500">{q.needs_client ? 'Pour le client : ' : 'L’équipe peut répondre : '}{q.why}</span>}
-              </span>
-            </label>
-          </li>
-        ))}
+        {items.map((q, i) => {
+          const a = askedFor(q.fr);
+          return (
+            <li key={i} className={`rounded-lg bg-white p-2 dark:bg-slate-900 ${a ? 'opacity-80' : ''}`}>
+              <label className="flex items-start gap-2">
+                {a ? <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> : <input type="checkbox" className="mt-1 h-4 w-4" checked={q.checked} onChange={(e) => setItems((x) => x.map((y, k) => (k === i ? { ...y, checked: e.target.checked } : y)))} />}
+                <span className="min-w-0 flex-1 space-y-1">
+                  {a ? <span className="block text-sm text-slate-800 dark:text-slate-100">{q.fr}</span> : <textarea className={`${input} !py-1.5 !text-sm`} rows={2} value={q.fr} onChange={(e) => setItems((x) => x.map((y, k) => (k === i ? { ...y, fr: e.target.value } : y)))} />}
+                  {a && <span className="block text-[11px] font-semibold text-emerald-700">✓ Posée au client le {new Date(a.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} · {a.status === 'answered' ? 'répondue (voir l’onglet Questions)' : 'en attente de sa réponse'}</span>}
+                  {q.original && q.original !== q.fr && <span className="block text-[11px] text-slate-500">Texte d’origine : {q.original}</span>}
+                  {!a && q.why && <span className="block text-[11px] text-slate-500">{q.needs_client ? 'Pour le client : ' : 'L’équipe peut répondre : '}{q.why}</span>}
+                </span>
+              </label>
+            </li>
+          );
+        })}
       </ul>
       {err && <p className="mt-2 text-xs text-red-600" role="alert">{err}</p>}
-      {sent ? (
-        <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> {sent} question{sent > 1 ? 's' : ''} envoyée{sent > 1 ? 's' : ''} au client (onglet Questions) ; il est prévenu.</p>
-      ) : (
-        <button type="button" disabled={busy || !selected.length} onClick={send} className={`${btnPrimary} mt-2`}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Poser {selected.length || ''} question{selected.length > 1 ? 's' : ''} au client</button>
-      )}
+      {selected.length > 0 ? (
+        <button type="button" disabled={busy} onClick={send} className={`${btnPrimary} mt-2`}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Poser {selected.length} question{selected.length > 1 ? 's' : ''} au client</button>
+      ) : already ? (
+        <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Questions retenues posées au client ; ses réponses arrivent dans l’onglet Questions.</p>
+      ) : null}
     </div>
   );
 }
