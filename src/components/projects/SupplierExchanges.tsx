@@ -65,6 +65,22 @@ function ExchangeItem({ e, supplier, admin, api, open }: { e: Exchange; supplier
   const Icon = meta.icon;
   const analysis = isAnalysis(e.analysis) ? e.analysis : null;
   const raw = typeof (e.analysis as { raw?: unknown } | null)?.raw === 'string' ? ((e.analysis as { raw: string }).raw) : '';
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  // Analyse d'un échange déjà enregistré : à partir du message d'origine (ou du résumé) et des captures jointes.
+  const analyze = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      const ids = e.attachments.map((a) => /\/documents\/([0-9a-f-]{36})$/i.exec(a.url || '')?.[1]).filter((x): x is string => !!x);
+      const r = await api.ai('exchange.analyze', { document_ids: ids, notes: raw || e.summary, supplier_id: supplier.id });
+      await api.act('exchange.set_analysis', { id: e.id, analysis: r.result as Record<string, unknown> });
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Analyse impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <li className="relative">
       <span className={`absolute -left-[23px] top-3 h-3 w-3 rounded-full ring-4 ring-white dark:ring-slate-900 ${meta.dot}`} aria-hidden />
@@ -86,6 +102,13 @@ function ExchangeItem({ e, supplier, admin, api, open }: { e: Exchange; supplier
           </details>
         )}
         <AttachmentList items={e.attachments} />
+        {!analysis && dir !== 'out' && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button type="button" disabled={busy} onClick={analyze} className={btnPrimary}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Analyser et proposer une réponse</button>
+            <span className="text-[11px] text-slate-500">Explication, réponse en anglais et en français, questions de l’usine à poser au client.</span>
+            {err && <span className="text-[11px] text-red-600">{err}</span>}
+          </div>
+        )}
         {analysis && (
           <details className="mt-2 rounded-xl border border-violet-100 px-3 py-2 dark:border-violet-900" open={open}>
             <summary className="cursor-pointer text-xs font-semibold text-violet-700 dark:text-violet-300">Analyse : réponse proposée, explication, questions de l’usine{analysis.factory_questions.length ? ` (${analysis.factory_questions.length})` : ''}</summary>

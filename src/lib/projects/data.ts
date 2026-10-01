@@ -658,6 +658,15 @@ export async function addExchange(projectId: string, input: { supplier_id: strin
   await logEvent(projectId, { type: 'exchange.added', actor, target_type: 'exchange', target_id: data.id, detail: input.summary.trim().slice(0, 120) });
   return data.id as string;
 }
+/** Analyse ajoutée à un échange déjà enregistré (réponse reçue) ; le sens passe à « reçu ». Le texte d'origine est conservé. */
+export async function setExchangeAnalysis(projectId: string, id: string, analysis: Record<string, unknown>, actor: Actor) {
+  const { data: ex } = await supabaseAdmin.from('project_supplier_exchanges').select('id, analysis, supplier_id').eq('id', id).eq('project_id', projectId).maybeSingle();
+  if (!ex) throw new ProjectError('Échange introuvable', 404);
+  const prevRaw = (ex.analysis as { raw?: unknown } | null)?.raw;
+  const { error } = await supabaseAdmin.from('project_supplier_exchanges').update({ analysis: { ...analysis, ...(typeof prevRaw === 'string' && !analysis.raw ? { raw: prevRaw } : {}) }, direction: 'in' }).eq('id', id);
+  if (error) fail(error, 'Analyse');
+  await logEvent(projectId, { type: 'exchange.analyzed', actor, target_type: 'exchange', target_id: id, detail: String(analysis.summary || '').slice(0, 120) });
+}
 /** Rattache un échange à une usine (échanges enregistrés sans usine) et en fixe le sens. */
 export async function assignExchange(projectId: string, id: string, supplierId: string, direction: 'out' | 'in' | 'note' | null, actor: Actor) {
   const { data: sup } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias').eq('id', supplierId).eq('project_id', projectId).maybeSingle();
