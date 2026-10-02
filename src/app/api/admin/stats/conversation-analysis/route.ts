@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/collab';
 import { parsePeriod, periodStart } from '@/lib/admin-activity';
 import { aggregateReport } from '@/lib/conversation-analysis/report';
-import { analyzedConversationsSince, latestReport, pendingCarts } from '@/lib/conversation-analysis/service';
+import { analyzedConversationsSince, latestReport, pendingCarts, reportByDate, reportDates } from '@/lib/conversation-analysis/service';
+import { isDayKey } from '@/lib/conversation-analysis/days';
 import { llmConfigured, llmKeyVar, llmModel, llmProvider } from '@/lib/llm';
 
 // GET ?period=7|30|90|all : synthèse des analyses IA (dernière analyse de
@@ -14,8 +15,9 @@ export async function GET(request: NextRequest) {
   const period = parsePeriod(request.nextUrl.searchParams.get('period'));
   const llm = { provider: llmProvider(), model: llmModel(), configured: llmConfigured(), keyVar: llmKeyVar() };
   try {
-    const [{ rows, cost }, report, carts] = await Promise.all([analyzedConversationsSince(periodStart(period)), latestReport(), pendingCarts()]);
-    return NextResponse.json({ period, breakdown: aggregateReport(rows), costFcfa: Math.round(cost * 100) / 100, pendingCarts: carts, report, llm, available: true });
+    const date = request.nextUrl.searchParams.get('report');
+    const [{ rows, cost }, report, carts, dates] = await Promise.all([analyzedConversationsSince(periodStart(period)), isDayKey(date) ? reportByDate(date) : latestReport(), pendingCarts(), reportDates()]);
+    return NextResponse.json({ period, breakdown: aggregateReport(rows), costFcfa: Math.round(cost * 100) / 100, pendingCarts: carts, report, reportDates: dates, llm, available: true });
   } catch (e) {
     return NextResponse.json({ period, available: false, error: e instanceof Error ? e.message : 'Erreur', llm });
   }

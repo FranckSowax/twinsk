@@ -15,6 +15,7 @@ import { applyFacts, validateAnalysis, type ConversationAnalysis, type OrderFact
 import { buildDialogue, shouldAnalyze, type DialogueMessage } from './dialogue';
 import { aggregateReport, REPORT_SYSTEM_PROMPT, reportPromptInput, type AnalyzedConversation, type ReportBreakdown } from './report';
 import { buildSystemPrompt } from './taxonomy';
+import { dayBounds, isDayKey } from './days';
 
 const MESSAGE_WINDOW = 200;
 
@@ -54,7 +55,7 @@ interface ConvRow {
 }
 
 /** Commandes du même numéro (rapprochement par les 8 derniers chiffres puis égalité stricte). */
-async function ordersOfPhone(phone: string): Promise<(OrderFact & { id: string })[]> {
+async function ordersOfPhone(phone: string, asOf?: string): Promise<(OrderFact & { id: string })[]> {
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 8) return [];
   const { data } = await supabaseAdmin
@@ -63,6 +64,8 @@ async function ordersOfPhone(phone: string): Promise<(OrderFact & { id: string }
     .ilike('client_phone', `%${digits.slice(-8)}`)
     .limit(50);
   return ((data || []) as (OrderFact & { id: string; client_phone: string })[]).filter((o) => {
+    // Analyse « à une date » : seules les commandes déjà créées à cette date comptent.
+    if (asOf && o.created_at && o.created_at > asOf) return false;
     const d = (o.client_phone || '').replace(/\D/g, '');
     return d === digits || d.endsWith(digits) || digits.endsWith(d);
   });
@@ -94,23 +97,38 @@ export interface AnalyzeResult {
  * Analyse une conversation. `force` : ignore les seuils de calme et de
  * nouveauté (ré-analyse manuelle). `dryRun` : n'écrit rien (test à blanc).
  */
-export async function analyzeConversation(conversationId: string, opts: { force?: boolean; dryRun?: boolean; triggeredBy?: string; withDialogue?: boolean } = {}): Promise<AnalyzeResult> {
+/**
+ * Analyse une conversation. Avec `asOf` (ISO) : état de la conversation à cet
+ * instant (messages envoyés jusqu'à `asOf`), enregistré avec analyzed_at = asOf,
+ * sans toucher à l'état courant de la conversation — sert au rapport d'un jour
+ * passé et au rattrapage. Idempotent : une analyse déjà faite sur le même
+ * dernier message n'est pas refaite.
+ */
+export async function analyzeConversation(conversationId: string, opts: { force?: boolean; dryRun?: boolean; triggeredBy?: string; withDialogue?: boolean; asOf?: string; ignoreDailyBudget?: boolean } = {}): Promise<AnalyzeResult> {
   const { data: conv } = await supabaseAdmin.from('wa_conversations').select('*').eq('id', conversationId).maybeSingle();
   if (!conv) return { ok: false, error: 'Conversation introuvable' };
   const c = conv as ConvRow;
 
   const [{ data: recent }, { data: first }] = await Promise.all([
-    supabaseAdmin.from('wa_messages').select('*').eq('conversation_id', c.id).order('sent_at', { ascending: false }).limit(MESSAGE_WINDOW),
+    (opts.asOf ? supabaseAdmin.from('wa_messages').select('*').eq('conversation_id', c.id).lte('sent_at', opts.asOf) : supabaseAdmin.from('wa_messages').select('*').eq('conversation_id', c.id)).order('sent_at', { ascending: false }).limit(MESSAGE_WINDOW),
     supabaseAdmin.from('wa_messages').select('*').eq('conversation_id', c.id).order('sent_at', { ascending: true }).limit(1),
   ]);
   const byId = new Map<string, DialogueMessage>();
   for (const m of [...((first || []) as DialogueMessage[]), ...((recent || []) as DialogueMessage[])]) byId.set(m.id, m);
-  const messages = [...byId.values()].sort((a, b) => a.sent_at.localeCompare(b.sent_at));
+  const messages = [...byId.values()].filter((m) => !opts.asOf || m.sent_at <= opts.asOf).sort((a, b) => a.sent_at.localeCompare(b.sent_at));
 
-  const gate = shouldAnalyze({ messages, lastAnalyzedMessageId: c.analyzed_message_id ?? null, force: opts.force });
-  if (!gate.ok) return { ok: false, skipped: gate.reason };
+  if (opts.asOf) {
+    if (!messages.length) return { ok: false, skipped: 'aucun message à cette date' };
+    // Déjà analysée sur ce même dernier message : rien à refaire.
+    const lastMsg = messages[messages.length - 1].id;
+    const { data: done } = await supabaseAdmin.from('wa_conversation_analyses').select('id').eq('conversation_id', c.id).eq('last_message_id', lastMsg).limit(1);
+    if (done?.length && !opts.force) return { ok: false, skipped: 'déjà analysée' };
+  } else {
+    const gate = shouldAnalyze({ messages, lastAnalyzedMessageId: c.analyzed_message_id ?? null, force: opts.force });
+    if (!gate.ok) return { ok: false, skipped: gate.reason };
+  }
 
-  if (!opts.dryRun && (await spentToday()) >= dailyBudgetFcfa()) return { ok: false, skipped: 'plafond de coût du jour atteint' };
+  if (!opts.dryRun && !opts.ignoreDailyBudget && (await spentToday()) >= dailyBudgetFcfa()) return { ok: false, skipped: 'plafond de coût du jour atteint' };
 
   // Origine : pub (son texte contient souvent le lien du listing), sinon premier lien de listing échangé.
   const origin = conversationOrigin({
@@ -143,7 +161,7 @@ export async function analyzeConversation(conversationId: string, opts: { force?
     console.error(`[analysis] ${c.id} : réponse non JSON (${llm.text.slice(0, 120)})`);
     return { ok: false, error: 'Réponse du modèle illisible (pas de JSON)' };
   }
-  const orders = await ordersOfPhone(c.phone);
+  const orders = await ordersOfPhone(c.phone, opts.asOf);
   const analysis = applyFacts(validateAnalysis(parsed), orders);
   const cost = llmCostFcfa(llm);
   const usage = { model: llm.model, inputTokens: llm.inputTokens, outputTokens: llm.outputTokens, costFcfa: cost };
@@ -154,7 +172,7 @@ export async function analyzeConversation(conversationId: string, opts: { force?
   const now = new Date().toISOString();
   const { error: insErr } = await supabaseAdmin.from('wa_conversation_analyses').insert({
     conversation_id: c.id,
-    analyzed_at: now,
+    analyzed_at: opts.asOf && opts.asOf < now ? opts.asOf : now,
     last_message_id: lastId,
     message_count: dialogue.total,
     sentiment: analysis.sentiment,
@@ -181,6 +199,8 @@ export async function analyzeConversation(conversationId: string, opts: { force?
     console.error(`[analysis] non enregistrée (${c.id}) : ${insErr.message}`);
     return { ...result, ok: false, error: /does not exist|schema cache/i.test(insErr.message) ? 'Migration « conversation_analysis » non appliquée' : insErr.message };
   }
+  // Une analyse « à une date passée » ne remplace pas l'état courant de la conversation.
+  if (opts.asOf && opts.asOf < now && c.last_message_at && c.last_message_at > opts.asOf) return result;
   await supabaseAdmin
     .from('wa_conversations')
     .update({
@@ -242,9 +262,14 @@ interface AnalysisRow {
 }
 
 /** Dernière analyse de chaque conversation analysée depuis `sinceIso`, avec le contexte nécessaire au rapport. */
-export async function analyzedConversationsSince(sinceIso: string | null, dayKey?: string): Promise<{ rows: AnalyzedConversation[]; cost: number }> {
+export async function analyzedConversationsSince(sinceIso: string | null, dayKey?: string, range?: { end?: string; ids?: string[] }): Promise<{ rows: AnalyzedConversation[]; cost: number }> {
   let q = supabaseAdmin.from('wa_conversation_analyses').select('conversation_id, analyzed_at, commerce, listing_id, cost_fcfa').order('analyzed_at', { ascending: false }).limit(5000);
   if (sinceIso) q = q.gte('analyzed_at', sinceIso);
+  if (range?.end) q = q.lte('analyzed_at', range.end);
+  if (range?.ids) {
+    if (!range.ids.length) return { rows: [], cost: 0 };
+    q = q.in('conversation_id', range.ids);
+  }
   const { data, error } = await q;
   if (error) throw new Error(/does not exist|schema cache/i.test(error.message) ? 'Migration « conversation_analysis » non appliquée' : error.message);
   let list = (data || []) as AnalysisRow[];
@@ -283,18 +308,68 @@ export async function analyzedConversationsSince(sinceIso: string | null, dayKey
 }
 
 /** Paniers non payés avec transport choisi (30 derniers jours) : le chiffre d'affaires en suspens réel. */
-export async function pendingCarts(): Promise<{ count: number; total: number }> {
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const { data } = await supabaseAdmin
+export async function pendingCarts(asOf?: string): Promise<{ count: number; total: number }> {
+  // Pour un jour passé : paniers créés dans les 30 jours précédant la fin du jour et toujours en attente
+  // (le statut historique n'est pas conservé : approximation documentée).
+  const ref = asOf ? new Date(asOf).getTime() : Date.now();
+  const since = new Date(ref - 30 * 86_400_000).toISOString();
+  let q = supabaseAdmin
     .from('offer_orders')
     .select('grand_total_fcfa, items_total_fcfa')
     .eq('payment_status', 'pending')
     .not('transport_mode', 'is', null)
     .neq('client_phone', '')
-    .gte('created_at', since)
-    .limit(5000);
+    .gte('created_at', since);
+  if (asOf) q = q.lte('created_at', asOf);
+  const { data } = await q.limit(5000);
   const list = (data || []) as { grand_total_fcfa: number | null; items_total_fcfa: number | null }[];
   return { count: list.length, total: Math.round(list.reduce((s, o) => s + (Number(o.grand_total_fcfa ?? o.items_total_fcfa) || 0), 0)) };
+}
+
+/** Conversations ayant échangé au moins un message pendant le jour local `dayKey`. */
+export async function conversationsActiveOn(dayKey: string): Promise<string[]> {
+  const { start, end } = dayBounds(dayKey, COUNTRY.timezone);
+  const ids = new Set<string>();
+  for (let from = 0; from < 20_000; from += 1000) {
+    const { data, error } = await supabaseAdmin.from('wa_messages').select('conversation_id').gte('sent_at', start).lt('sent_at', end).order('sent_at').range(from, from + 999);
+    if (error) throw new Error(error.message);
+    for (const m of (data || []) as { conversation_id: string }[]) ids.add(m.conversation_id);
+    if (!data || data.length < 1000) break;
+  }
+  return [...ids];
+}
+
+async function mapLimit<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) { const k = i++; out[k] = await fn(items[k]); }
+  }));
+  return out;
+}
+
+/**
+ * Analyse toutes les conversations actives du jour qui ne l'ont pas encore été
+ * (aujourd'hui : état courant ; jour passé : état à la fin du jour). En parallèle,
+ * avec un plafond de coût pour l'appel.
+ */
+export async function ensureDayAnalyses(dayKey: string, opts: { now?: Date; concurrency?: number; maxCostFcfa?: number; triggeredBy?: string } = {}): Promise<{ active: number; analyzed: number; skipped: number; errors: string[]; costFcfa: number; stoppedByBudget: boolean }> {
+  const now = opts.now || new Date();
+  const { end } = dayBounds(dayKey, COUNTRY.timezone);
+  const isPast = end <= now.toISOString();
+  const ids = await conversationsActiveOn(dayKey);
+  const out = { active: ids.length, analyzed: 0, skipped: 0, errors: [] as string[], costFcfa: 0, stoppedByBudget: false };
+  const cap = opts.maxCostFcfa ?? dailyBudgetFcfa();
+  await mapLimit(ids, opts.concurrency ?? 6, async (id) => {
+    if (out.costFcfa >= cap) { out.stoppedByBudget = true; return; }
+    const r = await analyzeConversation(id, isPast ? { asOf: end, ignoreDailyBudget: true, triggeredBy: opts.triggeredBy || 'report' } : { triggeredBy: opts.triggeredBy || 'report' });
+    if (r.ok) { out.analyzed += 1; out.costFcfa += r.usage?.costFcfa || 0; }
+    else if (r.skipped === 'plafond de coût du jour atteint') out.stoppedByBudget = true;
+    else if (r.skipped) out.skipped += 1;
+    else if (r.error) out.errors.push(r.error);
+  });
+  out.costFcfa = Math.round(out.costFcfa * 100) / 100;
+  return out;
 }
 
 export interface DailyReport {
@@ -309,17 +384,30 @@ export interface DailyReport {
   updated_at?: string;
 }
 
-/** Rapport du jour (fuseau du pays), idempotent : upsert par date. */
-export async function buildDailyReport(now: Date = new Date()): Promise<{ ok: boolean; report?: DailyReport; error?: string }> {
-  const dayKey = bucketKey(now.toISOString(), 'day', COUNTRY.timezone);
+/**
+ * Rapport d'un jour (fuseau du pays ; par défaut aujourd'hui), idempotent :
+ * upsert par date. Porte sur les conversations ACTIVES ce jour-là ; avec
+ * `ensure` (défaut), analyse d'abord celles qui ne l'ont pas encore été.
+ */
+export async function buildDailyReport(input: Date | { day?: string; now?: Date; ensure?: boolean; maxCostFcfa?: number } = new Date()): Promise<{ ok: boolean; report?: DailyReport; error?: string; ensured?: Awaited<ReturnType<typeof ensureDayAnalyses>> }> {
+  const opts = input instanceof Date ? { now: input } : input;
+  const realNow = opts.now || new Date();
+  const dayKey = isDayKey(opts.day) ? opts.day : bucketKey(realNow.toISOString(), 'day', COUNTRY.timezone);
+  const { start, end } = dayBounds(dayKey, COUNTRY.timezone);
+  const isPast = end <= realNow.toISOString();
+  const asOf = isPast ? end : realNow.toISOString();
+  let ensured: Awaited<ReturnType<typeof ensureDayAnalyses>> | undefined;
   let data: { rows: AnalyzedConversation[]; cost: number };
   try {
-    data = await analyzedConversationsSince(new Date(now.getTime() - 36 * 3_600_000).toISOString(), dayKey);
+    if (opts.ensure !== false) ensured = await ensureDayAnalyses(dayKey, { now: realNow, maxCostFcfa: opts.maxCostFcfa });
+    const ids = await conversationsActiveOn(dayKey);
+    data = await analyzedConversationsSince(start, undefined, { end: asOf, ids });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Erreur' };
   }
+  const now = new Date(asOf);
   const breakdown = aggregateReport(data.rows, now);
-  const pc = await pendingCarts();
+  const pc = await pendingCarts(isPast ? end : undefined);
   let insights: string[] = [];
   let recommendations: string | null = null;
   let usage = { model: null as string | null, inputTokens: 0, outputTokens: 0, cost: 0 };
@@ -351,12 +439,24 @@ export async function buildDailyReport(now: Date = new Date()): Promise<{ ok: bo
     .from('wa_daily_reports')
     .upsert({ ...report, model: usage.model, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, updated_at: new Date().toISOString() }, { onConflict: 'report_date' });
   if (error) return { ok: false, error: /does not exist|schema cache/i.test(error.message) ? 'Migration « conversation_analysis » non appliquée' : error.message };
-  return { ok: true, report };
+  return { ok: true, report, ensured };
 }
 
 export async function reportExists(dayKey: string): Promise<boolean> {
   const { data } = await supabaseAdmin.from('wa_daily_reports').select('id').eq('report_date', dayKey).maybeSingle();
   return !!data;
+}
+
+/** Rapport d'une date précise, ou null. */
+export async function reportByDate(dayKey: string): Promise<DailyReport | null> {
+  const { data } = await supabaseAdmin.from('wa_daily_reports').select('*').eq('report_date', dayKey).maybeSingle();
+  return (data as DailyReport | null) || null;
+}
+
+/** Dates des rapports disponibles (plus récent d'abord). */
+export async function reportDates(limit = 90): Promise<string[]> {
+  const { data } = await supabaseAdmin.from('wa_daily_reports').select('report_date').order('report_date', { ascending: false }).limit(limit);
+  return ((data || []) as { report_date: string }[]).map((r) => r.report_date);
 }
 
 export async function latestReport(): Promise<DailyReport | null> {

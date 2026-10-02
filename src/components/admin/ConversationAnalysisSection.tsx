@@ -29,6 +29,7 @@ interface Data {
   costFcfa?: number;
   pendingCarts?: { count: number; total: number };
   report?: Report | null;
+  reportDates?: string[];
   llm: { provider: string; model: string; configured: boolean; keyVar?: string };
 }
 
@@ -41,26 +42,30 @@ export default function ConversationAnalysisSection({ period }: { period: Period
   const [data, setData] = useState<Data | null>(null);
   const [building, setBuilding] = useState(false);
   const [msg, setMsg] = useState('');
+  const [reportDay, setReportDay] = useState('');
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/admin/stats/conversation-analysis?period=${period}`)
+    fetch(`/api/admin/stats/conversation-analysis?period=${period}${reportDay ? `&report=${reportDay}` : ''}`)
       .then((r) => r.json())
       .then((d: Data) => alive && setData(d))
       .catch(() => alive && setData({ available: false, error: 'Synthèse indisponible', llm: { provider: '', model: '', configured: false } }));
     return () => {
       alive = false;
     };
-  }, [period]);
+  }, [period, reportDay]);
 
   const buildReport = async () => {
     setBuilding(true);
     setMsg('');
     try {
-      const r = await fetch('/api/cron/conversation-report', { method: 'POST' });
+      const r = await fetch(`/api/cron/conversation-report${reportDay ? `?date=${reportDay}` : ''}`, { method: 'POST' });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) setMsg(d.error || 'Rapport impossible');
-      else setData((x) => (x ? { ...x, report: d.report } : x));
+      else {
+        setData((x) => (x ? { ...x, report: d.report, reportDates: x.reportDates?.includes(d.report?.report_date) ? x.reportDates : [d.report?.report_date, ...(x.reportDates || [])].filter(Boolean).sort().reverse() } : x));
+        if (d.ensured) setMsg(`${d.ensured.active} conversation(s) actives ce jour-là · ${d.ensured.analyzed} analysée(s) maintenant · ${d.ensured.skipped} déjà à jour${d.ensured.errors?.length ? ` · ${d.ensured.errors.length} erreur(s) : ${d.ensured.errors[0]}` : ''}${d.ensured.stoppedByBudget ? ' · plafond de coût atteint, relancez plus tard' : ''}`);
+      }
     } finally {
       setBuilding(false);
     }
@@ -228,12 +233,20 @@ export default function ConversationAnalysisSection({ period }: { period: Period
       <div className={card}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className={h3}>Rapport du jour</h3>
+          <div className="flex flex-wrap items-center gap-2">
+          <select value={reportDay} onChange={(e) => setReportDay(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" aria-label="Jour du rapport">
+            <option value="">Dernier rapport</option>
+            {(data.reportDates || []).map((d) => (
+              <option key={d} value={d}>{new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}</option>
+            ))}
+          </select>
           <button type="button" onClick={buildReport} disabled={building} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200">
-            {building && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Générer maintenant
+            {building && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {reportDay ? 'Analyser et régénérer ce jour' : 'Analyser et générer maintenant'}
           </button>
+          </div>
         </div>
         {!data.report ? (
-          <p className="mt-2 text-sm text-slate-500">Pas encore de rapport. Il se génère chaque soir à 21 h (heure locale).</p>
+          <p className="mt-2 text-sm text-slate-500">Pas encore de rapport. Il se génère chaque soir à 21 h (heure locale) après analyse de toutes les conversations du jour, et se complète le lendemain.</p>
         ) : (
           <div className="mt-2 space-y-2 text-sm text-slate-700 dark:text-slate-200">
             <p className="text-xs text-slate-500">
