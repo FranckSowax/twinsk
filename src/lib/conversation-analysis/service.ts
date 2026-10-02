@@ -148,8 +148,9 @@ export async function analyzeConversation(conversationId: string, opts: { force?
     system: systemPrompt(),
     messages: [{ role: 'user', content: `Conversation à analyser :\n${dialogue.text}\n\nRéponds uniquement par le JSON demandé.` }],
     jsonMode: true,
-    maxTokens: 2000,
-    timeoutMs: 60_000,
+    // Le raisonnement (obligatoire sur GLM Flash) consomme une partie du budget : marge pour les longues conversations.
+    maxTokens: 3500,
+    timeoutMs: 90_000,
   });
   if (!llm.ok) {
     console.error(`[analysis] ${c.id} : ${llm.error}`);
@@ -362,7 +363,9 @@ export async function ensureDayAnalyses(dayKey: string, opts: { now?: Date; conc
   const cap = opts.maxCostFcfa ?? dailyBudgetFcfa();
   await mapLimit(ids, opts.concurrency ?? 6, async (id) => {
     if (out.costFcfa >= cap) { out.stoppedByBudget = true; return; }
-    const r = await analyzeConversation(id, isPast ? { asOf: end, ignoreDailyBudget: true, triggeredBy: opts.triggeredBy || 'report' } : { triggeredBy: opts.triggeredBy || 'report' });
+    // Jour passé : état à la fin du jour ; aujourd'hui : état à cet instant (même si la
+    // conversation est en cours ou n'a qu'un message client — le rapport les couvre toutes).
+    const r = await analyzeConversation(id, { asOf: isPast ? end : new Date().toISOString(), ignoreDailyBudget: isPast, triggeredBy: opts.triggeredBy || 'report' });
     if (r.ok) { out.analyzed += 1; out.costFcfa += r.usage?.costFcfa || 0; }
     else if (r.skipped === 'plafond de coût du jour atteint') out.stoppedByBudget = true;
     else if (r.skipped) out.skipped += 1;
@@ -401,11 +404,12 @@ export async function buildDailyReport(input: Date | { day?: string; now?: Date;
   try {
     if (opts.ensure !== false) ensured = await ensureDayAnalyses(dayKey, { now: realNow, maxCostFcfa: opts.maxCostFcfa });
     const ids = await conversationsActiveOn(dayKey);
-    data = await analyzedConversationsSince(start, undefined, { end: asOf, ids });
+    // Borne haute prise APRÈS les analyses (sinon celles qu'on vient de faire seraient exclues).
+    data = await analyzedConversationsSince(start, undefined, { end: isPast ? end : new Date().toISOString(), ids });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Erreur' };
   }
-  const now = new Date(asOf);
+  const now = isPast ? new Date(asOf) : new Date();
   const breakdown = aggregateReport(data.rows, now);
   const pc = await pendingCarts(isPast ? end : undefined);
   let insights: string[] = [];
