@@ -6,7 +6,7 @@
 // arrive dans l'onglet « Recherches WhatsApp » (/admin/recherches).
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, ExternalLink, Loader2, Search } from 'lucide-react';
+import { Check, ExternalLink, Loader2, Search, X } from 'lucide-react';
 import type { MessageRow } from '@/lib/wa-inbox-data';
 import { INBOX_RESEARCH_MAX_IMAGES, WA_SEARCH_STATUS_LABEL, type WaSearchStatus } from '@/lib/inbox-research';
 import { inboxMediaSrc } from '@/lib/wa-inbox';
@@ -26,11 +26,13 @@ export default function ResearchPanel({
   messages,
   fetcher,
   asAgent,
+  onClose,
 }: {
   conversationId: string;
   messages: MessageRow[];
   fetcher: Fetcher;
   asAgent: boolean;
+  onClose: () => void;
 }) {
   const [list, setList] = useState<Research[] | null>(null);
   const [text, setText] = useState('');
@@ -87,6 +89,14 @@ export default function ResearchPanel({
 
   return (
     <div className="space-y-3 border-b border-sky-200 bg-sky-50 p-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-sky-900 dark:text-sky-200">
+          <Search className="h-4 w-4" /> Recherche pour ce client
+        </p>
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-sky-100 dark:hover:bg-sky-900/40" aria-label="Fermer la recherche" title="Fermer">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
       {missing && <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800">{missing}</p>}
       {list && list.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">

@@ -468,7 +468,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                 <button type="button" onClick={() => setPanel(panel === 'research' ? null : 'research')} className={`${btn} ${panel === 'research' ? 'border-sky-300 text-sky-700' : ''}`} title="Noter la demande du client et y joindre ses photos : elle part en recherche"><Search className="h-3.5 w-3.5" /> Recherche</button>
               </div>
               {panel === 'research' && (
-                <ResearchPanel key={conv.id} conversationId={conv.id} messages={thread?.messages || []} fetcher={api} asAgent={as === 'agent'} />
+                <ResearchPanel key={conv.id} conversationId={conv.id} messages={thread?.messages || []} fetcher={api} asAgent={as === 'agent'} onClose={() => setPanel(null)} />
               )}
               {panel === 'note' && (
                 <div className="border-b border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
