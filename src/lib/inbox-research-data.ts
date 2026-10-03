@@ -3,18 +3,34 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { fetchWhapiMedia, getWhapiMessageMedia } from '@/lib/whapi';
+import { fetchWhapiMedia, getWhapiMessageMedia, sendWhapiButtonLink, sendWhapiText } from '@/lib/whapi';
+import { resolveWhatsappChatId } from '@/lib/whatsapp-number';
+import { recordOutboundMessages } from '@/lib/wa-inbox-data';
+import { COUNTRY } from '@/config/countries';
 import {
   INBOX_RESEARCH_MAX_IMAGES,
   INBOX_RESEARCH_TEXT_MAX,
+  AGENT_CLAIM_TTL_HOURS,
   appendSearchText,
+  buildProposalMessage,
+  defaultOfferTitle,
+  isHttpUrl,
   isMissingTable,
+  offerIdFromUrl,
+  searchLink,
   searchNumber,
+  sendBlockers,
   type WaSearchStatus,
 } from '@/lib/inbox-research';
 import type { InboxActor } from '@/lib/wa-inbox-data';
 
 export const MIGRATION_MISSING = 'Recherches WhatsApp : la migration 20261004000000_wa_searches n’est pas encore appliquée sur ce pays.';
+export const OFFERS_MIGRATION_MISSING = 'Offres des recherches : la migration 20261004010000_wa_search_offers n’est pas encore appliquée sur ce pays.';
+
+/** Colonne absente (migration des offres pas encore appliquée). */
+function isMissingColumn(error: { code?: string; message?: string } | null | undefined): boolean {
+  return !!error && (error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist|could not find the .* column/i.test(error.message || ''));
+}
 
 export interface WaSearchImage {
   id: string;
@@ -36,9 +52,28 @@ export interface WaSearch {
   created_at: string;
   updated_at: string;
   images: WaSearchImage[];
+  /** Champs de la migration 20261004010000 (absents avant). */
+  interpretation: string | null;
+  offer_id: string | null;
+  offer_url: string | null;
+  offer: { id: string; title: string; status: string } | null;
+  agent_claimed_at: string | null;
+  agent_claimed_by: string | null;
+  checked_at: string | null;
+  checked_by: string | null;
+  sent_at: string | null;
+  sent_by: string | null;
 }
 
-const SELECT = 'id, source, conversation_id, client_name, client_phone, request, status, note, created_by, created_at, updated_at, wa_search_images(id, url, caption, created_at)';
+const SELECT_BASE = 'id, source, conversation_id, client_name, client_phone, request, status, note, created_by, created_at, updated_at, wa_search_images(id, url, caption, created_at)';
+const SELECT_FULL = `${SELECT_BASE}, interpretation, offer_id, offer_url, agent_claimed_at, agent_claimed_by, checked_at, checked_by, sent_at, sent_by, offer:offers(id, title, status)`;
+
+/** Lecture tolérante : sans la migration des offres, on relit sans ses colonnes. */
+async function selectSearches(build: (select: string) => PromiseLike<{ data: unknown[] | null; error: { code?: string; message: string } | null }>) {
+  const full = await build(SELECT_FULL);
+  if (full.error && isMissingColumn(full.error)) return build(SELECT_BASE);
+  return full;
+}
 
 function toSearch(r: Record<string, unknown>): WaSearch {
   const imgs = ((r.wa_search_images as (WaSearchImage & { created_at: string })[] | null) || [])
@@ -59,6 +94,16 @@ function toSearch(r: Record<string, unknown>): WaSearch {
     created_at: r.created_at as string,
     updated_at: r.updated_at as string,
     images: imgs,
+    interpretation: (r.interpretation as string | null) ?? null,
+    offer_id: (r.offer_id as string | null) ?? null,
+    offer_url: (r.offer_url as string | null) ?? null,
+    offer: (r.offer as WaSearch['offer']) ?? null,
+    agent_claimed_at: (r.agent_claimed_at as string | null) ?? null,
+    agent_claimed_by: (r.agent_claimed_by as string | null) ?? null,
+    checked_at: (r.checked_at as string | null) ?? null,
+    checked_by: (r.checked_by as string | null) ?? null,
+    sent_at: (r.sent_at as string | null) ?? null,
+    sent_by: (r.sent_by as string | null) ?? null,
   };
 }
 
@@ -66,33 +111,171 @@ export type ListResult = { ok: true; items: WaSearch[] } | { ok: false; error: s
 
 /** Recherches d'une conversation (messagerie), la plus récente d'abord. */
 export async function listConversationSearches(conversationId: string): Promise<ListResult> {
-  const { data, error } = await supabaseAdmin
-    .from('wa_searches')
-    .select(SELECT)
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  const { data, error } = await selectSearches((sel) =>
+    supabaseAdmin.from('wa_searches').select(sel).eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(20),
+  );
   if (error) return isMissingTable(error) ? { ok: false, error: MIGRATION_MISSING, missing: true } : { ok: false, error: error.message };
   return { ok: true, items: (data || []).map((r) => toSearch(r as Record<string, unknown>)) };
 }
 
 /** Toutes les recherches (onglet « Recherches WhatsApp »), filtrées par statut. */
 export async function listWaSearches(status: WaSearchStatus | null): Promise<ListResult> {
-  let q = supabaseAdmin.from('wa_searches').select(SELECT).order('created_at', { ascending: false }).limit(300);
-  if (status) q = q.eq('status', status);
-  const { data, error } = await q;
+  const { data, error } = await selectSearches((sel) => {
+    let q = supabaseAdmin.from('wa_searches').select(sel).order('created_at', { ascending: false }).limit(300);
+    if (status) q = q.eq('status', status);
+    return q;
+  });
   if (error) return isMissingTable(error) ? { ok: false, error: MIGRATION_MISSING, missing: true } : { ok: false, error: error.message };
   return { ok: true, items: (data || []).map((r) => toSearch(r as Record<string, unknown>)) };
 }
 
-/** Change le statut et/ou la note interne d'une recherche. */
-export async function updateWaSearch(id: string, patch: { status?: WaSearchStatus; note?: string | null }): Promise<{ ok: boolean; error?: string }> {
+/** Une recherche par son id (lecture complète). */
+export async function getWaSearch(id: string): Promise<WaSearch | null> {
+  const { data } = await selectSearches((sel) => supabaseAdmin.from('wa_searches').select(sel).eq('id', id).limit(1));
+  const row = (data || [])[0];
+  return row ? toSearch(row as Record<string, unknown>) : null;
+}
+
+export interface WaSearchPatch {
+  status?: WaSearchStatus;
+  note?: string | null;
+  interpretation?: string | null;
+  /** Lien collé à la main (null = retirer). Un lien /offer/<id> du site rattache aussi l'offre. */
+  offer_url?: string | null;
+  /** Offre du site rattachée (null = détacher). */
+  offer_id?: string | null;
+  /** Vérification humaine (marges, complétude) : true = vérifiée maintenant, false = à refaire. */
+  checked?: boolean;
+}
+
+/** Met à jour une recherche (statut, note, interprétation, lien/offre, vérification). */
+export async function updateWaSearch(id: string, patch: WaSearchPatch, actorName: string): Promise<{ ok: boolean; error?: string; status?: number }> {
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.status) update.status = patch.status;
   if (patch.note !== undefined) update.note = patch.note ? patch.note.slice(0, 2000) : null;
+  if (patch.interpretation !== undefined) update.interpretation = patch.interpretation ? patch.interpretation.slice(0, 4000) : null;
+
+  let linkChanged = false;
+  if (patch.offer_url !== undefined) {
+    const url = (patch.offer_url || '').trim();
+    if (url && !isHttpUrl(url)) return { ok: false, error: 'Lien invalide (http ou https attendu).', status: 400 };
+    const fromUrl = url ? offerIdFromUrl(url) : null;
+    if (fromUrl) {
+      // Lien vers une offre du site : on rattache l'offre (publication à l'envoi, vérification possible dans l'admin).
+      const { data: offer } = await supabaseAdmin.from('offers').select('id').eq('id', fromUrl).maybeSingle();
+      if (!offer) return { ok: false, error: 'Ce lien pointe vers une offre introuvable.', status: 400 };
+      update.offer_id = fromUrl;
+      update.offer_url = null;
+    } else {
+      update.offer_url = url || null;
+    }
+    linkChanged = true;
+  }
+  if (patch.offer_id !== undefined) {
+    if (patch.offer_id) {
+      const { data: offer } = await supabaseAdmin.from('offers').select('id').eq('id', patch.offer_id).maybeSingle();
+      if (!offer) return { ok: false, error: 'Offre introuvable.', status: 400 };
+    }
+    update.offer_id = patch.offer_id || null;
+    linkChanged = true;
+  }
+  // Nouveau lien = nouvelle vérification.
+  if (linkChanged) {
+    update.checked_at = null;
+    update.checked_by = null;
+  }
+  if (patch.checked !== undefined) {
+    update.checked_at = patch.checked ? new Date().toISOString() : null;
+    update.checked_by = patch.checked ? actorName : null;
+  }
   const { error } = await supabaseAdmin.from('wa_searches').update(update).eq('id', id);
-  if (error) return { ok: false, error: isMissingTable(error) ? MIGRATION_MISSING : error.message };
+  if (error) {
+    const msg = isMissingTable(error) ? MIGRATION_MISSING : isMissingColumn(error) ? OFFERS_MIGRATION_MISSING : error.message;
+    return { ok: false, error: msg, status: 500 };
+  }
   return { ok: true };
+}
+
+/**
+ * Prise en charge par l'agent : la recherche passe « En recherche » et
+ * personne d'autre ne la reprend pendant AGENT_CLAIM_TTL_HOURS. Atomique :
+ * seule la première demande gagne.
+ */
+export async function claimWaSearch(id: string, actorName: string): Promise<{ ok: boolean; error?: string; status?: number }> {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - AGENT_CLAIM_TTL_HOURS * 3_600_000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('wa_searches')
+    .update({ agent_claimed_at: now.toISOString(), agent_claimed_by: actorName, status: 'searching', updated_at: now.toISOString() })
+    .eq('id', id)
+    .in('status', ['new', 'searching'])
+    .or(`agent_claimed_at.is.null,agent_claimed_at.lt."${staleBefore}"`)
+    .select('id');
+  if (error) return { ok: false, error: isMissingColumn(error) ? OFFERS_MIGRATION_MISSING : error.message, status: 500 };
+  if (!data?.length) return { ok: false, error: 'Recherche déjà prise en charge, traitée ou introuvable.', status: 409 };
+  return { ok: true };
+}
+
+/** Crée une offre B2C en brouillon rattachée à la recherche (l'agent ou l'équipe y charge les produits). */
+export async function createSearchOffer(id: string, args: { title?: string; theme?: string | null }): Promise<{ ok: true; offerId: string } | { ok: false; error: string; status: number }> {
+  const search = await getWaSearch(id);
+  if (!search) return { ok: false, error: 'Recherche introuvable', status: 404 };
+  if (search.offer_id) return { ok: true, offerId: search.offer_id };
+  const title = (args.title || '').trim().slice(0, 120) || defaultOfferTitle(search);
+  const { data: offer, error } = await supabaseAdmin
+    .from('offers')
+    .insert({
+      title,
+      theme: args.theme?.trim() || null,
+      description: (search.interpretation || search.request || '').slice(0, 1000) || null,
+      status: 'draft',
+    })
+    .select('id')
+    .single();
+  if (error || !offer) return { ok: false, error: `Offre non créée : ${error?.message || 'erreur'}`, status: 500 };
+  const linked = await updateWaSearch(id, { offer_id: offer.id as string }, 'agent');
+  if (!linked.ok) return { ok: false, error: linked.error || 'Offre créée mais non rattachée', status: 500 };
+  return { ok: true, offerId: offer.id as string };
+}
+
+/**
+ * Envoie l'offre au client sur WhatsApp : seulement si un lien existe et
+ * qu'une personne l'a vérifiée. Une offre du site encore en brouillon est
+ * publiée à ce moment-là (le client doit pouvoir l'ouvrir).
+ */
+export async function sendSearchToClient(id: string, actor: InboxActor, origin: string): Promise<{ ok: true; link: string } | { ok: false; error: string; status: number }> {
+  const search = await getWaSearch(id);
+  if (!search) return { ok: false, error: 'Recherche introuvable', status: 404 };
+  const blockers = sendBlockers(search);
+  if (blockers.length) return { ok: false, error: `Envoi impossible : ${blockers.join(', ')}.`, status: 400 };
+  const link = searchLink(origin, search)!;
+  const chatId = await resolveWhatsappChatId(search.client_phone);
+  if (!chatId) return { ok: false, error: 'Numéro WhatsApp du client inutilisable.', status: 400 };
+
+  if (search.offer_id && search.offer?.status !== 'published') {
+    const { error } = await supabaseAdmin.from('offers').update({ status: 'published' }).eq('id', search.offer_id);
+    if (error) return { ok: false, error: `Publication de l’offre impossible : ${error.message}`, status: 500 };
+  }
+
+  const body = buildProposalMessage({ clientName: search.client_name, brand: COUNTRY.brand, request: search.interpretation || search.request });
+  let r = await sendWhapiButtonLink({ body, buttonTitle: 'Voir la sélection', url: link, to: chatId });
+  let sentText = body;
+  let buttons: { title: string; url: string }[] | undefined = [{ title: 'Voir la sélection', url: link }];
+  if (!r.ok) {
+    // Repli si WhatsApp refuse les boutons : lien en clair.
+    sentText = `${body}\n\n👉 ${link}`;
+    buttons = undefined;
+    r = await sendWhapiText(sentText, chatId);
+  }
+  if (!r.ok) return { ok: false, error: `WhatsApp n’a pas accepté le message : ${r.error}`, status: 502 };
+
+  const now = new Date().toISOString();
+  await recordOutboundMessages(chatId.replace(/@.*$/, ''), actor, [{ messageId: r.messageId, type: 'text', text: sentText, buttons, at: now }], search.client_name);
+  await supabaseAdmin
+    .from('wa_searches')
+    .update({ sent_at: now, sent_by: actor.name, status: 'proposal_sent', updated_at: now })
+    .eq('id', id);
+  return { ok: true, link };
 }
 
 /**

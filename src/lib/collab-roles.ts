@@ -48,6 +48,11 @@ export function collabCanAccessPath(role: CollabRole, pathname: string): boolean
 
 /** Onglet « Recherches WhatsApp » : ceux qui les créent (messagerie) et ceux qui les traitent (sourcing). */
 export const WA_SEARCH_ROLES: CollabRole[] = ['whatsapp', 'commandes', 'sourcing', 'production'];
+/**
+ * Vérifier une offre de recherche et l'envoyer au client : une personne, jamais
+ * l'agent Hermes (compte collaborateur « sourcing »).
+ */
+export const WA_SEARCH_SEND_ROLES: CollabRole[] = ['whatsapp', 'commandes', 'production'];
 
 /** Rôles qui répondent aux clients dans la messagerie et créent des paniers. */
 export const INBOX_ROLES: CollabRole[] = ['whatsapp', 'commandes'];

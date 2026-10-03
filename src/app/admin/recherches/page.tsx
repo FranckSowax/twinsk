@@ -2,14 +2,15 @@
 
 // Recherches WhatsApp : ce que les clients cherchent, noté depuis la messagerie
 // (bouton « Recherche ») avec leurs photos. Table à part des demandes de devis
-// (`wa_searches`). L'équipe suit chaque recherche : statut, note interne,
-// retour à la conversation.
+// (`wa_searches`). L'agent Hermes les interprète et fait créer une offre B2C
+// (brouillon) ; l'équipe peut aussi coller un lien. Une personne vérifie
+// l'offre (marges, complétude) puis l'envoie au client sur WhatsApp.
 
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, Loader2, MessageCircle, RefreshCw, Search } from 'lucide-react';
+import { Bot, CheckCircle2, ExternalLink, Link2, Loader2, MessageCircle, Pencil, Plus, RefreshCw, Search, Send } from 'lucide-react';
 import { COUNTRY } from '@/config/countries';
 import { formatPhone } from '@/lib/phone';
-import { WA_SEARCH_STATUSES, WA_SEARCH_STATUS_LABEL, type WaSearchStatus } from '@/lib/inbox-research';
+import { WA_SEARCH_STATUSES, WA_SEARCH_STATUS_LABEL, buildProposalMessage, claimExpired, sendBlockers, type WaSearchStatus } from '@/lib/inbox-research';
 
 interface SearchRow {
   id: string;
@@ -23,7 +24,20 @@ interface SearchRow {
   created_by: string | null;
   created_at: string;
   images: { id: string; url: string; caption: string | null }[];
+  interpretation: string | null;
+  offer_id: string | null;
+  offer_url: string | null;
+  offer: { id: string; title: string; status: string } | null;
+  agent_claimed_at: string | null;
+  agent_claimed_by: string | null;
+  checked_at: string | null;
+  checked_by: string | null;
+  sent_at: string | null;
+  sent_by: string | null;
 }
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleString('fr-FR', { timeZone: COUNTRY.timezone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 const STATUS_STYLE: Record<WaSearchStatus, string> = {
   new: 'bg-sky-100 text-sky-800',
@@ -42,6 +56,8 @@ export default function WaSearchesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [zoom, setZoom] = useState<string | null>(null);
+  const [links, setLinks] = useState<Record<string, string>>({});
+  const [flash, setFlash] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/wa-searches${filter === 'all' ? '' : `?status=${filter}`}`).catch(() => null);
@@ -62,14 +78,25 @@ export default function WaSearchesPage() {
     if (id) document.getElementById(`search-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [items]);
 
-  const patch = async (id: string, body: { status?: WaSearchStatus; note?: string | null }) => {
+  const call = async (id: string, path: string, method: 'PATCH' | 'POST', body: Record<string, unknown> = {}, ok?: string) => {
     setBusy(id);
+    setFlash((f) => ({ ...f, [id]: '' }));
     try {
-      await fetch(`/api/wa-searches/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      await load();
+      const r = await fetch(`/api/wa-searches/${id}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      setFlash((f) => ({ ...f, [id]: r.ok ? (ok ? `✅ ${ok}` : '') : `⚠️ ${d.error || 'Échec'}` }));
+      if (r.ok) await load();
+      return r.ok ? d : null;
     } finally {
       setBusy(null);
     }
+  };
+  const patch = (id: string, body: Record<string, unknown>, ok?: string) => call(id, '', 'PATCH', body, ok);
+
+  const send = (s: SearchRow) => {
+    const message = buildProposalMessage({ clientName: s.client_name, brand: COUNTRY.brand, request: s.interpretation || s.request });
+    if (!window.confirm(`Envoyer à ${s.client_name || formatPhone(s.client_phone)} sur WhatsApp ?\n\n${message}\n\n[ Voir la sélection ]${s.offer_id && s.offer?.status !== 'published' ? '\n\nL’offre sera publiée pour que le client puisse l’ouvrir.' : ''}`)) return;
+    call(s.id, '/send', 'POST', {}, 'Envoyée au client');
   };
 
   const shown = (items || []).filter((s) => {
@@ -138,7 +165,7 @@ export default function WaSearchesPage() {
                   <select
                     value={s.status}
                     disabled={busy === s.id}
-                    onChange={(e) => patch(s.id, { status: e.target.value as WaSearchStatus })}
+                    onChange={(e) => patch(s.id, { status: e.target.value })}
                     className={`rounded-full border-0 px-3 py-1 text-xs font-semibold ${STATUS_STYLE[s.status]}`}
                   >
                     {WA_SEARCH_STATUSES.map((st) => (
@@ -165,6 +192,123 @@ export default function WaSearchesPage() {
                   ))}
                 </div>
               )}
+
+              {/* Proposition au client : interprétation, offre ou lien, vérification, envoi */}
+              <div className="mt-3 space-y-2.5 rounded-xl border border-violet-200 bg-violet-50/50 p-3 dark:border-violet-900/40 dark:bg-violet-950/10">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-violet-800 dark:text-violet-300">Proposition au client</p>
+                  {s.agent_claimed_at && !claimExpired(s.agent_claimed_at) && !s.offer_id && !s.offer_url && (
+                    <span className="flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-slate-900">
+                      <Bot className="h-3 w-3" /> {s.agent_claimed_by || 'Agent'} cherche depuis {when(s.agent_claimed_at)}
+                    </span>
+                  )}
+                  {s.sent_at && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      Envoyée le {when(s.sent_at)}{s.sent_by ? ` par ${s.sent_by}` : ''}
+                    </span>
+                  )}
+                </div>
+
+                {s.interpretation && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500">Interprétation de la demande</p>
+                    <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{s.interpretation}</p>
+                  </div>
+                )}
+
+                {s.offer_id ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 dark:bg-slate-900">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{s.offer?.title || 'Offre rattachée'}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.offer?.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {s.offer?.status === 'published' ? 'publiée' : 'brouillon'}
+                    </span>
+                    <a href={`/admin/offer/${s.offer_id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">
+                      <Pencil className="h-3.5 w-3.5" /> Vérifier et modifier (marges)
+                    </a>
+                    {s.offer?.status === 'published' && (
+                      <a href={`/offer/${s.offer_id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">
+                        <ExternalLink className="h-3.5 w-3.5" /> Page client
+                      </a>
+                    )}
+                    <button type="button" disabled={busy === s.id} onClick={() => window.confirm('Détacher cette offre de la recherche ? (l’offre n’est pas supprimée)') && patch(s.id, { offer_id: null }, 'Offre détachée')} className="text-xs font-semibold text-slate-500 underline">
+                      Détacher
+                    </button>
+                  </div>
+                ) : s.offer_url ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 dark:bg-slate-900">
+                    <Link2 className="h-4 w-4 text-slate-400" />
+                    <a href={s.offer_url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm font-semibold text-violet-700 underline">{s.offer_url}</a>
+                    <button type="button" disabled={busy === s.id} onClick={() => patch(s.id, { offer_url: null }, 'Lien retiré')} className="text-xs font-semibold text-slate-500 underline">
+                      Retirer
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Pas encore d’offre : l’agent Hermes la prépare, ou collez un lien ci-dessous.</p>
+                )}
+
+                {!s.offer_id && (
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      value={links[s.id] ?? ''}
+                      onChange={(e) => setLinks((l) => ({ ...l, [s.id]: e.target.value }))}
+                      placeholder="Coller un lien d’offre (https://…/offer/… ou autre)"
+                      className="min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+                    />
+                    <button
+                      type="button"
+                      disabled={busy === s.id || !(links[s.id] || '').trim()}
+                      onClick={async () => {
+                        if (await patch(s.id, { offer_url: (links[s.id] || '').trim() }, 'Lien enregistré')) setLinks((l) => ({ ...l, [s.id]: '' }));
+                      }}
+                      className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                    >
+                      Enregistrer le lien
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy === s.id}
+                      onClick={async () => {
+                        const d = await call(s.id, '/offer', 'POST', {}, 'Offre B2C créée (brouillon)');
+                        if (d?.admin_url) window.open(d.admin_url, '_blank', 'noopener');
+                      }}
+                      className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Créer une offre B2C vide
+                    </button>
+                  </div>
+                )}
+
+                {(s.offer_id || s.offer_url) && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={!!s.checked_at}
+                        disabled={busy === s.id}
+                        onChange={(e) => patch(s.id, { checked: e.target.checked }, e.target.checked ? 'Offre vérifiée' : '')}
+                        className="h-4 w-4 accent-emerald-500"
+                      />
+                      J’ai vérifié : sélection complète, marges appliquées
+                    </label>
+                    {s.checked_at && (
+                      <span className="flex items-center gap-1 text-xs text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {s.checked_by ? `${s.checked_by}, ` : ''}{when(s.checked_at)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={busy === s.id || sendBlockers(s).length > 0}
+                      title={sendBlockers(s).join(' · ') || 'Envoyer le lien au client sur WhatsApp'}
+                      onClick={() => send(s)}
+                      className="ml-auto flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                    >
+                      {busy === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      {s.sent_at ? 'Renvoyer au client' : 'Envoyer au client'}
+                    </button>
+                  </div>
+                )}
+                {flash[s.id] && <p className="text-xs text-slate-700 dark:text-slate-200">{flash[s.id]}</p>}
+              </div>
 
               <textarea
                 value={notes[s.id] ?? s.note ?? ''}
