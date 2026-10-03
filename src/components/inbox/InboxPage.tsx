@@ -93,6 +93,11 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [pins, setPins] = useState<string[]>([]);
   const [listError, setListError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Lien direct vers une conversation (?c=<id>), par ex. depuis « Recherches WhatsApp ».
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get('c');
+    if (c) setSelectedId(c);
+  }, []);
   const [thread, setThread] = useState<{ conversation: ConversationRow; messages: MessageRow[] } | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET: List all requests (admin)
+// GET: List all requests (admin) — hors anciennes copies de commandes
 export async function GET(request: NextRequest) {
   try {
     if (!(await resolveActor(request))) {
@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('requests')
       .select('*, request_items(id, description, search_results(title))')
+      // Anciennes copies de commandes (« Commande issue de l'offre … », avant le
+      // 4 oct. 2026) : elles vivent dans /admin/commandes, pas dans les devis.
+      .or('notes.is.null,notes.not.like.Commande issue de l*')
       .order('created_at', { ascending: false });
 
     if (error) {

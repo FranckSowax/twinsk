@@ -5,7 +5,6 @@
 // confiés au client.
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { CNY_TO_FCFA } from '@/lib/offer-pricing';
 import { isAcompte } from '@/lib/acompte';
 
@@ -208,12 +207,9 @@ export async function createOfferOrder(input: CreateOrderInput): Promise<CreateO
     return { ok: false, status: 500, error: linesErr };
   }
 
-  // 3. Miroir /admin/requests — seulement si le client est déjà connu ; sinon
-  //    la route .../contact le crée quand les coordonnées sont saisies.
-  const requestId =
-    clientName && clientPhone
-      ? await mirrorOrderToRequest({ orderId: orderRow.id, offerTitle: offer.title, clientName, clientPhone, clientEmail })
-      : null;
+  // Plus de copie dans /admin/requests (4 oct. 2026) : une commande vit dans
+  // /admin/commandes ; les demandes de devis et les recherches ont leurs onglets.
+  const requestId: string | null = null;
 
   return {
     ok: true,

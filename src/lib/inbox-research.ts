@@ -1,48 +1,44 @@
-// Recherches clients depuis la messagerie : le collaborateur note ou colle la
-// demande du client et y joint les photos reçues. Une recherche = une ligne
-// `requests` (comme les demandes du groupe Oh My Recherche), reliée à la
-// conversation par un repère dans `notes`. Module pur.
+// Recherches clients venues de WhatsApp : le collaborateur note ou colle, depuis
+// la messagerie, ce que le client cherche et y joint ses photos. Table à part
+// des demandes de devis : `wa_searches` (+ `wa_search_images`), onglet
+// « Recherches WhatsApp ». Module pur.
 
-export const INBOX_RESEARCH_PREFIX = '[inbox]';
 export const INBOX_RESEARCH_MAX_IMAGES = 10;
 export const INBOX_RESEARCH_TEXT_MAX = 4000;
 
-/** Repère stocké dans requests.notes : conversation d'origine + auteur. */
-export function buildResearchNote(conversationId: string, author: string): string {
-  return `${INBOX_RESEARCH_PREFIX} conv:${conversationId} · recherche créée depuis la messagerie par ${author}`;
+export const WA_SEARCH_STATUSES = ['new', 'searching', 'proposal_sent', 'done', 'cancelled'] as const;
+export type WaSearchStatus = (typeof WA_SEARCH_STATUSES)[number];
+export const WA_SEARCH_STATUS_LABEL: Record<WaSearchStatus, string> = {
+  new: 'À traiter',
+  searching: 'En recherche',
+  proposal_sent: 'Proposition envoyée',
+  done: 'Terminée',
+  cancelled: 'Annulée',
+};
+
+export function isWaSearchStatus(v: unknown): v is WaSearchStatus {
+  return typeof v === 'string' && (WA_SEARCH_STATUSES as readonly string[]).includes(v);
 }
 
-/** Motif ILIKE pour retrouver les recherches d'une conversation. */
-export function researchNotePattern(conversationId: string): string {
-  return `%${INBOX_RESEARCH_PREFIX} conv:${conversationId}%`;
-}
-
-export interface ResearchImage {
-  messageId: string;
-  caption: string | null;
-}
-
-export interface ResearchItemDraft {
-  description: string;
-  /** Message WhatsApp dont la photo est jointe (null = ligne texte). */
-  messageId: string | null;
+/** Numéro court lisible : « W-1A2B3C4D ». */
+export function searchNumber(id: string): string {
+  return 'W-' + id.replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
 /**
- * Lignes de la recherche : la demande (texte), puis une ligne par photo jointe,
- * décrite par sa légende ou, à défaut, par le début de la demande.
+ * Texte de la recherche après un ajout : la demande existante, puis l'ajout
+ * signé (auteur), séparés d'une ligne vide. Coupé à la longueur maximale.
  */
-export function researchItems(text: string, images: ResearchImage[]): ResearchItemDraft[] {
-  const demand = text.trim().slice(0, INBOX_RESEARCH_TEXT_MAX);
-  const firstLine = demand.split('\n').map((l) => l.trim()).find(Boolean) || '';
-  const items: ResearchItemDraft[] = [];
-  if (demand) items.push({ description: demand, messageId: null });
-  for (const img of images.slice(0, INBOX_RESEARCH_MAX_IMAGES)) {
-    const caption = (img.caption || '').trim();
-    items.push({
-      description: caption || (firstLine ? `Photo du client — ${firstLine.slice(0, 120)}` : 'Photo envoyée par le client'),
-      messageId: img.messageId,
-    });
-  }
-  return items;
+export function appendSearchText(current: string, addition: string, author: string): string {
+  const add = addition.trim();
+  if (!add) return current;
+  const base = current.trim();
+  const next = base ? `${base}\n\n— Ajout de ${author} :\n${add}` : add;
+  return next.slice(0, INBOX_RESEARCH_TEXT_MAX);
+}
+
+/** Table absente : la migration n'est pas encore appliquée sur ce pays. */
+export function isMissingTable(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === '42P01' || error.code === 'PGRST205' || /could not find the table|does not exist/i.test(error.message || '');
 }

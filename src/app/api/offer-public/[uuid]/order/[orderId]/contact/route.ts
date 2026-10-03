@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { mirrorOrderToRequest } from '@/lib/offer-order-mirror';
 import { sendWhapiText } from '@/lib/whapi';
 import { notifyOrdersGroup } from '@/lib/order-notify';
 import { validateContact } from '@/lib/contact-validation';
@@ -52,7 +51,9 @@ export async function PATCH(
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
 
-  // 2. Miroir /admin/requests (ou mise à jour si déjà créé).
+  // 2. Anciennes commandes recopiées dans /admin/requests (avant le 4 oct. 2026) :
+  //    on garde leurs coordonnées à jour. Les nouvelles commandes ne sont plus
+  //    recopiées : elles vivent dans /admin/commandes uniquement.
   if (order.request_id) {
     await supabaseAdmin
       .from('requests')
@@ -62,19 +63,6 @@ export async function PATCH(
         client_email: clientEmail || null,
       })
       .eq('id', order.request_id);
-  } else {
-    const { data: offer } = await supabaseAdmin
-      .from('offers')
-      .select('title')
-      .eq('id', uuid)
-      .single();
-    await mirrorOrderToRequest({
-      orderId,
-      offerTitle: offer?.title || 'Offre',
-      clientName,
-      clientPhone,
-      clientEmail,
-    });
   }
 
   // Notification à l'affilié (marque blanche) : nouvelle vente sur sa boutique.

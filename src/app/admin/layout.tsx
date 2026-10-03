@@ -30,6 +30,7 @@ import {
   Warehouse,
   Archive, Ticket, Link2,
   FolderKanban,
+  Search,
 } from 'lucide-react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import { AdminLocaleProvider, useAdminT } from '@/components/admin/LocaleProvider';
@@ -56,6 +57,7 @@ const NAV_ITEMS: { href: string; key: TKey; icon: typeof Package }[] = [
   { href: '/admin/bio', key: 'nav.bio', icon: Link2 },
   { href: '/admin/whatsapp', key: 'nav.whatsapp', icon: MessageCircle },
   { href: '/admin/inbox', key: 'nav.inbox', icon: MessagesSquare },
+  { href: '/admin/recherches', key: 'nav.waSearches', icon: Search },
   { href: '/admin/freight', key: 'nav.freight', icon: Ship },
   { href: '/admin/leads', key: 'nav.services', icon: Inbox },
   { href: '/admin/youtube', key: 'nav.youtube', icon: Youtube },

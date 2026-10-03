@@ -20,10 +20,10 @@ export const COLLAB_ROLE_LABEL: Record<CollabRole, string> = {
 /** Préfixes de pages /admin accessibles par rôle (vérifiés via startsWith). */
 export const COLLAB_ROLE_PREFIXES: Record<CollabRole, string[]> = {
   // '/admin/offer' couvre aussi '/admin/offer-b2b' (préfixe commun).
-  production: ['/admin/offer', '/admin/requests', '/admin/revisions', '/admin/archives', '/admin/projets'],
-  commandes: ['/admin/commandes', '/admin/revisions', '/admin/inbox'],
-  sourcing: ['/admin/offer', '/admin/requests', '/admin/archives', '/admin/projets'],
-  whatsapp: ['/admin/inbox'],
+  production: ['/admin/offer', '/admin/requests', '/admin/revisions', '/admin/archives', '/admin/projets', '/admin/recherches'],
+  commandes: ['/admin/commandes', '/admin/revisions', '/admin/inbox', '/admin/recherches'],
+  sourcing: ['/admin/offer', '/admin/requests', '/admin/archives', '/admin/projets', '/admin/recherches'],
+  whatsapp: ['/admin/inbox', '/admin/recherches'],
 };
 
 /** Page d'accueil après connexion, par rôle. */
@@ -36,15 +36,18 @@ export const COLLAB_ROLE_HOME: Record<CollabRole, string> = {
 
 /** Entrées du menu latéral visibles par rôle. */
 export const COLLAB_ROLE_NAV: Record<CollabRole, string[]> = {
-  production: ['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/revisions', '/admin/projets'],
-  commandes: ['/admin/commandes', '/admin/inbox', '/admin/revisions'],
-  sourcing: ['/admin/requests', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/projets'],
-  whatsapp: ['/admin/inbox'],
+  production: ['/admin/requests', '/admin/recherches', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/revisions', '/admin/projets'],
+  commandes: ['/admin/commandes', '/admin/inbox', '/admin/recherches', '/admin/revisions'],
+  sourcing: ['/admin/requests', '/admin/recherches', '/admin/offer', '/admin/offer-b2b', '/admin/archives', '/admin/projets'],
+  whatsapp: ['/admin/inbox', '/admin/recherches'],
 };
 
 export function collabCanAccessPath(role: CollabRole, pathname: string): boolean {
   return (COLLAB_ROLE_PREFIXES[role] || []).some((p) => pathname.startsWith(p));
 }
+
+/** Onglet « Recherches WhatsApp » : ceux qui les créent (messagerie) et ceux qui les traitent (sourcing). */
+export const WA_SEARCH_ROLES: CollabRole[] = ['whatsapp', 'commandes', 'sourcing', 'production'];
 
 /** Rôles qui répondent aux clients dans la messagerie et créent des paniers. */
 export const INBOX_ROLES: CollabRole[] = ['whatsapp', 'commandes'];
