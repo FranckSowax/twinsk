@@ -93,8 +93,13 @@ export default function ResearchPanel({
         <p className="flex items-center gap-1.5 text-sm font-semibold text-sky-900 dark:text-sky-200">
           <Search className="h-4 w-4" /> Recherche pour ce client
         </p>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-sky-100 dark:hover:bg-sky-900/40" aria-label="Fermer la recherche" title="Fermer">
-          <X className="h-4 w-4" />
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:bg-slate-900 dark:text-sky-200"
+          aria-label="Fermer la recherche"
+        >
+          <X className="h-3.5 w-3.5" /> Fermer
         </button>
       </div>
       {missing && <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800">{missing}</p>}
