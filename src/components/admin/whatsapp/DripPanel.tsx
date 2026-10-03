@@ -15,6 +15,7 @@ import { EXTRA_CHANNELS, groupLabel, type CampaignSummary } from './drip-shared'
 import { COUNTRY } from '@/config/countries';
 import { dailyVolume, localHour, normalizeDripConfig, type DripChannel, type DripConfig, type DripFlux } from '@/lib/wa-drip';
 import { phonePrefixDigits } from '@/lib/phone';
+import OfferOptions from '@/components/admin/OfferOptions';
 
 type Channels = Record<DripChannel, boolean>;
 type Config = DripConfig;
@@ -36,7 +37,7 @@ interface State {
   next_batch: MediaPlan[];
   recent: { note: string; done_by: string | null; done_at: string }[];
 }
-interface Offer { id: string; title: string; status: string; archived_at?: string | null }
+interface Offer { id: string; title: string; status: string; archived_at?: string | null; offer_type?: string | null }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800';
@@ -369,9 +370,7 @@ export default function DripPanel({
             <label className={label}>Catalogue du groupe</label>
             <select className={field} value={cfg.offer_id || ''} onChange={(e) => set({ offer_id: e.target.value || null })}>
               <option value="">— choisir —</option>
-              {offers.map((o) => (
-                <option key={o.id} value={o.id}>{o.title}</option>
-              ))}
+              <OfferOptions offers={offers} />
             </select>
             <p className="mt-1 text-xs text-slate-500">Ses produits partent dans le groupe ; son nom et son lien accompagnent les annonces.</p>
           </div>

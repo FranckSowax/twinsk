@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, ImagePlus, Link2, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
 import { DEFAULT_BIO_STEPS, type BioConfig, type BioContacts, type BioListing, type BioStep } from '@/lib/bio-page';
 import { COUNTRY } from '@/config/countries';
+import OfferOptions from '@/components/admin/OfferOptions';
 
 interface OfferRow { id: string; title: string; theme: string | null; offer_type: string | null; cover_image_url: string | null }
 
@@ -166,9 +167,7 @@ export default function AdminBioPage() {
         <div className="mt-3 flex flex-wrap gap-2">
           <select className={`${field} max-w-md`} value={addId} onChange={(e) => setAddId(e.target.value)}>
             <option value="">— ajouter un listing publié —</option>
-            {available.map((o) => (
-              <option key={o.id} value={o.id}>{o.offer_type === 'b2b' ? '💼 ' : '🏠 '}{o.title}</option>
-            ))}
+            <OfferOptions offers={available} />
           </select>
           <button
             type="button"

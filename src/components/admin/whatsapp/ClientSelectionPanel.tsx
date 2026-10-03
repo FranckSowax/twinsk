@@ -14,9 +14,10 @@ import { validateContact } from '@/lib/contact-validation';
 import type { PublicOfferData } from '@/lib/offer-public-fetch';
 import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { COUNTRY } from '@/config/countries';
+import OfferOptions from '@/components/admin/OfferOptions';
 
 type Product = PublicOfferData['items'][number]['products'][number];
-interface Offer { id: string; title: string; status: string; archived_at?: string | null }
+interface Offer { id: string; title: string; status: string; archived_at?: string | null; offer_type?: string | null }
 interface Selection {
   id: string;
   offer_id: string;
@@ -167,7 +168,7 @@ export default function ClientSelectionPanel({
         <div className={`${compact ? '' : 'mt-4 '}grid gap-3 sm:grid-cols-3`}>
           <select value={offerId} onChange={(e) => setOfferId(e.target.value)} className={input}>
             <option value="">Listing…</option>
-            {offers.map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
+            <OfferOptions offers={offers} />
           </select>
           <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nom du client" className={input} />
           <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={`WhatsApp (${COUNTRY.phoneExample})`} className={input} />

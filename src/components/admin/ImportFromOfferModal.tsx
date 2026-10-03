@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Loader2, Check, PackagePlus, ArrowLeft, ChevronRight } from 'lucide-react';
 import { formatCNY } from '@/lib/utils/formatCurrency';
+import { groupOffersByKind } from '@/lib/offer-groups';
 
 interface OfferListItem {
   id: string;
   title: string;
   status: string;
+  offer_type?: string | null;
 }
 interface SrcProduct {
   id: string;
@@ -180,16 +182,21 @@ export default function ImportFromOfferModal({
                 ) : (
                   <div className="space-y-2">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Choisissez l’offre à copier</p>
-                    {offers.map((o) => (
-                      <button
-                        key={o.id}
-                        onClick={() => openSource(o)}
-                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-slate-700 dark:bg-slate-800"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{o.title}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${o.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
-                        <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" />
-                      </button>
+                    {groupOffersByKind(offers).map((g) => (
+                      <div key={g.kind} className="space-y-2">
+                        <p className="pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">{g.label}</p>
+                        {g.items.map((o) => (
+                          <button
+                            key={o.id}
+                            onClick={() => openSource(o)}
+                            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-slate-700 dark:bg-slate-800"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{o.title}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${o.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
+                            <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" />
+                          </button>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 )

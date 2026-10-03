@@ -18,6 +18,7 @@ import { splitCategoryTitle } from '@/lib/utils/shortenTitle';
 import { LOCAL_CURRENCY } from '@/lib/local-currency';
 import type { SettlementCurrency } from '@/lib/offer-pricing';
 import { COUNTRY } from '@/config/countries';
+import OfferOptions from '@/components/admin/OfferOptions';
 
 const catTitle = (d: string | null | undefined) => splitCategoryTitle(d).short || d || 'Sans titre';
 
@@ -422,9 +423,7 @@ export default function ClientCartPanel({
               <label className={label}>Listing</label>
               <select className={field} value={offerId} onChange={(e) => setOfferId(e.target.value)} disabled={!!editing}>
                 <option value="">— choisir un listing publié —</option>
-                {offers.map((o) => (
-                  <option key={o.id} value={o.id}>{o.offer_type === 'b2b' ? '💼 ' : ''}{o.title}</option>
-                ))}
+                <OfferOptions offers={offers} />
               </select>
             </div>
             <div>

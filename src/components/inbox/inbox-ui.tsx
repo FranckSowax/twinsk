@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, Plus, Search, Smile } from 'lucide-react';
 import { splitLinks, URL_RE } from '@/lib/wa-inbox';
 import type { LinkPreview } from '@/lib/link-preview';
+import { groupOffersByKind } from '@/lib/offer-groups';
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -257,11 +258,15 @@ export function LinkInsertMenu({ onPick, fetcher }: { onPick: (url: string) => v
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un listing…" className="w-full rounded-lg border border-slate-200 py-1.5 pl-7 pr-2 text-xs dark:border-slate-600 dark:bg-slate-900" />
           </div>
           <div className="max-h-52 overflow-y-auto">
-            {shown.map((o) => (
-              <button key={o.id} type="button" onClick={() => pick(`${origin}/offer/${o.id}`)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
-                <span className="flex-shrink-0">{o.offer_type === 'b2b' ? '💼' : '🏠'}</span>
-                <span className="truncate">{o.title}</span>
-              </button>
+            {groupOffersByKind(shown).map((g) => (
+              <div key={g.kind}>
+                <p className="sticky top-0 bg-white px-2 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:bg-slate-800">{g.label}</p>
+                {g.items.map((o) => (
+                  <button key={o.id} type="button" onClick={() => pick(`${origin}/offer/${o.id}`)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                    <span className="truncate">{o.title}</span>
+                  </button>
+                ))}
+              </div>
             ))}
             {offers.length === 0 && <p className="px-2 py-2 text-xs text-slate-400">Chargement des listings…</p>}
           </div>
