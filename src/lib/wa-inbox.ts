@@ -97,6 +97,12 @@ export function matchKnownPhone(phone: string, known: string[]): string | null {
   return hits.length === 1 ? hits[0] : null;
 }
 
+/** Source d'un média : son URL publique quand on l'a, sinon le fichier relayé
+ *  par le serveur (WHAPI ne livre qu'une miniature des médias reçus). */
+export function inboxMediaSrc(m: { id: string; media_url: string | null }): string {
+  return m.media_url && /^https?:\/\//i.test(m.media_url) ? m.media_url : `/api/inbox/messages/${encodeURIComponent(m.id)}/media`;
+}
+
 export function chatIdFromPhone(phone: string): string {
   return `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
 }

@@ -987,3 +987,38 @@ export async function broadcastOfferRich(args: {
 
   return { ok, error, steps: { media, message }, buttonFallback };
 }
+
+// ----------------------------------------------------------------------------
+// Médias reçus (photos, vidéos, vocaux, documents des clients)
+// ----------------------------------------------------------------------------
+// Le canal n'a pas le téléchargement automatique : un message reçu ne porte
+// qu'une miniature (`preview`, quelques centaines d'octets) et l'identifiant du
+// fichier. Le fichier complet se lit avec GET /media/{MediaID}.
+
+const MEDIA_KEYS = ['image', 'video', 'gif', 'short', 'audio', 'voice', 'document', 'sticker'] as const;
+
+/** Identifiant WHAPI du fichier attaché à un message (GET /messages/{id}). */
+export async function getWhapiMessageMedia(
+  messageId: string,
+): Promise<{ ok: boolean; mediaId?: string; mime?: string; filename?: string; error?: string }> {
+  const r = await whapiGet<Record<string, unknown>>(`/messages/${encodeURIComponent(messageId)}`);
+  if (!r.ok || !r.data) return { ok: false, error: r.error || 'message introuvable' };
+  for (const k of MEDIA_KEYS) {
+    const m = r.data[k] as { id?: string; mime_type?: string; filename?: string } | undefined;
+    if (m?.id) return { ok: true, mediaId: m.id, mime: m.mime_type, filename: m.filename };
+  }
+  return { ok: false, error: 'aucun fichier dans ce message' };
+}
+
+/** Fichier complet d'un média reçu (réponse WHAPI brute, à relayer), ou null. */
+export async function fetchWhapiMedia(mediaId: string): Promise<Response | null> {
+  if (!WHAPI_TOKEN) return null;
+  try {
+    const res = await fetch(`${WHAPI_BASE}/media/${encodeURIComponent(mediaId)}`, {
+      headers: { Authorization: `Bearer ${WHAPI_TOKEN}` },
+    });
+    return res.ok ? res : null;
+  } catch {
+    return null;
+  }
+}

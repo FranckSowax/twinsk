@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationPatch, describeMessage, extractContext, matchKnownPhone, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isCourtesyOnly, isIgnoredType, isPrivateChat, messageSentAt, normalizePins, normalizeQuickReplies, phoneFromChatId, pinsKey, previewText, splitLinks, summarizeThread, togglePin } from './wa-inbox';
+import { inboxMediaSrc, conversationPatch, describeMessage, extractContext, matchKnownPhone, sourceFromContext, mergeReceipt, normalizeReceipt, fillTemplate, formatPhone, isCourtesyOnly, isIgnoredType, isPrivateChat, messageSentAt, normalizePins, normalizeQuickReplies, phoneFromChatId, pinsKey, previewText, splitLinks, summarizeThread, togglePin } from './wa-inbox';
 
 describe('isCourtesyOnly — « Merci » n’attend pas de réponse (28 sept. 2026)', () => {
   it('remerciements, formules de fin, émojis d’accord', () => {
@@ -207,5 +207,13 @@ describe('matchKnownPhone — numéro WhatsApp réel d’un client (29 sept. 202
     expect(matchKnownPhone('2250712345615', ['24112345615'])).toBeNull(); // autre pays
     expect(matchKnownPhone('2250712345615', ['22512345615', '2250512345615'])).toBeNull(); // ambigu
     expect(matchKnownPhone('077123', ['22577123'])).toBeNull();
+  });
+});
+
+describe('inboxMediaSrc — médias reçus (4 oct. 2026)', () => {
+  it('garde une URL publique, relaie par le serveur une miniature ou un média sans lien', () => {
+    expect(inboxMediaSrc({ id: 'a', media_url: 'https://cdn/x.jpg' })).toBe('https://cdn/x.jpg');
+    expect(inboxMediaSrc({ id: 'Abc-1', media_url: 'data:image/jpeg;base64,/9j/' })).toBe('/api/inbox/messages/Abc-1/media');
+    expect(inboxMediaSrc({ id: 'x/y', media_url: null })).toBe('/api/inbox/messages/x%2Fy/media');
   });
 });

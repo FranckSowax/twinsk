@@ -10,6 +10,7 @@ import { Link2, Plus, Search, Smile } from 'lucide-react';
 import { splitLinks, URL_RE } from '@/lib/wa-inbox';
 import type { LinkPreview } from '@/lib/link-preview';
 import { groupOffersByKind } from '@/lib/offer-groups';
+import { inboxMediaSrc } from '@/lib/wa-inbox';
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -322,5 +323,53 @@ export function QuotedBlock({ author, text }: { author: string; text: string }) 
       <span className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-300">{author}</span>
       <span className="line-clamp-3 block whitespace-pre-line text-[12px] opacity-80">{text}</span>
     </span>
+  );
+}
+
+// ---- Médias d'un message ----
+export { inboxMediaSrc };
+
+/** Photo d'un message : la miniature s'affiche tout de suite, le fichier complet s'ouvre en grand dans la page. */
+export function InboxImage({ m }: { m: { id: string; media_url: string | null } }) {
+  const full = inboxMediaSrc(m);
+  const thumb = m.media_url?.startsWith('data:') ? m.media_url : null;
+  const [src, setSrc] = useState(full);
+  const [open, setOpen] = useState(false);
+  const broken = src !== full;
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="mb-1 block" title="Agrandir">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt=""
+          onError={() => thumb && src !== thumb && setSrc(thumb)}
+          className="max-h-64 rounded-lg object-cover"
+          loading="lazy"
+        />
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/85 p-4" onClick={() => setOpen(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={broken ? thumb || full : full} alt="" className="max-h-[80vh] max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
+          {broken && <p className="text-xs text-white/80">Photo complète indisponible chez WhatsApp : seule la miniature est conservée.</p>}
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            {!broken && (
+              <a href={full} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+                Ouvrir dans un onglet
+              </a>
+            )}
+            {!broken && (
+              <a href={full} download className="rounded-xl bg-white/15 px-4 py-2 text-sm font-semibold text-white">
+                Télécharger
+              </a>
+            )}
+            <button type="button" onClick={() => setOpen(false)} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-semibold text-white">
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -13,7 +13,7 @@ import ClientCartPanel from '@/components/admin/whatsapp/ClientCartPanel';
 import ClientSelectionPanel from '@/components/admin/whatsapp/ClientSelectionPanel';
 import QuickRepliesEditor from './QuickRepliesEditor';
 import AnalysisPanel, { StageBadge } from './AnalysisPanel';
-import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
+import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, InboxImage, inboxMediaSrc, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
 import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
 
@@ -496,14 +496,12 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                 {thread?.messages.map((m) => (
                   <div key={m.id} className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
                     <div className={`min-w-0 max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.from_me ? 'rounded-br-sm bg-[#d9fdd3] text-slate-900 dark:bg-emerald-800 dark:text-white' : 'rounded-bl-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-white'}`}>
-                      {m.media_kind === 'image' && m.media_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <a href={m.media_url} target="_blank" rel="noopener noreferrer"><img src={m.media_url} alt="" className="mb-1 max-h-64 rounded-lg object-cover" loading="lazy" /></a>
-                      )}
-                      {m.media_kind === 'video' && m.media_url && <video src={m.media_url} controls preload="metadata" className="mb-1 max-h-64 rounded-lg" />}
-                      {m.media_kind === 'audio' && m.media_url && <audio src={m.media_url} controls preload="none" className="mb-1 max-w-full" />}
-                      {(m.media_kind === 'document' || m.media_kind === 'sticker') && m.media_url && (
-                        <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-2 rounded-lg bg-black/5 px-2 py-1.5 text-xs font-semibold underline"><Paperclip className="h-3.5 w-3.5" /> {m.filename || (m.media_kind === 'sticker' ? 'Sticker' : 'Fichier')}</a>
+                      {/* Médias reçus : WHAPI ne livre qu'une miniature, le fichier complet passe par /api/inbox/messages/<id>/media. */}
+                      {m.media_kind === 'image' && <InboxImage m={m} />}
+                      {m.media_kind === 'video' && <video src={inboxMediaSrc(m)} controls preload="metadata" className="mb-1 max-h-64 rounded-lg" />}
+                      {m.media_kind === 'audio' && <audio src={inboxMediaSrc(m)} controls preload="none" className="mb-1 max-w-full" />}
+                      {(m.media_kind === 'document' || m.media_kind === 'sticker') && (
+                        <a href={inboxMediaSrc(m)} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-2 rounded-lg bg-black/5 px-2 py-1.5 text-xs font-semibold underline"><Paperclip className="h-3.5 w-3.5" /> {m.filename || (m.media_kind === 'sticker' ? 'Sticker' : 'Fichier')}</a>
                       )}
                       {m.context?.ad && <AdCard ad={m.context.ad} />}
                       {m.context?.quoted &&
