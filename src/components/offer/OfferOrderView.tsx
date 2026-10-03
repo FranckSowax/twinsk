@@ -26,6 +26,7 @@ import { CONTENT } from '@/content';
 import { transitLabel } from '@/lib/country';
 import { LOCAL_CURRENCY, isLocalCurrency } from '@/lib/local-currency';
 import { PAYMENT_METHODS, OPERATOR_LABELS, type PaymentMethodId } from '@/lib/payments/methods';
+import { formatPhone } from '@/lib/phone';
 import type { LucideIcon } from 'lucide-react';
 
 // Apparence des boutons de choix du moyen de paiement (Gabon : inchangée).
@@ -148,6 +149,10 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
+  // Le client confirme son numéro WhatsApp avant de payer : une faute de frappe
+  // envoyait la confirmation de commande à un inconnu (incident du 3 oct. 2026).
+  const [phoneConfirmed, setPhoneConfirmed] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
   // Modification du panier (ajout / quantité / suppression) — tant que rien n'est payé.
   const [addOpen, setAddOpen] = useState(false);
   const [lineBusy, setLineBusy] = useState<string | null>(null);
@@ -176,6 +181,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   useEffect(() => {
     if (paymentParam === 'cancel') {
       setPaymentMethod('paydunya');
+      setPhoneConfirmed(true); // retour du paiement en ligne : numéro déjà confirmé
       setOnlineNotice('Paiement annulé. Vous pouvez réessayer ou choisir un autre moyen.');
       return;
     }
@@ -188,9 +194,11 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
       if (json.status === 'completed') await load();
       else if (json.status === 'pending') {
         setPaymentMethod('paydunya');
+        setPhoneConfirmed(true); // retour du paiement en ligne : numéro déjà confirmé
         setOnlineNotice('Paiement en cours de confirmation. Si vous avez validé sur votre téléphone, cette page se mettra à jour sous peu ; vous recevrez aussi une confirmation sur WhatsApp.');
       } else if (json.status === 'failed' || json.status === 'cancelled') {
         setPaymentMethod('paydunya');
+        setPhoneConfirmed(true); // retour du paiement en ligne : numéro déjà confirmé
         setOnlineNotice('Le paiement n’a pas abouti. Vous pouvez réessayer ou choisir un autre moyen.');
       }
     })();
@@ -434,6 +442,8 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
         setError(json.error || 'Erreur enregistrement');
         return;
       }
+      setEditingContact(false);
+      setPhoneConfirmed(false);
       await load();
     } finally {
       setSavingContact(false);
@@ -488,12 +498,13 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
   // Coordonnées renseignées ? (saisies après le transport, avant le paiement)
   const contactComplete = !!order.client_name && !!order.client_phone;
   // Formulaire coordonnées à afficher : transport choisi (ou devis pur) mais coordonnées manquantes.
-  const needContact = (transportPicked || allAcompte) && !contactComplete;
+  const needContact = (transportPicked || allAcompte) && (!contactComplete || editingContact);
   const canPay =
     !allAcompte &&
     transportPicked &&
     order.transport_mode !== 'quote' &&
     contactComplete &&
+    !editingContact &&
     !paymentDone &&
     !paymentSubmitted;
 
@@ -535,7 +546,7 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             {contactComplete && (
               <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                 <MessageCircle className="h-3 w-3" />
-                WhatsApp : {order.client_phone}
+                WhatsApp : {formatPhone(order.client_phone)}
               </div>
             )}
           </div>
@@ -985,6 +996,40 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
             Montant à régler : <b className="text-emerald-700">{fmt(grandTotalFcfa)}</b>. Choisissez votre moyen de paiement.
           </p>
 
+          {/* Vérification du numéro : tous les messages de la commande partent sur ce WhatsApp. */}
+          <div className={`mt-3 rounded-2xl border-2 bg-white p-4 ${phoneConfirmed ? 'border-emerald-300' : 'border-sky-400'}`}>
+            <p className="text-sm text-slate-700">
+              📱 La confirmation et le suivi de votre commande partiront sur ce WhatsApp :
+            </p>
+            <p className="mt-1 font-display text-2xl font-bold tracking-wide text-slate-900">{formatPhone(order.client_phone)}</p>
+            <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={phoneConfirmed}
+                onChange={(e) => {
+                  setPhoneConfirmed(e.target.checked);
+                  if (!e.target.checked) setPaymentMethod(null);
+                }}
+                className="mt-0.5 h-5 w-5 flex-shrink-0 accent-emerald-500"
+              />
+              Oui, c’est bien mon numéro WhatsApp
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingContact(true);
+                setPhoneConfirmed(false);
+                setPaymentMethod(null);
+              }}
+              className="mt-2 text-xs font-semibold text-sky-700 underline underline-offset-2"
+            >
+              Ce n’est pas mon numéro : le corriger
+            </button>
+          </div>
+          {!phoneConfirmed && (
+            <p className="mt-2 text-xs font-semibold text-sky-700">Confirmez votre numéro pour choisir le moyen de paiement.</p>
+          )}
+
           {/* Choix de la méthode (moyens actifs dans le pays) */}
           <div className={`mt-3 grid ${METHOD_GRID[PAYMENT_METHODS.length] || 'grid-cols-3'} gap-2`}>
             {PAYMENT_METHODS.map((m) => {
@@ -994,8 +1039,9 @@ export default function OfferOrderView({ offerId, orderId, paymentParam }: Props
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => setPaymentMethod(m.id)}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors ${
+                  onClick={() => phoneConfirmed && setPaymentMethod(m.id)}
+                  disabled={!phoneConfirmed}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     paymentMethod === m.id ? st.on : `border-slate-200 bg-white text-slate-600 ${st.hover}`
                   }`}
                 >
