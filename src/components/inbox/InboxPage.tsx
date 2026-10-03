@@ -16,6 +16,7 @@ import AnalysisPanel, { StageBadge } from './AnalysisPanel';
 import { AdCard, adPlatformLabel, EmojiPicker, firstUrl, InboxImage, inboxMediaSrc, insertAtCursor, LinkInsertMenu, LinkPreviewCard, MessageText, QuotedBlock } from './inbox-ui';
 import { fillTemplate, formatPhone, type InboxFilter, type QuickReply } from '@/lib/wa-inbox';
 import type { ConversationRow, MessageRow, InboxActor } from '@/lib/wa-inbox-data';
+import ResearchPanel from './ResearchPanel';
 
 interface MediaItem { id: string; url: string; kind: 'image' | 'video'; title: string; caption: string; active: boolean }
 
@@ -96,7 +97,7 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [panel, setPanel] = useState<'quick' | 'media' | 'cart' | 'selection' | 'note' | null>(null);
+  const [panel, setPanel] = useState<'quick' | 'media' | 'cart' | 'selection' | 'note' | 'research' | null>(null);
   const [quick, setQuick] = useState<QuickReply[]>([]);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaCaption, setMediaCaption] = useState('');
@@ -459,7 +460,11 @@ export default function InboxPage({ as, heightClass = 'h-[calc(100dvh-7.5rem)]',
                   </button>
                 )}
                 <button type="button" onClick={() => setPanel(panel === 'note' ? null : 'note')} className={`${btn} ${conv.note ? 'border-amber-300 text-amber-700' : ''}`} title="Note interne"><FileText className="h-3.5 w-3.5" /> Note</button>
+                <button type="button" onClick={() => setPanel(panel === 'research' ? null : 'research')} className={`${btn} ${panel === 'research' ? 'border-sky-300 text-sky-700' : ''}`} title="Noter la demande du client et y joindre ses photos : elle part en recherche"><Search className="h-3.5 w-3.5" /> Recherche</button>
               </div>
+              {panel === 'research' && (
+                <ResearchPanel key={conv.id} conversationId={conv.id} messages={thread?.messages || []} fetcher={api} asAgent={as === 'agent'} />
+              )}
               {panel === 'note' && (
                 <div className="border-b border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
                   <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} onBlur={() => noteDraft !== (conv.note || '') && patchConv({ note: noteDraft })} rows={2} placeholder="Note interne (jamais envoyée au client) : besoin, budget, relance prévue…" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-slate-900" />
