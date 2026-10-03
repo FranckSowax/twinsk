@@ -115,6 +115,7 @@ export default function DripPanel({
   const [groupDesc, setGroupDesc] = useState('');
   const [firstMember, setFirstMember] = useState('');
   const [inCommunity, setInCommunity] = useState(true);
+  const [adminsOnly, setAdminsOnly] = useState(true);
 
   const load = useCallback(async () => {
     const [d, o] = await Promise.all([fetch(`/api/whapi/drip?slot=${slot}`), fetch('/api/offers')]);
@@ -222,7 +223,7 @@ export default function DripPanel({
     try {
       const body =
         groupTool === 'create'
-          ? { action: 'create', subject: groupName, description: groupDesc || undefined, phones: firstMember.split(/[\s,;]+/).filter(Boolean), in_community: inCommunity }
+          ? { action: 'create', subject: groupName, description: groupDesc || undefined, phones: firstMember.split(/[\s,;]+/).filter(Boolean), in_community: inCommunity, admins_only: adminsOnly }
           : { action: 'info', id: cfg?.group_id, subject: groupName, description: groupDesc || undefined };
       const res = await fetch('/api/whapi/group/manage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await res.json().catch(() => ({}));
@@ -403,6 +404,12 @@ export default function DripPanel({
                 Dans la communauté liée (onglet Communauté)
               </label>
             )}
+            {groupTool === 'create' && (
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="checkbox" checked={adminsOnly} onChange={(e) => setAdminsOnly(e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+                Seuls les admins écrivent (les membres lisent les envois)
+              </label>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -428,8 +435,12 @@ export default function DripPanel({
           </p>
           <Switch on={cfg.products_enabled} onChange={(v) => set({ products_enabled: v })} label={cfg.products_enabled ? 'Activés' : 'Désactivés'} />
         </div>
-        {cfg.products_enabled && (
-          <>
+        {!cfg.products_enabled && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+            Produits coupés pour ce groupe : rien ne part tant que l’interrupteur n’est pas sur « Activés » (puis Enregistrer).
+          </p>
+        )}
+        <div className={cfg.products_enabled ? 'space-y-4' : 'space-y-4 opacity-60'}>
             <p className="text-sm text-slate-500">
               À chaque créneau, la catégorie suivante du catalogue part dans le groupe : son titre, puis ses produits (photo, prix, bouton « Voir le produit »).
             </p>
@@ -489,8 +500,7 @@ export default function DripPanel({
                 </div>
               </div>
             )}
-          </>
-        )}
+        </div>
       </section>
 
       {/* 3. Annonces */}
@@ -501,8 +511,12 @@ export default function DripPanel({
           </p>
           <Switch on={cfg.announcements_enabled} onChange={(v) => set({ announcements_enabled: v })} label={cfg.announcements_enabled ? 'Activées' : 'Désactivées'} />
         </div>
-        {cfg.announcements_enabled && (
-          <>
+        {!cfg.announcements_enabled && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+            Annonces coupées pour ce groupe : rien ne part tant que l’interrupteur n’est pas sur « Activées » (puis Enregistrer).
+          </p>
+        )}
+        <div className={cfg.announcements_enabled ? 'space-y-4' : 'space-y-4 opacity-60'}>
             <p className="text-sm text-slate-500">
               Photos et vidéos avec leur légende, suivies du nom et du lien du catalogue. Cochez dans la médiathèque celles de ce groupe (aucune cochée = toutes les actives).
             </p>
@@ -565,8 +579,7 @@ export default function DripPanel({
               nextId={state.next_media?.item.id ?? null}
               onChanged={load}
             />
-          </>
-        )}
+        </div>
       </section>
 
       {/* 4. Publier aussi sur */}

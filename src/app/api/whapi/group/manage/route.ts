@@ -23,8 +23,10 @@ const SETTINGS: GroupSettingKey[] = [
 // POST: administration d'un groupe WhatsApp (admin only).
 // Body: { id, action, ... } avec action =
 //   'create'  → { subject, phones: string[] (1er membre au moins), description?,
-//                in_community?: boolean } — pas d'id : crée le groupe (dans la
-//                communauté liée si in_community) et renvoie son group_id
+//                in_community?: boolean, admins_only?: boolean } — pas d'id :
+//                crée le groupe (dans la communauté liée si in_community) et
+//                renvoie son group_id ; admins_only (défaut) : seuls les admins
+//                écrivent et modifient les infos du groupe
 //   'info'    → { subject?, description? } (renommer, décrire)
 //   'setting' → { setting, policy: 'anyone'|'admins' }
 //   'promote' → { phones: string[] }
@@ -42,6 +44,7 @@ export async function POST(request: NextRequest) {
     message?: string;
     time?: string;
     in_community?: boolean;
+    admins_only?: boolean;
   };
 
   if (body.action === 'create') {
@@ -60,11 +63,19 @@ export async function POST(request: NextRequest) {
     if (!created.ok || !created.groupId) {
       return NextResponse.json({ error: `Création impossible : ${created.error}` }, { status: 502 });
     }
-    let warning: string | undefined;
+    const warnings: string[] = [];
     if (body.description?.trim()) {
       const d = await updateWhapiGroupInfo(created.groupId, { description: body.description.trim() });
-      if (!d.ok) warning = `Groupe créé, description non posée : ${d.error}`;
+      if (!d.ok) warnings.push(`description non posée : ${d.error}`);
     }
+    // Groupe de diffusion : les membres lisent, seuls les admins écrivent (défaut).
+    if (body.admins_only !== false) {
+      for (const setting of ['send_messages', 'edit_group_info'] as const) {
+        const r = await setWhapiGroupSetting(created.groupId, setting, 'admins');
+        if (!r.ok) warnings.push(`réglage ${setting} non posé : ${r.error}`);
+      }
+    }
+    const warning = warnings.length ? `Groupe créé ; ${warnings.join(' ; ')}` : undefined;
     await rememberGroup({ id: created.groupId, name: subject, participantsCount: phones.length + 1 });
     return NextResponse.json({ success: true, group_id: created.groupId, warning });
   }

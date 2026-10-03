@@ -3,7 +3,7 @@
 // n'empêche pas les autres — et remonte son propre bilan.
 //
 //   group     → groupe WhatsApp : en-tête, produits (fiche native si au
-//               catalogue, sinon photo + légende), bouton « Voir le listing »
+//               catalogue, sinon photo + légende), bouton « Voir le catalogue »
 //   status    → statut WhatsApp du numéro : une story photo par produit
 //   channel   → chaîne WhatsApp « Oh My Gab » : en-tête puis photos
 //   facebook  → Page : une publication photo par produit + une story
@@ -124,8 +124,8 @@ export async function broadcastCategory(
       await sleep(THROTTLE_MS);
     }
     const tail = await sendWhapiButtonLink({
-      body: `Toute la catégorie *${plan.categoryTitle}* et le reste du listing :`,
-      buttonTitle: 'Voir le listing',
+      body: `Toute la catégorie *${plan.categoryTitle}* et le reste du catalogue :`,
+      buttonTitle: 'Voir le catalogue',
       url: plan.offerUrl,
       to,
     });
