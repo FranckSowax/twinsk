@@ -1,5 +1,5 @@
-// Diffuseur multi-canal : une catégorie planifiée (DripPlan) est déclinée sur
-// chaque canal actif. Chaque canal est indépendant — une erreur sur l'un
+// Diffuseur multi-canal : une catégorie planifiée (DripPlan) ou une annonce
+// (MediaPlan) est déclinée sur chaque canal coché du flux (BroadcastTarget). Chaque canal est indépendant — une erreur sur l'un
 // n'empêche pas les autres — et remonte son propre bilan.
 //
 //   group     → groupe WhatsApp : en-tête, produits (fiche native si au
@@ -10,7 +10,7 @@
 //   instagram → compte pro : une publication photo par produit + une story
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { facebookPostsFor, instagramPostsFor, productsFor, type DripChannel, type DripConfig, type DripPlan } from '@/lib/wa-drip';
+import { facebookPostsFor, instagramPostsFor, productsFor, type BroadcastTarget, type DripChannel, type DripPlan } from '@/lib/wa-drip';
 import type { MediaPlan } from '@/lib/wa-media';
 import { proxyImageUrl } from '@/lib/utils/imageProxy';
 import {
@@ -54,7 +54,7 @@ function publicImage(url: string, origin: string): string {
 
 export async function broadcastCategory(
   plan: DripPlan,
-  cfg: DripConfig,
+  cfg: BroadcastTarget,
   origin: string,
 ): Promise<BroadcastReport> {
   const report: BroadcastReport = {
@@ -236,7 +236,7 @@ export function summarizeReport(report: BroadcastReport): string {
  * de rafale. Facebook/Instagram : une publication (si le rythme le prévoit)
  * et une story ; les vidéos partent en publication vidéo / Reel / story vidéo.
  */
-export async function broadcastMedia(plan: MediaPlan, cfg: DripConfig, origin: string): Promise<BroadcastReport> {
+export async function broadcastMedia(plan: MediaPlan, cfg: BroadcastTarget, origin: string): Promise<BroadcastReport> {
   const report: BroadcastReport = {
     group: { sent: 0, errors: [] },
     status: { sent: 0, errors: [] },
@@ -295,7 +295,7 @@ export async function broadcastMedia(plan: MediaPlan, cfg: DripConfig, origin: s
   if (!cfg.channels.facebook) report.facebook.skipped = 'disabled';
   else if (!metaFacebookConfigured()) report.facebook.skipped = 'not_configured';
   else {
-    if (facebookPostsFor(cfg) > 0) {
+    if (cfg.social_posts ? cfg.social_posts.facebook : facebookPostsFor(cfg) > 0) {
       const post = isVideo
         ? await fbPageVideoPost({ videoUrl: publicUrl, description: social })
         : await fbPagePhotoPost({ imageUrl: publicUrl, message: social });
@@ -311,7 +311,7 @@ export async function broadcastMedia(plan: MediaPlan, cfg: DripConfig, origin: s
   if (!cfg.channels.instagram) report.instagram.skipped = 'disabled';
   else if (!metaInstagramConfigured()) report.instagram.skipped = 'not_configured';
   else {
-    if (instagramPostsFor(cfg) > 0) {
+    if (cfg.social_posts ? cfg.social_posts.instagram : instagramPostsFor(cfg) > 0) {
       const post = isVideo
         ? await igVideoPost({ videoUrl: publicUrl, caption: social })
         : await igPhotoPost({ imageUrl: publicUrl, caption: social });

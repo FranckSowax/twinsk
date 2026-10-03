@@ -3,11 +3,12 @@ import { publicOrigin } from '@/lib/public-origin';
 import { runAllDrips, runDrip } from '@/lib/wa-drip-run';
 import { parseDripSlot } from '@/lib/wa-drip';
 
-// GET/POST : publie UNE catégorie du listing sur les canaux actifs (groupe,
-// statut, chaîne, Facebook, Instagram). À appeler toutes les heures par un cron
-// (service Railway `curl`), sécurisé par CRON_SECRET. Fenêtre horaire (heure de
-// Libreville) et verrou « une fois par heure » gérés dans runDrip : le cron peut
-// repasser sans doublon.
+// GET/POST : exécute les campagnes de diffusion (une par groupe) — à chaque
+// créneau, le flux produits publie une catégorie du catalogue et le flux
+// annonces ses photos / vidéos, sur les canaux cochés. À appeler toutes les
+// heures par un cron (service Railway `curl`), sécurisé par CRON_SECRET.
+// Créneaux (heure locale) et verrou « une fois par heure » par flux gérés dans
+// runDrip : le cron peut repasser sans doublon.
 //   ?dry=1   → montre ce qui partirait, sans rien envoyer
 //   ?force=1 → ignore la fenêtre et le verrou (tests)
 
@@ -29,7 +30,7 @@ async function handle(request: NextRequest) {
   const slotParam = request.nextUrl.searchParams.get('slot');
   if (slotParam) {
     const result = await runDrip({ ...base, slot: parseDripSlot(slotParam) });
-    if ('error' in result) return NextResponse.json(result, { status: 400 });
+    if (result.error) return NextResponse.json(result, { status: 400 });
     return NextResponse.json(result);
   }
   const campaigns = await runAllDrips(base);

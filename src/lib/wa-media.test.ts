@@ -39,13 +39,14 @@ describe('médiathèque de diffusion', () => {
 });
 
 describe('créneaux médias de la campagne', () => {
-  it('mode médias par défaut, 1 créneau par jour à 10 h', () => {
+  it('annonces : 1 créneau par jour à 10 h par défaut, flux coupé tant qu’on ne l’active pas', () => {
     const cfg = normalizeDripConfig({});
-    expect(cfg.mode).toBe('media');
+    expect(cfg.announcements_enabled).toBe(false);
     expect(cfg.media_hours).toEqual([10]);
     expect(isMediaHour(10, cfg)).toBe(true);
     expect(isMediaHour(11, cfg)).toBe(false);
-    expect(normalizeDripConfig({ mode: 'catalog' }).mode).toBe('catalog');
+    // ancienne campagne en mode catalogue : pas d'annonces
+    expect(normalizeDripConfig({ mode: 'catalog' }).announcements_enabled).toBe(false);
   });
   it('normalise les heures : uniques, triées, bornées', () => {
     expect(normalizeMediaHours([18, 10, '10', 25, -1, 'x'])).toEqual([10, 18]);

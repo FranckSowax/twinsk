@@ -27,3 +27,18 @@ export async function listGroupsWithCache(): Promise<GroupsResult> {
   const cached = Array.isArray(data?.value) ? (data!.value as WhapiGroupSummary[]) : [];
   return { groups: cached, stale: true, error: live.ok ? undefined : live.error };
 }
+
+/**
+ * Inscrit (ou renomme) un groupe dans la dernière liste connue, juste après
+ * une création ou un renommage : WHAPI met parfois quelques minutes à le
+ * refléter dans GET /groups, l'admin doit le voir tout de suite.
+ */
+export async function rememberGroup(group: WhapiGroupSummary): Promise<void> {
+  const { data } = await supabaseAdmin.from('wa_settings').select('value').eq('key', KNOWN_GROUPS_KEY).maybeSingle();
+  const cached = Array.isArray(data?.value) ? (data!.value as WhapiGroupSummary[]) : [];
+  const existing = cached.find((g) => g.id === group.id);
+  const next = existing
+    ? cached.map((g) => (g.id === group.id ? { ...g, name: group.name || g.name } : g))
+    : [...cached, group];
+  await supabaseAdmin.from('wa_settings').upsert({ key: KNOWN_GROUPS_KEY, value: next, updated_at: new Date().toISOString() });
+}

@@ -1,55 +1,29 @@
 'use client';
 
-// Onglet « Diffusion » : une campagne = un mode et ses canaux (groupe, statut,
-// chaîne WhatsApp, Facebook, Instagram).
-//   - Médias en boucle (recommandé) : les photos / vidéos de la médiathèque
-//     partent une par créneau quotidien (défaut : 1 fois par jour), en boucle.
-//   - Catalogue : l'ancien goutte-à-goutte horaire (une catégorie de produits par heure).
-// Tout se règle ici : pause/reprise, listing, créneaux, médiathèque, aperçu, journal.
+// Éditeur d'une campagne de diffusion = UN groupe WhatsApp et SON catalogue.
+//   1. Groupe et catalogue (créer / renommer le groupe sur place)
+//   2. Produits du catalogue : une catégorie par créneau, N produits
+//   3. Annonces : photos / vidéos de la médiathèque, aux créneaux choisis
+//   4. Publier aussi sur : statut, chaîne, Facebook, Instagram — flux par flux
+// Puis : enregistrer, aperçu, publier maintenant, journal.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Pause, Play, Send, Eye, Square, Film, LayoutList, Trash2 } from 'lucide-react';
+import { Eye, Loader2, Megaphone, Package, Pause, Pencil, Play, Plus, Send, Trash2, Users } from 'lucide-react';
 import type { GroupRow } from './types';
 import DripMediaLibrary, { type MediaRow } from './DripMediaLibrary';
+import { EXTRA_CHANNELS, groupLabel, type CampaignSummary } from './drip-shared';
 import { COUNTRY } from '@/config/countries';
-import { localHour } from '@/lib/wa-drip';
+import { dailyVolume, localHour, normalizeDripConfig, type DripChannel, type DripConfig, type DripFlux } from '@/lib/wa-drip';
+import { phonePrefixDigits } from '@/lib/phone';
 
-type Channel = 'group' | 'status' | 'channel' | 'facebook' | 'instagram';
-type Mode = 'media' | 'catalog';
-const CHANNELS: { key: Channel; label: string; hint: Record<Mode, string> }[] = [
-  { key: 'group', label: 'Groupe WhatsApp', hint: { media: '1 photo / vidéo + légende par créneau', catalog: 'en-tête + produits + bouton' } },
-  { key: 'status', label: 'Statut WhatsApp', hint: { media: '1 story photo / vidéo par créneau (24 h)', catalog: '1 story par produit (24 h)' } },
-  { key: 'channel', label: 'Chaîne WhatsApp', hint: { media: '1 photo / vidéo + légende par créneau', catalog: 'en-tête + photos' } },
-  { key: 'facebook', label: 'Page Facebook', hint: { media: 'publication (photo / vidéo) + story', catalog: 'publications + stories (rythmes séparés)' } },
-  { key: 'instagram', label: 'Instagram', hint: { media: 'publication (photo / Reel) + story', catalog: 'publications + stories (rythmes séparés)' } },
-];
-const HOURS = Array.from({ length: 24 }, (_, h) => h);
-
-interface Config {
-  enabled: boolean;
-  mode: Mode;
-  media_hours: number[];
-  media_ids: string[];
-  media_cursor: number;
-  media_batch: number;
-  offer_id: string | null;
-  group_id: string | null;
-  channel_id: string | null;
-  channels: Record<Channel, boolean>;
-  per_category: number;
-  per_hour_other: number;
-  per_channel: Partial<Record<Exclude<Channel, 'group'> | 'facebook_posts' | 'instagram_posts', number>>;
-  start_hour: number;
-  end_hour: number;
-  cursor: number;
-  last_run_at: string | null;
-}
+type Channels = Record<DripChannel, boolean>;
+type Config = DripConfig;
 interface PlanProduct { id: string; title: string; imageUrl: string; url: string }
 interface Plan { index: number; total: number; categoryTitle: string; header: string; products: PlanProduct[] }
 interface MediaPlan { index: number; total: number; item: MediaRow; caption: string }
 interface State {
   config: Config;
-  ready: Record<Channel, boolean>;
+  ready: Record<DripChannel, boolean>;
   groups: GroupRow[];
   groups_stale: boolean;
   whatsapp: { ok: boolean; status: string; phone: string | null };
@@ -64,13 +38,83 @@ interface State {
 }
 interface Offer { id: string; title: string; status: string; archived_at?: string | null }
 
-export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { groups: GroupRow[]; slot?: number; onChanged?: () => void; onDeleted?: () => void }) {
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800';
+const label = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500';
+const card = 'rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800';
+
+function HourPicker({ value, onChange }: { value: number[]; onChange: (h: number[]) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {HOURS.map((h) => {
+        const on = value.includes(h);
+        return (
+          <button
+            key={h}
+            type="button"
+            onClick={() => {
+              const next = on ? value.filter((x) => x !== h) : [...value, h].sort((a, b) => a - b);
+              if (next.length) onChange(next);
+            }}
+            className={`h-8 w-11 rounded-lg text-xs font-semibold ${on ? 'bg-[#25D366] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'}`}
+          >
+            {h}h
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Switch({ on, onChange, label: text }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+    >
+      <span className={`relative h-6 w-11 rounded-full transition ${on ? 'bg-[#25D366]' : 'bg-slate-300 dark:bg-slate-600'}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${on ? 'left-[22px]' : 'left-0.5'}`} />
+      </span>
+      {text}
+    </button>
+  );
+}
+
+function nextSlotLabel(hours: number[]): string {
+  if (!hours.length) return '—';
+  const h = localHour(new Date());
+  const next = hours.find((x) => x > h) ?? hours[0];
+  return `${next}h${next <= h ? ' (demain)' : ''}`;
+}
+
+export default function DripPanel({
+  groups,
+  slot,
+  otherCampaigns = [],
+  onChanged,
+  onDeleted,
+}: {
+  groups: GroupRow[];
+  slot: number;
+  otherCampaigns?: CampaignSummary[];
+  onChanged?: () => void;
+  onDeleted?: () => void;
+}) {
   const [state, setState] = useState<State | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [draft, setDraft] = useState<Partial<Config>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState<string>('');
-  const [position, setPosition] = useState<string>('');
+  const [message, setMessage] = useState('');
+  const [position, setPosition] = useState({ products: '', announcements: '' });
+  // Gestion du groupe : création / renommage sur place.
+  const [groupTool, setGroupTool] = useState<'none' | 'create' | 'rename'>('none');
+  const [groupName, setGroupName] = useState('');
+  const [groupDesc, setGroupDesc] = useState('');
+  const [firstMember, setFirstMember] = useState('');
+  const [inCommunity, setInCommunity] = useState(true);
 
   const load = useCallback(async () => {
     const [d, o] = await Promise.all([fetch(`/api/whapi/drip?slot=${slot}`), fetch('/api/offers')]);
@@ -90,28 +134,24 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
     ? {
         ...state.config,
         ...draft,
-        channels: { ...state.config.channels, ...(draft.channels || {}) },
+        products_channels: { ...state.config.products_channels, ...(draft.products_channels || {}) },
+        announce_channels: { ...state.config.announce_channels, ...(draft.announce_channels || {}) },
         per_channel: { ...state.config.per_channel, ...(draft.per_channel || {}) },
+        announce_posts: { ...state.config.announce_posts, ...(draft.announce_posts || {}) },
       }
     : null;
 
-  const remove = async () => {
-    if (!window.confirm(`Supprimer la campagne ${slot} ? Sa configuration et sa position seront effacées (le journal est conservé).`)) return;
-    setBusy('delete');
-    try {
-      const res = await fetch(`/api/whapi/drip?slot=${slot}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setMessage(`⚠️ ${d.error || 'Suppression impossible'}`);
-        return;
-      }
-      onDeleted?.();
-    } finally {
-      setBusy(null);
-    }
-  };
+  const set = (patch: Partial<Config>) => setDraft((d) => ({ ...d, ...patch }));
+  const setChannel = (flux: DripFlux, c: DripChannel, v: boolean) =>
+    setDraft((d) =>
+      flux === 'products'
+        ? { ...d, products_channels: { ...(d.products_channels || {}), [c]: v } as Channels }
+        : { ...d, announce_channels: { ...(d.announce_channels || {}), [c]: v } as Channels },
+    );
+  const setPerChannel = (k: keyof Config['per_channel'], v: number | null) =>
+    setDraft((d) => ({ ...d, per_channel: { ...(d.per_channel || {}), [k]: v } as Config['per_channel'] }));
 
-  const save = async (patch: Partial<Config> & { reset_cursor?: boolean }, label = 'Enregistré') => {
+  const save = async (patch: Partial<Config> & { reset_cursor?: boolean }, ok = 'Enregistré') => {
     setBusy('save');
     setMessage('');
     try {
@@ -120,9 +160,55 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...patch, slot }),
       });
-      const d = await res.json();
-      if (!res.ok) setMessage(`⚠️ ${d.error || 'Échec'}`);
-      else setMessage(`✅ ${label}`);
+      const d = await res.json().catch(() => ({}));
+      setMessage(res.ok ? `✅ ${ok}` : `⚠️ ${d.error || 'Échec'}`);
+      if (res.ok) {
+        await load();
+        onChanged?.();
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Supprimer cette campagne ? Ses réglages et ses positions seront effacés (le journal est conservé, le groupe WhatsApp n’est pas touché).')) return;
+    setBusy('delete');
+    try {
+      const res = await fetch(`/api/whapi/drip?slot=${slot}`, { method: 'DELETE' });
+      if (res.ok) onDeleted?.();
+      else setMessage('⚠️ Suppression impossible');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const run = async (flux: DripFlux, dry: boolean) => {
+    if (!dry && !window.confirm(flux === 'products' ? 'Publier la prochaine catégorie maintenant, sur les canaux cochés ?' : 'Publier les prochaines annonces maintenant, sur les canaux cochés ?')) return;
+    setBusy(`${flux}-${dry ? 'dry' : 'now'}`);
+    setMessage('');
+    try {
+      const res = await fetch('/api/whapi/drip/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot, flux, dry, advance: true }),
+      });
+      const d = await res.json().catch(() => ({}));
+      const r = d?.[flux];
+      if (!res.ok || !r) setMessage(`⚠️ ${d.error || r?.error || 'Échec'}`);
+      else if (r.error) setMessage(`⚠️ ${r.error}`);
+      else if (r.skipped) {
+        const why: Record<string, string> = {
+          disabled: flux === 'products' ? 'la campagne ou le flux produits est coupé' : 'la campagne ou le flux annonces est coupé',
+          not_configured: 'aucun catalogue choisi',
+          no_media: 'aucune annonce active dans la médiathèque',
+          no_publishable_category: 'aucune catégorie publiable dans ce catalogue',
+        };
+        setMessage(`ℹ️ Rien n’est parti : ${why[r.skipped] || r.skipped}`);
+      } else if (r.dry && r.plan) setMessage(`👁 Prochaine catégorie : ${r.plan.categoryTitle} (${r.plan.index + 1}/${r.plan.total}) — rien n’a été envoyé`);
+      else if (r.dry && r.media) setMessage(`👁 ${r.batch?.length > 1 ? `${r.batch.length} annonces partiraient` : `Prochaine annonce : ${r.media.item?.title || r.media.item?.kind}`} — rien n’a été envoyé`);
+      else if (r.plan) setMessage(`${r.success ? '✅' : '⚠️'} ${r.plan.categoryTitle} → ${r.summary}`);
+      else if (r.media) setMessage(`${r.success ? '✅' : '⚠️'} ${r.batch?.length > 1 ? `${r.batch.length} annonces` : r.media.item?.title || 'annonce'} → ${r.summary}`);
       await load();
       onChanged?.();
     } finally {
@@ -130,24 +216,33 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
     }
   };
 
-  const run = async (mode: 'dry' | 'now') => {
-    setBusy(mode);
+  const groupAction = async () => {
+    setBusy('group');
     setMessage('');
     try {
-      const res = await fetch('/api/whapi/drip/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'dry' ? { dry: true, slot } : { advance: true, slot }),
-      });
-      const d = await res.json();
-      if (!res.ok) setMessage(`⚠️ ${d.error || 'Échec'}`);
-      else if (d.dry && d.media) setMessage(`👁 Aperçu : ${d.batch?.length > 1 ? `${d.batch.length} médias partiraient` : `${d.media.item?.title || d.media.item?.kind} (${(d.media.index ?? 0) + 1}/${d.media.total})`} — rien n'a été envoyé`);
-      else if (d.dry) setMessage(`👁 Aperçu : ${d.plan?.categoryTitle} (${(d.plan?.index ?? 0) + 1}/${d.plan?.total}) — rien n'a été envoyé`);
-      else if (d.skipped) setMessage(`ℹ️ Ignoré : ${d.skipped === 'no_media' ? 'aucun média actif dans la médiathèque' : d.skipped}`);
-      else if (d.media) setMessage(`${d.success ? '✅' : '⚠️'} ${d.batch?.length > 1 ? `${d.batch.length} médias publiés` : d.media.item?.title || d.media.item?.kind} → ${d.summary}`);
-      else setMessage(`${d.success ? '✅' : '⚠️'} ${d.plan?.categoryTitle} → ${d.summary}`);
-      await load();
-      onChanged?.();
+      const body =
+        groupTool === 'create'
+          ? { action: 'create', subject: groupName, description: groupDesc || undefined, phones: firstMember.split(/[\s,;]+/).filter(Boolean), in_community: inCommunity }
+          : { action: 'info', id: cfg?.group_id, subject: groupName, description: groupDesc || undefined };
+      const res = await fetch('/api/whapi/group/manage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(`⚠️ ${d.error || 'Échec'}`);
+        return;
+      }
+      if (groupTool === 'create' && d.group_id) {
+        // Le nouveau groupe devient celui de la campagne (enregistré tout de suite).
+        await save({ group_id: d.group_id, ...(cfg?.name ? {} : { name: groupName }) }, `Groupe « ${groupName} » créé et rattaché à la campagne`);
+      } else {
+        setMessage(`✅ Groupe renommé « ${groupName} »`);
+        await load();
+        onChanged?.();
+      }
+      if (d.warning) setMessage((m) => `${m} · ⚠️ ${d.warning}`);
+      setGroupTool('none');
+      setGroupName('');
+      setGroupDesc('');
+      setFirstMember('');
     } finally {
       setBusy(null);
     }
@@ -162,420 +257,421 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
   }
 
   const dirty = Object.keys(draft).length > 0;
-  // Groupes : ceux renvoyés par l'API (avec cache si WHAPI est muet), sinon ceux
-  // de la page ; le groupe configuré reste toujours sélectionnable.
+  // Groupes : ceux renvoyés par l'API (avec cache si WHAPI est muet), sinon ceux de la page ;
+  // le groupe configuré reste toujours sélectionnable ; un groupe déjà pris par une autre campagne est signalé.
   const groupOptions: GroupRow[] = (state.groups && state.groups.length ? state.groups : groups).slice();
   if (cfg.group_id && !groupOptions.some((g) => g.id === cfg.group_id)) {
     groupOptions.unshift({ id: cfg.group_id, name: `Groupe configuré (${cfg.group_id.split('@')[0]})`, participantsCount: 0 });
   }
-  const totalCats = Math.max(1, state.categories);
-  const currentPos = (cfg.cursor % totalCats) + 1;
-  const isMedia = cfg.mode === 'media';
+  const takenBy = new Map(otherCampaigns.filter((c) => c.group_id).map((c) => [c.group_id as string, c.name || c.offer_title || `campagne ${c.slot}`]));
+  const currentGroupName = groupLabel(groupOptions, cfg.group_id);
+  const title = cfg.name || currentGroupName || state.offer_title || `Nouvelle campagne`;
+
   const activeMedia = state.media.filter((m) => m.active);
-  const mediaInLoop = (cfg.media_ids.length ? activeMedia.filter((m) => cfg.media_ids.includes(m.id)) : activeMedia).length || (cfg.media_ids.length ? activeMedia.length : 0);
-  const mediaPos = mediaInLoop ? (cfg.media_cursor % mediaInLoop) + 1 : 0;
-  const toggleHour = (h: number) => {
-    const cur = cfg.media_hours;
-    const next = cur.includes(h) ? cur.filter((x) => x !== h) : [...cur, h].sort((a, b) => a - b);
-    setDraft((d) => ({ ...d, media_hours: next.length ? next : cur }));
-  };
-  const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800';
-  const label = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500';
+  const inLoop = (cfg.media_ids.length ? activeMedia.filter((m) => cfg.media_ids.includes(m.id)) : activeMedia).length || activeMedia.length;
+  const perSlot = inLoop ? (cfg.media_batch > 0 ? Math.min(cfg.media_batch, inLoop) : inLoop) : 0;
+  const volume = dailyVolume(normalizeDripConfig({ ...cfg, enabled: true }), perSlot);
+  const totalCats = Math.max(1, state.categories);
+  const catPos = (cfg.cursor % totalCats) + 1;
+  const mediaPos = inLoop ? (cfg.media_cursor % inLoop) + 1 : 0;
 
   return (
-    <div className="space-y-5">
-      {/* État + pause */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-        <div>
-          <p className="font-display text-lg font-bold text-slate-900 dark:text-white">
-            Campagne {slot} · {cfg.enabled ? '🟢 active' : '⏸ en pause'}
+    <div className="space-y-5 pb-20">
+      {/* En-tête : nom, état, pause, supprimer */}
+      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+        <div className="min-w-[240px] flex-1">
+          <input
+            value={draft.name !== undefined ? draft.name || '' : cfg.name || ''}
+            onChange={(e) => set({ name: e.target.value || null })}
+            placeholder={title}
+            className="w-full bg-transparent font-display text-lg font-bold text-slate-900 outline-none placeholder:text-slate-900 focus:placeholder:text-slate-300 dark:text-white dark:placeholder:text-white"
+            aria-label="Nom de la campagne"
+          />
+          <p className="text-sm text-slate-500">
+            {cfg.enabled ? '🟢 active' : '⏸ en pause'} · {currentGroupName || 'aucun groupe'} · {state.offer_title || 'aucun catalogue'}
           </p>
           {state.whatsapp && !state.whatsapp.ok && (
             <p className="mt-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
-              🚨 Canal WhatsApp déconnecté (statut {state.whatsapp.status}) — rescanner le QR dans le panel WHAPI. Groupe, statut et chaîne ne partiront pas.
-            </p>
-          )}
-          {isMedia ? (
-            <p className="text-sm text-slate-500">
-              🎬 Médias · {mediaInLoop} média{mediaInLoop > 1 ? 's' : ''} · {cfg.media_hours.map((h) => `${h}h`).join(', ')} ({COUNTRY.mainCity})
-              {cfg.media_batch > 0 && cfg.media_batch < mediaInLoop ? ` · ${cfg.media_batch} par créneau en boucle · position ${mediaPos}/${mediaInLoop || '—'}` : ' · tous les médias à chaque créneau'}
-              {state.offer_title ? ` · listing rappelé : ${state.offer_title}` : ''}
-            </p>
-          ) : (
-            <p className="text-sm text-slate-500">
-              📦 Catalogue · {state.offer_title ? `${state.offer_title} · ${state.categories} catégories` : 'Aucun listing choisi'}
-              {' · '}toutes les heures de {cfg.start_hour}h à {cfg.end_hour}h ({COUNTRY.mainCity})
-              {' · '}position {currentPos}/{state.categories || '—'}
-            </p>
-          )}
-          {isMedia && cfg.enabled && mediaInLoop === 0 && (
-            <p className="mt-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-              Aucun média dans la boucle : rien ne partira tant que la médiathèque est vide.
+              🚨 WhatsApp déconnecté (statut {state.whatsapp.status}) — rescanner le QR dans le panel WHAPI. Groupe, statut et chaîne ne partiront pas.
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => save({ enabled: !cfg.enabled }, cfg.enabled ? 'Diffusion en pause' : 'Diffusion reprise')}
+            onClick={() => save({ ...draft, enabled: !cfg.enabled }, cfg.enabled ? 'Campagne en pause' : 'Campagne activée')}
             disabled={busy !== null}
             className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${cfg.enabled ? 'bg-amber-500' : 'bg-[#25D366]'}`}
           >
             {cfg.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            {cfg.enabled ? 'Mettre en pause' : 'Reprendre'}
+            {cfg.enabled ? 'Mettre en pause' : 'Activer la campagne'}
           </button>
           <button
             type="button"
             onClick={remove}
             disabled={busy !== null}
             title="Supprimer cette campagne"
-            className="flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:hover:bg-red-950/30"
+            className="flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50"
           >
             <Trash2 className="h-4 w-4" />
-            Supprimer
           </button>
         </div>
       </div>
 
       {message && <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm dark:bg-slate-700">{message}</p>}
 
-      {/* Mode de la campagne */}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {([
-          { key: 'media', icon: Film, title: 'Médias (photos / vidéos)', text: 'Vos photos et vidéos actives partent à chaque créneau quotidien. Recommandé : pas d’inondation de produits.' },
-          { key: 'catalog', icon: LayoutList, title: 'Catalogue (fiches produit)', text: 'Ancien mode : une catégorie du listing chaque heure, avec ses fiches produit.' },
-        ] as const).map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            onClick={() => setDraft((d) => ({ ...d, mode: m.key }))}
-            className={`flex items-start gap-3 rounded-2xl border p-4 text-left ${
-              cfg.mode === m.key ? 'border-[#25D366] bg-[#25D366]/10' : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800'
-            }`}
-          >
-            <m.icon className={`mt-0.5 h-5 w-5 ${cfg.mode === m.key ? 'text-[#25D366]' : 'text-slate-400'}`} />
-            <span>
-              <span className="block font-semibold text-slate-900 dark:text-white">{m.title}</span>
-              <span className="block text-xs text-slate-500">{m.text}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Créneaux + médiathèque (mode médias) */}
-      {isMedia && (
-        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+      {/* 1. Groupe et catalogue */}
+      <section className={`${card} space-y-4`}>
+        <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+          <Users className="h-4 w-4 text-[#25D366]" /> 1. Groupe et catalogue
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={label}>Créneaux quotidiens (heure de {COUNTRY.mainCity})</label>
-            <div className="flex flex-wrap gap-1.5">
-              {HOURS.map((h) => {
-                const on = cfg.media_hours.includes(h);
-                return (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => toggleHour(h)}
-                    className={`h-8 w-11 rounded-lg text-xs font-semibold ${on ? 'bg-[#25D366] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'}`}
-                  >
-                    {h}h
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {cfg.media_hours.length} créneau{cfg.media_hours.length > 1 ? 'x' : ''} par jour : {cfg.media_hours.map((h) => `${h}h`).join(', ')}.
-            </p>
-          </div>
-          <div className="sm:max-w-xs">
-            <label className={label}>À chaque créneau</label>
-            <select className={field} value={String(cfg.media_batch)} onChange={(e) => setDraft((d) => ({ ...d, media_batch: Number(e.target.value) }))}>
-              <option value="0">Tous les médias actifs de la campagne</option>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>{n} média{n > 1 ? 's' : ''} en boucle</option>
+            <label className={label}>Groupe WhatsApp</label>
+            <select className={field} value={cfg.group_id || ''} onChange={(e) => set({ group_id: e.target.value || null })}>
+              <option value="">— choisir —</option>
+              {groupOptions.map((g) => (
+                <option key={g.id} value={g.id} disabled={takenBy.has(g.id) && g.id !== cfg.group_id}>
+                  {g.name}
+                  {g.participantsCount ? ` (${g.participantsCount})` : ''}
+                  {takenBy.has(g.id) && g.id !== cfg.group_id ? ` — déjà : ${takenBy.get(g.id)}` : ''}
+                </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-500">
-              {cfg.media_batch === 0 ? 'Chaque média actif est publié, l’un après l’autre, sur les canaux cochés.' : 'Les médias tournent : à chaque créneau, les suivants de la boucle partent.'}
-            </p>
+            {state.groups_stale && <p className="mt-1 text-xs text-amber-600">WHAPI ne renvoie pas la liste en ce moment : dernière liste connue.</p>}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupTool(groupTool === 'create' ? 'none' : 'create');
+                  setGroupName(state.offer_title ? `${COUNTRY.brand} — ${state.offer_title}`.slice(0, 100) : '');
+                }}
+                className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300"
+              >
+                <Plus className="h-3.5 w-3.5" /> Créer un groupe
+              </button>
+              {cfg.group_id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGroupTool(groupTool === 'rename' ? 'none' : 'rename');
+                    setGroupName(currentGroupName || '');
+                  }}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Renommer ce groupe
+                </button>
+              )}
+            </div>
           </div>
           <div>
-            <label className={label}>Médiathèque</label>
+            <label className={label}>Catalogue du groupe</label>
+            <select className={field} value={cfg.offer_id || ''} onChange={(e) => set({ offer_id: e.target.value || null })}>
+              <option value="">— choisir —</option>
+              {offers.map((o) => (
+                <option key={o.id} value={o.id}>{o.title}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">Ses produits partent dans le groupe ; son nom et son lien accompagnent les annonces.</p>
+          </div>
+        </div>
+
+        {groupTool !== 'none' && (
+          <div className="space-y-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              {groupTool === 'create' ? 'Nouveau groupe WhatsApp (créé par le numéro connecté, qui en sera admin)' : `Renommer « ${currentGroupName} » sur WhatsApp`}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className={label}>Nom du groupe</label>
+                <input className={field} value={groupName} maxLength={100} onChange={(e) => setGroupName(e.target.value)} />
+              </div>
+              {groupTool === 'create' && (
+                <div>
+                  <label className={label}>1ᵉʳ membre (obligatoire pour WhatsApp)</label>
+                  <input className={field} value={firstMember} placeholder={`${phonePrefixDigits()}07xxxxxxx`} onChange={(e) => setFirstMember(e.target.value)} />
+                </div>
+              )}
+              <div className="sm:col-span-2">
+                <label className={label}>Description (facultatif)</label>
+                <textarea className={field} rows={2} value={groupDesc} onChange={(e) => setGroupDesc(e.target.value)} />
+              </div>
+            </div>
+            {groupTool === 'create' && (
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="checkbox" checked={inCommunity} onChange={(e) => setInCommunity(e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+                Dans la communauté liée (onglet Communauté)
+              </label>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={groupAction}
+                disabled={busy !== null || !groupName.trim() || (groupTool === 'create' && !firstMember.trim())}
+                className="rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {busy === 'group' ? <Loader2 className="h-4 w-4 animate-spin" /> : groupTool === 'create' ? 'Créer le groupe' : 'Renommer'}
+              </button>
+              <button type="button" onClick={() => setGroupTool('none')} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-500">
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 2. Produits */}
+      <section className={`${card} space-y-4`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+            <Package className="h-4 w-4 text-[#25D366]" /> 2. Produits du catalogue
+          </p>
+          <Switch on={cfg.products_enabled} onChange={(v) => set({ products_enabled: v })} label={cfg.products_enabled ? 'Activés' : 'Désactivés'} />
+        </div>
+        {cfg.products_enabled && (
+          <>
+            <p className="text-sm text-slate-500">
+              À chaque créneau, la catégorie suivante du catalogue part dans le groupe : son titre, puis ses produits (photo, prix, bouton « Voir le produit »).
+            </p>
+            <div>
+              <label className={label}>Créneaux (heure de {COUNTRY.mainCity}) — {cfg.product_hours.length} par jour</label>
+              <HourPicker value={cfg.product_hours} onChange={(h) => set({ product_hours: h })} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={label}>Produits par envoi dans le groupe</label>
+                <select className={field} value={cfg.per_category} onChange={(e) => set({ per_category: Number(e.target.value) })}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>{n} produit{n > 1 ? 's' : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={label}>Position dans le catalogue</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalCats}
+                    className={field}
+                    placeholder={`${catPos} / ${state.categories || '—'}`}
+                    value={position.products}
+                    onChange={(e) => setPosition((p) => ({ ...p, products: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy !== null || !position.products}
+                    onClick={() => {
+                      const n = Number(position.products);
+                      if (!Number.isFinite(n) || n < 1 || n > totalCats) return;
+                      save({ cursor: n - 1 }, `Reprise à la catégorie ${n}`);
+                      setPosition((p) => ({ ...p, products: '' }));
+                    }}
+                    className="shrink-0 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200"
+                  >
+                    Aller
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Catégorie {catPos} sur {state.categories || '—'} ; le catalogue tourne en boucle.</p>
+              </div>
+            </div>
+            {state.next && (
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+                <p className={label}>Prochain envoi · {nextSlotLabel(cfg.product_hours)} · {state.next.categoryTitle}</p>
+                <div className="flex gap-2 overflow-x-auto">
+                  {state.next.products.slice(0, cfg.per_category).map((p) => (
+                    <div key={p.id} className="w-24 shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.imageUrl} alt="" className="h-24 w-24 rounded-lg object-cover" />
+                      <p className="mt-1 line-clamp-2 text-[11px] text-slate-600 dark:text-slate-300">{p.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* 3. Annonces */}
+      <section className={`${card} space-y-4`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+            <Megaphone className="h-4 w-4 text-[#25D366]" /> 3. Annonces
+          </p>
+          <Switch on={cfg.announcements_enabled} onChange={(v) => set({ announcements_enabled: v })} label={cfg.announcements_enabled ? 'Activées' : 'Désactivées'} />
+        </div>
+        {cfg.announcements_enabled && (
+          <>
+            <p className="text-sm text-slate-500">
+              Photos et vidéos avec leur légende, suivies du nom et du lien du catalogue. Cochez dans la médiathèque celles de ce groupe (aucune cochée = toutes les actives).
+            </p>
+            <div>
+              <label className={label}>Créneaux (heure de {COUNTRY.mainCity}) — {cfg.media_hours.length} par jour</label>
+              <HourPicker value={cfg.media_hours} onChange={(h) => set({ media_hours: h })} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={label}>À chaque créneau</label>
+                <select className={field} value={String(cfg.media_batch)} onChange={(e) => set({ media_batch: Number(e.target.value) })}>
+                  <option value="0">Toutes les annonces de la campagne</option>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>{n} annonce{n > 1 ? 's' : ''}, les suivantes au créneau d’après</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  {perSlot} annonce{perSlot > 1 ? 's' : ''} par créneau · position {mediaPos || '—'} / {inLoop || '—'} · prochain créneau {nextSlotLabel(cfg.media_hours)}
+                </p>
+              </div>
+              {cfg.media_batch > 0 && inLoop > 1 && (
+                <div>
+                  <label className={label}>Reprendre à l’annonce n°</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={inLoop}
+                      className={field}
+                      placeholder={String(mediaPos)}
+                      value={position.announcements}
+                      onChange={(e) => setPosition((p) => ({ ...p, announcements: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      disabled={busy !== null || !position.announcements}
+                      onClick={() => {
+                        const n = Number(position.announcements);
+                        if (!Number.isFinite(n) || n < 1 || n > inLoop) return;
+                        save({ media_cursor: n - 1 }, `Reprise à l’annonce ${n}`);
+                        setPosition((p) => ({ ...p, announcements: '' }));
+                      }}
+                      className="shrink-0 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200"
+                    >
+                      Aller
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {inLoop === 0 && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                Aucune annonce active : ajoutez des photos ou des vidéos ci-dessous, sinon rien ne partira.
+              </p>
+            )}
             <DripMediaLibrary
               media={state.media}
               selectedIds={cfg.media_ids}
-              onSelectedChange={(ids) => setDraft((d) => ({ ...d, media_ids: ids }))}
+              onSelectedChange={(ids) => set({ media_ids: ids })}
               nextId={state.next_media?.item.id ?? null}
               onChanged={load}
             />
-          </div>
-        </div>
-      )}
-
-      {/* Réglages */}
-      <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 sm:grid-cols-2">
-        <div>
-          <label className={label}>Listing{isMedia ? ' (optionnel — rappelé dans la légende avec son lien)' : ''}</label>
-          <select className={field} value={cfg.offer_id || ''} onChange={(e) => setDraft((d) => ({ ...d, offer_id: e.target.value || null }))}>
-            <option value="">{isMedia ? '— aucun —' : '— choisir —'}</option>
-            {offers.map((o) => (
-              <option key={o.id} value={o.id}>{o.title}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={label}>Groupe WhatsApp</label>
-          <select className={field} value={cfg.group_id || ''} onChange={(e) => setDraft((d) => ({ ...d, group_id: e.target.value || null }))}>
-            <option value="">— choisir —</option>
-            {groupOptions.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}{g.participantsCount ? ` (${g.participantsCount})` : ''}</option>
-            ))}
-          </select>
-          {state.groups_stale && (
-            <p className="mt-1 text-xs text-amber-600">WHAPI ne renvoie pas la liste des groupes en ce moment — dernière liste connue affichée.</p>
-          )}
-        </div>
-        <div>
-          <label className={label}>Chaîne WhatsApp</label>
-          <select className={field} value={cfg.channel_id || ''} onChange={(e) => setDraft((d) => ({ ...d, channel_id: e.target.value || null }))}>
-            <option value="">— aucune —</option>
-            {state.newsletters.map((n) => (
-              <option key={n.id} value={n.id}>{n.name}{n.subscribers != null ? ` (${n.subscribers})` : ''}</option>
-            ))}
-          </select>
-        </div>
-        {!isMedia && (<>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={label}>Produits / h · groupe</label>
-            <input type="number" min={1} max={5} className={field} value={cfg.per_category} onChange={(e) => setDraft((d) => ({ ...d, per_category: Number(e.target.value) }))} />
-          </div>
-          <div>
-            <label className={label}>Produits / h · autres (défaut)</label>
-            <input type="number" min={1} max={5} className={field} value={cfg.per_hour_other} onChange={(e) => setDraft((d) => ({ ...d, per_hour_other: Number(e.target.value) }))} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={label}>De (h)</label>
-            <input type="number" min={0} max={23} className={field} value={cfg.start_hour} onChange={(e) => setDraft((d) => ({ ...d, start_hour: Number(e.target.value) }))} />
-          </div>
-          <div>
-            <label className={label}>À (h, inclus)</label>
-            <input type="number" min={0} max={23} className={field} value={cfg.end_hour} onChange={(e) => setDraft((d) => ({ ...d, end_hour: Number(e.target.value) }))} />
-          </div>
-        </div>
-        <div className="sm:col-span-2">
-          <label className={label}>Produits / h par canal (vide = défaut)</label>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {(['status', 'channel', 'facebook', 'facebook_posts', 'instagram', 'instagram_posts'] as const).map((c) => (
-              <div key={c}>
-                <span className="mb-1 block text-xs text-slate-500">
-                  {c === 'facebook' ? 'Facebook — stories' : c === 'facebook_posts' ? 'Facebook — publications' : c === 'instagram' ? 'Instagram — stories' : c === 'instagram_posts' ? 'Instagram — publications' : CHANNELS.find((x) => x.key === c)?.label}
-                </span>
-                <input
-                  type="number"
-                  min={c.endsWith('_posts') ? 0 : 1}
-                  max={5}
-                  placeholder={c.endsWith('_posts') ? '1' : String(cfg.per_hour_other)}
-                  className={field}
-                  value={cfg.per_channel[c] ?? ''}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      per_channel: { ...(d.per_channel || {}), [c]: e.target.value === '' ? null : Number(e.target.value) } as Config['per_channel'],
-                    }))
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        </>)}
-        {isMedia && (
-          <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
-            {(['facebook_posts', 'instagram_posts'] as const).map((c) => (
-              <div key={c}>
-                <label className={label}>{c === 'facebook_posts' ? 'Facebook — publication' : 'Instagram — publication'}</label>
-                <select
-                  className={field}
-                  value={String(cfg.per_channel[c] ?? 1)}
-                  onChange={(e) => setDraft((d) => ({ ...d, per_channel: { ...(d.per_channel || {}), [c]: Number(e.target.value) } as Config['per_channel'] }))}
-                >
-                  <option value="1">oui, en plus de la story</option>
-                  <option value="0">non, story seulement</option>
-                </select>
-              </div>
-            ))}
-          </div>
+          </>
         )}
-        <div className="sm:col-span-2">
-          <label className={label}>Canaux</label>
-          {slot > 1 && (cfg.channels.status || cfg.channels.channel || cfg.channels.facebook || cfg.channels.instagram) && (
-            <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Statut, chaîne, Facebook et Instagram sont partagés entre les campagnes : les deux flux s&apos;y cumuleront. Seul le groupe est propre à cette campagne.
-            </p>
-          )}
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CHANNELS.map((c) => {
-              const on = cfg.channels[c.key];
-              const ready = state.ready[c.key];
-              return (
-                <label key={c.key} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(e) => setDraft((d) => ({ ...d, channels: { ...(d.channels || {}), [c.key]: e.target.checked } as Record<Channel, boolean> }))}
-                    className="h-4 w-4 accent-[#25D366]"
-                  />
-                  <span className="flex-1">
-                    <span className="block text-sm font-medium text-slate-800 dark:text-slate-200">{c.label}</span>
-                    <span className="block text-xs text-slate-500">{c.hint[cfg.mode]}</span>
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${ready ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                    {ready ? 'prêt' : 'à configurer'}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 sm:col-span-2">
-          <button type="button" onClick={() => save(draft)} disabled={!dirty || busy !== null} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900">
-            Enregistrer
-          </button>
-          <button type="button" onClick={() => run('dry')} disabled={busy !== null || dirty} className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200">
-            <Eye className="h-4 w-4" /> Aperçu
-          </button>
-          <button type="button" onClick={() => run('now')} disabled={busy !== null || dirty || !cfg.enabled} className="flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" title={isMedia ? 'Publie le prochain média tout de suite, sur les canaux actifs' : 'Publie la prochaine catégorie tout de suite, sur les canaux actifs'}>
-            {busy === 'now' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Publier maintenant
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm('Arrêter la diffusion et remettre la position au début ?')) save({ enabled: false, reset_cursor: true }, 'Diffusion arrêtée, position remise au début');
-            }}
-            disabled={busy !== null}
-            className="flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 disabled:opacity-40"
-            title="Coupe la diffusion et repart de la première catégorie à la reprise"
-          >
-            <Square className="h-4 w-4" /> Arrêter
-          </button>
-        </div>
+      </section>
 
-        {/* Reprise à une position choisie */}
-        <div className="flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40 sm:col-span-2">
-          <div>
-            <label className={label}>{isMedia ? 'Reprendre au média n°' : 'Reprendre à la catégorie n°'}</label>
-            <input
-              type="number"
-              min={1}
-              max={isMedia ? Math.max(1, mediaInLoop) : totalCats}
-              className={field}
-              placeholder={String(isMedia ? mediaPos : currentPos)}
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-            />
-          </div>
-          <span className="pb-2 text-xs text-slate-500">
-            {isMedia ? `sur ${mediaInLoop || '—'} · actuellement ${mediaPos || '—'}` : `sur ${state.categories || '—'} · actuellement ${currentPos}`}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              const n = Number(position);
-              const max = isMedia ? Math.max(1, mediaInLoop) : totalCats;
-              if (!Number.isFinite(n) || n < 1 || n > max) return;
-              if (isMedia) save({ media_cursor: n - 1, enabled: true }, `Reprise au média ${n} — prochaine publication au prochain créneau`);
-              else save({ cursor: n - 1, enabled: true }, `Reprise à la catégorie ${n} — prochaine publication à l'heure pile`);
-              setPosition('');
-            }}
-            disabled={busy !== null || !position}
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
-          >
-            <Play className="h-4 w-4" /> Reprendre ici
-          </button>
+      {/* 4. Publier aussi sur */}
+      <section className={`${card} space-y-3`}>
+        <p className="font-semibold text-slate-900 dark:text-white">4. Publier aussi sur</p>
+        <p className="text-sm text-slate-500">Le groupe reçoit toujours les deux flux. Cochez où d’autre chaque flux doit partir.</p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[460px] text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                <th className="py-2 pr-2 font-semibold">Canal</th>
+                <th className="px-2 py-2 text-center font-semibold">Produits</th>
+                <th className="px-2 py-2 text-center font-semibold">Annonces</th>
+                <th className="py-2 pl-2 font-semibold">Réglage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              <tr>
+                <td className="py-2 pr-2 font-medium text-slate-800 dark:text-slate-200">Groupe WhatsApp</td>
+                <td className="px-2 text-center">
+                  <input type="checkbox" checked={cfg.products_channels.group} onChange={(e) => setChannel('products', 'group', e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+                </td>
+                <td className="px-2 text-center">
+                  <input type="checkbox" checked={cfg.announce_channels.group} onChange={(e) => setChannel('announcements', 'group', e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+                </td>
+                <td className="py-2 pl-2 text-xs text-slate-500">{currentGroupName || 'à choisir (section 1)'}</td>
+              </tr>
+              {EXTRA_CHANNELS.map((c) => {
+                const ready = state.ready[c.key];
+                const any = cfg.products_channels[c.key] || cfg.announce_channels[c.key];
+                return (
+                  <tr key={c.key}>
+                    <td className="py-2 pr-2">
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{c.label}</span>
+                      {any && !ready && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">à configurer</span>}
+                    </td>
+                    <td className="px-2 text-center">
+                      <input type="checkbox" checked={cfg.products_channels[c.key]} onChange={(e) => setChannel('products', c.key, e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+                    </td>
+                    <td className="px-2 text-center">
+                      <input type="checkbox" checked={cfg.announce_channels[c.key]} onChange={(e) => setChannel('announcements', c.key, e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+                    </td>
+                    <td className="space-y-1 py-2 pl-2 text-xs text-slate-500">
+                      {c.key === 'channel' && any && (
+                        <select className={`${field} py-1 text-xs`} value={cfg.channel_id || ''} onChange={(e) => set({ channel_id: e.target.value || null })}>
+                          <option value="">— choisir la chaîne —</option>
+                          {state.newsletters.map((n) => (
+                            <option key={n.id} value={n.id}>{n.name}{n.subscribers != null ? ` (${n.subscribers})` : ''}</option>
+                          ))}
+                        </select>
+                      )}
+                      {(c.key === 'status' || c.key === 'channel') && cfg.products_channels[c.key] && (
+                        <label className="flex items-center gap-1">
+                          produits par envoi
+                          <select className="rounded border border-slate-200 bg-white px-1 dark:border-slate-600 dark:bg-slate-800" value={cfg.per_channel[c.key] ?? cfg.per_hour_other} onChange={(e) => setPerChannel(c.key, Number(e.target.value))}>
+                            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      {(c.key === 'facebook' || c.key === 'instagram') && cfg.products_channels[c.key] && (
+                        <label className="flex flex-wrap items-center gap-1">
+                          produits : stories
+                          <select className="rounded border border-slate-200 bg-white px-1 dark:border-slate-600 dark:bg-slate-800" value={cfg.per_channel[c.key] ?? cfg.per_hour_other} onChange={(e) => setPerChannel(c.key, Number(e.target.value))}>
+                            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                          publications
+                          <select
+                            className="rounded border border-slate-200 bg-white px-1 dark:border-slate-600 dark:bg-slate-800"
+                            value={cfg.per_channel[c.key === 'facebook' ? 'facebook_posts' : 'instagram_posts'] ?? 1}
+                            onChange={(e) => setPerChannel(c.key === 'facebook' ? 'facebook_posts' : 'instagram_posts', Number(e.target.value))}
+                          >
+                            {[0, 1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      {(c.key === 'facebook' || c.key === 'instagram') && cfg.announce_channels[c.key] && (
+                        <label className="flex items-center gap-1">
+                          annonces :
+                          <select
+                            className="rounded border border-slate-200 bg-white px-1 dark:border-slate-600 dark:bg-slate-800"
+                            value={cfg.announce_posts[c.key] ? 'post' : 'story'}
+                            onChange={(e) => set({ announce_posts: { ...cfg.announce_posts, [c.key]: e.target.value === 'post' } })}
+                          >
+                            <option value="post">publication + story</option>
+                            <option value="story">story seulement</option>
+                          </select>
+                        </label>
+                      )}
+                      {c.key === 'status' && cfg.announce_channels.status && <span className="block">annonces : 1 story par annonce</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </div>
-
-      {/* Aperçu du prochain média */}
-      {isMedia && state.next_media && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <p className={label}>Prochaine publication · {state.next_batch.length > 1 ? `${state.next_batch.length} médias` : `média ${state.next_media.index + 1}/${state.next_media.total}`} · prochain créneau {(() => {
-            const now = new Date();
-            // Lecture fiable de l'heure (le format « heure seule » en français, « 00 h », donnait NaN).
-            const h = localHour(now);
-            const next = cfg.media_hours.find((x) => x > h) ?? cfg.media_hours[0];
-            return `${next}h${next <= h ? ' (demain)' : ''}`;
-          })()}</p>
-          <div className="flex gap-3">
-            <div className="h-36 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-black">
-              {state.next_media.item.kind === 'video' ? (
-                <video src={state.next_media.item.url} muted playsInline controls preload="metadata" className="h-full w-full object-cover" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={state.next_media.item.url} alt="" className="h-full w-full object-cover" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-800 dark:text-slate-200">{state.next_media.item.title || (state.next_media.item.kind === 'video' ? 'Vidéo' : 'Photo')}</p>
-              <pre className="mt-1 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-800 dark:bg-slate-900 dark:text-slate-200">{state.next_media.caption || '(sans légende)'}</pre>
-              <p className="mt-1 text-xs text-slate-500">
-                Canaux : {CHANNELS.filter((c) => cfg.channels[c.key]).map((c) => c.label.toLowerCase()).join(' · ') || 'aucun'}
-              </p>
-            </div>
-          </div>
-          {state.next_batch.length > 1 && (
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {state.next_batch.map((b, i) => (
-                <li key={b.item.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-1.5 text-xs dark:border-slate-600">
-                  <span className="h-10 w-7 overflow-hidden rounded bg-black">
-                    {b.item.kind === 'video' ? (
-                      <video src={b.item.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={b.item.url} alt="" className="h-full w-full object-cover" />
-                    )}
-                  </span>
-                  <span className="max-w-[140px] truncate text-slate-700 dark:text-slate-200">{i + 1}. {b.item.title || (b.item.kind === 'video' ? 'Vidéo' : 'Photo')}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Aperçu de la prochaine publication */}
-      {!isMedia && state.next && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <p className={label}>Prochaine publication · {state.next.index + 1}/{state.next.total}</p>
-          <pre className="whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-800 dark:bg-slate-900 dark:text-slate-200">{state.next.header}</pre>
-          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-            {state.next.products.map((p, i) => (
-              <li key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-2 dark:border-slate-700">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
-                <span className="flex-1 text-sm">
-                  <span className="block font-medium text-slate-800 dark:text-slate-200">{p.title}</span>
-                  <span className="block text-xs text-slate-500">
-                    {[
-                      i < cfg.per_category ? 'groupe' : null,
-                      ...(['status', 'channel', 'facebook', 'instagram'] as const)
-                        .filter((c) => cfg.channels[c] && i < (cfg.per_channel[c] ?? cfg.per_hour_other))
-                        .map((c) => CHANNELS.find((x) => x.key === c)?.label.toLowerCase()),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || '—'}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-900/40 dark:text-slate-300">
+          Par jour, une fois active : groupe {volume.group} · statut {volume.status} · chaîne {volume.channel} · Facebook {volume.facebook} · Instagram {volume.instagram}.
+          {otherCampaigns.some((o) => o.enabled) && ' Statut, chaîne, Facebook et Instagram s’additionnent aux autres campagnes actives.'}
+        </p>
+      </section>
 
       {/* Journal */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-        <p className={label}>Dernières publications</p>
+      <section className={card}>
+        <p className={label}>Dernières publications de ce groupe</p>
         {state.recent.length === 0 ? (
           <p className="text-sm text-slate-500">Aucune publication pour l’instant.</p>
         ) : (
@@ -591,6 +687,35 @@ export default function DripPanel({ groups, slot = 1, onChanged, onDeleted }: { 
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Barre d'actions */}
+      <div className="no-scrollbar sticky bottom-3 z-10 flex items-center gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-800/95 [&>button]:shrink-0">
+        <button
+          type="button"
+          onClick={() => save(draft)}
+          disabled={!dirty || busy !== null}
+          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
+        >
+          {busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : dirty ? 'Enregistrer' : 'Enregistré'}
+        </button>
+        {cfg.products_enabled && (
+          <>
+            <button type="button" onClick={() => run('products', true)} disabled={busy !== null || dirty} title="Voir la prochaine catégorie sans rien envoyer" className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200">
+              <Eye className="h-4 w-4" /> Aperçu
+            </button>
+            <button type="button" onClick={() => run('products', false)} disabled={busy !== null || dirty || !cfg.enabled} title="Publier maintenant la prochaine catégorie" className="flex items-center gap-1.5 rounded-xl bg-[#25D366] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">
+              {busy === 'products-now' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Envoyer produits
+            </button>
+          </>
+        )}
+        {cfg.announcements_enabled && (
+          <button type="button" onClick={() => run('announcements', false)} disabled={busy !== null || dirty || !cfg.enabled} title="Publier maintenant les prochaines annonces" className="flex items-center gap-1.5 rounded-xl bg-[#25D366] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">
+            {busy === 'announcements-now' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Envoyer annonces
+          </button>
+        )}
+        {dirty && <span className="shrink-0 text-xs text-amber-600">Non enregistré</span>}
+        {!dirty && !cfg.enabled && <span className="shrink-0 text-xs text-slate-500">Activez la campagne pour publier.</span>}
       </div>
     </div>
   );

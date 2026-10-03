@@ -1,5 +1,7 @@
-// « Goutte-à-goutte » catalogue : chaque heure, une catégorie du listing est
-// publiée dans un groupe WhatsApp — son titre, puis ses premiers produits.
+// Diffusion par groupe : chaque campagne relie UN groupe WhatsApp à SON
+// catalogue. Flux « produits » : à chaque créneau, une catégorie du listing
+// (titre puis premiers produits). Flux « annonces » : photos / vidéos de la
+// médiathèque (voir wa-media.ts).
 //
 // Fenêtre horaire en heure de Libreville (Africa/Libreville, UTC+1 sans
 // changement d'heure). Le curseur tourne en boucle sur les catégories
@@ -13,11 +15,11 @@ import { COUNTRY } from '@/config/countries';
 
 export const DRIP_SETTING_KEY = 'category_drip';
 /**
- * Campagnes simultanées : chaque emplacement (1..MAX_DRIP_SLOTS) a sa propre
- * config, son curseur, son verrou horaire et son journal — elles n'interfèrent
- * pas. L'emplacement 1 garde la clé historique `category_drip`.
+ * Campagnes simultanées (une par groupe) : chaque emplacement (1..MAX_DRIP_SLOTS)
+ * a sa propre config, ses curseurs, ses verrous horaires et son journal — elles
+ * n'interfèrent pas. L'emplacement 1 garde la clé historique `category_drip`.
  */
-export const MAX_DRIP_SLOTS = 6;
+export const MAX_DRIP_SLOTS = 12;
 /** Premier emplacement libre pour « Nouvelle campagne » (null si tout est pris). */
 export function nextFreeDripSlot(configured: number[]): number | null {
   const used = new Set(configured);
@@ -36,7 +38,7 @@ export function dripRitual(slot: number): string {
   return slot <= 1 ? 'category_drip' : `category_drip:${slot}`;
 }
 export const DRIP_TIMEZONE = COUNTRY.timezone;
-/** Produits publiés par catégorie et par heure (au-delà, c'est du spam de groupe). */
+/** Produits publiés par catégorie et par créneau (au-delà, c'est du spam de groupe). */
 export const DRIP_MAX_PER_CATEGORY = 5;
 
 export const DRIP_CHANNELS = ['group', 'status', 'channel', 'facebook', 'instagram'] as const;
@@ -46,67 +48,95 @@ export type PerChannelKey = (typeof PER_CHANNEL_KEYS)[number];
 export type DripChannels = Record<DripChannel, boolean>;
 
 /**
- * Mode d'une campagne :
- *  - `media`   : médias (photos / vidéos) de la médiathèque publiés en boucle,
- *                aux créneaux quotidiens choisis (défaut : 1 fois par jour) ;
- *  - `catalog` : historique — une catégorie du listing par heure (fiches produit).
+ * Une campagne = UN groupe WhatsApp et SON catalogue, avec deux flux
+ * indépendants (chacun ses créneaux, ses canaux et son verrou horaire) :
+ *  - `products`      : les produits du catalogue, une catégorie par créneau ;
+ *  - `announcements` : les annonces (photos / vidéos + légende de la médiathèque).
+ * Le groupe reçoit les deux flux ; statut, chaîne, Facebook et Instagram sont
+ * des options cochées flux par flux.
  */
-export type DripMode = 'media' | 'catalog';
+export type DripFlux = 'products' | 'announcements';
+export const DRIP_FLUXES: DripFlux[] = ['products', 'announcements'];
 export const DEFAULT_MEDIA_HOURS = [10];
+export const DEFAULT_PRODUCT_HOURS = [9, 12, 15, 18, 21];
 
 export interface DripConfig {
+  /** Interrupteur général de la campagne (les deux flux). */
   enabled: boolean;
-  mode: DripMode;
-  /** Créneaux (heures de Libreville) des publications médias (tous les médias, ou N en boucle, par créneau). */
-  media_hours: number[];
-  /** Médias de la médiathèque retenus pour cette campagne (vide = tous les actifs). */
-  media_ids: string[];
-  /** Position dans la boucle des médias. */
-  media_cursor: number;
-  /** Médias publiés à chaque créneau : 0 = TOUS les médias actifs (défaut), sinon N en boucle. */
-  media_batch: number;
+  /** Nom affiché dans l'admin (défaut : nom du groupe ou du catalogue). */
+  name: string | null;
+  /** Catalogue (listing) de la campagne : produits diffusés, rappelé dans les annonces. */
   offer_id: string | null;
+  /** Groupe WhatsApp de la campagne (…@g.us). */
   group_id: string | null;
-  /** Chaîne WhatsApp (…@newsletter) qui reçoit la publication. */
+  /** Chaîne WhatsApp (…@newsletter), si l'option « chaîne » est cochée. */
   channel_id: string | null;
-  /** Canaux actifs — chacun se coupe indépendamment depuis l'admin. */
-  channels: DripChannels;
-  /** Produits par heure dans le groupe. */
+
+  // --- Flux « produits » ---------------------------------------------------
+  products_enabled: boolean;
+  /** Créneaux (heures locales) : une catégorie du catalogue part à chacun. */
+  product_hours: number[];
+  products_channels: DripChannels;
+  /** Produits par créneau dans le groupe. */
   per_category: number;
-  /** Produits par heure sur les autres canaux — valeur par défaut. */
+  /** Produits par créneau sur les autres canaux — valeur par défaut. */
   per_hour_other: number;
   /**
    * Réglage fin par canal (prime sur per_hour_other quand présent).
-   * `facebook`/`instagram` = stories par heure ; `facebook_posts`/`instagram_posts`
-   * = publications par heure (0 = stories seulement).
+   * `facebook`/`instagram` = stories par créneau ; `facebook_posts`/`instagram_posts`
+   * = publications par créneau (0 = stories seulement).
    */
   per_channel: Partial<Record<PerChannelKey, number>>;
-  start_hour: number; // inclus, heure de Libreville
-  end_hour: number; // inclus
+  /** Position dans la boucle des catégories. */
   cursor: number;
+  /** Verrou horaire du flux produits. */
   last_run_at: string | null;
   last_item_id: string | null;
+
+  // --- Flux « annonces » ---------------------------------------------------
+  announcements_enabled: boolean;
+  /** Créneaux (heures locales) des annonces. */
+  media_hours: number[];
+  /** Annonces de la médiathèque retenues (vide = toutes les actives). */
+  media_ids: string[];
+  /** Position dans la boucle des annonces. */
+  media_cursor: number;
+  /** Annonces publiées à chaque créneau : 0 = toutes, sinon N en boucle. */
+  media_batch: number;
+  announce_channels: DripChannels;
+  /** Facebook / Instagram : publication dans le fil en plus de la story. */
+  announce_posts: { facebook: boolean; instagram: boolean };
+  /** Verrou horaire du flux annonces. */
+  media_last_run_at: string | null;
+  media_last_item_id: string | null;
 }
+
+const GROUP_ONLY: DripChannels = { group: true, status: false, channel: false, facebook: false, instagram: false };
 
 export const DEFAULT_DRIP_CONFIG: DripConfig = {
   enabled: false,
-  mode: 'media',
+  name: null,
+  offer_id: null,
+  group_id: null,
+  channel_id: null,
+  products_enabled: true,
+  product_hours: DEFAULT_PRODUCT_HOURS,
+  products_channels: GROUP_ONLY,
+  per_category: 3,
+  per_hour_other: 1,
+  per_channel: {},
+  cursor: 0,
+  last_run_at: null,
+  last_item_id: null,
+  announcements_enabled: false,
   media_hours: DEFAULT_MEDIA_HOURS,
   media_ids: [],
   media_cursor: 0,
   media_batch: 0,
-  offer_id: null,
-  group_id: null,
-  channel_id: null,
-  channels: { group: true, status: false, channel: false, facebook: false, instagram: false },
-  per_category: 3,
-  per_hour_other: 1,
-  per_channel: {},
-  start_hour: 9,
-  end_hour: 23,
-  cursor: 0,
-  last_run_at: null,
-  last_item_id: null,
+  announce_channels: GROUP_ONLY,
+  announce_posts: { facebook: true, instagram: true },
+  media_last_run_at: null,
+  media_last_item_id: null,
 };
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
@@ -114,6 +144,7 @@ const clampInt = (v: unknown, min: number, max: number, fallback: number): numbe
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 
 function normalizePerChannel(raw: unknown): DripConfig['per_channel'] {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -125,72 +156,219 @@ function normalizePerChannel(raw: unknown): DripConfig['per_channel'] {
   return out;
 }
 
-/** Produits par heure pour un canal donné. */
-export function productsFor(cfg: DripConfig, channel: DripChannel): number {
+/** Ce dont les diffuseurs ont besoin : destinations, canaux et rythmes d'un flux. */
+export interface BroadcastTarget {
+  channels: DripChannels;
+  group_id: string | null;
+  channel_id: string | null;
+  per_category: number;
+  per_hour_other: number;
+  per_channel: DripConfig['per_channel'];
+  /** Annonces : publication Facebook / Instagram en plus de la story. */
+  social_posts?: { facebook: boolean; instagram: boolean };
+}
+
+/** Cible de diffusion d'un flux : ses canaux cochés, les destinations de la campagne. */
+export function fluxTarget(cfg: DripConfig, flux: DripFlux): BroadcastTarget {
+  return {
+    channels: flux === 'products' ? cfg.products_channels : cfg.announce_channels,
+    group_id: cfg.group_id,
+    channel_id: cfg.channel_id,
+    per_category: cfg.per_category,
+    per_hour_other: cfg.per_hour_other,
+    per_channel: cfg.per_channel,
+    ...(flux === 'announcements' ? { social_posts: cfg.announce_posts } : {}),
+  };
+}
+
+type RateConfig = Pick<BroadcastTarget, 'per_category' | 'per_hour_other' | 'per_channel'>;
+
+/** Produits par créneau pour un canal donné. */
+export function productsFor(cfg: RateConfig, channel: DripChannel): number {
   if (channel === 'group') return cfg.per_category;
   return cfg.per_channel[channel] ?? cfg.per_hour_other;
 }
 
-/** Publications Facebook par heure (défaut 1 ; 0 = stories seulement). */
-export function facebookPostsFor(cfg: DripConfig): number {
+/** Publications Facebook par créneau (défaut 1 ; 0 = stories seulement). */
+export function facebookPostsFor(cfg: Pick<RateConfig, 'per_channel'>): number {
   return cfg.per_channel.facebook_posts ?? 1;
 }
 
-/** Publications Instagram par heure (défaut 1 ; 0 = stories seulement). */
-export function instagramPostsFor(cfg: DripConfig): number {
+/** Publications Instagram par créneau (défaut 1 ; 0 = stories seulement). */
+export function instagramPostsFor(cfg: Pick<RateConfig, 'per_channel'>): number {
   return cfg.per_channel.instagram_posts ?? 1;
 }
 
 /** Le plus grand rythme demandé, tous canaux confondus (taille du plan). */
-export function maxProductsPerHour(cfg: DripConfig): number {
+export function maxProductsPerHour(cfg: RateConfig): number {
   return Math.max(cfg.per_category, cfg.per_hour_other, ...Object.values(cfg.per_channel).map((n) => n ?? 0));
 }
 
-function normalizeChannels(raw: unknown): DripChannels {
+function normalizeChannels(raw: unknown, fallback: DripChannels = GROUP_ONLY): DripChannels {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<DripChannel, unknown>>;
-  const out = { ...DEFAULT_DRIP_CONFIG.channels };
+  const out = { ...fallback };
   for (const c of DRIP_CHANNELS) if (typeof r[c] === 'boolean') out[c] = r[c] as boolean;
   return out;
 }
 
 /** Heures (0-23) uniques et triées ; vide → défaut. */
-export function normalizeMediaHours(raw: unknown): number[] {
+export function normalizeHours(raw: unknown, fallback: number[]): number[] {
   const arr = Array.isArray(raw) ? raw : [];
   const hours = Array.from(
     new Set(arr.map((h) => Number(h)).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)),
   ).sort((a, b) => a - b);
-  return hours.length ? hours : [...DEFAULT_MEDIA_HOURS];
+  return hours.length ? hours : [...fallback];
 }
+export const normalizeMediaHours = (raw: unknown): number[] => normalizeHours(raw, DEFAULT_MEDIA_HOURS);
+export const normalizeProductHours = (raw: unknown): number[] => normalizeHours(raw, DEFAULT_PRODUCT_HOURS);
 
-/** Créneau média : l'heure locale figure dans media_hours. */
+/** Créneau d'annonces : l'heure locale figure dans media_hours. */
 export function isMediaHour(hour: number, cfg: Pick<DripConfig, 'media_hours'>): boolean {
   return cfg.media_hours.includes(hour);
 }
+/** Créneau produits : l'heure locale figure dans product_hours. */
+export function isProductHour(hour: number, cfg: Pick<DripConfig, 'product_hours'>): boolean {
+  return cfg.product_hours.includes(hour);
+}
 
-/** Config lue en base (jsonb) : on tolère l'absence ou des champs partiels. */
+/** Config déjà au format « une campagne, deux flux ». */
+export function isV2Config(raw: unknown): boolean {
+  return !!raw && typeof raw === 'object' && ('products_enabled' in raw || 'announcements_enabled' in raw);
+}
+
+/** Heures pleines de start à end inclus (ancienne fenêtre du mode catalogue). */
+function hoursRange(start: unknown, end: unknown): number[] {
+  const s = clampInt(start, 0, 23, 9);
+  const e = clampInt(end, 0, 23, 23);
+  const out: number[] = [];
+  for (let h = s; h <= e; h++) out.push(h);
+  return out.length ? out : [...DEFAULT_PRODUCT_HOURS];
+}
+
+/**
+ * Config lue en base (jsonb) : on tolère l'absence ou des champs partiels.
+ * Les anciennes campagnes (un `mode` : catalogue OU médias, une seule liste de
+ * canaux, une fenêtre start/end) sont converties sans perte : le mode devient
+ * le flux actif, ses canaux et son verrou passent sur ce flux.
+ */
 export function normalizeDripConfig(raw: unknown): DripConfig {
-  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof DripConfig, unknown>>;
-  return {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const legacy = !isV2Config(r) && Object.keys(r).length > 0;
+  const legacyMode = r.mode === 'catalog' ? 'catalog' : 'media';
+  const legacyPerChannel = normalizePerChannel(r.per_channel);
+
+  const base = {
     enabled: r.enabled === true,
-    // Défaut « médias » : les fiches produit ne partent plus qu'en mode catalogue explicite.
-    mode: r.mode === 'catalog' ? 'catalog' : 'media',
+    name: strOrNull(typeof r.name === 'string' ? r.name.trim().slice(0, 60) : null),
+    offer_id: strOrNull(r.offer_id),
+    group_id: strOrNull(r.group_id),
+    channel_id: strOrNull(r.channel_id),
+    per_category: clampInt(r.per_category, 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_category),
+    per_hour_other: clampInt(r.per_hour_other, 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_hour_other),
+    per_channel: legacyPerChannel,
+    cursor: clampInt(r.cursor, 0, Number.MAX_SAFE_INTEGER, 0),
     media_hours: normalizeMediaHours(r.media_hours),
     media_ids: Array.isArray(r.media_ids) ? r.media_ids.filter((x): x is string => typeof x === 'string' && !!x) : [],
     media_cursor: clampInt(r.media_cursor, 0, Number.MAX_SAFE_INTEGER, 0),
     media_batch: clampInt(r.media_batch, 0, 60, 0),
-    offer_id: typeof r.offer_id === 'string' && r.offer_id ? r.offer_id : null,
-    group_id: typeof r.group_id === 'string' && r.group_id ? r.group_id : null,
-    channel_id: typeof r.channel_id === 'string' && r.channel_id ? r.channel_id : null,
-    channels: normalizeChannels(r.channels),
-    per_category: clampInt(r.per_category, 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_category),
-    per_hour_other: clampInt(r.per_hour_other, 1, DRIP_MAX_PER_CATEGORY, DEFAULT_DRIP_CONFIG.per_hour_other),
-    per_channel: normalizePerChannel(r.per_channel),
-    start_hour: clampInt(r.start_hour, 0, 23, DEFAULT_DRIP_CONFIG.start_hour),
-    end_hour: clampInt(r.end_hour, 0, 23, DEFAULT_DRIP_CONFIG.end_hour),
-    cursor: clampInt(r.cursor, 0, Number.MAX_SAFE_INTEGER, 0),
-    last_run_at: typeof r.last_run_at === 'string' ? r.last_run_at : null,
-    last_item_id: typeof r.last_item_id === 'string' ? r.last_item_id : null,
   };
+
+  if (legacy) {
+    const catalog = legacyMode === 'catalog';
+    const channels = normalizeChannels(r.channels);
+    return {
+      ...base,
+      products_enabled: catalog,
+      product_hours: hoursRange(r.start_hour, r.end_hour),
+      products_channels: catalog ? channels : GROUP_ONLY,
+      last_run_at: catalog ? strOrNull(r.last_run_at) : null,
+      last_item_id: catalog ? strOrNull(r.last_item_id) : null,
+      announcements_enabled: !catalog,
+      announce_channels: catalog ? GROUP_ONLY : channels,
+      announce_posts: {
+        facebook: (legacyPerChannel.facebook_posts ?? 1) > 0,
+        instagram: (legacyPerChannel.instagram_posts ?? 1) > 0,
+      },
+      media_last_run_at: catalog ? null : strOrNull(r.last_run_at),
+      media_last_item_id: catalog ? null : strOrNull(r.last_item_id),
+    };
+  }
+
+  const posts = (r.announce_posts && typeof r.announce_posts === 'object' ? r.announce_posts : {}) as Record<string, unknown>;
+  return {
+    ...base,
+    products_enabled: Object.keys(r).length ? r.products_enabled === true : DEFAULT_DRIP_CONFIG.products_enabled,
+    product_hours: normalizeProductHours(r.product_hours),
+    products_channels: normalizeChannels(r.products_channels),
+    last_run_at: strOrNull(r.last_run_at),
+    last_item_id: strOrNull(r.last_item_id),
+    announcements_enabled: r.announcements_enabled === true,
+    announce_channels: normalizeChannels(r.announce_channels),
+    announce_posts: { facebook: posts.facebook !== false, instagram: posts.instagram !== false },
+    media_last_run_at: strOrNull(r.media_last_run_at),
+    media_last_item_id: strOrNull(r.media_last_item_id),
+  };
+}
+
+/** Où se trouve, dans la ligne stockée, le verrou du flux (les anciennes campagnes n'avaient qu'un `last_run_at`). */
+export function storedLock(raw: unknown, flux: DripFlux): { path: string; value: string | null } {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const key = flux === 'products' ? 'last_run_at' : 'media_last_run_at';
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
+  if (isV2Config(r)) return { path: key, value: str(r[key]) };
+  const legacyFlux: DripFlux = r.mode === 'catalog' ? 'products' : 'announcements';
+  if (flux === legacyFlux) return { path: 'last_run_at', value: str(r.last_run_at) };
+  return { path: key, value: str(r[key]) };
+}
+
+/** Verrou horaire d'un flux (dernière exécution). */
+export function fluxLastRun(cfg: DripConfig, flux: DripFlux): string | null {
+  return flux === 'products' ? cfg.last_run_at : cfg.media_last_run_at;
+}
+
+/** Créneaux d'un flux. */
+export function fluxHours(cfg: DripConfig, flux: DripFlux): number[] {
+  return flux === 'products' ? cfg.product_hours : cfg.media_hours;
+}
+
+/** Flux effectivement actif (campagne allumée ET flux allumé). */
+export function fluxActive(cfg: DripConfig, flux: DripFlux): boolean {
+  return cfg.enabled && (flux === 'products' ? cfg.products_enabled : cfg.announcements_enabled);
+}
+
+/**
+ * Volume quotidien estimé, par canal : ce que la campagne publie en une
+ * journée (pour voir d'un coup d'œil le cumul des campagnes sur le statut,
+ * Facebook et Instagram, partagés entre toutes). `announcementsPerSlot` =
+ * nombre d'annonces qui partent à chaque créneau.
+ */
+export function dailyVolume(cfg: DripConfig, announcementsPerSlot: number): Record<DripChannel, number> {
+  const out: Record<DripChannel, number> = { group: 0, status: 0, channel: 0, facebook: 0, instagram: 0 };
+  if (fluxActive(cfg, 'products')) {
+    const n = cfg.product_hours.length;
+    const ch = cfg.products_channels;
+    if (ch.group) out.group += n * cfg.per_category;
+    if (ch.status) out.status += n * productsFor(cfg, 'status');
+    if (ch.channel) out.channel += n * productsFor(cfg, 'channel');
+    if (ch.facebook) {
+      const stories = productsFor(cfg, 'facebook');
+      out.facebook += n * (stories + Math.min(stories, facebookPostsFor(cfg)));
+    }
+    if (ch.instagram) {
+      const stories = productsFor(cfg, 'instagram');
+      out.instagram += n * (stories + Math.min(stories, instagramPostsFor(cfg)));
+    }
+  }
+  if (fluxActive(cfg, 'announcements') && announcementsPerSlot > 0) {
+    const per = cfg.media_hours.length * announcementsPerSlot;
+    const ch = cfg.announce_channels;
+    if (ch.group) out.group += per;
+    if (ch.status) out.status += per;
+    if (ch.channel) out.channel += per;
+    if (ch.facebook) out.facebook += per * (cfg.announce_posts.facebook ? 2 : 1);
+    if (ch.instagram) out.instagram += per * (cfg.announce_posts.instagram ? 2 : 1);
+  }
+  return out;
 }
 
 function parts(date: Date, timeZone: string): { day: string; hour: number } {
@@ -220,11 +398,11 @@ export function localHourKey(date: Date, timeZone = DRIP_TIMEZONE): string {
   return `${p.day}-${String(p.hour).padStart(2, '0')}`;
 }
 
-export function isInWindow(hour: number, cfg: Pick<DripConfig, 'start_hour' | 'end_hour'>): boolean {
+export function isInWindow(hour: number, cfg: { start_hour: number; end_hour: number }): boolean {
   return hour >= cfg.start_hour && hour <= cfg.end_hour;
 }
 
-export function alreadyRanThisHour(cfg: Pick<DripConfig, 'last_run_at'>, now: Date): boolean {
+export function alreadyRanThisHour(cfg: { last_run_at: string | null }, now: Date): boolean {
   if (!cfg.last_run_at) return false;
   const last = new Date(cfg.last_run_at);
   if (Number.isNaN(last.getTime())) return false;
@@ -361,7 +539,11 @@ export interface DripPlan {
   tagline: string;
 }
 
-export function buildDripPlan(data: PublicOfferData, cfg: DripConfig, offerUrl: string): DripPlan | null {
+export function buildDripPlan(
+  data: PublicOfferData,
+  cfg: RateConfig & Pick<DripConfig, 'cursor'>,
+  offerUrl: string,
+): DripPlan | null {
   const cats = listDripCategories(data);
   const picked = pickCategory(cats, cfg.cursor);
   if (!picked) return null;

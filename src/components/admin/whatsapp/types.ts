@@ -44,7 +44,9 @@ export function buildDestOptions(community: CommunityState | null, groups: Group
     };
     for (const [key, gid] of Object.entries(community.slots)) {
       if (gid && !seen.has(gid)) {
-        opts.push({ id: gid, label: slotLabels[key] || key });
+        // Nom réel du groupe quand on le connaît (les groupes se renomment depuis la Diffusion).
+        const live = groups.find((g) => g.id === gid)?.name;
+        opts.push({ id: gid, label: live || slotLabels[key] || key });
         seen.add(gid);
       }
     }

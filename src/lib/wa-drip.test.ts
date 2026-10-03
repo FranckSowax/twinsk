@@ -19,7 +19,7 @@ import {
   dripSettingKey,
   parseDripSlot,
 } from './wa-drip';
-import { MAX_DRIP_SLOTS, nextFreeDripSlot } from './wa-drip';
+import { MAX_DRIP_SLOTS, dailyVolume, fluxTarget, isProductHour, isV2Config, nextFreeDripSlot, storedLock } from './wa-drip';
 
 type Product = PublicOfferData['items'][number]['products'][number];
 
@@ -75,8 +75,9 @@ describe('heure de Libreville (UTC+1, sans heure d’été)', () => {
 describe('normalizeDripConfig', () => {
   it('applique les défauts et borne les valeurs', () => {
     expect(normalizeDripConfig(null)).toEqual(DEFAULT_DRIP_CONFIG);
-    const cfg = normalizeDripConfig({ enabled: true, offer_id: 'o1', group_id: 'g@g.us', per_category: 99, start_hour: -3, end_hour: 30, cursor: '7' });
-    expect(cfg).toMatchObject({ enabled: true, offer_id: 'o1', group_id: 'g@g.us', per_category: 5, start_hour: 0, end_hour: 23, cursor: 7 });
+    expect(normalizeDripConfig({})).toEqual(DEFAULT_DRIP_CONFIG);
+    const cfg = normalizeDripConfig({ products_enabled: true, enabled: true, offer_id: 'o1', group_id: 'g@g.us', per_category: 99, product_hours: [30, 9, 9, 18], cursor: '7' });
+    expect(cfg).toMatchObject({ enabled: true, offer_id: 'o1', group_id: 'g@g.us', per_category: 5, product_hours: [9, 18], cursor: 7 });
   });
 });
 
@@ -135,8 +136,9 @@ describe('cleanCategoryNote', () => {
 
 describe('canaux et rappel du listing', () => {
   it('normalise les canaux avec des défauts sûrs (groupe seul actif)', () => {
-    const cfg = normalizeDripConfig({ channels: { status: true, facebook: 'oui' } });
-    expect(cfg.channels).toEqual({ group: true, status: true, channel: false, facebook: false, instagram: false });
+    const cfg = normalizeDripConfig({ products_enabled: true, products_channels: { status: true, facebook: 'oui' } });
+    expect(cfg.products_channels).toEqual({ group: true, status: true, channel: false, facebook: false, instagram: false });
+    expect(cfg.announce_channels).toEqual({ group: true, status: false, channel: false, facebook: false, instagram: false });
     expect(cfg.per_hour_other).toBe(1);
     expect(cfg.channel_id).toBeNull();
   });
@@ -200,7 +202,78 @@ describe('nextFreeDripSlot — « Nouvelle campagne »', () => {
     expect(nextFreeDripSlot([1, 2, 3])).toBe(4);
     expect(nextFreeDripSlot([1, 3])).toBe(2);
   });
-  it('null quand les six emplacements sont pris', () => {
+  it('null quand tous les emplacements sont pris', () => {
     expect(nextFreeDripSlot(Array.from({ length: MAX_DRIP_SLOTS }, (_, i) => i + 1))).toBeNull();
+  });
+});
+
+describe('anciennes campagnes (un seul mode) → une campagne, deux flux', () => {
+  it('le mode catalogue devient le flux produits, avec ses canaux, sa fenêtre et son verrou', () => {
+    const cfg = normalizeDripConfig({
+      enabled: true, mode: 'catalog', offer_id: 'o1', group_id: 'g@g.us', start_hour: 9, end_hour: 12,
+      channels: { group: true, status: true }, last_run_at: '2026-10-01T10:00:00Z', cursor: 4,
+    });
+    expect(cfg.products_enabled).toBe(true);
+    expect(cfg.announcements_enabled).toBe(false);
+    expect(cfg.product_hours).toEqual([9, 10, 11, 12]);
+    expect(cfg.products_channels.status).toBe(true);
+    expect(cfg.announce_channels).toEqual({ group: true, status: false, channel: false, facebook: false, instagram: false });
+    expect(cfg.last_run_at).toBe('2026-10-01T10:00:00Z');
+    expect(cfg.media_last_run_at).toBeNull();
+    expect(cfg.cursor).toBe(4);
+  });
+
+  it('le mode médias (ou sans mode) devient le flux annonces, verrou compris', () => {
+    const cfg = normalizeDripConfig({
+      enabled: true, group_id: 'g@g.us', media_hours: [10, 18], channels: { facebook: true, instagram: true },
+      per_channel: { facebook_posts: 0 }, last_run_at: '2026-10-01T09:00:00Z',
+    });
+    expect(cfg.announcements_enabled).toBe(true);
+    expect(cfg.products_enabled).toBe(false);
+    expect(cfg.announce_channels.facebook).toBe(true);
+    expect(cfg.announce_posts).toEqual({ facebook: false, instagram: true });
+    expect(cfg.media_hours).toEqual([10, 18]);
+    expect(cfg.media_last_run_at).toBe('2026-10-01T09:00:00Z');
+    expect(cfg.last_run_at).toBeNull();
+  });
+
+  it('retrouve le verrou là où il est stocké', () => {
+    expect(storedLock({ mode: 'catalog', last_run_at: 'A' }, 'products')).toEqual({ path: 'last_run_at', value: 'A' });
+    expect(storedLock({ mode: 'media', last_run_at: 'B' }, 'announcements')).toEqual({ path: 'last_run_at', value: 'B' });
+    expect(storedLock({ products_enabled: true, last_run_at: 'C', media_last_run_at: 'D' }, 'announcements')).toEqual({ path: 'media_last_run_at', value: 'D' });
+    expect(storedLock({ products_enabled: true }, 'products')).toEqual({ path: 'last_run_at', value: null });
+    expect(isV2Config({ mode: 'media' })).toBe(false);
+    expect(isV2Config({ announcements_enabled: false })).toBe(true);
+  });
+});
+
+describe('flux d’une campagne', () => {
+  const cfg = normalizeDripConfig({
+    enabled: true, products_enabled: true, announcements_enabled: true, group_id: 'g@g.us', channel_id: 'c@newsletter',
+    product_hours: [9, 15], per_category: 3, products_channels: { group: true, status: true, facebook: true },
+    per_channel: { status: 2, facebook: 2, facebook_posts: 1 },
+    media_hours: [10], announce_channels: { group: true, instagram: true }, announce_posts: { facebook: true, instagram: false },
+  });
+
+  it('chaque flux a ses canaux, les destinations sont celles de la campagne', () => {
+    const p = fluxTarget(cfg, 'products');
+    expect(p.channels.status).toBe(true);
+    expect(p.channels.instagram).toBe(false);
+    expect(p.group_id).toBe('g@g.us');
+    expect(p.social_posts).toBeUndefined();
+    const a = fluxTarget(cfg, 'announcements');
+    expect(a.channels.status).toBe(false);
+    expect(a.channels.instagram).toBe(true);
+    expect(a.social_posts).toEqual({ facebook: true, instagram: false });
+    expect(isProductHour(15, cfg)).toBe(true);
+    expect(isProductHour(10, cfg)).toBe(false);
+  });
+
+  it('estime le volume quotidien par canal', () => {
+    const v = dailyVolume(cfg, 2);
+    // produits : 2 créneaux × (3 groupe, 2 statut, 2 stories + 1 publication Facebook) ; annonces : 1 créneau × 2 annonces (groupe, story Instagram)
+    expect(v).toEqual({ group: 2 * 3 + 2, status: 2 * 2, channel: 0, facebook: 2 * 3, instagram: 2 });
+    expect(dailyVolume({ ...cfg, enabled: false }, 2)).toEqual({ group: 0, status: 0, channel: 0, facebook: 0, instagram: 0 });
+    expect(dailyVolume({ ...cfg, products_enabled: false }, 0).group).toBe(0);
   });
 });

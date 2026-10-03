@@ -15,19 +15,24 @@ import {
   listingTagline,
   normalizeDripConfig,
   normalizeMediaHours,
+  normalizeProductHours,
   parseDripSlot,
+  type DripChannels,
   type DripConfig,
 } from '@/lib/wa-drip';
 import { buildMediaBatch } from '@/lib/wa-media';
 import { deleteDripConfig, listDripCampaigns, readDripConfig, readMediaLibrary, writeDripConfig } from '@/lib/wa-drip-run';
 
-// Réglage du goutte-à-goutte multi-canal (admin only).
-// GET  → config, disponibilité des canaux, groupes (avec cache si WHAPI est
-//        muet), chaînes WhatsApp, aperçu de la prochaine publication, journal
-// POST → champs à modifier : enabled, offer_id, group_id, channel_id,
-//        channels {group,status,channel,facebook,instagram}, per_category,
-//        per_hour_other, per_channel, start_hour, end_hour, reset_cursor,
-//        cursor (position 0-based : 0 = première catégorie), slot (campagne 1..3)
+// Campagnes de diffusion — une par groupe WhatsApp (admin only).
+// GET  → config de la campagne, disponibilité des canaux, groupes (avec cache si
+//        WHAPI est muet), chaînes WhatsApp, prochaine catégorie et prochaines
+//        annonces, journal, résumé de toutes les campagnes
+// POST → champs à modifier : enabled, name, offer_id, group_id, channel_id,
+//        products_enabled, product_hours, products_channels, per_category,
+//        per_hour_other, per_channel, cursor ; announcements_enabled,
+//        media_hours, media_ids, media_batch, media_cursor, announce_channels,
+//        announce_posts ; reset_cursor ; slot
+// DELETE ?slot=N → supprime la campagne (le journal reste)
 // ?slot=N (GET) / body.slot (POST) : campagne visée — chaque campagne est isolée.
 
 export async function GET(request: NextRequest) {
@@ -106,15 +111,6 @@ export async function DELETE(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const body = (await request.json().catch(() => ({}))) as Partial<DripConfig> & { reset_cursor?: boolean; slot?: number };
-  if (body.mode !== undefined && body.mode !== 'media' && body.mode !== 'catalog') {
-    return NextResponse.json({ error: 'mode invalide (media | catalog)' }, { status: 400 });
-  }
-  if (body.media_cursor !== undefined && (!Number.isFinite(Number(body.media_cursor)) || Number(body.media_cursor) < 0)) {
-    return NextResponse.json({ error: 'Position média invalide.' }, { status: 400 });
-  }
-  if (body.media_batch !== undefined && (!Number.isFinite(Number(body.media_batch)) || Number(body.media_batch) < 0)) {
-    return NextResponse.json({ error: 'Nombre de médias par créneau invalide (0 = tous).' }, { status: 400 });
-  }
   const slot = parseDripSlot(body.slot);
   const current = await readDripConfig(slot);
 
@@ -126,7 +122,17 @@ export async function POST(request: NextRequest) {
   }
   if (body.offer_id) {
     const data = await fetchPublicOffer(body.offer_id);
-    if (!data?.offer) return NextResponse.json({ error: 'Listing introuvable ou non publié.' }, { status: 400 });
+    if (!data?.offer) return NextResponse.json({ error: 'Catalogue introuvable ou non publié.' }, { status: 400 });
+  }
+  // Un groupe = une campagne : on refuse de brancher un groupe déjà pris par une autre campagne.
+  if (body.group_id && body.group_id !== current.group_id) {
+    const taken = (await listDripCampaigns()).find((c) => c.configured && c.slot !== slot && c.group_id === body.group_id);
+    if (taken) {
+      return NextResponse.json(
+        { error: `Ce groupe a déjà sa campagne (${taken.name || taken.offer_title || `campagne ${taken.slot}`}).` },
+        { status: 400 },
+      );
+    }
   }
   for (const k of ['per_category', 'per_hour_other'] as const) {
     const v = body[k];
@@ -134,8 +140,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `${k} entre 1 et ${DRIP_MAX_PER_CATEGORY}` }, { status: 400 });
     }
   }
-  if (body.cursor !== undefined && (!Number.isFinite(Number(body.cursor)) || Number(body.cursor) < 0)) {
-    return NextResponse.json({ error: 'Position invalide.' }, { status: 400 });
+  for (const k of ['cursor', 'media_cursor', 'media_batch'] as const) {
+    const v = body[k];
+    if (v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0)) {
+      return NextResponse.json({ error: `${k} invalide` }, { status: 400 });
+    }
   }
 
   const perChannel = { ...current.per_channel };
@@ -150,42 +159,56 @@ export async function POST(request: NextRequest) {
       else if (v === null) delete (perChannel as Record<string, number>)[k];
     }
   }
-  const channels = { ...current.channels };
-  if (body.channels && typeof body.channels === 'object') {
-    for (const c of DRIP_CHANNELS) if (typeof body.channels[c] === 'boolean') channels[c] = body.channels[c];
-  }
+  const mergeChannels = (cur: DripChannels, patch: unknown): DripChannels => {
+    const out = { ...cur };
+    if (patch && typeof patch === 'object') {
+      for (const c of DRIP_CHANNELS) {
+        const v = (patch as Record<string, unknown>)[c];
+        if (typeof v === 'boolean') out[c] = v;
+      }
+    }
+    return out;
+  };
 
-  // Position explicite : on repositionne le curseur et on lève le verrou horaire
-  // pour que la reprise parte au prochain créneau (pas de doublon possible : le
-  // verrou atomique est reposé à l'envoi).
-  const cursorPatch =
+  // Position explicite : on repositionne le curseur et on lève le verrou du flux
+  // pour que la reprise parte au prochain créneau (pas de doublon : le verrou
+  // atomique est reposé à l'envoi). Changement de catalogue : on repart du début.
+  const catalogChanged = !!body.offer_id && body.offer_id !== current.offer_id;
+  const productCursor =
     body.cursor !== undefined
       ? { cursor: Math.round(Number(body.cursor)), last_run_at: null, last_item_id: null }
-      : body.reset_cursor || (body.offer_id && body.offer_id !== current.offer_id)
-        ? { cursor: 0, media_cursor: 0, last_run_at: null, last_item_id: null }
+      : body.reset_cursor || catalogChanged
+        ? { cursor: 0, last_run_at: null, last_item_id: null }
         : {};
-  // Position dans la boucle des médias (0 = premier média retenu).
-  const mediaCursorPatch =
-    body.media_cursor !== undefined ? { media_cursor: Math.round(Number(body.media_cursor)), last_run_at: null, last_item_id: null } : {};
+  const mediaCursor =
+    body.media_cursor !== undefined
+      ? { media_cursor: Math.round(Number(body.media_cursor)), media_last_run_at: null, media_last_item_id: null }
+      : body.reset_cursor
+        ? { media_cursor: 0, media_last_run_at: null, media_last_item_id: null }
+        : {};
 
+  const pick = <K extends keyof DripConfig>(k: K) => (body[k] !== undefined ? { [k]: body[k] } : {});
   const next = normalizeDripConfig({
     ...current,
-    channels,
-    per_channel: perChannel,
-    ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
-    ...(body.mode !== undefined ? { mode: body.mode } : {}),
+    ...pick('enabled'),
+    ...pick('name'),
+    ...pick('offer_id'),
+    ...pick('group_id'),
+    ...pick('channel_id'),
+    ...pick('products_enabled'),
+    ...pick('announcements_enabled'),
+    ...pick('per_category'),
+    ...pick('per_hour_other'),
+    ...pick('media_ids'),
+    ...pick('media_batch'),
+    ...pick('announce_posts'),
+    ...(body.product_hours !== undefined ? { product_hours: normalizeProductHours(body.product_hours) } : {}),
     ...(body.media_hours !== undefined ? { media_hours: normalizeMediaHours(body.media_hours) } : {}),
-    ...(body.media_ids !== undefined ? { media_ids: Array.isArray(body.media_ids) ? body.media_ids : [] } : {}),
-    ...(body.media_batch !== undefined ? { media_batch: Math.round(Number(body.media_batch)) } : {}),
-    ...(body.offer_id !== undefined ? { offer_id: body.offer_id } : {}),
-    ...(body.group_id !== undefined ? { group_id: body.group_id } : {}),
-    ...(body.channel_id !== undefined ? { channel_id: body.channel_id } : {}),
-    ...(body.per_category !== undefined ? { per_category: body.per_category } : {}),
-    ...(body.per_hour_other !== undefined ? { per_hour_other: body.per_hour_other } : {}),
-    ...(body.start_hour !== undefined ? { start_hour: body.start_hour } : {}),
-    ...(body.end_hour !== undefined ? { end_hour: body.end_hour } : {}),
-    ...cursorPatch,
-    ...mediaCursorPatch,
+    products_channels: mergeChannels(current.products_channels, body.products_channels),
+    announce_channels: mergeChannels(current.announce_channels, body.announce_channels),
+    per_channel: perChannel,
+    ...productCursor,
+    ...mediaCursor,
   });
 
   await writeDripConfig(next, slot);
