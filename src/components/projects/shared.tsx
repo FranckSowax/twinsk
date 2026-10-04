@@ -4,7 +4,7 @@
 // et la surface client (/projet/<jeton>) — appels, envoi de fichiers, badges,
 // fenêtre modale, pièces jointes, mise en forme.
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Download, ExternalLink, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Mail, Paperclip, X } from 'lucide-react';
 import type { Attachment } from '@/lib/projects/types';
 import { checkUpload } from '@/lib/projects/uploads';
@@ -83,18 +83,30 @@ export function Progress({ value, className = '' }: { value: number; className?:
   );
 }
 
+// Fenêtres ouvertes (imbriquées comprises) : la page ne défile plus tant qu'il
+// en reste une, et redéfile à la fermeture de la dernière. Un compteur plutôt
+// que « remettre la valeur d'avant » : deux fenêtres imbriquées redessinées
+// ensemble mémorisaient « hidden » et laissaient la page figée, y compris sur
+// les autres pages de l'admin (navigation sans rechargement).
+let openModals = 0;
+
 export function Modal({ title, onClose, children, wide = false }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
   // Échap ferme la fenêtre ; la page derrière ne défile pas tant qu'elle est ouverte.
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    const prev = document.body.style.overflow;
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
+    openModals += 1;
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      openModals = Math.max(0, openModals - 1);
+      if (openModals === 0) document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, []);
   return (
     // Mobile : feuille plein largeur depuis le bas, en-tête collant, marge de la barre d'accueil iOS.
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 sm:items-center sm:p-4" onClick={onClose}>
