@@ -25,6 +25,23 @@ export function sanitizeForPublic(input: string | null | undefined): string {
   return s.trim();
 }
 
+const HARD_CUTS = new Set([',', ';', ':', '—', '–', '(', '«', '»', '"']);
+// Coupent seulement hors d'un mot : « Canapé d'angle », « Canapé-lit » et
+// « 1.5 m » restent entiers ; « Lit - bois » ou « 'Nuage' » sont coupés.
+const SOFT_CUTS = new Set(['.', "'", '’', '-']);
+const isWordChar = (c: string | undefined) => !!c && /[\p{L}\p{N}]/u.test(c);
+
+// Position of the first major punctuation in `s` (s.length if none). Pas de
+// lookbehind dans une regex : non supporté avant iOS 16.4.
+function titleCutIndex(s: string): number {
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (HARD_CUTS.has(c)) return i;
+    if (SOFT_CUTS.has(c) && !(isWordChar(s[i - 1]) && isWordChar(s[i + 1]))) return i;
+  }
+  return s.length;
+}
+
 // Returns a short, denomination-only version of a long product title.
 // Stops at the first major punctuation (comma, colon, dash, parenthesis) so
 // "Sac à main classique cuir véritable noir 35cm, double anse zip" becomes
@@ -35,7 +52,7 @@ export function shortenTitle(input: string | null | undefined, maxWords = 3): st
   const cleaned = sanitizeForPublic(input);
   if (!cleaned) return '';
   // Cut at the first major punctuation (incl. French / smart quotes)
-  const cut = cleaned.split(/[,.;:—–\-(«»"'’]/)[0].trim();
+  const cut = cleaned.slice(0, titleCutIndex(cleaned)).trim();
   if (!cut) return cleaned;
   const words = cut.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) return cut;
