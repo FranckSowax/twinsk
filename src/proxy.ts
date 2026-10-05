@@ -1,7 +1,8 @@
 // Filtrage des modules par pays (option B) : en Côte d'Ivoire, les adresses de
 // la partie Twinsk renvoient vers la vitrine /bio (pages publiques) ou vers le
-// tableau de bord (admin). Au Gabon, ce proxy laisse tout passer. Il ne tourne
-// que sur les adresses listées dans `matcher`.
+// tableau de bord (admin). Au Gabon, ce proxy laisse tout passer, sauf les
+// sections masquées partout (HIDDEN_ADMIN_PREFIXES). Il ne tourne que sur les
+// adresses listées dans `matcher`.
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { routeAccess } from '@/lib/modules';

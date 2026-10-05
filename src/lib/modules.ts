@@ -9,7 +9,16 @@ export const TWINSK_PUBLIC_PREFIXES = ['/parcours', '/freight', '/request', '/pr
 /** Sections de l'admin propres à la partie Twinsk. */
 export const TWINSK_ADMIN_PREFIXES = ['/admin/requests', '/admin/usines', '/admin/revisions', '/admin/freight', '/admin/leads', '/admin/youtube', '/admin/catalog', '/admin/sourcing', '/admin/projets'] as const;
 
+/**
+ * Sections de l'admin masquées dans tous les pays (onglet retiré, adresse
+ * renvoyée vers le tableau de bord ; données et API conservées).
+ * /admin/leads (Services) et /admin/sourcing (Sourcing fournisseurs) :
+ * masquées le 5 oct. 2026 à la demande de Franck.
+ */
+export const HIDDEN_ADMIN_PREFIXES = ['/admin/leads', '/admin/sourcing'] as const;
+
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+const isHiddenAdminPath = (pathname: string) => HIDDEN_ADMIN_PREFIXES.some((p) => under(pathname, p));
 
 export function isTwinskPath(pathname: string): boolean {
   return [...TWINSK_PUBLIC_PREFIXES, ...TWINSK_ADMIN_PREFIXES].some((p) => under(pathname, p));
@@ -20,6 +29,7 @@ export function isTwinskPath(pathname: string): boolean {
  * vitrine /bio) ou `admin` (renvoi vers le tableau de bord).
  */
 export function routeAccess(pathname: string, country: CountryConfig = COUNTRY): 'ok' | 'shop' | 'admin' {
+  if (isHiddenAdminPath(pathname)) return 'admin';
   if (country.modules.twinsk) return 'ok';
   if (pathname === '/') return 'shop';
   if (TWINSK_ADMIN_PREFIXES.some((p) => under(pathname, p))) return 'admin';
@@ -29,5 +39,6 @@ export function routeAccess(pathname: string, country: CountryConfig = COUNTRY):
 
 /** Entrée du menu admin visible dans ce pays. */
 export function isAdminNavEnabled(href: string, country: CountryConfig = COUNTRY): boolean {
+  if (isHiddenAdminPath(href)) return false;
   return country.modules.twinsk || !isTwinskPath(href);
 }
