@@ -72,6 +72,18 @@ describe('heure de Libreville (UTC+1, sans heure d’été)', () => {
   });
 });
 
+describe('normalizeDripConfig — mode des annonces', () => {
+  it('ancienne campagne : liste vide = toutes, liste = sélection ; campagne neuve = sélection', () => {
+    expect(normalizeDripConfig({ enabled: true, media_ids: [] }).media_scope).toBe('all');
+    expect(normalizeDripConfig({ enabled: true, media_ids: ['x'] }).media_scope).toBe('selected');
+    expect(normalizeDripConfig({}).media_scope).toBe('selected');
+    expect(normalizeDripConfig(null).media_scope).toBe('selected');
+    expect(normalizeDripConfig({ enabled: true, media_ids: [], media_scope: 'selected' }).media_scope).toBe('selected');
+    expect(normalizeDripConfig({ enabled: true, media_ids: ['x'], media_scope: 'all' }).media_scope).toBe('all');
+    expect(normalizeDripConfig({ enabled: true, media_scope: 'nimporte' }).media_scope).toBe('all');
+  });
+});
+
 describe('normalizeDripConfig', () => {
   it('applique les défauts et borne les valeurs', () => {
     expect(normalizeDripConfig(null)).toEqual(DEFAULT_DRIP_CONFIG);

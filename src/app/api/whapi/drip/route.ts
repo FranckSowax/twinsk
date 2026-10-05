@@ -30,7 +30,7 @@ import { deleteDripConfig, listDripCampaigns, readDripConfig, readMediaLibrary, 
 // POST → champs à modifier : enabled, name, offer_id, group_id, channel_id,
 //        products_enabled, product_hours, products_channels, per_category,
 //        per_hour_other, per_channel, cursor ; announcements_enabled,
-//        media_hours, media_ids, media_batch, media_cursor, announce_channels,
+//        media_hours, media_scope, media_ids, media_batch, media_cursor, announce_channels,
 //        announce_posts ; reset_cursor ; slot
 // DELETE ?slot=N → supprime la campagne (le journal reste)
 // ?slot=N (GET) / body.slot (POST) : campagne visée — chaque campagne est isolée.
@@ -200,6 +200,7 @@ export async function POST(request: NextRequest) {
     ...pick('per_category'),
     ...pick('per_hour_other'),
     ...pick('media_ids'),
+    ...pick('media_scope'),
     ...pick('media_batch'),
     ...pick('announce_posts'),
     ...(body.product_hours !== undefined ? { product_hours: normalizeProductHours(body.product_hours) } : {}),

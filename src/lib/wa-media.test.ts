@@ -24,8 +24,14 @@ describe('médiathèque de diffusion', () => {
   it('la boucle ne contient que les actifs, filtrés par la sélection de la campagne', () => {
     expect(campaignMedia(lib, { media_ids: [] }).map((m) => m.id)).toEqual(['a', 'c']);
     expect(campaignMedia(lib, { media_ids: ['c', 'b'] }).map((m) => m.id)).toEqual(['c']);
-    // sélection obsolète → tous les actifs
-    expect(campaignMedia(lib, { media_ids: ['zzz'] }).map((m) => m.id)).toEqual(['a', 'c']);
+    // sélection obsolète → plus rien (on ne reprend pas les annonces des autres campagnes)
+    expect(campaignMedia(lib, { media_ids: ['zzz'] }).map((m) => m.id)).toEqual([]);
+  });
+
+  it('mode explicite : « all » prend tous les actifs, « selected » seulement les retenus (vide = aucun)', () => {
+    expect(campaignMedia(lib, { media_ids: ['c'], media_scope: 'all' }).map((m) => m.id)).toEqual(['a', 'c']);
+    expect(campaignMedia(lib, { media_ids: ['c'], media_scope: 'selected' }).map((m) => m.id)).toEqual(['c']);
+    expect(campaignMedia(lib, { media_ids: [], media_scope: 'selected' }).map((m) => m.id)).toEqual([]);
   });
 
   it('tourne en boucle sur le curseur et compose la légende', () => {

@@ -19,6 +19,8 @@ export interface GroupRow {
   id: string;
   name: string;
   participantsCount: number;
+  /** « announce » = groupe Annonces d'une communauté ; « community » = la communauté (pas d'envoi). */
+  kind?: 'announce' | 'community';
 }
 
 /** Option de destination d'envoi (slot structurel ou groupe libre). */

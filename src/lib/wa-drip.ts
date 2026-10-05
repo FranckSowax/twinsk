@@ -97,7 +97,13 @@ export interface DripConfig {
   announcements_enabled: boolean;
   /** Créneaux (heures locales) des annonces. */
   media_hours: number[];
-  /** Annonces de la médiathèque retenues (vide = toutes les actives). */
+  /**
+   * Annonces de la campagne : « all » = toutes les actives de la médiathèque
+   * (y compris celles ajoutées plus tard depuis une autre campagne) ;
+   * « selected » = seulement `media_ids`.
+   */
+  media_scope: MediaScope;
+  /** Annonces de la médiathèque retenues (mode « selected »). */
   media_ids: string[];
   /** Position dans la boucle des annonces. */
   media_cursor: number;
@@ -130,6 +136,7 @@ export const DEFAULT_DRIP_CONFIG: DripConfig = {
   last_item_id: null,
   announcements_enabled: false,
   media_hours: DEFAULT_MEDIA_HOURS,
+  media_scope: 'selected',
   media_ids: [],
   media_cursor: 0,
   media_batch: 0,
@@ -237,6 +244,19 @@ export function isV2Config(raw: unknown): boolean {
 }
 
 /** Heures pleines de start à end inclus (ancienne fenêtre du mode catalogue). */
+export type MediaScope = 'all' | 'selected';
+
+/**
+ * Mode des annonces. Avant le 5 oct. 2026, une liste vide voulait dire
+ * « toutes » : ces campagnes restent en « all » tant qu'on ne choisit pas
+ * leurs annonces. Une campagne neuve (rien en base) part en « selected ».
+ */
+function normalizeMediaScope(r: Record<string, unknown>, mediaIds: string[]): MediaScope {
+  if (r.media_scope === 'all' || r.media_scope === 'selected') return r.media_scope;
+  if (Object.keys(r).length === 0) return DEFAULT_DRIP_CONFIG.media_scope;
+  return mediaIds.length ? 'selected' : 'all';
+}
+
 function hoursRange(start: unknown, end: unknown): number[] {
   const s = clampInt(start, 0, 23, 9);
   const e = clampInt(end, 0, 23, 23);
@@ -256,6 +276,7 @@ export function normalizeDripConfig(raw: unknown): DripConfig {
   const legacy = !isV2Config(r) && Object.keys(r).length > 0;
   const legacyMode = r.mode === 'catalog' ? 'catalog' : 'media';
   const legacyPerChannel = normalizePerChannel(r.per_channel);
+  const mediaIds = Array.isArray(r.media_ids) ? r.media_ids.filter((x): x is string => typeof x === 'string' && !!x) : [];
 
   const base = {
     enabled: r.enabled === true,
@@ -268,7 +289,8 @@ export function normalizeDripConfig(raw: unknown): DripConfig {
     per_channel: legacyPerChannel,
     cursor: clampInt(r.cursor, 0, Number.MAX_SAFE_INTEGER, 0),
     media_hours: normalizeMediaHours(r.media_hours),
-    media_ids: Array.isArray(r.media_ids) ? r.media_ids.filter((x): x is string => typeof x === 'string' && !!x) : [],
+    media_ids: mediaIds,
+    media_scope: normalizeMediaScope(r, mediaIds),
     media_cursor: clampInt(r.media_cursor, 0, Number.MAX_SAFE_INTEGER, 0),
     media_batch: clampInt(r.media_batch, 0, 60, 0),
   };

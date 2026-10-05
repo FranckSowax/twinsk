@@ -261,7 +261,8 @@ export default function DripPanel({
   const dirty = Object.keys(draft).length > 0;
   // Groupes : ceux renvoyés par l'API (avec cache si WHAPI est muet), sinon ceux de la page ;
   // le groupe configuré reste toujours sélectionnable ; un groupe déjà pris par une autre campagne est signalé.
-  const groupOptions: GroupRow[] = (state.groups && state.groups.length ? state.groups : groups).slice();
+  // La communauté elle-même ne reçoit pas de messages : seul son groupe Annonces est proposé.
+  const groupOptions: GroupRow[] = (state.groups && state.groups.length ? state.groups : groups).filter((g) => g.kind !== 'community');
   if (cfg.group_id && !groupOptions.some((g) => g.id === cfg.group_id)) {
     groupOptions.unshift({ id: cfg.group_id, name: `Groupe configuré (${cfg.group_id.split('@')[0]})`, participantsCount: 0 });
   }
@@ -270,7 +271,7 @@ export default function DripPanel({
   const title = cfg.name || currentGroupName || state.offer_title || `Nouvelle campagne`;
 
   const activeMedia = state.media.filter((m) => m.active);
-  const inLoop = (cfg.media_ids.length ? activeMedia.filter((m) => cfg.media_ids.includes(m.id)) : activeMedia).length || activeMedia.length;
+  const inLoop = (cfg.media_scope === 'all' ? activeMedia : activeMedia.filter((m) => cfg.media_ids.includes(m.id))).length;
   const perSlot = inLoop ? (cfg.media_batch > 0 ? Math.min(cfg.media_batch, inLoop) : inLoop) : 0;
   const volume = dailyVolume(normalizeDripConfig({ ...cfg, enabled: true }), perSlot);
   const totalCats = Math.max(1, state.categories);
@@ -568,13 +569,14 @@ export default function DripPanel({
             </div>
             {inLoop === 0 && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-                Aucune annonce active : ajoutez des photos ou des vidéos ci-dessous, sinon rien ne partira.
+                Aucune annonce dans cette campagne : cochez « dans cette campagne » ou ajoutez des photos et vidéos ci-dessous, sinon rien ne partira.
               </p>
             )}
             <DripMediaLibrary
               media={state.media}
+              scope={cfg.media_scope}
               selectedIds={cfg.media_ids}
-              onSelectedChange={(ids) => set({ media_ids: ids })}
+              onSelectedChange={(ids, scope) => set({ media_ids: ids, media_scope: scope })}
               nextId={state.next_media?.item.id ?? null}
               onChanged={load}
             />

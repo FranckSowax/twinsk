@@ -61,14 +61,17 @@ export function normalizeMediaLibrary(raw: unknown): MediaItem[] {
   return out;
 }
 
-/** Médias de la boucle d'une campagne : actifs, et retenus si une sélection existe. */
-export function campaignMedia(items: MediaItem[], cfg: Pick<DripConfig, 'media_ids'>): MediaItem[] {
+/**
+ * Médias de la boucle d'une campagne : tous les actifs (mode « all »), ou
+ * seulement les actifs retenus (mode « selected », vide = aucun). Sans mode
+ * (ancienne config), une liste vide vaut « all ».
+ */
+export function campaignMedia(items: MediaItem[], cfg: Pick<DripConfig, 'media_ids'> & { media_scope?: DripConfig['media_scope'] }): MediaItem[] {
   const active = items.filter((m) => m.active);
-  if (!cfg.media_ids.length) return active;
+  const scope = cfg.media_scope ?? (cfg.media_ids.length ? 'selected' : 'all');
+  if (scope === 'all') return active;
   const wanted = new Set(cfg.media_ids);
-  const picked = active.filter((m) => wanted.has(m.id));
-  // Sélection devenue vide (médias supprimés) → on retombe sur tous les actifs.
-  return picked.length ? picked : active;
+  return active.filter((m) => wanted.has(m.id));
 }
 
 export interface MediaPlan {
@@ -93,7 +96,7 @@ function finalCaption(item: MediaItem, extra?: { tagline?: string | null; offerU
  */
 export function buildMediaBatch(
   items: MediaItem[],
-  cfg: Pick<DripConfig, 'media_ids' | 'media_cursor' | 'media_batch'>,
+  cfg: Pick<DripConfig, 'media_ids' | 'media_cursor' | 'media_batch'> & { media_scope?: DripConfig['media_scope'] },
   extra?: { tagline?: string | null; offerUrl?: string | null },
 ): MediaPlan[] {
   const pool = campaignMedia(items, cfg);
@@ -112,7 +115,7 @@ export function buildMediaBatch(
 /** Prochain média de la boucle (curseur modulo), avec sa légende finale. */
 export function buildMediaPlan(
   items: MediaItem[],
-  cfg: Pick<DripConfig, 'media_ids' | 'media_cursor'>,
+  cfg: Pick<DripConfig, 'media_ids' | 'media_cursor'> & { media_scope?: DripConfig['media_scope'] },
   extra?: { tagline?: string | null; offerUrl?: string | null },
 ): MediaPlan | null {
   const pool = campaignMedia(items, cfg);

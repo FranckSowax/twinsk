@@ -144,6 +144,12 @@ export interface WhapiGroupSummary {
   id: string;
   name: string;
   participantsCount: number;
+  /**
+   * « announce » = groupe Annonces d'une communauté (WhatsApp lui donne le
+   * nom de la communauté) ; « community » = la communauté elle-même, qui ne
+   * reçoit pas de messages. Absent = groupe ordinaire.
+   */
+  kind?: 'announce' | 'community';
 }
 
 export interface WhapiGroupInfo extends WhapiGroupSummary {
@@ -152,7 +158,7 @@ export interface WhapiGroupInfo extends WhapiGroupSummary {
 }
 
 interface RawParticipant { id?: string; rank?: string }
-interface RawGroup { id?: string; name?: string; subject?: string; size?: number; participants_count?: number; participants?: RawParticipant[] }
+interface RawGroup { id?: string; name?: string; subject?: string; size?: number; participants_count?: number; participants?: RawParticipant[]; is_parent?: boolean; isCommunityAnnounce?: boolean }
 
 const ADMIN_RANKS = new Set(['admin', 'superadmin', 'creator', 'owner']);
 
@@ -163,11 +169,16 @@ export async function listWhapiGroups(): Promise<{ ok: boolean; groups?: WhapiGr
   const raw = Array.isArray(r.data?.groups) ? r.data!.groups! : [];
   return {
     ok: true,
-    groups: raw.map((g) => ({
-      id: g.id || '',
-      name: g.name || g.subject || '(sans nom)',
-      participantsCount: g.size ?? (Array.isArray(g.participants) ? g.participants.length : 0),
-    })),
+    groups: raw.map((g) => {
+      const name = g.name || g.subject || '(sans nom)';
+      const kind = g.is_parent ? 'community' : g.isCommunityAnnounce ? 'announce' : undefined;
+      return {
+        id: g.id || '',
+        name: kind === 'announce' ? `📢 Annonces — ${name}` : kind === 'community' ? `Communauté ${name} (pas d'envoi)` : name,
+        participantsCount: g.size ?? g.participants_count ?? (Array.isArray(g.participants) ? g.participants.length : 0),
+        ...(kind ? { kind } : {}),
+      };
+    }),
   };
 }
 
