@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { notifyClient } from '@/lib/agent-actions';
-import { canAddItems, canEditList, ITEM_STATUS, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo, type TripStatus, TRIP_STATUS } from './logic';
+import { canAddItems, ITEM_STATUS, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo, type TripStatus, TRIP_STATUS } from './logic';
 
 export const achatsEnabled = () => COUNTRY.modules.twinsk;
 export class AchatError extends Error {
@@ -200,7 +200,7 @@ export async function deleteItem(tripId: string, itemId: string, by: 'client' | 
   if (by === 'client') {
     if (!canAddItems(tripStatus)) throw new AchatError('Ce voyage est clôturé');
     const { data: it } = await supabaseAdmin.from('buying_items').select('status').eq('id', itemId).eq('trip_id', tripId).maybeSingle();
-    if (it && !canEditList(tripStatus) && it.status !== 'to_buy') throw new AchatError('Cette ligne a déjà été traitée : marquez-la plutôt « Pas pris »');
+    if (it?.status === 'ordered_online') throw new AchatError('Cette ligne est commandée en ligne : gérez-la depuis votre commande');
   }
   const { error } = await supabaseAdmin.from('buying_items').delete().eq('id', itemId).eq('trip_id', tripId);
   if (error) fail(error, 'Ligne');

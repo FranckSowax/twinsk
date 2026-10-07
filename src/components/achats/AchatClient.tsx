@@ -193,13 +193,16 @@ function ListRow({ it, items, trip, act, busy }: { it: Item; items: Item[]; trip
   };
   return (
     <li className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-start justify-between gap-2 text-left">
-        <span className="min-w-0">
-          <span className="block text-sm font-medium text-slate-900 dark:text-white">{it.label}</span>
-          <span className="block text-xs text-slate-500">{it.quantity != null ? `${it.quantity} ${it.unit || ''}` : 'quantité à préciser'}{it.link ? ' · lien' : ''}{it.source_photos.length ? ` · ${it.source_photos.length} photo${it.source_photos.length > 1 ? 's' : ''}` : ''}</span>
-        </span>
-        <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+      <div className="flex items-start gap-1">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex min-w-0 flex-1 items-start justify-between gap-2 text-left">
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-slate-900 dark:text-white">{it.label}</span>
+            <span className="block text-xs text-slate-500">{it.quantity != null ? `${it.quantity} ${it.unit || ''}` : 'quantité à préciser'}{it.link ? ' · lien' : ''}{it.source_photos.length ? ` · ${it.source_photos.length} photo${it.source_photos.length > 1 ? 's' : ''}` : ''}{kids.length ? ` · ${kids.length} modèle${kids.length > 1 ? 's' : ''}` : ''}</span>
+          </span>
+          <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        <button type="button" disabled={busy === `del.${it.id}`} onClick={() => confirm(kids.length ? `Retirer « ${it.label} » et ses ${kids.length} modèles ?` : `Retirer « ${it.label} » de la liste ?`) && act('item.delete', { id: it.id }, `del.${it.id}`)} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Retirer de la liste">{busy === `del.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button>
+      </div>
       {it.source_photos.length > 0 && <div className="mt-2 flex gap-1.5 overflow-x-auto">{it.source_photos.map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className="shrink-0"><img src={p.url} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-slate-200" /></a>)}</div>}
       <OnlineOffer it={it} trip={trip} act={act} busy={busy} />
       {!it.parent_id && it.source_photos.length > 0 && canAddItems(trip.status) && (
@@ -219,7 +222,6 @@ function ListRow({ it, items, trip, act, busy }: { it: Item; items: Item[]; trip
             <button type="button" disabled={busy === `save.${it.id}` || !d.label.trim()} onClick={async () => { if (await act('item.update', { id: it.id, ...d }, `save.${it.id}`)) setOpen(false); }} className={`${btnPrimary} flex-1`}>{busy === `save.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer</button>
             <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={btn}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {progress || 'Photos'}</button>
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
-            <button type="button" onClick={() => confirm('Retirer cet article de la liste ?') && act('item.delete', { id: it.id }, `del.${it.id}`)} className={btn} aria-label="Retirer"><Trash2 className="h-4 w-4 text-red-500" /></button>
           </div>
         </div>
       )}
@@ -315,6 +317,7 @@ function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; tr
               <button type="button" disabled={busy === `save.${it.id}`} onClick={save} className={`${btnPrimary} w-full sm:w-auto`}>{busy === `save.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer</button>
               <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {progress || 'Prendre une photo'}</button>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
+              {it.status !== 'ordered_online' && <button type="button" disabled={busy === `del.${it.id}`} onClick={() => confirm(`Retirer « ${it.label} » de votre liste ?`) && act('item.delete', { id: it.id }, `del.${it.id}`)} className={`${btn} w-full !text-red-600 sm:ml-auto sm:w-auto`}>{busy === `del.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Retirer de ma liste</button>}
             </div>
           )}
         </div>
@@ -335,7 +338,10 @@ function GroupRow({ it, items, trip, act, busy, editable, open, setOpen }: { it:
           <p className="text-xs text-slate-500">{kids.length} modèle{kids.length > 1 ? 's' : ''} · {t.bought}/{t.items} acheté{t.bought > 1 ? 's' : ''}{it.supplier || it.zone ? ` · ${[it.supplier, it.zone].filter(Boolean).join(' · ')}` : ''}</p>
           {it.details && <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{it.details}</p>}
         </div>
-        {t.cny > 0 && <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900 dark:text-white">{fmtCny(t.cny)}</span>}
+        <span className="flex shrink-0 items-center gap-1">
+          {t.cny > 0 && <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">{fmtCny(t.cny)}</span>}
+          {editable && <button type="button" disabled={busy === `del.${it.id}`} onClick={() => confirm(`Retirer « ${it.label} » et ses ${kids.length} modèles de votre liste ?`) && act('item.delete', { id: it.id }, `del.${it.id}`)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Retirer l’article et ses modèles"><Trash2 className="h-4 w-4" /></button>}
+        </span>
       </div>
       <ul className="mt-2 space-y-2">{kids.map((k) => <ShopRow key={k.id} it={k} trip={trip} act={act} busy={busy} editable={editable} open={open === k.id} toggle={() => setOpen(open === k.id ? null : k.id)} />)}</ul>
     </li>

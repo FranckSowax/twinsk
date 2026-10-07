@@ -8,7 +8,7 @@ Un client vient acheter en Chine avec une liste. L'équipe lui ouvre un **voyage
 
 | Étape | Statut du voyage | Client (`/achat/<token>`) | Équipe (`/admin/achats/<id>`) |
 |---|---|---|---|
-| 1. Liste | `draft` → `submitted` | Colle sa liste (une ligne par article : quantité « x 120 », « 3 pcs », « qté 12 » et liens reconnus), ajoute des photos (par article ou en nouvelles lignes), précise chaque article, laisse un message, **envoie sa liste** (Telegram à l'équipe) | Reçoit la liste ; complète fournisseur, zone, délai, note interne ; ajoute des lignes |
+| 1. Liste | `draft` → `submitted` | Colle sa liste (une ligne par article : quantité « x 120 », « 3 pcs », « qté 12 » et liens reconnus), ajoute des photos (par article ou en nouvelles lignes), précise chaque article, laisse un message, **envoie sa liste** (Telegram à l'équipe) | Reçoit la liste ; complète fournisseur, zone, délai, note interne ; ajoute ou supprime des lignes (corbeille sur la ligne, ou « Supprimer » sur la sélection) |
 | 2. Programme | `planned` | Reçoit sur WhatsApp le programme et son lien | Coche des lignes → **« Nouveau jour »** (« Jour 1 — Carreaux, mobilier et sanitaire », date, zone, notes) ; suggestions « se visitent ensemble » (même zone, sinon même fournisseur) ; **« Envoyer le programme au client »** |
 | 3. Sur place | `on_site` (**automatique** au premier article marqué Acheté / Pas pris ; l'équipe peut aussi le forcer) | Par jour : **À acheter / Acheté / Pas pris**, prix unitaire ¥, quantité, note, photos ; barre fixe **Total ¥ ≈ FCFA** ; alerte si la livraison usine dépasse la date limite du cargo ; **« Ajouter un article à ma liste »** (texte ou photos) → ligne dans « Autres articles », que l'équipe place dans un jour | Suit en direct : statut, prix, photos, montant par jour, totaux |
 | 4. Clôture | `done` | Récapitulatif en lecture seule | — |
@@ -31,7 +31,7 @@ Côté client, la ligne affiche « Aussi disponible en ligne », le prix unitair
 
 `cargo_cutoff` (date limite au cargo) sur le voyage, `lead_time_days` par ligne : livraison prévue = date d'achat (ou aujourd'hui) + délai ; **en retard** si après la date limite (marge en jours affichée côté équipe, alerte côté client).
 
-Règles côté client : il ajoute, précise et illustre des articles **jusqu'à la clôture** ; il ne supprime une ligne qu'en phase liste (ensuite seulement une ligne encore « À acheter », sinon « Pas pris ») ; aucune place de marché (1688, Taobao…) n'est nommée sur sa page — les liens sont de simples « liens du produit ».
+Règles côté client : il ajoute, précise, illustre et **retire** des articles **jusqu'à la clôture** (corbeille sur chaque ligne ; une ligne commandée en ligne ne se retire pas, elle se gère depuis la commande) ; aucune place de marché (1688, Taobao…) n'est nommée sur sa page — les liens sont de simples « liens du produit ».
 
 ## Où c'est
 

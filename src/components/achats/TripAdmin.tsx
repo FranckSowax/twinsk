@@ -180,6 +180,7 @@ export default function TripAdmin({ id }: { id: string }) {
                 {days.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
                 <option value="__none">Aucun jour</option>
               </select>
+              <button type="button" disabled={busy === 'del.sel'} onClick={() => { if (confirm(`Supprimer ${selected.size} ligne${selected.size > 1 ? 's' : ''} (et leurs sous-lignes) ?`)) { act('item.delete', { ids: [...selected] }, 'del.sel'); setSelected(new Set()); } }} className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-700"><Trash2 className="h-3 w-3" /> Supprimer</button>
               <button type="button" onClick={() => setSelected(new Set())} className="underline">Désélectionner</button>
             </div>
           )}
@@ -202,7 +203,6 @@ export default function TripAdmin({ id }: { id: string }) {
                 <th className="px-3 py-2 text-left">Jour</th>
                 <th className="px-3 py-2 text-left">En ligne</th>
                 <th className="px-3 py-2 text-left">Sur place</th>
-                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -215,7 +215,10 @@ export default function TripAdmin({ id }: { id: string }) {
                   <tr key={it.id} className={selected.has(it.id) ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : sub ? 'bg-slate-50/60 dark:bg-slate-900/40' : ''}>
                     <td className="px-3 py-2 align-top">{sub ? <CornerDownRight className="h-4 w-4 text-slate-400" aria-hidden /> : <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} aria-label={`Sélectionner ${it.label}`} />}</td>
                     <td className={`px-3 py-2 align-top ${sub ? 'pl-6' : ''}`}>
-                      <input className={`${small} font-medium`} defaultValue={it.label} onBlur={(e) => e.target.value !== it.label && act('item.update', { id: it.id, label: e.target.value }, `it.${it.id}`)} />
+                      <div className="flex items-center gap-1">
+                        <input className={`${small} font-medium`} defaultValue={it.label} onBlur={(e) => e.target.value !== it.label && act('item.update', { id: it.id, label: e.target.value }, `it.${it.id}`)} />
+                        <button type="button" disabled={busy === `del.${it.id}`} onClick={() => confirm(parent ? `Supprimer « ${it.label} » et ses ${childrenOf(items, it.id).length} sous-lignes ?` : `Supprimer « ${it.label} » ?`) && act('item.delete', { id: it.id }, `del.${it.id}`)} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Supprimer la ligne">{busy === `del.${it.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}</button>
+                      </div>
                       {parent && <p className="mt-0.5 text-[11px] font-semibold text-slate-500">Article composé · {childrenOf(items, it.id).length} sous-ligne{childrenOf(items, it.id).length > 1 ? 's' : ''} (une par modèle)</p>}
                       {!sub && it.source_photos.length > 0 && <button type="button" disabled={busy === `split.${it.id}`} onClick={() => act('item.split', { id: it.id }, `split.${it.id}`)} className={`${btn} mt-1 !min-h-7 !px-2 !text-[11px]`} title="Chaque photo devient une sous-ligne avec son prix, sa quantité et son statut"><Images className="h-3.5 w-3.5" /> Une ligne de prix par photo ({it.source_photos.length})</button>}
                       {it.details && <p className="mt-0.5 text-xs text-slate-500">{it.details}</p>}
@@ -269,11 +272,11 @@ export default function TripAdmin({ id }: { id: string }) {
                       {it.client_note && <p className="mt-0.5 text-slate-600 dark:text-slate-300">{it.client_note}</p>}
                       {it.photos.length > 0 && <div className="mt-1 flex gap-1">{it.photos.slice(0, 4).map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt="" className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200" /></a>)}</div>}
                     </td>
-                    <td className="px-3 py-2 align-top text-right"><button type="button" onClick={() => confirm(`Supprimer « ${it.label} » ?`) && act('item.delete', { id: it.id }, `del.${it.id}`)} className={`${btn} !min-h-8 !px-2`} aria-label="Supprimer"><Trash2 className="h-3.5 w-3.5 text-red-500" /></button></td>
+
                   </tr>
                 );
               })}
-              {items.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm text-slate-500">Aucune ligne. Le client compose sa liste depuis son lien, ou ajoutez des lignes ci-dessous.</td></tr>}
+              {items.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-500">Aucune ligne. Le client compose sa liste depuis son lien, ou ajoutez des lignes ci-dessous.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -8,7 +8,7 @@ import { clientBundle, errorResponse } from '@/lib/achats/auth';
 // Achats sur place (client) : POST { action, … }
 //   items.add { items: [{label, details?, link?, quantity?, unit?, source_photos?}] } — jusqu'à la clôture (sur place : ligne sans jour)
 //   item.update { id, label?, details?, link?, quantity?, unit?, source_photos? (jusqu'à la clôture) ; status?, price_cny?, qty_bought?, client_note?, photos? (programme prêt / sur place ; le 1er achat passe le voyage « Sur place ») }
-//   item.delete { id } — liste ouverte, puis seulement une ligne encore « À acheter »
+//   item.delete { id } — jusqu'à la clôture (sauf une ligne commandée en ligne)
 //   item.split { id } — une sous-ligne par photo (article composé : chaque modèle a son prix)
 //   list.submit { client_notes? } — la liste part à l'équipe
 //   item.order_online { id, quantity? } — ajoute le produit « Prix en ligne » au panier /offer du client → { url }
