@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { dateShort } from './shared';
 import { downloadHref, fileKind } from './shared';
 
 describe('documents : ouvrir ou télécharger', () => {
@@ -13,5 +14,12 @@ describe('documents : ouvrir ou télécharger', () => {
   it('adresse de téléchargement : ?download=1 ajouté proprement', () => {
     expect(downloadHref('/api/projects/public/t/documents/1')).toBe('/api/projects/public/t/documents/1?download=1');
     expect(downloadHref('/x?v=2')).toBe('/x?v=2&download=1');
+  });
+});
+
+describe('dateShort', () => {
+  it('une date seule ne glisse pas à la veille selon le fuseau', () => {
+    expect(dateShort('2026-11-07')).toBe('7 nov. 2026');
+    expect(dateShort(null)).toBe('—');
   });
 });

@@ -26,7 +26,9 @@ export interface WorkspaceApi {
 
 // Centimes seulement quand il y en a (prix unitaires à 7,50 $ ; totaux ronds sans « ,00 »).
 export const money = (n: number | null | undefined, currency: string) => (n == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n));
-export const dateShort = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+// Date seule (« 2026-11-07 », validité d'une offre) : lue à midi pour ne pas glisser à la veille dans les fuseaux à l'ouest de Greenwich.
+const atNoon = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00` : iso);
+export const dateShort = (iso: string | null | undefined) => (iso ? new Date(atNoon(iso)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 export const dateTime = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
 export const size = (n: number | null | undefined) => (n == null ? '' : n > 1_048_576 ? `${(n / 1_048_576).toFixed(1).replace(".", ",")} Mo` : `${Math.max(1, Math.round(n / 1024))} Ko`);
 
