@@ -16,6 +16,7 @@ import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { compareOffer } from '@/lib/projects/offers';
 import { OfferTerms, OfferView, teamOfferView, type ViewItem } from './Offers';
+import { ClientComparison } from './ClientComparison';
 import { Empty, btn, btnPrimary, card, input, money, type WorkspaceApi } from './shared';
 
 interface Row {
@@ -37,6 +38,8 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [margin, setMargin] = useState(String(admin?.default_margin_pct ?? 25));
+  // Client : cartes par fabricant, lisibles sur mobile (ClientComparison). Équipe : tableaux avec prix usine et marge.
+  if (!team) return <ClientComparison p={p} api={api} />;
   const rows: Row[] = team
     ? admin!.offers.filter((o) => o.status === 'active').map((o) => {
         const s = admin!.suppliers.find((x) => x.id === o.supplier_id);

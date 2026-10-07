@@ -73,6 +73,10 @@ Une usine capable de fournir d'un coup les terrains de foot 5 (cage, gazon, shoc
 - **Comparaison** : l'offre « set complet » apparaît dans **chaque lot** où elle chiffre une ligne (seulement ces lignes, nom suffixé « (set complet) », face aux usines spécialisées, meilleur prix en vert) et dans **sa propre section** avec le total de l'ensemble, colonnes nommées « Lot · ligne ».
 - **Devis** (client et équipe) : chaque ligne porte **« N offre(s) reçue(s) »** dès qu'une offre visible du client la chiffre (`offers_received` dans la projection publique) — le client voit qu'un devis est arrivé avant même que l'équipe reporte un prix sur la ligne (« Prix reçus › Devis »), qui reste l'étape qui fixe le prix de vente et l'alias du fournisseur pressenti.
 
+## Comparaison côté client en cartes (7 octobre 2026)
+
+Le client ne voit plus de tableaux larges : `ClientComparison.tsx` (logique pure et testée dans `src/lib/projects/compare-view.ts`) rend, par lot, **une carte par fabricant** — alias et note, **total pour le projet** en gros (en vert, « Meilleur prix », écart en % avec la meilleure), lignes du devis empilées (libellé court, prix unitaire × quantité = sous-total, variante retenue, « N autres variantes proposées »), conditions en puces, bouton **« Cette offre m'intéresse »** pleine largeur sur mobile, options et frais repliés. Un **sélecteur de lots** (collant sous l'en-tête sur mobile) et un bloc **« En un coup d'œil »** (meilleure offre par lot) permettent de s'y retrouver ; une seule note de bas de page. Les filtres de variante n'apparaissent que lorsqu'une **même ligne** du devis reçoit plusieurs valeurs (deux produits différents ne sont pas une variante). L'équipe garde ses tableaux (prix usine, marge, visibilité).
+
 ## Rapport et voyages construits depuis les commandes (1er octobre 2026)
 
 - L'onglet **Rapport & voyage** part **vierge** : plus d'itinéraire ni de liste de rapport tirés du modèle.
