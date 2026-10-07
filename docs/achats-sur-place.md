@@ -40,4 +40,4 @@ Règles côté client : il ajoute, précise et illustre des articles **jusqu'à 
 - API : `/api/achats` (liste, création), `/api/achats/<id>` (lecture, modification, suppression), `/api/achats/<id>/actions` (lignes, jours, prix en ligne, statut, envoi WhatsApp), `/api/achats/products?q=` (produits commandables), `/api/achats/public/<token>` et `…/actions` (client).
 - Pages : `/admin/achats`, `/admin/achats/<id>` (`src/components/achats/TripAdmin.tsx`, `OnlinePicker.tsx`), `/achat/<token>` (`src/components/achats/AchatClient.tsx`, pensé pour le téléphone).
 - Schéma : `supabase/migrations/20261007000000_buying_trips.sql` — `buying_trips`, `buying_days`, `buying_items` (RLS activée, service_role seulement).
-- Photos : stockage via `/api/upload` (comme les demandes).
+- Photos : stockage via `/api/upload` (comme les demandes). Côté client, **toutes** les photos choisies partent par lots de 4 avec un compteur « Envoi 12/54… », réduites à 1600 px avant envoi ; l'en-tête `x-achat-token` (jeton du voyage) dispense le client de la limite par IP des visiteurs anonymes (images seulement). Jusqu'à 200 photos par ligne.

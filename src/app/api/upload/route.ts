@@ -5,6 +5,7 @@ import { compressVideo } from '@/lib/video-compress';
 import { isAdmin, getCollaborator } from '@/lib/collab';
 import { getAgent } from '@/lib/agent';
 import { checkUploadFile, clientIp, RateLimiter } from '@/lib/upload-policy';
+import { getTripByToken } from '@/lib/achats/data';
 
 // Visiteurs non connectés : limite de fréquence par IP (voir lib/upload-policy).
 const anonLimiter = new RateLimiter();
@@ -13,6 +14,15 @@ async function isStaff(request: NextRequest): Promise<boolean> {
   if (isAdmin(request)) return true;
   if (await getCollaborator(request)) return true;
   return !!(await getAgent(request));
+}
+
+// Client d'un voyage d'achat (Achats sur place) : identifié par son lien à
+// jeton, il envoie ses photos d'articles par dizaines → pas de limite par IP
+// (images seulement, comme tout visiteur).
+async function isBuyingClient(request: NextRequest): Promise<boolean> {
+  const token = request.headers.get('x-achat-token');
+  if (!token) return false;
+  return !!(await getTripByToken(token));
 }
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -32,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Équipe : tout ; visiteur : images seulement, fréquence limitée par IP.
     const staff = await isStaff(request);
-    if (!staff && !anonLimiter.take(clientIp(request.headers), files.length)) {
+    if (!staff && !(await isBuyingClient(request)) && !anonLimiter.take(clientIp(request.headers), files.length)) {
       return NextResponse.json(
         { error: 'Trop d’envois en peu de temps. Réessayez dans quelques minutes.' },
         { status: 429 },

@@ -32,7 +32,7 @@ const photos = (v: unknown): Photo[] =>
     .map((p) => (p && typeof p === 'object' ? (p as Record<string, unknown>) : null))
     .filter((p): p is Record<string, unknown> => !!p && typeof p.url === 'string' && /^https?:\/\//.test(p.url as string))
     .map((p) => ({ url: p.url as string, caption: str(p.caption, 200) || null, at: typeof p.at === 'string' ? p.at : null }))
-    .slice(0, 20);
+    .slice(0, 200);
 
 export interface TripBundle {
   trip: BuyingTrip;

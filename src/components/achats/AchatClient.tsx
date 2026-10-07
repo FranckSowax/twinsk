@@ -8,7 +8,7 @@
 //    acheté / pas pris, prix en ¥, quantité, note, photos ; total en ¥ et en
 //    devise locale dans une barre fixe ; délai usine → cargo signalé.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ChevronDown, Globe, Images, Link2, Loader2, Plus, Send, ShoppingCart, Trash2 } from 'lucide-react';
 import { writeStoredOrderId } from '@/lib/offer-cart-session';
 import { COUNTRY } from '@/config/countries';
@@ -25,13 +25,63 @@ interface Bundle {
 }
 const fmtDate = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '');
 
-async function uploadPhotos(files: File[]): Promise<Photo[]> {
-  const fd = new FormData();
-  files.forEach((f) => fd.append('files', f));
-  const r = await fetch('/api/upload', { method: 'POST', body: fd });
-  const j = await r.json();
-  if (!r.ok || !Array.isArray(j.urls)) throw new Error(j.error || 'Envoi impossible');
-  return (j.urls as string[]).map((url) => ({ url, at: new Date().toISOString() }));
+/** Jeton du voyage : identifie le client auprès de /api/upload (pas de limite par IP). */
+const TokenCtx = createContext('');
+const BATCH = 4;
+const MAX_EDGE = 1600;
+
+/** Photo de téléphone (3 à 8 Mo) réduite avant envoi : plus rapide sur réseau mobile, jamais plus de 10 Mo. */
+async function shrinkImage(file: File): Promise<File> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 600 * 1024) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size <= 2 * 1024 * 1024) return file;
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/jpeg', 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
+/** Envoie TOUTES les photos choisies, par petits lots, et rend compte de l'avancement. */
+async function uploadPhotos(files: File[], token: string, onProgress?: (done: number, total: number) => void): Promise<Photo[]> {
+  const out: Photo[] = [];
+  for (let i = 0; i < files.length; i += BATCH) {
+    const batch = await Promise.all(files.slice(i, i + BATCH).map(shrinkImage));
+    const fd = new FormData();
+    batch.forEach((f) => fd.append('files', f));
+    const r = await fetch('/api/upload', { method: 'POST', body: fd, headers: { 'x-achat-token': token } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !Array.isArray(j.urls)) throw new Error(`${j.error || 'Envoi impossible'}${out.length ? ` (${out.length} photo${out.length > 1 ? 's' : ''} déjà envoyée${out.length > 1 ? 's' : ''})` : ''}`);
+    out.push(...(j.urls as string[]).map((url) => ({ url, at: new Date().toISOString() })));
+    onProgress?.(out.length, files.length);
+  }
+  return out;
+}
+function useUpload() {
+  const token = useContext(TokenCtx);
+  const [progress, setProgress] = useState<string | null>(null);
+  const run = async (files: FileList | null, max: number, apply: (photos: Photo[]) => Promise<unknown>) => {
+    if (!files?.length) return;
+    const list = Array.from(files).slice(0, max);
+    setProgress(`Envoi 0/${list.length}…`);
+    try {
+      const photos = await uploadPhotos(list, token, (d, t) => setProgress(`Envoi ${d}/${t}…`));
+      setProgress('Enregistrement…');
+      await apply(photos);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Envoi impossible');
+    } finally {
+      setProgress(null);
+    }
+  };
+  return { progress, run };
 }
 
 export default function AchatClient({ token }: { token: string }) {
@@ -76,7 +126,7 @@ export default function AchatClient({ token }: { token: string }) {
         <Badge tone={s.tone}>{s.label}</Badge>
       </div>
       {err && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
-      {canEditList(trip.status) ? <ListEditor b={b} act={act} busy={busy} /> : <Program b={b} act={act} busy={busy} />}
+      <TokenCtx.Provider value={token}>{canEditList(trip.status) ? <ListEditor b={b} act={act} busy={busy} /> : <Program b={b} act={act} busy={busy} />}</TokenCtx.Provider>
     </div>
   );
 }
@@ -86,7 +136,8 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
   const [text, setText] = useState('');
   const [notes, setNotes] = useState(b.trip.client_notes || '');
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const { progress, run } = useUpload();
+  const uploading = progress != null;
   const submitted = b.trip.status === 'submitted';
   const addText = async () => {
     const parsed = parseListText(text);
@@ -94,17 +145,8 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
     if (await act('items.add', { items: parsed }, 'add')) setText('');
   };
   const addPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setUploading(true);
-    try {
-      const photos = await uploadPhotos(Array.from(files).slice(0, 10));
-      await act('items.add', { items: photos.map((p, i) => ({ label: `Photo ${b.items.length + i + 1} — à préciser`, source_photos: [p] })) }, 'add');
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+    await run(files, 100, (photos) => act('items.add', { items: photos.map((p, i) => ({ label: `Photo ${b.items.length + i + 1} — à préciser`, source_photos: [p] })) }, 'add'));
+    if (fileRef.current) fileRef.current.value = '';
   };
   return (
     <div className="space-y-4">
@@ -118,9 +160,10 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
         <textarea className={input} rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Carreaux 60×60 blanc x 120\nLavabo double vasque (lien du produit si vous en avez un)\nCanapé d’angle 3 pcs'} />
         <div className="flex flex-col gap-2 sm:flex-row">
           <button type="button" disabled={busy === 'add' || !text.trim()} onClick={addText} className={`${btnPrimary} w-full sm:w-auto`}>{busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter ces lignes</button>
-          <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Ajouter des photos</button>
+          <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {progress || 'Ajouter des photos'}</button>
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
         </div>
+        <p className="text-xs text-slate-500">Une photo = un article. Plusieurs modèles d’un même article ? Ouvrez l’article, ajoutez-y ses photos, puis « Un article par photo ».</p>
       </section>
       <section className="space-y-2">
         <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">Ma liste <span className="text-sm font-normal text-slate-500">({b.items.length})</span></h2>
@@ -142,19 +185,11 @@ function ListRow({ it, items, trip, act, busy }: { it: Item; items: Item[]; trip
   const [open, setOpen] = useState(false);
   const [d, setD] = useState({ label: it.label, details: it.details || '', link: it.link || '', quantity: it.quantity == null ? '' : String(it.quantity), unit: it.unit || '' });
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const { progress, run } = useUpload();
+  const uploading = progress != null;
   const addPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setUploading(true);
-    try {
-      const photos = await uploadPhotos(Array.from(files).slice(0, 6));
-      await act('item.update', { id: it.id, source_photos: [...it.source_photos, ...photos] }, `ph.${it.id}`);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+    await run(files, 100, (photos) => act('item.update', { id: it.id, source_photos: [...it.source_photos, ...photos] }, `ph.${it.id}`));
+    if (fileRef.current) fileRef.current.value = '';
   };
   return (
     <li className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -182,7 +217,7 @@ function ListRow({ it, items, trip, act, busy }: { it: Item; items: Item[]; trip
           <div className="sm:col-span-2"><label className={label}>Précisions (couleur, dimensions, modèle…)</label><textarea className={input} rows={2} value={d.details} onChange={(e) => setD({ ...d, details: e.target.value })} /></div>
           <div className="flex flex-wrap gap-2 sm:col-span-2">
             <button type="button" disabled={busy === `save.${it.id}` || !d.label.trim()} onClick={async () => { if (await act('item.update', { id: it.id, ...d }, `save.${it.id}`)) setOpen(false); }} className={`${btnPrimary} flex-1`}>{busy === `save.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer</button>
-            <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={btn}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Photos</button>
+            <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={btn}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {progress || 'Photos'}</button>
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
             <button type="button" onClick={() => confirm('Retirer cet article de la liste ?') && act('item.delete', { id: it.id }, `del.${it.id}`)} className={btn} aria-label="Retirer"><Trash2 className="h-4 w-4 text-red-500" /></button>
           </div>
@@ -232,23 +267,15 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
 function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; trip: Bundle['trip']; act: Act; busy: string | null; editable: boolean; open: boolean; toggle: () => void }) {
   const [d, setD] = useState({ price_cny: it.price_cny == null ? '' : String(it.price_cny), qty_bought: it.qty_bought == null ? '' : String(it.qty_bought), client_note: it.client_note || '' });
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const { progress, run } = useUpload();
+  const uploading = progress != null;
   const lt = leadTime(it as BuyingItem, trip);
   const amount = itemAmount(it as BuyingItem);
   const setStatus = (status: ItemStatus) => act('item.update', { id: it.id, status, ...(status === 'bought' ? { price_cny: d.price_cny, qty_bought: d.qty_bought, client_note: d.client_note } : {}) }, `st.${it.id}`);
   const save = () => act('item.update', { id: it.id, price_cny: d.price_cny, qty_bought: d.qty_bought, client_note: d.client_note }, `save.${it.id}`);
   const addPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setUploading(true);
-    try {
-      const photos = await uploadPhotos(Array.from(files).slice(0, 6));
-      await act('item.update', { id: it.id, photos: [...it.photos, ...photos] }, `ph.${it.id}`);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+    await run(files, 50, (photos) => act('item.update', { id: it.id, photos: [...it.photos, ...photos] }, `ph.${it.id}`));
+    if (fileRef.current) fileRef.current.value = '';
   };
   const tone = it.status === 'bought' ? 'border-emerald-300 dark:border-emerald-800' : it.status === 'ordered_online' ? 'border-sky-300 dark:border-sky-800' : it.status === 'skipped' ? 'border-slate-200 opacity-70' : 'border-slate-200 dark:border-slate-700';
   return (
@@ -286,7 +313,7 @@ function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; tr
           {editable && (
             <div className="flex flex-col gap-2 sm:flex-row">
               <button type="button" disabled={busy === `save.${it.id}`} onClick={save} className={`${btnPrimary} w-full sm:w-auto`}>{busy === `save.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer</button>
-              <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Prendre une photo</button>
+              <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {progress || 'Prendre une photo'}</button>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
             </div>
           )}
@@ -358,24 +385,16 @@ function OnlineOffer({ it, trip, act, busy }: { it: Item; trip: Bundle['trip']; 
 function QuickAdd({ b, act, busy }: { b: Bundle; act: Act; busy: string | null }) {
   const [text, setText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const { progress, run } = useUpload();
+  const uploading = progress != null;
   const addText = async () => {
     const parsed = parseListText(text);
     if (!parsed.length) return;
     if (await act('items.add', { items: parsed }, 'add')) setText('');
   };
   const addPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setUploading(true);
-    try {
-      const photos = await uploadPhotos(Array.from(files).slice(0, 10));
-      await act('items.add', { items: photos.map((p, i) => ({ label: `Photo ${b.items.length + i + 1} — à préciser`, source_photos: [p] })) }, 'add');
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+    await run(files, 100, (photos) => act('items.add', { items: photos.map((p, i) => ({ label: `Photo ${b.items.length + i + 1} — à préciser`, source_photos: [p] })) }, 'add'));
+    if (fileRef.current) fileRef.current.value = '';
   };
   return (
     <section className="space-y-2 rounded-2xl border border-dashed border-slate-300 bg-white p-4 dark:border-slate-600 dark:bg-slate-800">
@@ -383,8 +402,8 @@ function QuickAdd({ b, act, busy }: { b: Bundle; act: Act; busy: string | null }
       <textarea className={input} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Un article par ligne, avec la quantité si vous la connaissez" />
       <div className="flex flex-col gap-2 sm:flex-row">
         <button type="button" disabled={busy === 'add' || !text.trim()} onClick={addText} className={`${btnPrimary} w-full sm:w-auto`}>{busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter</button>
-        <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Ajouter des photos</button>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
+        <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {progress || 'Ajouter des photos'}</button>
+        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
       </div>
     </section>
   );
