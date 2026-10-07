@@ -6,7 +6,7 @@ import { errorResponse, teamActor, unauthorized } from '@/lib/achats/auth';
 
 // Achats sur place (équipe) : POST { action, … }
 //   items.add { items: [{label, details?, link?, quantity?, unit?, supplier?, zone?, lead_time_days?, team_note?, day_id?}] }
-//   item.update { id, …champs } · item.delete { id }
+//   item.update { id, …champs } · item.delete { id } · item.split { id } (une sous-ligne par photo)
 //   day.add { title, visit_date?, zone?, notes?, item_ids? } · day.update { id, … } · day.delete { id }
 //   day.assign { day_id | null, item_ids[] }
 //   item.online.set { id, product_id, variant_id?, note? } — fige un produit d'un listing publié comme « Prix en ligne »
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'items.add': result = { items: await D.addItems(id, Array.isArray(b.items) ? (b.items as D.ItemInput[]) : [], 'team') }; break;
       case 'item.update': result = { item: await D.updateItem(id, str(b.id), b as D.ItemPatch, 'team', bundle.trip.status) }; break;
       case 'item.delete': await D.deleteItem(id, str(b.id), 'team', bundle.trip.status); break;
+      case 'item.split': result = { items: await D.splitByPhotos(id, str(b.id), 'team') }; break;
       case 'day.add': result = { day: await D.addDay(id, b as Parameters<typeof D.addDay>[1]) }; break;
       case 'day.update': await D.updateDay(id, str(b.id), b as Parameters<typeof D.updateDay>[2]); break;
       case 'day.delete': await D.deleteDay(id, str(b.id)); break;

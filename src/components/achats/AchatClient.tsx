@@ -9,11 +9,11 @@
 //    devise locale dans une barre fixe ; délai usine → cargo signalé.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ChevronDown, Globe, Link2, Loader2, Plus, Send, ShoppingCart, Trash2 } from 'lucide-react';
+import { Camera, Check, ChevronDown, Globe, Images, Link2, Loader2, Plus, Send, ShoppingCart, Trash2 } from 'lucide-react';
 import { writeStoredOrderId } from '@/lib/offer-cart-session';
 import { COUNTRY } from '@/config/countries';
 import { formatPrice } from '@/lib/country';
-import { canAddItems, canEditList, canOrderOnline, canShop, daySummaries, fmtCny, itemAmount, leadTime, onlineUnitLocal, parseListText, totals, tripStatus, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo } from '@/lib/achats/logic';
+import { canAddItems, canEditList, canOrderOnline, canShop, childrenOf, daySummaries, fmtCny, hasChildren, itemAmount, leadTime, onlineUnitLocal, parseListText, topLevel, totals, tripStatus, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo } from '@/lib/achats/logic';
 import { Badge, btn, btnPrimary, input, label } from '@/components/projects/shared';
 
 type Item = Omit<BuyingItem, 'team_note'>;
@@ -125,7 +125,7 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
       <section className="space-y-2">
         <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">Ma liste <span className="text-sm font-normal text-slate-500">({b.items.length})</span></h2>
         {b.items.length === 0 ? <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Votre liste est vide.</p> : (
-          <ul className="space-y-2">{b.items.map((it) => <ListRow key={it.id} it={it} trip={b.trip} act={act} busy={busy} />)}</ul>
+          <ul className="space-y-2">{topLevel(b.items as BuyingItem[]).map((it) => <ListRow key={it.id} it={it} items={b.items} trip={b.trip} act={act} busy={busy} />)}</ul>
         )}
       </section>
       <section className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -137,7 +137,8 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
   );
 }
 
-function ListRow({ it, trip, act, busy }: { it: Item; trip: Bundle['trip']; act: Act; busy: string | null }) {
+function ListRow({ it, items, trip, act, busy }: { it: Item; items: Item[]; trip: Bundle['trip']; act: Act; busy: string | null }) {
+  const kids = childrenOf(items as BuyingItem[], it.id);
   const [open, setOpen] = useState(false);
   const [d, setD] = useState({ label: it.label, details: it.details || '', link: it.link || '', quantity: it.quantity == null ? '' : String(it.quantity), unit: it.unit || '' });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -166,6 +167,12 @@ function ListRow({ it, trip, act, busy }: { it: Item; trip: Bundle['trip']; act:
       </button>
       {it.source_photos.length > 0 && <div className="mt-2 flex gap-1.5 overflow-x-auto">{it.source_photos.map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className="shrink-0"><img src={p.url} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-slate-200" /></a>)}</div>}
       <OnlineOffer it={it} trip={trip} act={act} busy={busy} />
+      {!it.parent_id && it.source_photos.length > 0 && canAddItems(trip.status) && (
+        <button type="button" disabled={busy === `split.${it.id}`} onClick={() => act('item.split', { id: it.id }, `split.${it.id}`)} className={`${btn} mt-2 !min-h-9 !text-xs`}>{busy === `split.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Images className="h-4 w-4" />} Un article par photo ({it.source_photos.length}) — chacun avec son prix</button>
+      )}
+      {kids.length > 0 && (
+        <ul className="mt-2 space-y-2 border-l-2 border-slate-200 pl-3 dark:border-slate-600">{kids.map((k) => <ListRow key={k.id} it={k} items={items} trip={trip} act={act} busy={busy} />)}</ul>
+      )}
       {open && (
         <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 dark:border-slate-700 sm:grid-cols-2">
           <div className="sm:col-span-2"><label className={label}>Article</label><input className={input} value={d.label} onChange={(e) => setD({ ...d, label: e.target.value })} /></div>
@@ -204,7 +211,7 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
             <p className="text-xs text-slate-500">{day?.visit_date ? `${fmtDate(day.visit_date)} · ` : ''}{day?.zone ? `${day.zone} · ` : ''}{dt.bought}/{dt.items} acheté{dt.bought > 1 ? 's' : ''}{dt.cny ? ` · ${fmtCny(dt.cny)}` : ''}</p>
             {day?.notes && <p className="mt-1 rounded-xl bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">{day.notes}</p>}
           </div>
-          <ul className="space-y-2">{dayItems.map((it) => <ShopRow key={it.id} it={it} trip={trip} act={act} busy={busy} editable={editable} open={open === it.id} toggle={() => setOpen(open === it.id ? null : it.id)} />)}</ul>
+          <ul className="space-y-2">{dayItems.map((it) => hasChildren(items as BuyingItem[], it.id) ? <GroupRow key={it.id} it={it} items={items} trip={trip} act={act} busy={busy} editable={editable} open={open} setOpen={setOpen} /> : <ShopRow key={it.id} it={it} trip={trip} act={act} busy={busy} editable={editable} open={open === it.id} toggle={() => setOpen(open === it.id ? null : it.id)} />)}</ul>
         </section>
       ))}
       {canAddItems(trip.status) && <QuickAdd b={b} act={act} busy={busy} />}
@@ -285,6 +292,25 @@ function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; tr
           )}
         </div>
       )}
+    </li>
+  );
+}
+
+/* ---------- Article composé : en-tête + une sous-ligne par modèle ---------- */
+function GroupRow({ it, items, trip, act, busy, editable, open, setOpen }: { it: Item; items: Item[]; trip: Bundle['trip']; act: Act; busy: string | null; editable: boolean; open: string | null; setOpen: (id: string | null) => void }) {
+  const kids = childrenOf(items as BuyingItem[], it.id);
+  const t = totals(kids);
+  return (
+    <li className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{it.label}</p>
+          <p className="text-xs text-slate-500">{kids.length} modèle{kids.length > 1 ? 's' : ''} · {t.bought}/{t.items} acheté{t.bought > 1 ? 's' : ''}{it.supplier || it.zone ? ` · ${[it.supplier, it.zone].filter(Boolean).join(' · ')}` : ''}</p>
+          {it.details && <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{it.details}</p>}
+        </div>
+        {t.cny > 0 && <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900 dark:text-white">{fmtCny(t.cny)}</span>}
+      </div>
+      <ul className="mt-2 space-y-2">{kids.map((k) => <ShopRow key={k.id} it={k} trip={trip} act={act} busy={busy} editable={editable} open={open === k.id} toggle={() => setOpen(open === k.id ? null : k.id)} />)}</ul>
     </li>
   );
 }

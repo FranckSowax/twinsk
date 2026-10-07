@@ -45,6 +45,8 @@ export interface BuyingItem {
   id: string;
   trip_id: string;
   day_id: string | null;
+  /** Sous-ligne d'un article composé (une par photo / modèle) ; suit le jour du parent. */
+  parent_id: string | null;
   position: number;
   label: string;
   details: string | null;
@@ -160,6 +162,16 @@ export function parseListText(text: string): ParsedLine[] {
   return out;
 }
 
+// ---- Sous-lignes ----
+const byPos = (a: BuyingItem, b: BuyingItem) => a.position - b.position || a.created_at.localeCompare(b.created_at);
+/** Sous-lignes d'un article, dans l'ordre. */
+export const childrenOf = (items: BuyingItem[], parentId: string) => items.filter((i) => i.parent_id === parentId).sort(byPos);
+export const hasChildren = (items: BuyingItem[], id: string) => items.some((i) => i.parent_id === id);
+/** Lignes qui se chiffrent : tout sauf les parents qui ont des sous-lignes (en-têtes). */
+export const leafItems = (items: BuyingItem[]) => items.filter((i) => !hasChildren(items, i.id));
+/** Articles de premier niveau (les sous-lignes s'affichent sous leur parent). */
+export const topLevel = (items: BuyingItem[]) => items.filter((i) => !i.parent_id || !items.some((p) => p.id === i.parent_id)).sort(byPos);
+
 // ---- Montants ----
 export const LOCAL_RATE: number = FX_RATES[LOCAL_CURRENCY];
 /** Quantité retenue pour le montant : achetée, sinon prévue, sinon 1. */
@@ -193,7 +205,8 @@ export interface Totals {
   onlineCny: number;
   onlineLocal: number;
 }
-export function totals(items: BuyingItem[], rate = LOCAL_RATE): Totals {
+export function totals(all: BuyingItem[], rate = LOCAL_RATE): Totals {
+  const items = leafItems(all);
   const t: Totals = { items: items.length, bought: 0, toBuy: 0, skipped: 0, ordered: 0, unpriced: 0, cny: 0, local: 0, onlineCny: 0, onlineLocal: 0 };
   for (const it of items) {
     if (it.status === 'bought') {
@@ -213,13 +226,16 @@ export function totals(items: BuyingItem[], rate = LOCAL_RATE): Totals {
   t.onlineLocal = Math.round(t.onlineCny * rate);
   return t;
 }
-/** Lignes par jour (dans l'ordre des jours), puis les lignes sans jour. */
+/** Articles de premier niveau par jour (dans l'ordre des jours), puis ceux sans jour ; les totaux incluent leurs sous-lignes. */
 export function daySummaries(days: BuyingDay[], items: BuyingItem[], rate = LOCAL_RATE): { day: BuyingDay | null; items: BuyingItem[]; totals: Totals }[] {
   const sorted = [...days].sort((a, b) => a.position - b.position || (a.visit_date || '').localeCompare(b.visit_date || ''));
-  const byDay = (id: string | null) => items.filter((i) => i.day_id === id).sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
-  const out: { day: BuyingDay | null; items: BuyingItem[]; totals: Totals }[] = sorted.map((day) => ({ day, items: byDay(day.id), totals: totals(byDay(day.id), rate) }));
-  const rest = byDay(null);
-  if (rest.length || !out.length) out.push({ day: null, items: rest, totals: totals(rest, rate) });
+  const tops = topLevel(items);
+  const byDay = (id: string | null) => tops.filter((i) => i.day_id === id);
+  const withChildren = (list: BuyingItem[]) => list.flatMap((i) => [i, ...childrenOf(items, i.id)]);
+  const entry = (day: BuyingDay | null) => ({ day, items: byDay(day?.id ?? null), totals: totals(withChildren(byDay(day?.id ?? null)), rate) });
+  const out: { day: BuyingDay | null; items: BuyingItem[]; totals: Totals }[] = sorted.map(entry);
+  const rest = entry(null);
+  if (rest.items.length || !out.length) out.push(rest);
   return out;
 }
 
@@ -245,7 +261,7 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 export function zoneGroups(items: BuyingItem[]): { key: string; label: string; item_ids: string[] }[] {
   const map = new Map<string, { label: string; item_ids: string[] }>();
   for (const it of items) {
-    if (it.day_id) continue;
+    if (it.day_id || it.parent_id) continue;
     const src = (it.zone || it.supplier || '').trim();
     if (!src) continue;
     const key = norm(src);

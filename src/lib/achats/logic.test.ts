@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, daySummaries, itemAmount, leadTime, onlineAmount, onlineUnitLocal, parseListText, totals, zoneGroups, type BuyingDay, type BuyingItem } from './logic';
 
-const item = (x: Partial<BuyingItem> & { id: string; label: string }): BuyingItem => ({ trip_id: 't', day_id: null, position: 0, details: null, link: null, source_photos: [], quantity: null, unit: null, supplier: null, zone: null, lead_time_days: null, team_note: null, status: 'to_buy', price_cny: null, qty_bought: null, client_note: null, photos: [], bought_at: null, online_product_id: null, online_variant_id: null, online_offer_id: null, online_title: null, online_image_url: null, online_price_cny: null, online_moq: null, online_note: null, online_order_id: null, online_ordered_at: null, online_qty: null, created_by: 'client', created_at: '2026-10-07T00:00:00Z', ...x });
+const item = (x: Partial<BuyingItem> & { id: string; label: string }): BuyingItem => ({ trip_id: 't', day_id: null, parent_id: null, position: 0, details: null, link: null, source_photos: [], quantity: null, unit: null, supplier: null, zone: null, lead_time_days: null, team_note: null, status: 'to_buy', price_cny: null, qty_bought: null, client_note: null, photos: [], bought_at: null, online_product_id: null, online_variant_id: null, online_offer_id: null, online_title: null, online_image_url: null, online_price_cny: null, online_moq: null, online_note: null, online_order_id: null, online_ordered_at: null, online_qty: null, created_by: 'client', created_at: '2026-10-07T00:00:00Z', ...x });
 
 describe('achats sur place : liste collée', () => {
   it('une ligne par article, puces retirées, lien extrait, quantité reconnue', () => {
@@ -67,5 +67,22 @@ describe('achats sur place : délai usine → cargo et zones', () => {
       item({ id: '5', label: 'Chaises' }),
     ]);
     expect(g).toEqual([{ key: 'foshan', label: 'Foshan', item_ids: ['1', '2'] }, { key: 'lecong furniture', label: 'Lecong Furniture', item_ids: ['3'] }]);
+  });
+});
+
+describe('achats sur place : sous-lignes', () => {
+  const items = [
+    item({ id: 'p', label: 'Packaging cadeaux', day_id: 'd1', source_photos: [] }),
+    item({ id: 'p1', label: 'Packaging cadeaux — 1', parent_id: 'p', day_id: 'd1', status: 'bought', price_cny: 8, qty_bought: 500 }),
+    item({ id: 'p2', label: 'Packaging cadeaux — 2', parent_id: 'p', day_id: 'd1', status: 'skipped' }),
+    item({ id: 'x', label: 'Lampadaire', day_id: 'd1', status: 'bought', price_cny: 300, qty_bought: 2 }),
+  ];
+  it('le parent est un en-tête : seules les sous-lignes comptent dans les totaux', () => {
+    expect(totals(items, 91)).toMatchObject({ items: 3, bought: 2, skipped: 1, cny: 4600, local: 418600 });
+  });
+  it('par jour : articles de premier niveau seulement, totaux avec les sous-lignes', () => {
+    const days: BuyingDay[] = [{ id: 'd1', trip_id: 't', position: 1, title: 'Jour 1', visit_date: null, zone: null, notes: null }];
+    const s = daySummaries(days, items, 91);
+    expect(s.map((x) => [x.day?.title ?? null, x.items.map((i) => i.id), x.totals.cny])).toEqual([['Jour 1', ['p', 'x'], 4600]]);
   });
 });

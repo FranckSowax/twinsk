@@ -13,6 +13,10 @@ Un client vient acheter en Chine avec une liste. L'équipe lui ouvre un **voyage
 | 3. Sur place | `on_site` (**automatique** au premier article marqué Acheté / Pas pris ; l'équipe peut aussi le forcer) | Par jour : **À acheter / Acheté / Pas pris**, prix unitaire ¥, quantité, note, photos ; barre fixe **Total ¥ ≈ FCFA** ; alerte si la livraison usine dépasse la date limite du cargo ; **« Ajouter un article à ma liste »** (texte ou photos) → ligne dans « Autres articles », que l'équipe place dans un jour | Suit en direct : statut, prix, photos, montant par jour, totaux |
 | 4. Clôture | `done` | Récapitulatif en lecture seule | — |
 
+### Articles composés (sous-lignes)
+
+Un article avec plusieurs modèles en photo (ex. « Packaging cadeaux d'entreprise ») se découpe en **une sous-ligne par photo** — bouton « Une ligne de prix par photo » (équipe) ou « Un article par photo » (client). Chaque sous-ligne a son statut, son prix, sa quantité, ses photos et son éventuel prix en ligne ; le parent devient un en-tête (libellé, précisions, fournisseur, zone), ne compte pas dans les totaux et entraîne ses sous-lignes dans son jour de visite (`buying_items.parent_id`, migration `20261007010000_buying_items_parent.sql`). Une sous-ligne se supprime avec son parent.
+
 ### Prix en ligne / Commander en ligne
 
 Sur chaque ligne, bouton **« Prix en ligne »** (équipe) :
@@ -31,7 +35,7 @@ Règles côté client : il ajoute, précise et illustre des articles **jusqu'à 
 
 ## Où c'est
 
-- Logique pure (testée) : `src/lib/achats/logic.ts` — statuts, `parseListText`, montants (`itemAmount`, `onlineAmount`, `totals`), `daySummaries`, `leadTime`, `zoneGroups`.
+- Logique pure (testée) : `src/lib/achats/logic.ts` — statuts, `parseListText`, sous-lignes (`topLevel`, `childrenOf`, `leafItems`), montants (`itemAmount`, `onlineAmount`, `totals`), `daySummaries`, `leadTime`, `zoneGroups`.
 - Serveur : `src/lib/achats/data.ts` (voyages, jours, lignes, projection client sans notes internes, notifications), `src/lib/achats/online.ts` (recherche produits, prix en ligne, import, commande), `src/lib/achats/auth.ts` (rôles `production` et `sourcing`, lien à jeton).
 - API : `/api/achats` (liste, création), `/api/achats/<id>` (lecture, modification, suppression), `/api/achats/<id>/actions` (lignes, jours, prix en ligne, statut, envoi WhatsApp), `/api/achats/products?q=` (produits commandables), `/api/achats/public/<token>` et `…/actions` (client).
 - Pages : `/admin/achats`, `/admin/achats/<id>` (`src/components/achats/TripAdmin.tsx`, `OnlinePicker.tsx`), `/achat/<token>` (`src/components/achats/AchatClient.tsx`, pensé pour le téléphone).

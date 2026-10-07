@@ -117,10 +117,19 @@ export interface ItemInput {
   lead_time_days?: unknown;
   team_note?: unknown;
   day_id?: unknown;
+  /** Sous-ligne d'un article composé (suit le jour du parent). */
+  parent_id?: unknown;
 }
 export async function addItems(tripId: string, inputs: ItemInput[], by: 'client' | 'team'): Promise<BuyingItem[]> {
   const { data: last } = await supabaseAdmin.from('buying_items').select('position').eq('trip_id', tripId).order('position', { ascending: false }).limit(1).maybeSingle();
   let position = (last?.position ?? -1) + 1;
+  // Parents valides (du voyage, de premier niveau) : une sous-ligne suit le jour de son parent.
+  const parentIds = Array.from(new Set(inputs.map((i) => i.parent_id).filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x))));
+  const parents = new Map<string, { day_id: string | null }>();
+  if (parentIds.length) {
+    const { data } = await supabaseAdmin.from('buying_items').select('id, day_id').eq('trip_id', tripId).is('parent_id', null).in('id', parentIds);
+    for (const p of (data || []) as { id: string; day_id: string | null }[]) parents.set(p.id, { day_id: p.day_id });
+  }
   const rows = inputs
     .map((i) => {
       const label = str(i.label, 160);
@@ -128,6 +137,8 @@ export async function addItems(tripId: string, inputs: ItemInput[], by: 'client'
       if (!label && !sp.length) return null;
       const row: Record<string, unknown> = { trip_id: tripId, position: position++, label: label || 'Photo à préciser', details: text(i.details, 2000) || null, link: str(i.link, 500) || null, source_photos: sp, quantity: num(i.quantity), unit: str(i.unit, 20) || null, created_by: by };
       if (by === 'team') Object.assign(row, { supplier: str(i.supplier, 160) || null, zone: str(i.zone, 80) || null, lead_time_days: num(i.lead_time_days) == null ? null : Math.round(num(i.lead_time_days)!), team_note: text(i.team_note, 2000) || null, day_id: typeof i.day_id === 'string' && i.day_id ? i.day_id : null });
+      const parent = typeof i.parent_id === 'string' ? parents.get(i.parent_id) : undefined;
+      if (parent) Object.assign(row, { parent_id: i.parent_id, day_id: parent.day_id });
       return row;
     })
     .filter((r): r is Record<string, unknown> => !!r)
@@ -164,7 +175,10 @@ export async function updateItem(tripId: string, itemId: string, patch: ItemPatc
     if (patch.zone !== undefined) row.zone = str(patch.zone, 80) || null;
     if (patch.lead_time_days !== undefined) row.lead_time_days = num(patch.lead_time_days) == null ? null : Math.round(num(patch.lead_time_days)!);
     if (patch.team_note !== undefined) row.team_note = text(patch.team_note, 2000) || null;
-    if (patch.day_id !== undefined) row.day_id = typeof patch.day_id === 'string' && patch.day_id ? patch.day_id : null;
+    if (patch.day_id !== undefined) {
+      row.day_id = typeof patch.day_id === 'string' && patch.day_id ? patch.day_id : null;
+      await supabaseAdmin.from('buying_items').update({ day_id: row.day_id, updated_at: now() }).eq('parent_id', itemId).eq('trip_id', tripId);
+    }
   }
   if (patch.status !== undefined) {
     if (!ITEM_STATUS.some((s) => s.value === patch.status)) throw new AchatError('Statut inconnu');
@@ -236,7 +250,32 @@ export async function assignItems(tripId: string, dayId: string | null, itemIds:
   }
   const { error } = await supabaseAdmin.from('buying_items').update({ day_id: dayId, updated_at: now() }).in('id', ids).eq('trip_id', tripId);
   if (error) fail(error, 'Lignes');
+  // Les sous-lignes suivent leur parent.
+  await supabaseAdmin.from('buying_items').update({ day_id: dayId, updated_at: now() }).in('parent_id', ids).eq('trip_id', tripId);
   await supabaseAdmin.from('buying_trips').update({ updated_at: now() }).eq('id', tripId);
+}
+
+/**
+ * Article composé → une sous-ligne par photo (chacune avec son prix, sa
+ * quantité, son statut). Le parent garde son libellé et ses précisions et
+ * devient l'en-tête ; ses photos passent aux sous-lignes.
+ */
+export async function splitByPhotos(tripId: string, itemId: string, by: 'client' | 'team'): Promise<BuyingItem[]> {
+  const { data: parent } = await supabaseAdmin.from('buying_items').select('*').eq('id', itemId).eq('trip_id', tripId).maybeSingle();
+  if (!parent) throw new AchatError('Ligne introuvable', 404);
+  const p = parent as BuyingItem;
+  if (p.parent_id) throw new AchatError('Une sous-ligne ne se découpe pas');
+  const existing = await supabaseAdmin.from('buying_items').select('id', { count: 'exact', head: true }).eq('parent_id', itemId);
+  const sp = photos(p.source_photos);
+  if (sp.length < 1) throw new AchatError('Ajoutez d’abord les photos des modèles sur cet article');
+  const start = (existing.count || 0) + 1;
+  const created = await addItems(
+    tripId,
+    sp.map((photo, i) => ({ label: `${p.label} — ${start + i}`, source_photos: [photo], quantity: p.quantity, unit: p.unit, parent_id: p.id })),
+    by,
+  );
+  await supabaseAdmin.from('buying_items').update({ source_photos: [], updated_at: now() }).eq('id', itemId);
+  return created;
 }
 
 // ---- Projection client : jamais les notes internes ----

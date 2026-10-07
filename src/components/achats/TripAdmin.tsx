@@ -7,11 +7,11 @@
 // zone, délai usine → cargo, et ce que le client a renseigné sur place.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays, Check, Copy, Globe, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Check, Copy, CornerDownRight, Globe, Images, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import OnlinePicker from './OnlinePicker';
 import { formatPrice } from '@/lib/country';
-import { daySummaries, fmtCny, ITEM_STATUS, leadTime, onlineUnitLocal, parseListText, totals, TRIP_STATUS, tripStatus, zoneGroups, type BuyingDay, type BuyingItem, type BuyingTrip } from '@/lib/achats/logic';
+import { childrenOf, daySummaries, fmtCny, hasChildren, ITEM_STATUS, leadTime, onlineUnitLocal, parseListText, topLevel, totals, TRIP_STATUS, tripStatus, zoneGroups, type BuyingDay, type BuyingItem, type BuyingTrip } from '@/lib/achats/logic';
 import { Badge, btn, btnPrimary, card, input, label } from '@/components/projects/shared';
 
 interface Bundle {
@@ -150,7 +150,7 @@ export default function TripAdmin({ id }: { id: string }) {
               <ul className="flex flex-wrap gap-1.5">
                 {dayItems.map((it) => (
                   <li key={it.id} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${it.status === 'bought' ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200' : it.status === 'ordered_online' ? 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200' : it.status === 'skipped' ? 'border-slate-200 text-slate-400 line-through' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'}`}>
-                    {it.label}
+                    {it.label}{hasChildren(items, it.id) ? ` (${childrenOf(items, it.id).length})` : ''}
                     <button type="button" onClick={() => act('day.assign', { day_id: null, item_ids: [it.id] }, `unassign.${it.id}`)} className="rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Retirer du jour"><X className="h-3 w-3" /></button>
                   </li>
                 ))}
@@ -194,7 +194,7 @@ export default function TripAdmin({ id }: { id: string }) {
           <table className="w-full min-w-[76rem] text-sm">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400 dark:bg-slate-900">
               <tr>
-                <th className="px-3 py-2 text-left"><input type="checkbox" aria-label="Tout sélectionner" checked={selected.size === items.length && items.length > 0} onChange={(e) => setSelected(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())} /></th>
+                <th className="px-3 py-2 text-left"><input type="checkbox" aria-label="Tout sélectionner" checked={selected.size === topLevel(items).length && items.length > 0} onChange={(e) => setSelected(e.target.checked ? new Set(topLevel(items).map((i) => i.id)) : new Set())} /></th>
                 <th className="px-3 py-2 text-left">Article</th>
                 <th className="px-3 py-2 text-left">Qté</th>
                 <th className="px-3 py-2 text-left">Fournisseur / zone</th>
@@ -206,14 +206,18 @@ export default function TripAdmin({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {items.map((it) => {
+              {topLevel(items).flatMap((p) => [p, ...childrenOf(items, p.id)]).map((it) => {
                 const lt = leadTime(it, trip);
                 const st = ITEM_STATUS.find((x) => x.value === it.status)!;
+                const sub = !!it.parent_id;
+                const parent = hasChildren(items, it.id);
                 return (
-                  <tr key={it.id} className={selected.has(it.id) ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''}>
-                    <td className="px-3 py-2 align-top"><input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} aria-label={`Sélectionner ${it.label}`} /></td>
-                    <td className="px-3 py-2 align-top">
+                  <tr key={it.id} className={selected.has(it.id) ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : sub ? 'bg-slate-50/60 dark:bg-slate-900/40' : ''}>
+                    <td className="px-3 py-2 align-top">{sub ? <CornerDownRight className="h-4 w-4 text-slate-400" aria-hidden /> : <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} aria-label={`Sélectionner ${it.label}`} />}</td>
+                    <td className={`px-3 py-2 align-top ${sub ? 'pl-6' : ''}`}>
                       <input className={`${small} font-medium`} defaultValue={it.label} onBlur={(e) => e.target.value !== it.label && act('item.update', { id: it.id, label: e.target.value }, `it.${it.id}`)} />
+                      {parent && <p className="mt-0.5 text-[11px] font-semibold text-slate-500">Article composé · {childrenOf(items, it.id).length} sous-ligne{childrenOf(items, it.id).length > 1 ? 's' : ''} (une par modèle)</p>}
+                      {!sub && it.source_photos.length > 0 && <button type="button" disabled={busy === `split.${it.id}`} onClick={() => act('item.split', { id: it.id }, `split.${it.id}`)} className={`${btn} mt-1 !min-h-7 !px-2 !text-[11px]`} title="Chaque photo devient une sous-ligne avec son prix, sa quantité et son statut"><Images className="h-3.5 w-3.5" /> Une ligne de prix par photo ({it.source_photos.length})</button>}
                       {it.details && <p className="mt-0.5 text-xs text-slate-500">{it.details}</p>}
                       {it.link && <a href={it.link} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-sky-700 hover:underline">{it.link}</a>}
                       {it.source_photos.length > 0 && <div className="mt-1 flex gap-1">{it.source_photos.slice(0, 4).map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt="" className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200" /></a>)}</div>}
@@ -230,10 +234,12 @@ export default function TripAdmin({ id }: { id: string }) {
                       <input className={`${small} mt-1`} defaultValue={it.team_note || ''} placeholder="Note équipe" onBlur={(e) => e.target.value !== (it.team_note || '') && act('item.update', { id: it.id, team_note: e.target.value }, `it.${it.id}`)} />
                     </td>
                     <td className="px-3 py-2 align-top">
-                      <select className={small} value={it.day_id || ''} onChange={(e) => act('day.assign', { day_id: e.target.value || null, item_ids: [it.id] }, `it.${it.id}`)}>
-                        <option value="">—</option>
-                        {days.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-                      </select>
+                      {sub ? <span className="text-xs text-slate-400">suit l’article</span> : (
+                        <select className={small} value={it.day_id || ''} onChange={(e) => act('day.assign', { day_id: e.target.value || null, item_ids: [it.id] }, `it.${it.id}`)}>
+                          <option value="">—</option>
+                          {days.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                        </select>
+                      )}
                     </td>
                     <td className="px-3 py-2 align-top text-xs">
                       {it.online_product_id ? (
@@ -258,7 +264,7 @@ export default function TripAdmin({ id }: { id: string }) {
                       )}
                     </td>
                     <td className="px-3 py-2 align-top text-xs">
-                      <Badge tone={it.status === 'bought' ? 'emerald' : it.status === 'ordered_online' ? 'blue' : it.status === 'skipped' ? 'slate' : 'amber'}>{st.label}</Badge>
+                      {parent ? <span className="text-slate-400">voir les sous-lignes</span> : <Badge tone={it.status === 'bought' ? 'emerald' : it.status === 'ordered_online' ? 'blue' : it.status === 'skipped' ? 'slate' : 'amber'}>{st.label}</Badge>}
                       {it.status === 'bought' && <p className="mt-1 tabular-nums">{it.price_cny != null ? `${fmtCny(it.price_cny)} × ${it.qty_bought ?? it.quantity ?? 1}` : 'prix non saisi'}</p>}
                       {it.client_note && <p className="mt-0.5 text-slate-600 dark:text-slate-300">{it.client_note}</p>}
                       {it.photos.length > 0 && <div className="mt-1 flex gap-1">{it.photos.slice(0, 4).map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt="" className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200" /></a>)}</div>}
