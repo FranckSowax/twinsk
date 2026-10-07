@@ -6,7 +6,6 @@
 // en PDF ou coller le texte). La partie pure (MIME, nettoyage, mise en forme)
 // est dans attachments.ts.
 
-import { PDFParse } from 'pdf-parse';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { LlmPart } from '@/lib/llm';
 import { PROJECT_BUCKET } from './data';
@@ -27,8 +26,36 @@ export interface ReadResult {
   summary: string[];
 }
 
+/**
+ * pdf.js (chargé par pdf-parse) attend des API navigateur absentes de Node 20
+ * (image node:20-alpine de production) : sans elles, le module échoue au
+ * chargement (« DOMMatrix is not defined »), et une importation statique
+ * faisait tomber toute la route en 500. Des remplaçants minimaux suffisent à
+ * l'extraction de texte — aucun rendu graphique ici — et pdf-parse n'est
+ * chargé qu'au premier PDF, à l'abri d'un try/catch.
+ */
+function ensurePdfGlobals() {
+  const g = globalThis as Record<string, unknown>;
+  if (typeof g.DOMMatrix === 'undefined') {
+    g.DOMMatrix = class DOMMatrix {
+      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+      constructor(init?: number[]) {
+        if (Array.isArray(init) && init.length >= 6) [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      }
+    };
+  }
+  if (typeof g.Path2D === 'undefined') g.Path2D = class Path2D {};
+  if (typeof g.ImageData === 'undefined') g.ImageData = class ImageData {};
+}
+let pdfParseModule: Promise<typeof import('pdf-parse')> | null = null;
+function loadPdfParse() {
+  ensurePdfGlobals();
+  return (pdfParseModule ||= import('pdf-parse'));
+}
+
 /** Texte d'un PDF (couche texte) et nombre de pages. */
 export async function extractPdf(buffer: Buffer): Promise<{ text: string; pages: number }> {
+  const { PDFParse } = await loadPdfParse();
   const parser = new PDFParse({ data: buffer, verbosity: 0 });
   try {
     const r = await parser.getText();
@@ -47,18 +74,27 @@ const mimeOf = (name: string, mime: string | null) => {
 
 async function readPdf(name: string, buffer: Buffer, out: ReadResult) {
   const doc: ReadDoc = { name, kind: 'pdf', pages: null, text: '', scanned: false, note: null };
+  // PDF transmis tel quel : le fournisseur IA le lit lui-même (OCR pour un scan,
+  // texte pour les autres) — utilisé pour les scans et en secours si pdf-parse
+  // ne se charge pas dans ce runtime.
+  const sendAsFile = (why: 'scan' | 'fallback') => {
+    if (buffer.length > PDF_OCR_MAX) {
+      doc.note = why === 'scan' ? 'scanné et trop volumineux pour l’OCR : demander une version texte' : 'PDF trop volumineux pour être transmis au modèle';
+      return;
+    }
+    doc.scanned = true;
+    if (why === 'fallback') doc.note = 'lu par le fournisseur IA (extraction locale indisponible)';
+    out.parts.push({ type: 'file', name, url: `data:application/pdf;base64,${buffer.toString('base64')}` });
+  };
   try {
     const r = await extractPdf(buffer);
     doc.pages = r.pages;
-    if (isScanned(r.text, r.pages)) {
-      if (buffer.length > PDF_OCR_MAX) doc.note = 'scanné et trop volumineux pour l’OCR : demander une version texte';
-      else {
-        doc.scanned = true;
-        out.parts.push({ type: 'file', name, url: `data:application/pdf;base64,${buffer.toString('base64')}` });
-      }
-    } else doc.text = r.text;
-  } catch {
-    doc.note = 'PDF illisible (protégé ou endommagé)';
+    if (isScanned(r.text, r.pages)) sendAsFile('scan');
+    else doc.text = r.text;
+  } catch (e) {
+    // Module pdf-parse non chargeable (API navigateur manquante…) → le modèle lit le PDF.
+    if (/pdf-parse|DOMMatrix|Path2D|ImageData|Cannot find module|not defined/i.test(String(e))) sendAsFile('fallback');
+    else doc.note = 'PDF illisible (protégé ou endommagé)';
   }
   out.docs.push(doc);
 }
