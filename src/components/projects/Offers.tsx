@@ -146,6 +146,8 @@ export function OfferEditor({ supplier, p, admin, api, offer, initial, exchangeI
   const setItem = (k: number, patch: Partial<Draft['items'][number]>) => setD((x) => ({ ...x, items: x.items.map((y, i) => (i === k ? { ...y, ...patch } : y)) }));
   const items = d.items.map((x, i) => cleanItem({ ...x, variant: parseVariant(x.variant), tiers: parseTiers(x.tiers), price: x.price, quote_line_id: x.quote_line_id || null }, i)).filter((x): x is OfferItem => !!x);
   const lotLines = p.quote.lines.filter((l) => l.lot === supplier.lot);
+  // Lot de l'usine sans ligne de devis du même nom (ex. usine « Cages », lignes « Foot 5 ») : proposer toutes les lignes, lot en préfixe.
+  const lineChoices = lotLines.length ? lotLines : p.quote.lines;
   const preview: TeamOffer = { ...(offer || ({} as TeamOffer)), id: offer?.id || 'new', supplier_id: supplier.id, lot: supplier.lot, title: d.title, currency: d.currency, incoterm: d.incoterm || null, valid_until: d.valid_until || null, lead_time: d.lead_time || null, moq: d.moq || null, items, margin_mode: d.margin_mode, margin_value: d.margin_value === '' ? null : Number(d.margin_value), client_visible: d.client_visible, status: 'active', client_interested_at: null, updated_at: '' };
   const rateMissing = d.currency !== p.currency && !p.rates[d.currency];
   const save = async () => {
@@ -191,7 +193,7 @@ export function OfferEditor({ supplier, p, admin, api, offer, initial, exchangeI
                 {it.kind === 'fee' ? (
                   <select className={`${small} sm:col-span-3`} value={it.per} onChange={(e) => setItem(k, { per: e.target.value as OfferItem['per'] })}><option value="order">Une fois par commande</option><option value="unit">Par unité</option></select>
                 ) : (
-                  <select className={`${small} sm:col-span-6`} value={it.quote_line_id} onChange={(e) => setItem(k, { quote_line_id: e.target.value })}><option value="">Ligne du devis : automatique</option>{lotLines.map((l) => <option key={l.id} value={l.id}>{l.label} ({qtyLabel(l.effective_quantity)} {l.unit})</option>)}</select>
+                  <select className={`${small} sm:col-span-6`} value={it.quote_line_id} onChange={(e) => setItem(k, { quote_line_id: e.target.value })}><option value="">{lotLines.length ? 'Ligne du devis : automatique' : `Ligne du devis : à choisir (aucune ligne dans le lot « ${supplier.lot} »)`}</option>{lineChoices.map((l) => <option key={l.id} value={l.id}>{lotLines.length ? '' : `${l.lot} · `}{l.label} ({qtyLabel(l.effective_quantity)} {l.unit})</option>)}</select>
                 )}
                 <button type="button" onClick={() => set({ items: d.items.filter((_, i) => i !== k) })} className={`${btn} !min-h-8 sm:col-span-1`} aria-label="Retirer"><Trash2 className="h-3.5 w-3.5 text-red-500" /></button>
               </div>

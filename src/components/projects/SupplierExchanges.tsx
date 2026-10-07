@@ -3,8 +3,9 @@
 // Onglet « Échanges » de la fiche usine : le fil complet avec CETTE usine —
 // messages envoyés (e-mails de la plateforme, envois notés à la main),
 // réponses reçues avec leur analyse (réponse proposée EN/FR, explication,
-// questions pour le client), notes internes — et l'ajout d'une réponse reçue
-// (texte collé ou captures) analysée sur place.
+// questions pour le client, prix trouvés), notes internes — et l'ajout d'une
+// réponse reçue (texte collé, captures, devis PDF ou e-mail .eml dont les
+// pièces jointes sont lues) analysée sur place.
 
 import { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Loader2, Mail, NotebookPen, Plus, Sparkles, Trash2, X } from 'lucide-react';
@@ -151,7 +152,8 @@ function ExchangeForm({ supplier, p, admin, api, onDone }: { supplier: Supplier;
         next_action_at: res.next_action_days != null && !x.next_action_at ? new Date(Date.now() + res.next_action_days * 86_400_000).toISOString().slice(0, 10) : x.next_action_at,
       }));
       const u = r.usage as { model: string; costFcfa: number };
-      setAiInfo(`${u.model} · ${u.costFcfa} FCFA — à relire avant d’envoyer`);
+      const docs = Array.isArray(r.documents) ? (r.documents as string[]) : [];
+      setAiInfo(`${u.model} · ${u.costFcfa} FCFA${docs.length ? ` · pièces lues : ${docs.join(' ; ')}` : ''} — à relire avant d’envoyer`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Analyse impossible');
     } finally {
@@ -177,12 +179,12 @@ function ExchangeForm({ supplier, p, admin, api, onDone }: { supplier: Supplier;
         <div><label className={label}>Canal</label><select className={input} value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value })}>{EXCHANGE_CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
         <div><label className={label}>Date et heure</label><input type="datetime-local" className={input} value={f.exchanged_at} onChange={(e) => setF({ ...f, exchanged_at: e.target.value })} /></div>
       </div>
-      <div><label className={label}>Message de l’usine (coller la conversation, l’e-mail…)</label><textarea className={`${input} font-mono text-xs`} rows={6} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Collez ici la réponse de l’usine (chinois, anglais ou français), ou joignez des captures." /></div>
+      <div><label className={label}>Message de l’usine (coller la conversation, l’e-mail…)</label><textarea className={`${input} font-mono text-xs`} rows={6} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Collez ici la réponse de l’usine (chinois, anglais ou français), ou joignez des captures, le devis PDF ou l’e-mail enregistré (.eml)." /></div>
       <div>
         <AttachmentList items={files} onRemove={(i) => setFiles((x) => x.filter((_, k) => k !== i))} />
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <AttachButton api={api} internal category="misc" label="Joindre des captures" accept="image/*,application/pdf,.eml,.txt" onAttached={(a) => setFiles((x) => [...x, ...a])} />
-          <button type="button" disabled={aiBusy || (!files.some((a) => a.kind === 'image') && !raw.trim())} onClick={analyze} className={btnPrimary}>{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Analyser et proposer une réponse</button>
+          <AttachButton api={api} internal category="misc" label="Joindre captures, PDF ou e-mail" accept="image/*,application/pdf,.eml,.txt" onAttached={(a) => setFiles((x) => [...x, ...a])} />
+          <button type="button" disabled={aiBusy || (!files.length && !raw.trim())} onClick={analyze} className={btnPrimary}>{aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Analyser et proposer une réponse</button>
           {aiInfo && <span className="text-[11px] text-slate-500">{aiInfo}</span>}
         </div>
       </div>

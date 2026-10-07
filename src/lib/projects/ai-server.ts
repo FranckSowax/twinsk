@@ -6,7 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { chatCompletion, llmCostFcfa, parseJsonLoose, type LlmPart } from '@/lib/llm';
 import { contactSystemPrompt, EXCHANGE_SYSTEM_PROMPT, exchangeAnalysisPrompt, validateExchangeAnalysis, type ExchangeAnalysis, FLASH_MODEL, PLAN_MODEL, planSystemPrompt, UPDATE_SYSTEM_PROMPT, updateFactsPrompt, validateContactFind, validateExchangeSummary, validateGeneratedTemplate, validateUpdateDraft, type ContactFind, type ExchangeSummary, type UpdateFacts } from './ai';
-import { logEvent, PROJECT_BUCKET, ProjectError, type Actor } from './data';
+import { logEvent, ProjectError, type Actor } from './data';
+import { readDocuments } from './attachments-server';
 import { orderStatusLabel, progress } from './logic';
 import type { ProjectTemplate } from './types';
 
@@ -37,30 +38,23 @@ export async function generatePlanFromBrief(brief: string, currency: string, act
   return { template, usage };
 }
 
-/** Capture du bucket privé → data URL (le modèle ne peut pas lire nos liens signés à coup sûr). */
-async function imageDataUrl(projectId: string, docId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin.from('project_documents').select('storage_path, mime').eq('id', docId).eq('project_id', projectId).maybeSingle();
-  if (!data || !String(data.mime || '').startsWith('image/')) return null;
-  const f = await supabaseAdmin.storage.from(PROJECT_BUCKET).download(data.storage_path);
-  if (f.error || !f.data) return null;
-  const buf = Buffer.from(await f.data.arrayBuffer());
-  if (buf.length > 8 * 1024 * 1024) return null;
-  return `data:${data.mime};base64,${buf.toString('base64')}`;
+/** Préambule du message au modèle : captures, PDF scannés, texte des pièces jointes lues. */
+function docsPreamble(read: Awaited<ReturnType<typeof readDocuments>>): string {
+  const images = read.parts.filter((p) => p.type === 'image').length;
+  const files = read.parts.filter((p) => p.type === 'file').length;
+  const head = [images ? `${images} capture(s) d’écran ci-dessus.` : '', files ? `${files} PDF scanné(s) ci-dessus, à lire tels quels.` : '', read.summary.length ? `Pièces jointes : ${read.summary.join(' ; ')}.` : ''].filter(Boolean).join(' ');
+  return `${head}${read.text ? `\n\n${read.text}` : ''}`;
 }
 
-/** 2. Résumé d'un échange avec une usine à partir de captures (ids de documents) et de notes. */
-export async function summarizeExchange(projectId: string, docIds: string[], notes: string, actor: Actor): Promise<{ result: ExchangeSummary; usage: AiUsage }> {
-  const parts: LlmPart[] = [];
-  for (const id of docIds.slice(0, 6)) {
-    const url = await imageDataUrl(projectId, id);
-    if (url) parts.push({ type: 'image', url });
-  }
-  if (!parts.length && !notes.trim()) throw new ProjectError('Joignez au moins une capture d’écran (image) ou des notes.');
-  parts.push({ type: 'text', text: `${parts.length ? `${parts.length} capture(s) d’écran ci-dessus. ` : ''}${notes.trim() ? `Notes de l’équipe : ${notes.trim().slice(0, 3000)}` : 'Aucune note.'}\nDate du jour : ${new Date().toLocaleDateString('fr-FR', { timeZone: COUNTRY.timezone })}.` });
+/** 2. Résumé d'un échange avec une usine à partir de captures, PDF, e-mails (ids de documents) et de notes. */
+export async function summarizeExchange(projectId: string, docIds: string[], notes: string, actor: Actor): Promise<{ result: ExchangeSummary; usage: AiUsage; documents: string[] }> {
+  const read = await readDocuments(projectId, docIds);
+  if (!read.parts.length && !read.text && !notes.trim()) throw new ProjectError('Joignez au moins une capture, un PDF ou un e-mail (.eml), ou des notes.');
+  const parts = [...read.parts, { type: 'text' as const, text: `${docsPreamble(read)}\n\n${notes.trim() ? `Notes de l’équipe : ${notes.trim().slice(0, 3000)}` : 'Aucune note.'}\nDate du jour : ${new Date().toLocaleDateString('fr-FR', { timeZone: COUNTRY.timezone })}.` }];
   const { json, usage } = await ask({ system: EXCHANGE_SYSTEM_PROMPT, parts, model: FLASH_MODEL, maxTokens: 1500, projectId, actor, usage: 'résumé échange usine' });
   const result = validateExchangeSummary(json);
   if (!result) throw new ProjectError('Résumé illisible ; réessayez ou complétez à la main.', 502);
-  return { result, usage };
+  return { result, usage, documents: read.summary };
 }
 
 /** Faits des dernières 24 h (ou depuis la dernière mise à jour) pour le brouillon du journal. */
@@ -126,13 +120,10 @@ export async function findSupplierContacts(projectId: string, s: { name: string;
  * enregistré : l'équipe relit.
  */
 export const REPLY_MODEL = process.env.PROJECT_REPLY_MODEL || FLASH_MODEL;
-export async function analyzeExchange(projectId: string, input: { docIds: string[]; notes: string; supplierId: string | null }, actor: Actor): Promise<{ result: ExchangeAnalysis; usage: AiUsage }> {
-  const parts: LlmPart[] = [];
-  for (const id of input.docIds.slice(0, 6)) {
-    const url = await imageDataUrl(projectId, id);
-    if (url) parts.push({ type: 'image', url });
-  }
-  if (!parts.length && !input.notes.trim()) throw new ProjectError('Joignez au moins une capture d’écran ou collez le texte de l’échange.');
+export async function analyzeExchange(projectId: string, input: { docIds: string[]; notes: string; supplierId: string | null }, actor: Actor): Promise<{ result: ExchangeAnalysis; usage: AiUsage; documents: string[] }> {
+  const read = await readDocuments(projectId, input.docIds);
+  if (!read.parts.length && !read.text && !input.notes.trim()) throw new ProjectError('Joignez au moins une capture, un PDF ou un e-mail (.eml), ou collez le texte de l’échange.');
+  const parts = [...read.parts];
   const [{ data: p }, { data: s }] = await Promise.all([
     supabaseAdmin.from('projects').select('title, rfq_context, rfq_sender').eq('id', projectId).maybeSingle(),
     input.supplierId ? supabaseAdmin.from('project_suppliers').select('id, lot, alias, real_name').eq('id', input.supplierId).eq('project_id', projectId).maybeSingle() : Promise.resolve({ data: null }),
@@ -155,9 +146,10 @@ export async function analyzeExchange(projectId: string, input: { docIds: string
     history: ((history || []) as { exchanged_at: string; channel: string; summary: string }[]).map((h) => `${new Date(h.exchanged_at).toLocaleDateString('fr-FR')} (${h.channel}) : ${h.summary.replace(/\s+/g, ' ').slice(0, 280)}`),
     sender: [sender.name, sender.company].filter(Boolean).join(', ') || null,
   });
-  parts.push({ type: 'text', text: `${parts.length ? `${parts.length} capture(s) d’écran ci-dessus. ` : ''}${input.notes.trim() ? `Texte ou notes de l’équipe :\n${input.notes.trim().slice(0, 8000)}` : 'Aucun texte.'}\nDate du jour : ${new Date().toLocaleDateString('fr-FR', { timeZone: COUNTRY.timezone })}.` });
-  const { json, usage } = await ask({ system, parts, model: REPLY_MODEL, maxTokens: 4000, projectId, actor, usage: 'analyse échange usine' });
+  parts.push({ type: 'text', text: `${docsPreamble(read)}\n\n${input.notes.trim() ? `Texte ou notes de l’équipe :\n${input.notes.trim().slice(0, 8000)}` : 'Aucun texte collé.'}\nDate du jour : ${new Date().toLocaleDateString('fr-FR', { timeZone: COUNTRY.timezone })}.` });
+  // Un devis en pièce jointe a souvent plus de lignes qu'un message : budget de sortie élargi.
+  const { json, usage } = await ask({ system, parts, model: REPLY_MODEL, maxTokens: read.text || read.parts.some((p) => p.type === 'file') ? 6000 : 4000, projectId, actor, usage: 'analyse échange usine' });
   const result = validateExchangeAnalysis(json);
   if (!result) throw new ProjectError('Analyse illisible ; réessayez ou complétez à la main.', 502);
-  return { result, usage };
+  return { result, usage, documents: read.summary };
 }

@@ -114,9 +114,10 @@ export const DOM_TOM_TEMPLATE: ProjectTemplate = {
   quote_lines: [
     { lot: 'Gazon', label: 'Gazon synthétique non-infill (foot five)', unit: 'm²', quantity: 5800, unit_price: null, optional: false, phase: null },
     { lot: 'Gazon', label: 'Shockpad', unit: 'm²', quantity: 4800, unit_price: null, optional: false, phase: null },
-    { lot: 'Foot 5', label: 'Kit cages foot 5 avec clôture', unit: 'kit', quantity: 8, unit_price: null, optional: false, phase: null },
-    { lot: 'Éclairage', label: 'Projecteur LED 200 W', unit: 'pièce', quantity: 128, unit_price: null, optional: false, phase: null },
-    { lot: 'Éclairage', label: 'Mât d’éclairage', unit: 'pièce', quantity: 32, unit_price: null, optional: false, phase: null },
+    // Lots nommés comme dans `lots` et les RFQ : une offre d'usine se rattache aux lignes de son lot.
+    { lot: 'Cages', label: 'Kit cages foot 5 avec clôture', unit: 'kit', quantity: 8, unit_price: null, optional: false, phase: null },
+    { lot: 'Éclairage LED', label: 'Projecteur LED 200 W', unit: 'pièce', quantity: 128, unit_price: null, optional: false, phase: null },
+    { lot: 'Éclairage LED', label: 'Mât d’éclairage', unit: 'pièce', quantity: 32, unit_price: null, optional: false, phase: null },
     { lot: 'Padel', label: 'Kit padel 20 × 10 m (structure, vitrage, gazon)', unit: 'kit', quantity: 8, unit_price: null, optional: false, phase: null },
     { lot: 'Conteneurs', label: 'Conteneur bar/snacking 20’ aménagé', unit: 'pièce', quantity: 4, unit_price: null, optional: false, phase: null },
     { lot: 'Options', label: 'Mini-tribune 3–4 rangées (~60 places)', unit: 'pièce', quantity: 8, unit_price: null, optional: true, phase: null },

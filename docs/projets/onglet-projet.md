@@ -44,6 +44,27 @@ Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée 
 - **Onglet Comparaison** (équipe et client) : une ligne par usine et par lot, une colonne par ligne du devis, total projet frais compris, meilleur prix en vert, filtre de variante. Le client voit les alias et les prix retravaillés et peut cliquer « Cette offre m'intéresse » (l'équipe est prévenue). « Devis » reporte le coût, le prix et l'usine sur la ligne du devis.
 - Code : `src/lib/projects/offers.ts` (logique pure et testée), `Offers.tsx`, `Comparison.tsx` ; migration `20261001030000_project_offers.sql`. Champs interdits côté client : usine réelle, coût, devise d'achat, marge, conditions de paiement, texte brut.
 
+## Pièces jointes lues par l'analyse : devis PDF et e-mails (6 octobre 2026)
+
+Une usine répond souvent par un e-mail avec un **devis en PDF**. L'analyse d'un échange (« Analyser et proposer une réponse ») lit maintenant les pièces jointes, pas seulement les captures d'écran :
+
+| Pièce jointe | Ce qui est lu | Comment |
+|---|---|---|
+| **PDF avec texte** (devis, fiche technique) | Tout le texte, page par page, pieds de page répétés retirés | Extraction sur le serveur (`pdf-parse`), gratuite |
+| **PDF scanné** (sans couche de texte) | Le document entier | Transmis à OpenRouter, qui l'analyse par OCR avant le modèle (`OPENROUTER_PDF_ENGINE`, défaut `mistral-ocr`, payant ≈ 2 $ les 1 000 pages) |
+| **E-mail `.eml`** (« Télécharger le message » dans Gmail, glisser depuis Mail) | Expéditeur, objet, date, corps, **et ses pièces jointes** (PDF et images lus à leur tour) | Décodage MIME sur le serveur |
+| **Image** | Comme avant (le modèle lit l'image) | |
+| **Texte** | Tel quel | |
+| Word, Excel | **Non lus** : enregistrer en PDF ou coller le texte | Signalé à l'équipe |
+
+Jusqu'à 8 pièces par analyse, 14 000 caractères par pièce et 40 000 en tout (les premières d'abord). Les pièces lues sont listées sous le bouton (« pièces lues : devis.pdf (PDF, 1 page) — 2 245 car. »).
+
+**Devis en tableau.** Le modèle reçoit une consigne propre aux « QUOTATION SHEET » : une ligne numérotée = un item, référence modèle dans le libellé, **prix unitaire** (jamais le montant ni le total), prix promotionnel retenu et ancien prix en note, suppléments entre parenthèses (« door: extra $295 ») et postes optionnels chiffrés en **options**, postes « not included / buy locally » ignorés, totaux pour N ensembles vérifiés contre la somme des prix unitaires (écart signalé en note), conditions (incoterm, acompte, délai, validité) dans leurs champs. Le résultat arrive dans **« Prix trouvés dans ce message »** → **« Vérifier et enregistrer l'offre de prix »** : l'éditeur s'ouvre pré-rempli, avec la **marge Twinsk** (25 % par défaut, modifiable par offre en % ou en montant) et le rattachement aux lignes du devis. À relire avant d'enregistrer, comme toute sortie du modèle.
+
+Si le lot de l'usine n'a aucune ligne de devis portant le même nom (projets créés avant le 6 octobre : lignes « Foot 5 » pour le lot « Cages », « Éclairage » pour « Éclairage LED »), l'éditeur propose **toutes** les lignes du devis, préfixées de leur lot, pour rattacher à la main. Le modèle DOM-TOM nomme désormais les lignes comme les lots.
+
+Code : `src/lib/projects/attachments.ts` (décodage MIME, nettoyage, mise en forme — testé), `attachments-server.ts` (bucket, `pdf-parse`), `src/lib/llm.ts` (partie « fichier » transmise au fournisseur). Aucune migration.
+
 ## Rapport et voyages construits depuis les commandes (1er octobre 2026)
 
 - L'onglet **Rapport & voyage** part **vierge** : plus d'itinéraire ni de liste de rapport tirés du modèle.
@@ -85,7 +106,7 @@ Trois aides, toutes **à relire avant validation** ; rien n'est créé ni publi�
 | Aide | Où | Modèle | Coût mesuré |
 |---|---|---|---|
 | **Plan depuis un brief** : le texte libre du client devient un plan complet (phases, étapes, tâches datées, lignes de devis à chiffrer, lots) | « Nouveau projet » › « Depuis un brief (IA) » › « Générer le plan », puis « Créer ce projet » | Kimi K2 (`moonshotai/kimi-k2-0905`, variable `PROJECT_PLAN_MODEL`) | ≈ 6,5 FCFA par plan |
-| **Résumé d'un échange usine** : lit les captures d'écran (WeChat, WhatsApp, e-mail, chinois ou anglais compris) et propose le résumé en français, les chiffres cités, le canal et la relance à prévoir | Usines & échanges › Nouvel échange › joindre des captures › « Résumer avec l'IA » | GLM 5.3 Flash (`z-ai/glm-5.3-flash`, variable `PROJECT_FLASH_MODEL`) | ≈ 0,1 FCFA par capture |
+| **Résumé d'un échange usine** : lit les captures d'écran (WeChat, WhatsApp, e-mail, chinois ou anglais compris), les devis PDF et les e-mails `.eml` joints, et propose le résumé en français, les chiffres cités, le canal et la relance à prévoir | Usines & échanges › Nouvel échange › joindre des captures, PDF ou e-mail › « Résumer avec l'IA » | GLM 5.3 Flash (`z-ai/glm-5.3-flash`, variable `PROJECT_FLASH_MODEL`) | ≈ 0,1 FCFA par capture |
 | **Brouillon du journal** : rédige la mise à jour du jour à partir de ce qui a bougé depuis la dernière (tâches, échéances proches, commandes, questions, documents, échanges usines reformulés sans nom d'usine) | Journal › « Préparer avec l'IA » | GLM 5.3 Flash | ≈ 0,2 FCFA |
 | **Contacts d'une usine** : cherche sur le web (site officiel, Alibaba, Made-in-China) l'e-mail, le WeChat, le WhatsApp du commercial export et le canal conseillé ; ne remplit que les champs vides, avec la source et un niveau de confiance | Usines & échanges › fiche › « Trouver les contacts (IA) » | GLM 5.3 Flash **avec recherche web** (suffixe OpenRouter `:online`, variable `PROJECT_CONTACT_MODEL`) | jetons + recherche web OpenRouter (≈ 10–15 FCFA par usine) |
 
@@ -111,6 +132,7 @@ Le compte Moonshot direct (`KIMI_API_KEY`) n'est pas utilisé ici : Kimi est app
 | Projection publique et vue équipe | `src/lib/projects/public.ts`, `public-server.ts` |
 | Couche serveur et audit | `src/lib/projects/data.ts` |
 | Authentification équipe / client | `src/lib/projects/auth.ts` |
+| Pièces jointes lues par l'analyse (PDF, .eml) | `src/lib/projects/attachments.ts`, `attachments-server.ts` |
 | Notifications | `src/lib/projects/notify.ts` |
 | PDF | `src/lib/projects/pdf.ts`, `src/components/projects/ProjectQuotePDF.tsx` |
 | Routes équipe | `src/app/api/projects/…` |

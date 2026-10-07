@@ -3,9 +3,11 @@ import { teamActor, unauthorized, errorResponse } from '@/lib/projects/auth';
 import { analyzeExchange, draftDailyUpdate, findSupplierContacts, summarizeExchange } from '@/lib/projects/ai-server';
 
 // POST { action: 'exchange.summarize', document_ids[], notes } → résumé d'un
-// échange usine depuis des captures (GLM 5.3 Flash lit l'image).
+// échange usine depuis des captures, PDF ou e-mails .eml (GLM 5.3 Flash lit
+// l'image ; le texte des PDF et e-mails est extrait avant, voir attachments-server.ts).
 // POST { action: 'exchange.analyze', document_ids[], notes, supplier_id } → analyse
-// de l'échange : explication, réponse proposée EN/FR(/ZH), questions de l'usine.
+// de l'échange : explication, réponse proposée EN/FR(/ZH), questions de l'usine,
+// prix trouvés (devis PDF compris) ; `documents` liste les pièces lues.
 // POST { action: 'update.draft' } → brouillon de la mise à jour du jour.
 // POST { action: 'supplier.contacts', name, website?, city?, product? } →
 // contacts trouvés sur le web (e-mail, WeChat, WhatsApp), à vérifier.

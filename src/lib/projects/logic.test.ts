@@ -67,7 +67,7 @@ describe('devis : totaux et validation ligne par ligne', () => {
     expect(canUnvalidateLine({ status: 'ordered' })).toBe(false);
   });
   it('lots dans l’ordre d’apparition', () => {
-    expect(groupByLot(DOM_TOM_TEMPLATE.quote_lines).map((g) => g.lot)).toEqual(['Gazon', 'Foot 5', 'Éclairage', 'Padel', 'Conteneurs', 'Options', 'Services', 'Logistique']);
+    expect(groupByLot(DOM_TOM_TEMPLATE.quote_lines).map((g) => g.lot)).toEqual(['Gazon', 'Cages', 'Éclairage LED', 'Padel', 'Conteneurs', 'Options', 'Services', 'Logistique']);
   });
 });
 

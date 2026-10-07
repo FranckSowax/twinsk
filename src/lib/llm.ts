@@ -9,8 +9,14 @@
 
 export type LlmProvider = 'openrouter' | 'kimi' | 'anthropic';
 
-/** Contenu d'un message : texte, ou texte + images (URL http(s) ou data:). */
-export type LlmPart = { type: 'text'; text: string } | { type: 'image'; url: string };
+/**
+ * Contenu d'un message : texte, images (URL http(s) ou data:), ou fichier PDF
+ * (data: base64) que le fournisseur lit lui-même — OpenRouter par son module
+ * « file-parser » (moteur OPENROUTER_PDF_ENGINE, défaut mistral-ocr : PDF
+ * scannés), Anthropic en natif ; Kimi ne reçoit qu'une mention du fichier.
+ * Les PDF à couche de texte sont extraits avant l'appel (projects/attachments-server.ts).
+ */
+export type LlmPart = { type: 'text'; text: string } | { type: 'image'; url: string } | { type: 'file'; name: string; url: string };
 export interface LlmMessage {
   role: 'user' | 'assistant';
   content: string | LlmPart[];
@@ -112,16 +118,28 @@ export function reasoningEffort(): 'low' | 'medium' | 'high' {
   return v === 'medium' || v === 'high' ? v : 'low';
 }
 
-/** Messages au format OpenAI (Kimi, OpenRouter) : parties texte + image_url. */
-function openaiMessages(req: LlmRequest) {
+/** Messages au format OpenAI (Kimi, OpenRouter) : parties texte, image_url et file (OpenRouter seulement). */
+function openaiMessages(req: LlmRequest, provider: LlmProvider) {
   return [
     { role: 'system', content: req.system },
     ...req.messages.map((m) => ({
       role: m.role,
-      content: typeof m.content === 'string' ? m.content : m.content.map((p) => (p.type === 'text' ? { type: 'text', text: p.text } : { type: 'image_url', image_url: { url: p.url } })),
+      content:
+        typeof m.content === 'string'
+          ? m.content
+          : m.content.map((p) =>
+              p.type === 'text'
+                ? { type: 'text', text: p.text }
+                : p.type === 'image'
+                  ? { type: 'image_url', image_url: { url: p.url } }
+                  : provider === 'openrouter'
+                    ? { type: 'file', file: { filename: p.name, file_data: p.url } }
+                    : { type: 'text', text: `[Fichier « ${p.name} » non transmis à ce fournisseur]` },
+            ),
     })),
   ];
 }
+const hasFilePart = (req: LlmRequest) => req.messages.some((m) => typeof m.content !== 'string' && m.content.some((p) => p.type === 'file'));
 /** Messages au format Anthropic : parties texte + image (base64 ou URL). */
 function anthropicMessages(req: LlmRequest) {
   return req.messages.map((m) => ({
@@ -132,6 +150,7 @@ function anthropicMessages(req: LlmRequest) {
         : m.content.map((p) => {
             if (p.type === 'text') return { type: 'text', text: p.text };
             const d = /^data:([^;]+);base64,(.+)$/.exec(p.url);
+            if (p.type === 'file') return d ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: d[2] }, title: p.name } : { type: 'text', text: `[Fichier « ${p.name} » non transmis]` };
             return d ? { type: 'image', source: { type: 'base64', media_type: d[1], data: d[2] } } : { type: 'image', source: { type: 'url', url: p.url } };
           }),
   }));
@@ -166,10 +185,12 @@ async function callOnce(provider: LlmProvider, model: string, req: LlmRequest, s
     },
     body: JSON.stringify({
       model,
-      messages: openaiMessages(req),
+      messages: openaiMessages(req, provider),
       temperature: req.temperature ?? 0.2,
       max_tokens: req.maxTokens ?? 1200,
       ...(req.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      // PDF transmis tel quel (scanné) : OpenRouter l'analyse par OCR avant de l'envoyer au modèle.
+      ...(openrouter && hasFilePart(req) ? { plugins: [{ id: 'file-parser', pdf: { engine: process.env.OPENROUTER_PDF_ENGINE || 'mistral-ocr' } }] } : {}),
       // OpenRouter : coût réel de l'appel renvoyé dans `usage.cost`. Les modèles
       // à raisonnement obligatoire (GLM 5.3 Flash) consomment la limite de sortie
       // en réfléchissant : effort faible (ANALYSIS_REASONING_EFFORT) et

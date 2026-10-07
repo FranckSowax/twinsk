@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // pdf-parse (lecture des devis PDF, projets) charge pdf.js à l'exécution : laissé hors bundle.
+  serverExternalPackages: ['pdf-parse'],
   // Pays figé au build (code navigateur compris). Exposé par /api/health pour
   // vérifier qu'il correspond au pays lu à l'exécution par le serveur.
   env: { BUILD_COUNTRY: process.env.NEXT_PUBLIC_COUNTRY || 'GA' },
