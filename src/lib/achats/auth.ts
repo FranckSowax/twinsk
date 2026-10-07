@@ -18,7 +18,10 @@ export async function clientBundle(token: string): Promise<TripBundle | null> {
 }
 export const unauthorized = () => NextResponse.json({ error: achatsEnabled() ? 'Non autorisé' : 'Module indisponible dans ce pays' }, { status: achatsEnabled() ? 401 : 404 });
 export function errorResponse(e: unknown): NextResponse {
-  if (e instanceof AchatError) return NextResponse.json({ error: e.message }, { status: e.status });
+  if (e instanceof AchatError) {
+    if (e.status >= 500) console.error('[achats]', e.message);
+    return NextResponse.json({ error: e.message }, { status: e.status });
+  }
   console.error('[achats]', e);
   return NextResponse.json({ error: e instanceof Error ? e.message : 'Erreur' }, { status: 500 });
 }

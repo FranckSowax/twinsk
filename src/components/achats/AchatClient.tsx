@@ -102,8 +102,8 @@ export default function AchatClient({ token }: { token: string }) {
     setErr('');
     try {
       const r = await fetch(`/api/achats/public/${token}/actions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...payload }) });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Erreur');
+      const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!r.ok) throw new Error(typeof j.error === 'string' ? j.error : `Erreur ${r.status} — réessayez`);
       await load();
       return j as Record<string, unknown>;
     } catch (e) {
@@ -125,7 +125,12 @@ export default function AchatClient({ token }: { token: string }) {
         </div>
         <Badge tone={s.tone}>{s.label}</Badge>
       </div>
-      {err && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
+      {err && (
+        <div className="fixed inset-x-3 top-[calc(3.5rem+env(safe-area-inset-top))] z-40 mx-auto flex max-w-3xl items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-lg dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
+          <span className="min-w-0 flex-1">{err}</span>
+          <button type="button" onClick={() => setErr('')} className="shrink-0 rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900" aria-label="Fermer">✕</button>
+        </div>
+      )}
       <TokenCtx.Provider value={token}>{canEditList(trip.status) ? <ListEditor b={b} act={act} busy={busy} /> : <Program b={b} act={act} busy={busy} />}</TokenCtx.Provider>
     </div>
   );

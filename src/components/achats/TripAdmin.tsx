@@ -11,7 +11,7 @@ import { AlertTriangle, CalendarDays, Check, Copy, CornerDownRight, Globe, Image
 import Link from 'next/link';
 import OnlinePicker from './OnlinePicker';
 import { formatPrice } from '@/lib/country';
-import { childrenOf, daySummaries, fmtCny, hasChildren, ITEM_STATUS, leadTime, onlineUnitLocal, parseListText, topLevel, totals, TRIP_STATUS, tripStatus, zoneGroups, type BuyingDay, type BuyingItem, type BuyingTrip } from '@/lib/achats/logic';
+import { childrenOf, daySummaries, fmtCny, hasChildren, ITEM_STATUS, leadTime, onlineUnitLocal, parseListText, topLevel, totals, TRIP_STATUS, tripStatus, zoneGroups, type BuyingDay, type BuyingItem, type BuyingTrip, type Photo } from '@/lib/achats/logic';
 import { Badge, btn, btnPrimary, card, input, label } from '@/components/projects/shared';
 
 interface Bundle {
@@ -31,6 +31,7 @@ export default function TripAdmin({ id }: { id: string }) {
   const [addText, setAddText] = useState('');
   const [copied, setCopied] = useState(false);
   const [pickFor, setPickFor] = useState<BuyingItem | null>(null);
+  const [lightbox, setLightbox] = useState<{ photos: Photo[]; index: number } | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/achats/${id}`);
@@ -223,7 +224,7 @@ export default function TripAdmin({ id }: { id: string }) {
                       {!sub && it.source_photos.length > 0 && <button type="button" disabled={busy === `split.${it.id}`} onClick={() => act('item.split', { id: it.id }, `split.${it.id}`)} className={`${btn} mt-1 !min-h-7 !px-2 !text-[11px]`} title="Chaque photo devient une sous-ligne avec son prix, sa quantité et son statut"><Images className="h-3.5 w-3.5" /> Une ligne de prix par photo ({it.source_photos.length})</button>}
                       {it.details && <p className="mt-0.5 text-xs text-slate-500">{it.details}</p>}
                       {it.link && <a href={it.link} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-sky-700 hover:underline">{it.link}</a>}
-                      {it.source_photos.length > 0 && <div className="mt-1 flex gap-1">{it.source_photos.slice(0, 4).map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt="" className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200" /></a>)}</div>}
+                      <Gallery photos={it.source_photos} onOpen={setLightbox} />
                       <p className="mt-0.5 text-[10px] text-slate-400">{it.created_by === 'client' ? 'ajouté par le client' : 'ajouté par l’équipe'}</p>
                     </td>
                     <td className="px-3 py-2 align-top text-xs tabular-nums">{it.quantity != null ? `${it.quantity} ${it.unit || ''}` : '—'}</td>
@@ -270,7 +271,7 @@ export default function TripAdmin({ id }: { id: string }) {
                       {parent ? <span className="text-slate-400">voir les sous-lignes</span> : <Badge tone={it.status === 'bought' ? 'emerald' : it.status === 'ordered_online' ? 'blue' : it.status === 'skipped' ? 'slate' : 'amber'}>{st.label}</Badge>}
                       {it.status === 'bought' && <p className="mt-1 tabular-nums">{it.price_cny != null ? `${fmtCny(it.price_cny)} × ${it.qty_bought ?? it.quantity ?? 1}` : 'prix non saisi'}</p>}
                       {it.client_note && <p className="mt-0.5 text-slate-600 dark:text-slate-300">{it.client_note}</p>}
-                      {it.photos.length > 0 && <div className="mt-1 flex gap-1">{it.photos.slice(0, 4).map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt="" className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200" /></a>)}</div>}
+                      <Gallery photos={it.photos} onOpen={setLightbox} />
                     </td>
 
                   </tr>
@@ -280,6 +281,7 @@ export default function TripAdmin({ id }: { id: string }) {
             </tbody>
           </table>
         </div>
+        {lightbox && <Lightbox {...lightbox} onClose={() => setLightbox(null)} onMove={(index) => setLightbox({ ...lightbox, index })} />}
         {pickFor && (
           <OnlinePicker
             item={pickFor}
@@ -295,6 +297,46 @@ export default function TripAdmin({ id }: { id: string }) {
           <button type="button" disabled={busy === 'items.add' || !addText.trim()} onClick={addLines} className={btnPrimary}>{busy === 'items.add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter</button>
         </div>
       </section>
+    </div>
+  );
+}
+
+/* ---------- Photos d'une ligne : toutes visibles, défilement horizontal, agrandissement ---------- */
+function Gallery({ photos, onOpen }: { photos: Photo[]; onOpen: (l: { photos: Photo[]; index: number }) => void }) {
+  if (!photos.length) return null;
+  return (
+    <div className="mt-1 flex max-w-[22rem] gap-1 overflow-x-auto pb-1">
+      {photos.map((p, i) => (
+        <button key={i} type="button" onClick={() => onOpen({ photos, index: i })} className="shrink-0 rounded-lg ring-1 ring-slate-200 hover:ring-emerald-500" aria-label={`Photo ${i + 1} sur ${photos.length}`}>
+          <img src={p.url} alt="" className="h-14 w-14 rounded-lg object-cover" loading="lazy" />
+        </button>
+      ))}
+      <span className="self-center pl-1 text-[10px] text-slate-400">{photos.length}</span>
+    </div>
+  );
+}
+function Lightbox({ photos, index, onClose, onMove }: { photos: Photo[]; index: number; onClose: () => void; onMove: (i: number) => void }) {
+  const p = photos[index];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') onMove((index + 1) % photos.length);
+      if (e.key === 'ArrowLeft') onMove((index - 1 + photos.length) % photos.length);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [index, photos.length, onClose, onMove]);
+  if (!p) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 p-4" onClick={onClose}>
+      <img src={p.url} alt="" className="max-h-[80vh] max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+      <div className="mt-3 flex items-center gap-3 text-sm text-white" onClick={(e) => e.stopPropagation()}>
+        <button type="button" onClick={() => onMove((index - 1 + photos.length) % photos.length)} className="rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">‹</button>
+        <span>{index + 1} / {photos.length}{p.caption ? ` · ${p.caption}` : ''}</span>
+        <button type="button" onClick={() => onMove((index + 1) % photos.length)} className="rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">›</button>
+        <a href={p.url} target="_blank" rel="noopener noreferrer" className="underline">Ouvrir</a>
+        <button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">Fermer</button>
+      </div>
     </div>
   );
 }
