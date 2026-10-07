@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanItem, compareOffer, type CompareItem, formatTiers, formatVariant, offerLayout, parseTiers, parseVariant, priceOffer, projectQty, sellPrice, tierColumns, unitCostAt, validateExtractedOffer, variantKeys, type OfferItem } from './offers';
+import { cleanItem, compareOffer, type CompareItem, formatTiers, formatVariant, offerLayout, parseTiers, parseVariant, priceOffer, projectLine, projectQty, sellPrice, tierColumns, unitCostAt, unitKey, validateExtractedOffer, variantKeys, type OfferItem } from './offers';
 
 const item = (o: Partial<OfferItem>): OfferItem => cleanItem({ label: 'Gazon', unit: 'm²', price: 4.9, ...o })!;
 
@@ -54,6 +54,26 @@ describe('prix reçus : affichage adapté et saisie rapide', () => {
     const two = [{ id: 'g', lot: 'Gazon', unit: 'm²', label: 'Gazon synthétique non-infill', effective_quantity: 5800 }, { id: 's', lot: 'Gazon', unit: 'm²', label: 'Sous-couche shockpad', effective_quantity: 4800 }];
     expect(projectQty({ quote_line_id: null, unit: 'm²', label: 'Shockpad 10 mm' }, 'Gazon', two)).toBe(4800);
     expect(projectQty({ quote_line_id: null, unit: 'm²', label: 'TS PIKE gazon 30 mm' }, 'Gazon', two)).toBe(5800);
+  });
+  it('lot sans ligne (usine « set complet ») : toutes les lignes, unités équivalentes, libellé obligatoire', () => {
+    const lines = [
+      { id: 'p', lot: 'Padel', unit: 'kit', label: 'Kit padel panoramique 20 × 10 m', effective_quantity: 8 },
+      { id: 'c', lot: 'Cages', unit: 'kit', label: 'Kit cages foot 5 avec clôture', effective_quantity: 8 },
+      { id: 'g', lot: 'Gazon', unit: 'm²', label: 'Gazon synthétique non-infill (foot five)', effective_quantity: 5800 },
+      { id: 's', lot: 'Gazon', unit: 'm²', label: 'Shockpad', effective_quantity: 4800 },
+    ];
+    const lot = 'Set complet foot & padel';
+    expect(projectLine({ quote_line_id: null, unit: 'set', label: 'Court de padel panoramique 20×10 m — kit complet' }, lot, lines)?.id).toBe('p');
+    expect(projectLine({ quote_line_id: null, unit: 'field', label: 'LDK20017E Cage de foot 5 style Euro 30 × 20 × 4 m' }, lot, lines)?.id).toBe('c');
+    expect(projectLine({ quote_line_id: null, unit: 'M2', label: 'Gazon synthétique foot 50 mm' }, lot, lines)?.id).toBe('g');
+    expect(projectLine({ quote_line_id: null, unit: 'm2', label: 'Shock pad XPE 10 mm' }, lot, lines)?.id).toBe('s');
+    // Aucun mot en commun ou pas de libellé : pas de rattachement par défaut hors du lot.
+    expect(projectLine({ quote_line_id: null, unit: 'kit', label: 'Buts amovibles' }, lot, lines)).toBeNull();
+    expect(projectLine({ quote_line_id: null, unit: 'tonne', label: 'Granulés SBR' }, lot, lines)).toBeNull();
+    expect(projectLine({ quote_line_id: null, unit: 'set' }, lot, lines)).toBeNull();
+    expect(unitKey('Sets')).toBe('kit');
+    expect(unitKey('pièces')).toBe('pièce');
+    expect(unitKey('sqm')).toBe('m²');
   });
   it('offre extraite d’un message : devise, incoterm, lignes ; null sans prix', () => {
     const o = validateExtractedOffer({ currency: 'usd', incoterm: 'fob', port: 'Qingdao', valid_until: '2026-10-31', items: [{ label: 'TS PIKE 30A', unit: 'm²', tiers: [{ min_qty: 2000, price: 4.9 }] }, { kind: 'option', label: 'Lignes tuftées', unit: 'm²', price: '0,30' }, { label: 'sans prix' }] })!;

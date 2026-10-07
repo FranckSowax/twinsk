@@ -180,21 +180,49 @@ export function tierColumns(items: { kind: OfferItemKind; tiers: { min_qty: numb
 }
 
 type QtyLine = { id: string; lot: string; unit: string; effective_quantity: number; label?: string };
+/** Unités équivalentes (« set » = « kit », « pcs » = « pièce », « m2 » = « m² »…) pour rapprocher offre et devis. */
+export function unitKey(u: string): string {
+  const k = u.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9²³]/g, '');
+  if (/^(set|sets|kit|kits|ensemble|ensembles|court|courts|field|fields|terrain|terrains)$/.test(k)) return 'kit';
+  if (/^(pc|pcs|piece|pieces|unit|units|unite|unites|u|ea)$/.test(k)) return 'pièce';
+  if (/^(m2|m²|sqm|sq\.?m|metrecarre|metrescarres)$/.test(k)) return 'm²';
+  if (/^(m3|m³|cbm)$/.test(k)) return 'm³';
+  if (/^(m|ml|metre|metres|meter|meters|lm)$/.test(k)) return 'm';
+  if (/^(forfait|lot|lump|lumpsum|order|commande|package)$/.test(k)) return 'forfait';
+  if (/^(t|ton|tons|tonne|tonnes)$/.test(k)) return 'tonne';
+  return k;
+}
+// Mots significatifs d'un libellé (≥ 4 lettres) + mots voisins collés (« shock pad » → « shockpad »),
+// pour reconnaître les graphies en un ou deux mots.
+const words = (t: string) => {
+  const raw = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean);
+  const out = new Set(raw.filter((w) => w.length >= 4));
+  for (let i = 0; i + 1 < raw.length; i++) if (raw[i].length >= 3 && raw[i + 1].length >= 3) out.add(raw[i] + raw[i + 1]);
+  return out;
+};
+const overlap = (a: string, b: string) => { const w = words(a); return [...words(b)].filter((x) => w.has(x)).length; };
 /**
  * Ligne du devis correspondant à une ligne d'offre : ligne liée ; sinon, parmi
- * les lignes du lot de même unité, celle dont le libellé ressemble le plus
+ * les lignes du lot d'unité équivalente, celle dont le libellé ressemble le plus
  * (gazon ≠ shockpad, tous deux en m²) ; sinon seule ligne du lot.
+ * Lot sans ligne de devis (usine « set complet » qui fournit padel, foot et
+ * gazon d'un coup, ou lot libre) : on cherche dans TOUTES les lignes, par unité
+ * puis libellé — et seulement si le libellé correspond quand plusieurs lignes
+ * ont la même unité ; jamais une ligne d'un autre lot par défaut.
  */
 export function projectLine<L extends QtyLine>(item: Pick<OfferItem, 'quote_line_id' | 'unit'> & { label?: string }, lot: string, lines: L[]): L | null {
   const linked = item.quote_line_id ? lines.find((l) => l.id === item.quote_line_id) : null;
   if (linked) return linked;
   const inLot = lines.filter((l) => l.lot === lot);
-  const sameUnit = inLot.filter((l) => l.unit.toLowerCase() === item.unit.toLowerCase());
-  if (sameUnit.length === 1 || (sameUnit.length > 1 && !item.label)) return sameUnit[0];
-  if (sameUnit.length > 1) {
-    const words = (t: string) => new Set(t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w) => w.length >= 4));
-    const w = words(item.label || '');
-    return sameUnit.map((l) => ({ l, n: [...words(l.label || '')].filter((x) => w.has(x)).length })).sort((a, b) => b.n - a.n)[0].l;
+  const crossLot = inLot.length === 0;
+  const pool = crossLot ? lines : inLot;
+  const sameUnit = pool.filter((l) => unitKey(l.unit) === unitKey(item.unit));
+  if (sameUnit.length === 1 && !crossLot) return sameUnit[0];
+  if (sameUnit.length >= 1) {
+    if (!item.label) return crossLot ? null : sameUnit[0];
+    const ranked = sameUnit.map((l) => ({ l, n: overlap(item.label || '', l.label || '') })).sort((a, b) => b.n - a.n);
+    if (ranked[0].n > 0) return ranked[0].l;
+    return crossLot ? null : ranked[0].l;
   }
   return inLot.length === 1 ? inLot[0] : null;
 }

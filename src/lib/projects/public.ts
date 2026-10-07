@@ -72,6 +72,8 @@ export interface PublicProject {
       validated_at: string | null;
       /** Alias du fournisseur pressenti (« Fournisseur B »), jamais son nom. */
       supplier_alias: string | null;
+      /** Offres de prix visibles qui chiffrent cette ligne (devis reçus des fabricants, sous alias). */
+      offers_received: number;
     }[];
   };
   orders: { id: string; reference: string; status: OrderStatus; tracking: string | null; lines: string[]; total: number; at: string; updated_at: string }[];
@@ -279,6 +281,7 @@ export function projectPublicView(raw: RawForPublic, token: string, opts: { docP
         locked: isPhaseLocked(phases, l.phase),
         validated_at: l.validated_at,
         supplier_alias: l.supplier_id ? aliasOf.get(l.supplier_id) || null : null,
+        offers_received: offers.filter((o) => o.items.some((it) => it.line_id === l.id)).length,
       })),
     },
     orders: raw.orders.map((o) => ({ id: o.id, reference: o.reference, status: o.status, tracking: o.tracking, lines: o.line_ids, total: o.total, at: o.created_at, updated_at: o.updated_at })),

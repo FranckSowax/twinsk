@@ -43,6 +43,7 @@ export function QuoteTab({ p, api, admin, pdfUrl }: { p: PublicProject; api: Wor
       {l.optional && <Badge tone="violet">Option</Badge>}
       {l.phase && <span>{p.phases.find((x) => x.id === l.phase)?.name}</span>}
       {l.supplier_alias && <span>· {l.supplier_alias}</span>}
+      {l.offers_received > 0 && <Badge tone="emerald">{l.offers_received} offre{l.offers_received > 1 ? 's' : ''} reçue{l.offers_received > 1 ? 's' : ''}</Badge>}
       {admin?.line_costs[l.id]?.unit_cost_entered != null && <span className="text-slate-400">· achat {fmtEntered(admin.line_costs[l.id].unit_cost_entered!, admin.line_costs[l.id].cost_currency)}{admin.line_costs[l.id].cost_currency !== cur ? (admin.line_costs[l.id].unit_cost != null ? ` ≈ ${money(admin.line_costs[l.id].unit_cost, cur)}` : ' (taux manquant)') : ''}{admin.line_costs[l.id].unit_cost != null && l.unit_price != null && l.unit_price > 0 ? ` · marge ${Math.round(((l.unit_price - admin.line_costs[l.id].unit_cost!) / l.unit_price) * 100)} %` : ''}</span>}
       {l.locked && <Badge>Phase verrouillée</Badge>}
     </p>

@@ -65,6 +65,14 @@ Si le lot de l'usine n'a aucune ligne de devis portant le même nom (projets cr�
 
 Code : `src/lib/projects/attachments.ts` (décodage MIME, nettoyage, mise en forme — testé), `attachments-server.ts` (bucket, `pdf-parse`), `src/lib/llm.ts` (partie « fichier » transmise au fournisseur). Aucune migration.
 
+## Lot « Set complet foot & padel » et devis reçus visibles du client (7 octobre 2026)
+
+Une usine capable de fournir d'un coup les terrains de foot 5 (cage, gazon, shockpad, éclairage) **et** les courts de padel (cas LDK) n'est plus dédoublée en une fiche par lot : elle est rangée dans le lot **« Set complet foot & padel »** (ajouté au modèle DOM-TOM, avec son message RFQ ; pour un projet existant, saisir ce lot sur la fiche de l'usine suffit) et dépose **une seule offre** couvrant tout.
+
+- **Rattachement aux lignes du devis** (`offers.ts`, `projectLine`) : le lot de l'usine n'ayant pas de ligne, chaque ligne de prix est rapprochée de **toutes** les lignes du devis, par unité équivalente (`set` = `kit`, `field` = `kit`, `pcs` = `pièce`, `m2` = `m²`…, `unitKey`) puis par libellé (« shock pad » reconnaît « Shockpad ») — et seulement si le libellé correspond ; sinon la ligne reste à choisir à la main dans l'éditeur (qui propose toutes les lignes, préfixées du lot).
+- **Comparaison** : l'offre « set complet » apparaît dans **chaque lot** où elle chiffre une ligne (seulement ces lignes, nom suffixé « (set complet) », face aux usines spécialisées, meilleur prix en vert) et dans **sa propre section** avec le total de l'ensemble, colonnes nommées « Lot · ligne ».
+- **Devis** (client et équipe) : chaque ligne porte **« N offre(s) reçue(s) »** dès qu'une offre visible du client la chiffre (`offers_received` dans la projection publique) — le client voit qu'un devis est arrivé avant même que l'équipe reporte un prix sur la ligne (« Prix reçus › Devis »), qui reste l'étape qui fixe le prix de vente et l'alias du fournisseur pressenti.
+
 ## Rapport et voyages construits depuis les commandes (1er octobre 2026)
 
 - L'onglet **Rapport & voyage** part **vierge** : plus d'itinéraire ni de liste de rapport tirés du modèle.

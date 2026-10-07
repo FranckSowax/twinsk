@@ -6,6 +6,9 @@
 // note /25 ; meilleur prix surligné. Client : offres cochées par l'équipe,
 // prix retravaillé, sous alias, « Cette offre m'intéresse ». Équipe : toutes
 // les offres actives, prix usine et marge, visibilité, marge par défaut.
+// Une offre d'un lot sans ligne de devis (« Set complet foot & padel ») est
+// comparée dans CHAQUE lot où elle chiffre une ligne (ses seules lignes de ce
+// lot, face aux usines spécialisées) et dans sa propre section, en entier.
 
 import { useState } from 'react';
 import { ChevronDown, Eye, EyeOff, Loader2, Star } from 'lucide-react';
@@ -40,8 +43,19 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
         return { id: o.id, lot: o.lot, name: s?.real_name || s?.alias || '—', alias: s?.alias || '', score: s?.score ?? null, items: teamOfferView(o, p, admin!.default_margin_pct), terms: o, interested: !!o.client_interested_at, visible: o.client_visible, currency: o.currency };
       })
     : p.offers.map((o) => ({ id: o.id, lot: o.lot, name: o.alias, alias: o.alias, score: o.score, items: o.items, terms: o, interested: o.interested, visible: true }));
-  const lots = [...new Set([...p.quote.lines.map((l) => l.lot), ...rows.map((r) => r.lot)])].filter((l) => rows.some((r) => r.lot === l));
+  const lineLot = new Map(p.quote.lines.map((l) => [l.id, l.lot]));
+  const lotsWithLines = new Set(p.quote.lines.map((l) => l.lot));
+  // Lignes d'une offre qui comptent dans un lot : toutes si c'est le sien, sinon celles rattachées à une ligne de ce lot (frais exclus).
+  const rowFor = (r: Row, lot: string): Row | null => {
+    if (r.lot === lot) return r;
+    const items = r.items.filter((i) => i.kind !== 'fee' && i.line_id && lineLot.get(i.line_id) === lot);
+    return items.length ? { ...r, items, name: `${r.name} (set complet)` } : null;
+  };
+  const sectionRows = (lot: string) => rows.map((r) => rowFor(r, lot)).filter((r): r is Row => !!r);
+  const lots = [...new Set([...p.quote.lines.map((l) => l.lot), ...rows.map((r) => r.lot)])].filter((l) => sectionRows(l).length);
+  // Dans la section d'un lot sans ligne de devis (set complet), les colonnes viennent d'autres lots : on les nomme.
   const lineLabel = (id: string | null) => p.quote.lines.find((l) => l.id === id)?.label || null;
+  const columnLabel = (lot: string, id: string) => (lotsWithLines.has(lot) ? lineLabel(id) : [lineLot.get(id), lineLabel(id)].filter(Boolean).join(' · ')) || 'Produit';
 
   if (!rows.length) {
     return (
@@ -56,7 +70,7 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
       {team && <MarginCard margin={margin} setMargin={setMargin} api={api} />}
       {!team && <p className="text-xs text-slate-500">Prix indicatifs par fabricant (sous alias), à la quantité de votre projet. Signalez l’offre qui vous intéresse : l’équipe la reprend dans le devis, que vous validez ensuite ligne par ligne.</p>}
       {lots.map((lot) => {
-        const lotRows = rows.filter((r) => r.lot === lot);
+        const lotRows = sectionRows(lot);
         // Variantes proposées dans le lot (filtre) et lignes du devis concernées (colonnes).
         const variants: Record<string, string[]> = {};
         lotRows.forEach((r) => r.items.filter((i) => i.kind === 'base').forEach((i) => Object.entries(i.variant).forEach(([k, v]) => { variants[k] = [...new Set([...(variants[k] || []), v])]; })));
@@ -69,7 +83,7 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
           <section key={lot} className={`${card} space-y-3`}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">{lot}</h3>
-              <span className="text-[11px] text-slate-500">{lotRows.length} offre{lotRows.length > 1 ? 's' : ''}</span>
+              <span className="text-[11px] text-slate-500">{lotRows.length} offre{lotRows.length > 1 ? 's' : ''}{!lotsWithLines.has(lot) ? ' · ensemble complet, toutes lignes du devis' : ''}</span>
             </div>
             {Object.keys(variants).length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -86,7 +100,7 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
                 <thead className="text-[10px] uppercase tracking-wider text-slate-400">
                   <tr>
                     <th className="pb-2 pr-3 text-left font-semibold">{team ? 'Usine' : 'Fabricant'}</th>
-                    {lineIds.map((id) => <th key={id} className="pb-2 pr-3 text-right font-semibold">{lineLabel(id) || 'Produit'}</th>)}
+                    {lineIds.map((id) => <th key={id} className="pb-2 pr-3 text-right font-semibold">{columnLabel(lot, id)}</th>)}
                     <th className="pb-2 pr-3 text-right font-semibold">Total projet</th>
                     <th className="pb-2 pr-3 text-left font-semibold">Conditions</th>
                     <th className="pb-2" />
