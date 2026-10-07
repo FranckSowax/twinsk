@@ -98,8 +98,10 @@ export const ITEM_STATUS: { value: ItemStatus; label: string }[] = [
 ];
 /** Une ligne se commande en ligne dès que l'équipe y a fixé un prix en ligne, tant que le voyage n'est pas clôturé. */
 export const canOrderOnline = (it: Pick<BuyingItem, 'online_product_id' | 'online_price_cny'>, s: TripStatus) => s !== 'done' && !!it.online_product_id && it.online_price_cny != null;
-/** Le client peut encore compléter sa liste tant que le programme n'est pas défini. */
+/** Phase « liste » : le client compose sa liste, pas encore de programme. */
 export const canEditList = (s: TripStatus) => s === 'draft' || s === 'submitted';
+/** Le client peut ajouter, préciser et illustrer des articles tant que le voyage n'est pas clôturé (même sur place : la ligne arrive dans « Autres articles », l'équipe la place dans un jour). */
+export const canAddItems = (s: TripStatus) => s !== 'done';
 /** Le client renseigne ses achats une fois le programme prêt. */
 export const canShop = (s: TripStatus) => s === 'planned' || s === 'on_site';
 

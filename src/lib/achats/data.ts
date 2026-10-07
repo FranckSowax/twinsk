@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { notifyClient } from '@/lib/agent-actions';
-import { canEditList, ITEM_STATUS, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo, type TripStatus, TRIP_STATUS } from './logic';
+import { canAddItems, canEditList, ITEM_STATUS, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo, type TripStatus, TRIP_STATUS } from './logic';
 
 export const achatsEnabled = () => COUNTRY.modules.twinsk;
 export class AchatError extends Error {
@@ -148,7 +148,7 @@ export interface ItemPatch extends Partial<ItemInput> {
 /** Le client ne touche qu'à ses champs (et à la liste tant qu'elle est ouverte) ; l'équipe à tout. */
 export async function updateItem(tripId: string, itemId: string, patch: ItemPatch, by: 'client' | 'team', tripStatus: TripStatus): Promise<BuyingItem> {
   const row: Record<string, unknown> = { updated_at: now() };
-  const listOpen = by === 'team' || canEditList(tripStatus);
+  const listOpen = by === 'team' || canAddItems(tripStatus);
   if (patch.label !== undefined && listOpen) {
     const l = str(patch.label, 160);
     if (!l) throw new AchatError('Libellé requis');
@@ -183,7 +183,11 @@ export async function updateItem(tripId: string, itemId: string, patch: ItemPatc
   return data as BuyingItem;
 }
 export async function deleteItem(tripId: string, itemId: string, by: 'client' | 'team', tripStatus: TripStatus): Promise<void> {
-  if (by === 'client' && !canEditList(tripStatus)) throw new AchatError('La liste est figée : signalez la ligne « Pas pris »');
+  if (by === 'client') {
+    if (!canAddItems(tripStatus)) throw new AchatError('Ce voyage est clôturé');
+    const { data: it } = await supabaseAdmin.from('buying_items').select('status').eq('id', itemId).eq('trip_id', tripId).maybeSingle();
+    if (it && !canEditList(tripStatus) && it.status !== 'to_buy') throw new AchatError('Cette ligne a déjà été traitée : marquez-la plutôt « Pas pris »');
+  }
   const { error } = await supabaseAdmin.from('buying_items').delete().eq('id', itemId).eq('trip_id', tripId);
   if (error) fail(error, 'Ligne');
 }

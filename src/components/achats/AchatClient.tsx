@@ -13,7 +13,7 @@ import { Camera, Check, ChevronDown, Globe, Link2, Loader2, Plus, Send, Shopping
 import { writeStoredOrderId } from '@/lib/offer-cart-session';
 import { COUNTRY } from '@/config/countries';
 import { formatPrice } from '@/lib/country';
-import { canEditList, canOrderOnline, canShop, daySummaries, fmtCny, itemAmount, leadTime, onlineUnitLocal, parseListText, totals, tripStatus, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo } from '@/lib/achats/logic';
+import { canAddItems, canEditList, canOrderOnline, canShop, daySummaries, fmtCny, itemAmount, leadTime, onlineUnitLocal, parseListText, totals, tripStatus, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo } from '@/lib/achats/logic';
 import { Badge, btn, btnPrimary, input, label } from '@/components/projects/shared';
 
 type Item = Omit<BuyingItem, 'team_note'>;
@@ -115,7 +115,7 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
       )}
       <section className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <label className={label}>Ajouter des articles</label>
-        <textarea className={input} rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Carreaux 60×60 blanc x 120\nLavabo double vasque https://detail.1688.com/…\nCanapé d’angle 3 pcs'} />
+        <textarea className={input} rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Carreaux 60×60 blanc x 120\nLavabo double vasque (lien du produit si vous en avez un)\nCanapé d’angle 3 pcs'} />
         <div className="flex flex-col gap-2 sm:flex-row">
           <button type="button" disabled={busy === 'add' || !text.trim()} onClick={addText} className={`${btnPrimary} w-full sm:w-auto`}>{busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter ces lignes</button>
           <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Ajouter des photos</button>
@@ -140,6 +140,21 @@ function ListEditor({ b, act, busy }: { b: Bundle; act: Act; busy: string | null
 function ListRow({ it, trip, act, busy }: { it: Item; trip: Bundle['trip']; act: Act; busy: string | null }) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState({ label: it.label, details: it.details || '', link: it.link || '', quantity: it.quantity == null ? '' : String(it.quantity), unit: it.unit || '' });
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const addPhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const photos = await uploadPhotos(Array.from(files).slice(0, 6));
+      await act('item.update', { id: it.id, source_photos: [...it.source_photos, ...photos] }, `ph.${it.id}`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Envoi impossible');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
   return (
     <li className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-start justify-between gap-2 text-left">
@@ -156,10 +171,12 @@ function ListRow({ it, trip, act, busy }: { it: Item; trip: Bundle['trip']; act:
           <div className="sm:col-span-2"><label className={label}>Article</label><input className={input} value={d.label} onChange={(e) => setD({ ...d, label: e.target.value })} /></div>
           <div><label className={label}>Quantité</label><input className={input} inputMode="decimal" value={d.quantity} onChange={(e) => setD({ ...d, quantity: e.target.value })} /></div>
           <div><label className={label}>Unité</label><input className={input} value={d.unit} onChange={(e) => setD({ ...d, unit: e.target.value })} placeholder="pièce, m², carton…" /></div>
-          <div className="sm:col-span-2"><label className={label}>Lien (1688, Alibaba…)</label><input className={input} inputMode="url" value={d.link} onChange={(e) => setD({ ...d, link: e.target.value })} /></div>
+          <div className="sm:col-span-2"><label className={label}>Lien du produit (facultatif)</label><input className={input} inputMode="url" value={d.link} onChange={(e) => setD({ ...d, link: e.target.value })} /></div>
           <div className="sm:col-span-2"><label className={label}>Précisions (couleur, dimensions, modèle…)</label><textarea className={input} rows={2} value={d.details} onChange={(e) => setD({ ...d, details: e.target.value })} /></div>
-          <div className="flex gap-2 sm:col-span-2">
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
             <button type="button" disabled={busy === `save.${it.id}` || !d.label.trim()} onClick={async () => { if (await act('item.update', { id: it.id, ...d }, `save.${it.id}`)) setOpen(false); }} className={`${btnPrimary} flex-1`}>{busy === `save.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer</button>
+            <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={btn}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Photos</button>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
             <button type="button" onClick={() => confirm('Retirer cet article de la liste ?') && act('item.delete', { id: it.id }, `del.${it.id}`)} className={btn} aria-label="Retirer"><Trash2 className="h-4 w-4 text-red-500" /></button>
           </div>
         </div>
@@ -179,6 +196,7 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
     <div className="space-y-4">
       {trip.status === 'done' && <p className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100">Voyage clôturé — récapitulatif de vos achats.</p>}
       {trip.status === 'planned' && <p className="text-sm text-slate-600 dark:text-slate-300">Votre programme est prêt. Sur place, ouvrez chaque article pour noter ce que vous avez acheté, le prix et une photo : le total se calcule tout seul.</p>}
+      {trip.status === 'on_site' && <p className="text-sm text-slate-600 dark:text-slate-300">Vous êtes sur place : touchez un article pour noter ce que vous avez acheté, le prix et une photo. Un article en plus ? Ajoutez-le en bas de page, l’équipe le placera dans votre programme.</p>}
       {summaries.map(({ day, items: dayItems, totals: dt }) => (
         <section key={day?.id || 'none'} className="space-y-2">
           <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-3 bg-slate-50/95 px-3 py-2 backdrop-blur dark:bg-slate-950/95 sm:static sm:mx-0 sm:bg-transparent sm:p-0">
@@ -189,6 +207,7 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
           <ul className="space-y-2">{dayItems.map((it) => <ShopRow key={it.id} it={it} trip={trip} act={act} busy={busy} editable={editable} open={open === it.id} toggle={() => setOpen(open === it.id ? null : it.id)} />)}</ul>
         </section>
       ))}
+      {canAddItems(trip.status) && <QuickAdd b={b} act={act} busy={busy} />}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <div>
@@ -306,5 +325,41 @@ function OnlineOffer({ it, trip, act, busy }: { it: Item; trip: Bundle['trip']; 
         <button type="button" disabled={busy === `ol.${it.id}`} onClick={order} className={`${btnPrimary} !min-h-9 flex-1 !text-xs sm:flex-none`}>{busy === `ol.${it.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />} Commander en ligne</button>
       </div>
     </div>
+  );
+}
+
+/* ---------- Sur place : ajouter un article oublié (texte ou photos) ---------- */
+function QuickAdd({ b, act, busy }: { b: Bundle; act: Act; busy: string | null }) {
+  const [text, setText] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const addText = async () => {
+    const parsed = parseListText(text);
+    if (!parsed.length) return;
+    if (await act('items.add', { items: parsed }, 'add')) setText('');
+  };
+  const addPhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const photos = await uploadPhotos(Array.from(files).slice(0, 10));
+      await act('items.add', { items: photos.map((p, i) => ({ label: `Photo ${b.items.length + i + 1} — à préciser`, source_photos: [p] })) }, 'add');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Envoi impossible');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+  return (
+    <section className="space-y-2 rounded-2xl border border-dashed border-slate-300 bg-white p-4 dark:border-slate-600 dark:bg-slate-800">
+      <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">Ajouter un article à ma liste</h2>
+      <textarea className={input} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Un article par ligne, avec la quantité si vous la connaissez" />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button type="button" disabled={busy === 'add' || !text.trim()} onClick={addText} className={`${btnPrimary} w-full sm:w-auto`}>{busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter</button>
+        <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={`${btn} w-full sm:w-auto`}>{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Ajouter des photos</button>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
+      </div>
+    </section>
   );
 }
