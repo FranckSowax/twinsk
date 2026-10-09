@@ -11,7 +11,7 @@ import { buildPlan, canAdvanceOrder, canCompleteTask, canUnvalidateLine, canVali
 import { buildRfqMessages, DEFAULT_RFQ_CONTEXT, quantitiesZhFromLines, rfqLotFor } from './rfq';
 import { identifyingTokens, leaks, type ImportedSupplier } from './sourcing';
 import { emailSender, parseRecipients, sendEmail } from '@/lib/email';
-import { cleanItem as cleanOfferItem, priceOffer, type OfferItem } from './offers';
+import { cleanItem as cleanOfferItem, offerFromExtracted, priceOffer, validateExtractedOffer, type OfferItem } from './offers';
 import { cleanRates, PROJECT_CURRENCIES, rateOf, rebaseRates, toBase, type Rates } from './fx';
 import { templateByKey } from './templates/dom-tom';
 import { cleanDate, cleanReportItems, cleanStops, TRIP_STATUS_CLIENT, TRIP_STATUSES, type TripStatus } from './trips';
@@ -665,6 +665,8 @@ export async function addExchange(projectId: string, input: { supplier_id: strin
   }
   if (error || !data) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.added', actor, target_type: 'exchange', target_id: data.id, detail: input.summary.trim().slice(0, 120) });
+  // Devis joint à l'échange : les prix partent tout de suite en comparaison.
+  if (input.analysis && input.supplier_id) await autoOfferFromExchange(projectId, data.id as string, actor);
   return data.id as string;
 }
 /** Note sur l'échange reçu que la réponse proposée est partie (canal, date, auteur). */
@@ -716,7 +718,17 @@ export interface OfferInput {
   raw?: string | null;
   /** Nouvelle offre qui remplace l'offre active précédente de cette usine. */
   supersede?: boolean;
+  /** « auto » : prix extraits d'un échange par l'analyse, à relire. */
+  source?: 'manual' | 'auto';
+  /** Enregistrement par un humain qui a relu les prix (l'éditeur d'offre). */
+  checked?: boolean;
 }
+
+// Colonnes ajoutées le 9 oct. 2026 : écrire sans elles tant que la migration
+// n'est pas appliquée (la Côte d'Ivoire passe avant le Gabon).
+const OFFER_REVIEW_COLS = ['source', 'checked_at', 'checked_by'];
+const withoutReviewCols = (row: Record<string, unknown>) => Object.fromEntries(Object.entries(row).filter(([k]) => !OFFER_REVIEW_COLS.includes(k)));
+const missingReviewCol = (msg: string) => isMissing(msg) && OFFER_REVIEW_COLS.some((c) => msg.includes(c));
 export async function upsertOffer(projectId: string, input: OfferInput, actor: Actor) {
   const { data: sup } = await supabaseAdmin.from('project_suppliers').select('id, lot, alias, status').eq('id', input.supplier_id).eq('project_id', projectId).maybeSingle();
   if (!sup) throw new ProjectError('Usine introuvable', 404);
@@ -742,10 +754,16 @@ export async function upsertOffer(projectId: string, input: OfferInput, actor: A
     updated_at: now(),
   };
   if (typeof input.client_visible === 'boolean') row.client_visible = input.client_visible;
+  // Relue par un humain : l'offre perd son étiquette « à vérifier ».
+  if (input.checked) {
+    row.checked_at = now();
+    row.checked_by = actor.name;
+  }
   if (input.id) {
     const { data: before } = await supabaseAdmin.from('project_offers').select('client_visible').eq('id', input.id).eq('project_id', projectId).maybeSingle();
     if (!before) throw new ProjectError('Offre introuvable', 404);
-    const { error } = await supabaseAdmin.from('project_offers').update(row).eq('id', input.id);
+    let { error } = await supabaseAdmin.from('project_offers').update(row).eq('id', input.id);
+    if (error && missingReviewCol(error.message)) ({ error } = await supabaseAdmin.from('project_offers').update(withoutReviewCols(row)).eq('id', input.id));
     if (error) fail(error, 'Offre');
     await logEvent(projectId, { type: 'offer.updated', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias}` });
     if (row.client_visible === true && !before.client_visible) await logEvent(projectId, { type: 'offer.published', actor, target_type: 'offer', target_id: input.id, detail: sup.lot, notify: 'client' });
@@ -754,12 +772,53 @@ export async function upsertOffer(projectId: string, input: OfferInput, actor: A
   // Visible du client par défaut pour une usine présélectionnée ou retenue.
   if (row.client_visible === undefined) row.client_visible = sup.status === 'selected' || sup.status === 'shortlisted';
   const { data: prev } = await supabaseAdmin.from('project_offers').select('id').eq('project_id', projectId).eq('supplier_id', sup.id).eq('status', 'active').order('created_at', { ascending: false }).limit(1).maybeSingle();
-  const { data, error } = await supabaseAdmin.from('project_offers').insert({ project_id: projectId, supplier_id: sup.id, exchange_id: input.exchange_id || null, raw: t(input.raw ?? null, 20000), created_by: actor.name, supersedes: input.supersede && prev ? prev.id : null, ...row }).select('id').single();
+  const insert = { project_id: projectId, supplier_id: sup.id, exchange_id: input.exchange_id || null, raw: t(input.raw ?? null, 20000), created_by: actor.name, supersedes: input.supersede && prev ? prev.id : null, source: input.source === 'auto' ? 'auto' : 'manual', ...row };
+  let { data, error } = await supabaseAdmin.from('project_offers').insert(insert).select('id').single();
+  if (error && missingReviewCol(error.message)) ({ data, error } = await supabaseAdmin.from('project_offers').insert(withoutReviewCols(insert)).select('id').single());
   if (error || !data) fail(error, 'Offre');
   if (input.supersede && prev) await supabaseAdmin.from('project_offers').update({ status: 'superseded', updated_at: now() }).eq('id', prev.id);
   await logEvent(projectId, { type: 'offer.added', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias} : ${items.length} ligne(s) de prix` });
   if (row.client_visible) await logEvent(projectId, { type: 'offer.published', actor, target_type: 'offer', target_id: data.id, detail: sup.lot, notify: 'client' });
   return data.id as string;
+}
+/**
+ * Prix trouvés dans un échange → offre enregistrée aussitôt : elle apparaît
+ * dans « Prix reçus » et dans l'onglet Comparaison, marquée « extraite
+ * automatiquement » et INVISIBLE du client tant que l'équipe ne l'a pas relue
+ * (un clic dans l'éditeur d'offre). Sans usine rattachée, rien n'est créé :
+ * l'offre naîtra au rattachement. Jamais deux offres pour le même échange, et
+ * jamais d'échec de l'enregistrement de l'échange à cause d'elle.
+ */
+export async function autoOfferFromExchange(projectId: string, exchangeId: string, actor: Actor): Promise<string | null> {
+  try {
+    const { data: ex } = await supabaseAdmin.from('project_supplier_exchanges').select('id, supplier_id, analysis, exchanged_at').eq('id', exchangeId).eq('project_id', projectId).maybeSingle();
+    if (!ex?.supplier_id) return null;
+    const analysis = (ex.analysis && typeof ex.analysis === 'object' ? ex.analysis : {}) as Record<string, unknown>;
+    const extracted = validateExtractedOffer(analysis.price_offer);
+    if (!extracted) return null;
+    const { data: already } = await supabaseAdmin.from('project_offers').select('id').eq('project_id', projectId).eq('exchange_id', exchangeId).limit(1).maybeSingle();
+    if (already) return null;
+    // Devis mis à jour par la même usine : il remplace le précédent s'il était
+    // lui aussi extrait et jamais relu (rien de saisi par l'équipe n'est écarté).
+    const { data: prev } = await supabaseAdmin.from('project_offers').select('*').eq('project_id', projectId).eq('supplier_id', ex.supplier_id).eq('status', 'active').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const supersede = !!prev && (prev as { source?: string; checked_at?: string | null }).source === 'auto' && !(prev as { checked_at?: string | null }).checked_at;
+    return await upsertOffer(
+      projectId,
+      {
+        ...offerFromExtracted(extracted, ex.exchanged_at as string | null),
+        supplier_id: ex.supplier_id as string,
+        exchange_id: exchangeId,
+        client_visible: false,
+        source: 'auto',
+        supersede,
+        raw: typeof analysis.raw === 'string' ? analysis.raw : null,
+      },
+      actor,
+    );
+  } catch (e) {
+    console.error('[projets] offre automatique depuis un échange', e);
+    return null;
+  }
 }
 export async function deleteOffer(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_offers').delete().eq('id', id).eq('project_id', projectId);
@@ -807,6 +866,7 @@ export async function setExchangeAnalysis(projectId: string, id: string, analysi
   const { error } = await supabaseAdmin.from('project_supplier_exchanges').update({ analysis: { ...analysis, ...(typeof prevRaw === 'string' && !analysis.raw ? { raw: prevRaw } : {}) }, direction: 'in' }).eq('id', id);
   if (error) fail(error, 'Analyse');
   await logEvent(projectId, { type: 'exchange.analyzed', actor, target_type: 'exchange', target_id: id, detail: String(analysis.summary || '').slice(0, 120) });
+  await autoOfferFromExchange(projectId, id, actor);
 }
 /** Rattache un échange à une usine (échanges enregistrés sans usine) et en fixe le sens. */
 export async function assignExchange(projectId: string, id: string, supplierId: string, direction: 'out' | 'in' | 'note' | null, actor: Actor) {
@@ -817,6 +877,8 @@ export async function assignExchange(projectId: string, id: string, supplierId: 
   if (error && direction && /direction/.test(error.message) && isMissing(error.message)) ({ error } = await supabaseAdmin.from('project_supplier_exchanges').update({ supplier_id: sup.id }).eq('id', id).eq('project_id', projectId));
   if (error) fail(error, 'Échange');
   await logEvent(projectId, { type: 'exchange.assigned', actor, target_type: 'supplier', target_id: sup.id, detail: `${sup.lot} · ${sup.alias}` });
+  // Échange analysé avant d'être rattaché : l'offre se crée au rattachement.
+  await autoOfferFromExchange(projectId, id, actor);
 }
 export async function deleteExchange(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_supplier_exchanges').delete().eq('id', id).eq('project_id', projectId);

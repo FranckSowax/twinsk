@@ -11,7 +11,7 @@ import type { TeamExtras } from '@/lib/projects/public-server';
 import type { ExchangeAnalysis as Analysis } from '@/lib/projects/ai';
 import { fillPlaceholders, whatsappLink } from '@/lib/projects/rfq';
 import { EmailCompose } from './EmailCompose';
-import { OfferEditor } from './Offers';
+import { OfferEditor, pendingOffer } from './Offers';
 import type { PublicProject } from '@/lib/projects/public';
 import { btn, btnPrimary, input, type WorkspaceApi } from './shared';
 
@@ -100,17 +100,23 @@ export function ExchangeAnalysisPanel({ analysis, supplier, p, admin, api, excha
             {offer.items.slice(0, 6).map((i) => <li key={i.id}>{i.kind === 'option' ? '+ ' : i.kind === 'fee' ? 'Frais : ' : ''}{i.label}{Object.keys(i.variant).length ? ` (${Object.values(i.variant).join(', ')})` : ''} — {i.price != null ? `${i.price} ${offer.currency}` : ''}{i.tiers.length ? ` ${i.tiers.map((t) => `dès ${t.min_qty} : ${t.price}`).join(' · ')}` : ''} /{i.unit}</li>)}
             {offer.items.length > 6 && <li>… et {offer.items.length - 6} autre(s)</li>}
           </ul>
-          {savedOffer ? (
-            <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Offre enregistrée (fiche › « Prix reçus » et onglet Comparaison).</p>
+          {savedOffer && pendingOffer(savedOffer) ? (
+            <div className="mt-2 space-y-1">
+              <p className="flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Prix enregistrés tout seuls : déjà dans l’onglet Comparaison et dans « Prix reçus ».</p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300">Relisez-les (ils viennent de la lecture du message) : la marge du projet s’applique, et le client ne les voit pas encore.</p>
+              {supplier && p && <button type="button" onClick={() => setOfferOpen(true)} className={`${btnPrimary} mt-1`}><Tag className="h-3.5 w-3.5" /> Vérifier et montrer au client</button>}
+            </div>
+          ) : savedOffer ? (
+            <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Offre vérifiée{savedOffer.client_visible ? ' et visible du client' : ', masquée au client'} (fiche › « Prix reçus » et onglet Comparaison).</p>
           ) : supplier && p ? (
             <button type="button" onClick={() => setOfferOpen(true)} className={`${btnPrimary} mt-2`}><Tag className="h-3.5 w-3.5" /> Vérifier et enregistrer l’offre de prix</button>
           ) : (
-            <p className="mt-2 text-[11px] text-slate-500">Rattachez l’échange à une usine pour enregistrer l’offre.</p>
+            <p className="mt-2 text-[11px] text-slate-500">Rattachez l’échange à une usine : l’offre s’enregistrera alors toute seule.</p>
           )}
         </div>
       )}
       {analysis.factory_questions.length > 0 && <FactoryQuestions analysis={analysis} supplier={supplier} admin={admin} api={api} exchangeId={exchangeId} onSent={onQuestionsSent} />}
-      {offerOpen && supplier && p && offer && <OfferEditor supplier={supplier} p={p} admin={admin} api={api} initial={offer} exchangeId={exchangeId} raw={raw} onClose={() => setOfferOpen(false)} />}
+      {offerOpen && supplier && p && offer && <OfferEditor supplier={supplier} p={p} admin={admin} api={api} offer={savedOffer} initial={savedOffer ? null : offer} exchangeId={exchangeId} raw={raw} onClose={() => setOfferOpen(false)} />}
       {compose && supplier && current && <EmailCompose supplier={supplier} admin={admin} api={api} initial={{ subject: rfq?.email_subject_en ? `Re: ${fill(rfq.email_subject_en)}` : '', body: current.text, lot: supplier.lot, replyToExchange: exchangeId || undefined }} onClose={() => setCompose(false)} />}
     </div>
   );

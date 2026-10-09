@@ -15,7 +15,7 @@ import { ChevronDown, Eye, EyeOff, Loader2, Star } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { compareOffer } from '@/lib/projects/offers';
-import { OfferTerms, OfferView, teamOfferView, type ViewItem } from './Offers';
+import { OfferTerms, OfferView, teamOfferView, type ViewItem, AutoBadge, pendingOffer } from './Offers';
 import { ClientComparison } from './ClientComparison';
 import { Empty, btn, btnPrimary, card, input, money, type WorkspaceApi } from './shared';
 
@@ -30,6 +30,8 @@ interface Row {
   interested: boolean;
   visible: boolean;
   currency?: string;
+  /** Prix extraits d'un message et pas encore relus par l'équipe. */
+  pending?: boolean;
 }
 
 export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: WorkspaceApi; admin?: TeamExtras }) {
@@ -43,7 +45,7 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
   const rows: Row[] = team
     ? admin!.offers.filter((o) => o.status === 'active').map((o) => {
         const s = admin!.suppliers.find((x) => x.id === o.supplier_id);
-        return { id: o.id, lot: o.lot, name: s?.real_name || s?.alias || '—', alias: s?.alias || '', score: s?.score ?? null, items: teamOfferView(o, p, admin!.default_margin_pct), terms: o, interested: !!o.client_interested_at, visible: o.client_visible, currency: o.currency };
+        return { id: o.id, lot: o.lot, name: s?.real_name || s?.alias || '—', alias: s?.alias || '', score: s?.score ?? null, items: teamOfferView(o, p, admin!.default_margin_pct), terms: o, interested: !!o.client_interested_at, visible: o.client_visible, currency: o.currency, pending: pendingOffer(o) };
       })
     : p.offers.map((o) => ({ id: o.id, lot: o.lot, name: o.alias, alias: o.alias, score: o.score, items: o.items, terms: o, interested: o.interested, visible: true }));
   const lineLot = new Map(p.quote.lines.map((l) => [l.id, l.lot]));
@@ -64,7 +66,7 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
     return (
       <div className="space-y-4">
         {team && <MarginCard margin={margin} setMargin={setMargin} api={api} />}
-        <Empty>{team ? 'Aucune offre de prix. Saisissez-les dans la fiche de chaque usine (onglet « Prix reçus ») ou depuis l’analyse d’un message.' : 'Les offres de prix des fabricants apparaîtront ici dès qu’elles seront disponibles.'}</Empty>
+        <Empty>{team ? 'Aucune offre de prix. Dès qu’un message d’usine contenant des prix est analysé dans « Usines & échanges », l’offre arrive ici toute seule ; vous pouvez aussi la saisir dans la fiche de l’usine (« Prix reçus »).' : 'Les offres de prix des fabricants apparaîtront ici dès qu’elles seront disponibles.'}</Empty>
       </div>
     );
   }
@@ -113,7 +115,7 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
                   {computed.map(({ r, c }) => (
                     <tr key={r.id} className={r.interested ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
                       <td className="py-2 pr-3 align-top">
-                        <p className="font-semibold text-slate-900 dark:text-white">{r.name}</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">{r.name}{r.pending && <AutoBadge />}</p>
                         <p className="text-[11px] text-slate-500">{team ? `${r.alias} · ` : ''}{r.score != null ? `${r.score}/25` : 'non notée'}{team && !r.visible ? ' · masquée au client' : ''}</p>
                         {r.interested && <span className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700"><Star className="h-3 w-3" fill="currentColor" /> {team ? 'Le client s’y intéresse' : 'Vous vous y intéressez'}</span>}
                       </td>

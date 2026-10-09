@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanItem, compareOffer, type CompareItem, formatTiers, formatVariant, offerLayout, parseTiers, parseVariant, priceOffer, projectLine, projectQty, sellPrice, tierColumns, unitCostAt, unitKey, validateExtractedOffer, variantKeys, type OfferItem } from './offers';
+import { cleanItem, compareOffer, type CompareItem, formatTiers, offerFromExtracted, formatVariant, offerLayout, parseTiers, parseVariant, priceOffer, projectLine, projectQty, sellPrice, tierColumns, unitCostAt, unitKey, validateExtractedOffer, variantKeys, type OfferItem } from './offers';
 
 const item = (o: Partial<OfferItem>): OfferItem => cleanItem({ label: 'Gazon', unit: 'm²', price: 4.9, ...o })!;
 
@@ -97,5 +97,18 @@ describe('comparaison d’offres', () => {
     expect(compareOffer(items, { Hauteur: '40 mm' }).byLine.g.id).toBe('b');
     expect(compareOffer(items, { Hauteur: '40 mm' }).total).toBe(54850);
     expect(compareOffer([{ ...items[0], total: null }]).total).toBeNull();
+  });
+});
+
+describe('prix d’un message → offre enregistrée', () => {
+  it('titre daté de l’échange, conditions et lignes reprises telles quelles', () => {
+    const extracted = validateExtractedOffer({ currency: 'usd', incoterm: 'exw', port: 'Shenzhen', lead_time: '25 jours', items: [{ label: 'Cage de foot', unit: 'set', price: 11500 }] })!;
+    const o = offerFromExtracted(extracted, '2026-10-09T08:30:00Z');
+    expect(o.title).toBe('Prix reçus le 9 oct. 2026');
+    expect(o).toMatchObject({ currency: 'USD', incoterm: 'EXW', port: 'Shenzhen', lead_time: '25 jours' });
+    expect(o.items).toBe(extracted.items);
+    // Date absente ou illisible : titre du jour, jamais « Invalid Date ».
+    expect(offerFromExtracted(extracted, 'pas une date').title).toMatch(/^Prix reçus le \d/);
+    expect(offerFromExtracted(extracted, null).title).toMatch(/^Prix reçus le \d/);
   });
 });

@@ -272,6 +272,27 @@ export interface ExtractedOffer {
   notes: string | null;
   items: OfferItem[];
 }
+/**
+ * Offre extraite d'un message → champs d'une offre enregistrée. Le titre
+ * rappelle la date de l'échange (« Prix reçus le 9 oct. 2026 ») ; la marge
+ * reste celle du projet (mode %, valeur nulle).
+ */
+export function offerFromExtracted(o: ExtractedOffer, at?: string | null): Pick<ExtractedOffer, 'currency' | 'incoterm' | 'port' | 'valid_until' | 'lead_time' | 'moq' | 'payment_terms' | 'notes' | 'items'> & { title: string } {
+  const d = at ? new Date(at) : new Date();
+  const day = Number.isNaN(d.getTime()) ? new Date() : d;
+  return {
+    title: `Prix reçus le ${day.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`,
+    currency: o.currency,
+    incoterm: o.incoterm,
+    port: o.port,
+    valid_until: o.valid_until,
+    lead_time: o.lead_time,
+    moq: o.moq,
+    payment_terms: o.payment_terms,
+    notes: o.notes,
+    items: o.items,
+  };
+}
 export function validateExtractedOffer(raw: unknown): ExtractedOffer | null {
   const o = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null;
   if (!o) return null;

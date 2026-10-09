@@ -7,7 +7,7 @@
 // prix client. Client : prix retravaillé seulement (voir Comparison.tsx).
 
 import { useState } from 'react';
-import { ArrowRightLeft, Eye, EyeOff, Loader2, Pencil, Plus, Star, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Eye, EyeOff, Loader2, Pencil, Plus, Sparkles, Star, Trash2 } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { cleanItem, formatTiers, formatVariant, marginPct, offerLayout, parseTiers, parseVariant, priceOffer, projectLine, tierColumns, variantKeys, type ExtractedOffer, type OfferItem } from '@/lib/projects/offers';
@@ -154,7 +154,7 @@ export function OfferEditor({ supplier, p, admin, api, offer, initial, exchangeI
     setBusy(true);
     setErr('');
     try {
-      await api.act('offer.upsert', { id: offer?.id, supplier_id: supplier.id, exchange_id: offer ? undefined : exchangeId || null, raw: offer ? undefined : raw || null, title: d.title, currency: d.currency, incoterm: d.incoterm, port: d.port, valid_until: d.valid_until || null, lead_time: d.lead_time, moq: d.moq, payment_terms: d.payment_terms, notes: d.notes, items, margin_mode: d.margin_mode, margin_value: d.margin_value === '' ? null : Number(d.margin_value), client_visible: d.client_visible, supersede: d.supersede });
+      await api.act('offer.upsert', { id: offer?.id, supplier_id: supplier.id, exchange_id: offer ? undefined : exchangeId || null, raw: offer ? undefined : raw || null, title: d.title, currency: d.currency, incoterm: d.incoterm, port: d.port, valid_until: d.valid_until || null, lead_time: d.lead_time, moq: d.moq, payment_terms: d.payment_terms, notes: d.notes, items, margin_mode: d.margin_mode, margin_value: d.margin_value === '' ? null : Number(d.margin_value), client_visible: d.client_visible, supersede: d.supersede, checked: true });
       onClose();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur');
@@ -226,6 +226,13 @@ export function OfferEditor({ supplier, p, admin, api, offer, initial, exchangeI
 }
 
 /** Onglet « Prix reçus » de la fiche usine. */
+/** Offre extraite d'un message et pas encore relue par l'équipe. */
+export const pendingOffer = (o: { source?: string; checked_at?: string | null }) => o.source === 'auto' && !o.checked_at;
+/** Étiquette d'une offre extraite automatiquement, à relire avant de la montrer au client. */
+export function AutoBadge({ className = '' }: { className?: string }) {
+  return <span className={`ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200 ${className}`} title="Prix extraits du message par l’analyse : relisez-les, puis montrez l’offre au client."><Sparkles className="h-3 w-3" /> Extraite · à vérifier</span>;
+}
+
 export function SupplierOffers({ supplier, p, admin, api }: { supplier: Supplier; p: PublicProject; admin: TeamExtras; api: WorkspaceApi }) {
   const [editing, setEditing] = useState<TeamOffer | 'new' | null>(null);
   const [msg, setMsg] = useState('');
@@ -248,7 +255,7 @@ export function SupplierOffers({ supplier, p, admin, api }: { supplier: Supplier
     <div key={o.id} className={`${card} space-y-2 ${faded ? 'opacity-70' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-semibold text-slate-900 dark:text-white">{o.title || `Offre du ${dateShort(o.created_at)}`} <span className="text-xs font-normal text-slate-500">· {o.currency}{o.created_by ? ` · ${o.created_by}` : ''}</span></p>
+          <p className="font-semibold text-slate-900 dark:text-white">{o.title || `Offre du ${dateShort(o.created_at)}`} <span className="text-xs font-normal text-slate-500">· {o.currency}{o.created_by ? ` · ${o.created_by}` : ''}</span>{pendingOffer(o) && <AutoBadge />}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {o.status === 'superseded' && <Badge>Remplacée</Badge>}
             {o.client_visible && o.status === 'active' ? <Badge tone="blue">Visible du client</Badge> : o.status === 'active' ? <Badge>Masquée au client</Badge> : null}

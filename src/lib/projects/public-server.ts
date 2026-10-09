@@ -32,7 +32,7 @@ export interface TeamExtras {
   /** Historique des contacts usines (plus récent d'abord) : envois de la plateforme et envois notés à la main. */
   contacts: SupplierContact[];
   /** Offres de prix complètes (équipe) : prix usine, conditions, marge, statut, intérêt du client. */
-  offers: (RawOffer & { exchange_id: string | null; port: string | null; payment_terms: string | null; notes: string | null; raw: string | null; supersedes: string | null; client_interested_by: string | null; created_by: string | null; created_at: string })[];
+  offers: (RawOffer & { exchange_id: string | null; port: string | null; payment_terms: string | null; notes: string | null; raw: string | null; supersedes: string | null; client_interested_by: string | null; created_by: string | null; created_at: string; source: 'manual' | 'auto'; checked_at: string | null; checked_by: string | null })[];
   default_margin_pct: number;
   /** Voyages complets (brouillons, usines réelles, notes internes). */
   trips: RawTrip[];
@@ -78,7 +78,7 @@ export function toTeamView(b: ProjectBundle): PublicProject & { admin: TeamExtra
     report_items: Object.fromEntries((b.finalReports as { phase: string; checklist: unknown }[]).map((r) => [r.phase, cleanReportItems(r.checklist)])),
     offers: rawOffers(b).map((o) => {
       const src = ((b as { offers?: Record<string, unknown>[] }).offers || []).find((x) => String(x.id) === o.id) || {};
-      return { ...o, exchange_id: (src.exchange_id as string | null) ?? null, port: (src.port as string | null) ?? null, payment_terms: (src.payment_terms as string | null) ?? null, notes: (src.notes as string | null) ?? null, raw: (src.raw as string | null) ?? null, supersedes: (src.supersedes as string | null) ?? null, client_interested_by: (src.client_interested_by as string | null) ?? null, created_by: (src.created_by as string | null) ?? null, created_at: String(src.created_at || '') };
+      return { ...o, exchange_id: (src.exchange_id as string | null) ?? null, port: (src.port as string | null) ?? null, payment_terms: (src.payment_terms as string | null) ?? null, notes: (src.notes as string | null) ?? null, raw: (src.raw as string | null) ?? null, supersedes: (src.supersedes as string | null) ?? null, client_interested_by: (src.client_interested_by as string | null) ?? null, created_by: (src.created_by as string | null) ?? null, created_at: String(src.created_at || ''), source: src.source === 'auto' ? 'auto' : 'manual', checked_at: (src.checked_at as string | null) ?? null, checked_by: (src.checked_by as string | null) ?? null };
     }),
     default_margin_pct: p.default_margin_pct == null ? 25 : Number(p.default_margin_pct),
     contacts: contactHistory((b as { contacts?: ContactEvent[] }).contacts || []),
