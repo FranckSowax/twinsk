@@ -820,6 +820,35 @@ export async function autoOfferFromExchange(projectId: string, exchangeId: strin
     return null;
   }
 }
+/**
+ * Reprise en lot : les échanges déjà analysés dont les prix n'ont jamais donné
+ * d'offre (analyses d'avant l'enregistrement automatique) deviennent des
+ * offres, comme à l'analyse. Idempotent — un échange qui a déjà une offre est
+ * ignoré — et dans l'ordre chronologique, pour que le dernier devis d'une
+ * usine soit celui qui reste actif.
+ */
+export async function backfillAutoOffers(projectId: string, actor: Actor): Promise<{ created: number; already: number; no_supplier: number }> {
+  const [{ data: rows }, { data: offers }] = await Promise.all([
+    supabaseAdmin.from('project_supplier_exchanges').select('id, supplier_id, analysis').eq('project_id', projectId).order('exchanged_at', { ascending: true }),
+    supabaseAdmin.from('project_offers').select('exchange_id').eq('project_id', projectId),
+  ]);
+  const done = new Set(((offers || []) as { exchange_id: string | null }[]).map((o) => o.exchange_id).filter((x): x is string => !!x));
+  const out = { created: 0, already: 0, no_supplier: 0 };
+  for (const e of (rows || []) as { id: string; supplier_id: string | null; analysis: unknown }[]) {
+    if (!validateExtractedOffer((e.analysis as { price_offer?: unknown } | null)?.price_offer)) continue;
+    if (done.has(e.id)) {
+      out.already += 1;
+      continue;
+    }
+    if (!e.supplier_id) {
+      out.no_supplier += 1;
+      continue;
+    }
+    if (await autoOfferFromExchange(projectId, e.id, actor)) out.created += 1;
+  }
+  if (out.created) await logEvent(projectId, { type: 'offer.backfilled', actor, detail: `${out.created} offre(s) reprise(s) depuis les échanges analysés` });
+  return out;
+}
 export async function deleteOffer(projectId: string, id: string, actor: Actor) {
   const { error } = await supabaseAdmin.from('project_offers').delete().eq('id', id).eq('project_id', projectId);
   if (error) fail(error, 'Offre');

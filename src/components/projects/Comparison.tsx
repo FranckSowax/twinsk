@@ -11,7 +11,7 @@
 // lot, face aux usines spécialisées) et dans sa propre section, en entier.
 
 import { useState } from 'react';
-import { ChevronDown, Eye, EyeOff, Loader2, Star } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, Loader2, Sparkles, Star } from 'lucide-react';
 import type { PublicProject } from '@/lib/projects/public';
 import type { TeamExtras } from '@/lib/projects/public-server';
 import { compareOffer } from '@/lib/projects/offers';
@@ -172,6 +172,37 @@ function VisibilityToggle({ row, admin, api }: { row: Row; admin: TeamExtras; ap
   );
 }
 
+/** Reprise en lot des prix des échanges déjà analysés qui n'ont jamais donné d'offre. */
+function BackfillButton({ api }: { api: WorkspaceApi }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const run = async () => {
+    setBusy(true);
+    setMsg('');
+    try {
+      const r = (await api.act('offer.backfill', {})) as { created?: number; already?: number; no_supplier?: number };
+      const created = r.created || 0;
+      setMsg(
+        created
+          ? `${created} offre${created > 1 ? 's' : ''} reprise${created > 1 ? 's' : ''} — à vérifier ci-dessous.`
+          : `Aucun prix en attente${r.no_supplier ? ` (${r.no_supplier} échange(s) analysé(s) sans usine rattachée)` : ''}.`,
+      );
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <button type="button" disabled={busy} onClick={run} className={btn} title="Reprend les prix des messages déjà analysés qui n’ont jamais été enregistrés en offre">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Reprendre les prix des échanges analysés
+      </button>
+      {msg && <span className="text-[11px] text-slate-500">{msg}</span>}
+    </span>
+  );
+}
+
 function MarginCard({ margin, setMargin, api }: { margin: string; setMargin: (v: string) => void; api: WorkspaceApi }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -184,6 +215,7 @@ function MarginCard({ margin, setMargin, api }: { margin: string; setMargin: (v:
       <div className="flex items-center gap-1"><input className={`${input} !w-24`} inputMode="decimal" value={margin} onChange={(e) => setMargin(e.target.value)} /><span className="text-sm text-slate-500">%</span></div>
       <button type="button" disabled={busy} onClick={async () => { setBusy(true); setMsg(''); try { await api.act('offer.margin', { pct: Number(margin.replace(',', '.')) }); setMsg('Enregistrée'); } catch (e) { setMsg(e instanceof Error ? e.message : 'Erreur'); } finally { setBusy(false); } }} className={btn}>Enregistrer</button>
       {msg && <span className="text-[11px] text-slate-500">{msg}</span>}
+      <span className="ml-auto"><BackfillButton api={api} /></span>
     </div>
   );
 }

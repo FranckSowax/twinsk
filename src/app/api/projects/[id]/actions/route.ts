@@ -58,6 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'offer.upsert': result = { id: await D.upsertOffer(id, b as unknown as D.OfferInput, actor) }; break;
       case 'offer.delete': await D.deleteOffer(id, str(b.id), actor); break;
       case 'offer.margin': await D.setDefaultMargin(id, Number(b.pct), actor); break;
+      case 'offer.backfill': result = await D.backfillAutoOffers(id, actor); break;
       case 'offer.apply': result = await D.applyOfferToQuote(id, str(b.offer_id), str(b.item_id), str(b.quote_line_id), actor); break;
       case 'exchange.set_analysis': if (!b.analysis || typeof b.analysis !== 'object') throw new D.ProjectError('Analyse manquante'); await D.setExchangeAnalysis(id, str(b.id), b.analysis as Record<string, unknown>, actor); break;
       case 'exchange.assign': await D.assignExchange(id, str(b.id), str(b.supplier_id), (['out', 'in', 'note'].includes(str(b.direction)) ? str(b.direction) : null) as 'out' | 'in' | 'note' | null, actor); break;
