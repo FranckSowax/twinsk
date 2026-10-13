@@ -154,6 +154,7 @@ export async function sendClientCartWhatsapp(args: {
       : `• ${t}${l.variant_name ? ` (${l.variant_name})` : ''} × ${l.quantity}${splitNote} — ${fcfa(unitFcfa * l.quantity)}`;
   });
   let transportBlock = '';
+  let cta = '';
   if (mode && chosenCost != null && grandTotal != null) {
     const label =
       mode === 'air'
@@ -164,32 +165,40 @@ export async function sendClientCartWhatsapp(args: {
     transportBlock =
       `\n\n🚚 *Transport choisi*\n${label}` +
       (pricing.discountFcfa > 0 ? `\n🎁 Remise${o.promo_code ? ` ${o.promo_code}` : ''} : − ${fcfa(pricing.discountFcfa)}` : '') +
-      `\n\n💰 *Total à payer : ${fcfa(grandTotal)}*` +
-      `\n\nVous pouvez encore modifier votre panier ou le transport, puis payer (${CONTENT.payment.cartShort}).`;
+      `\n\n💰 *Total à payer : ${fcfa(grandTotal)}*`;
+    cta = `Vous pouvez encore modifier votre panier ou le transport, puis payer (${CONTENT.payment.cartShort}).`;
   } else {
     const transport: string[] = [];
     if (pricing.airTotal != null) transport.push(`✈️ Aérien : ${fcfa(pricing.airTotal)} (${transitLabel(COUNTRY.transit.air)})`);
     if (pricing.seaTotal != null) transport.push(`🚢 Maritime : ${fcfa(pricing.seaTotal)} (${transitLabel(COUNTRY.transit.sea)})`);
     else if (pricing.seaOverLimit) transport.push(`🚢 Maritime : plus de 20 m³, conteneur dédié sur devis — écrivez-nous ici`);
-    transportBlock =
-      (transport.length ? `\n\nEstimation avec transport :\n${transport.join('\n')}` : '') +
-      `\n\nOuvrez votre panier pour choisir le transport, ajouter un code promo et payer (${CONTENT.payment.cartShort}).`;
+    transportBlock = transport.length ? `\n\nEstimation avec transport :\n${transport.join('\n')}` : '';
+    cta = `Ouvrez votre panier pour choisir le transport, ajouter un code promo et payer (${CONTENT.payment.cartShort}).`;
   }
   const recap =
     `🧾 *Récapitulatif de votre panier*\n\n${recapLines.join('\n')}\n\n` +
     `*Total articles : ${fcfa(pricing.itemsTotalFcfaRounded)}*` +
     transportBlock;
-  const tail = await sendWhapiButtonLink({ body: recap, buttonTitle: 'Voir mon panier', url: orderUrl, to });
+  // Le récap part en message TEXTE : WhatsApp n'applique pas la mise en forme
+  // dans les messages à bouton, et les totaux doivent s'y lire en gras.
+  const tail = await sendWhapiText(recap, to);
   if (tail.ok) {
     sent += 1;
-    log.push({ messageId: tail.messageId, type: 'text', text: recap, buttons: [{ title: 'Voir mon panier', url: orderUrl }], at: at() });
+    log.push({ messageId: tail.messageId, type: 'text', text: recap, at: at() });
+  } else errors.push(`récap : ${tail.error}`);
+  await sleep(1200);
+  // Le bouton « Voir mon panier » suit, avec la phrase d'appel (pas de gras à y perdre).
+  const cartBtn = await sendWhapiButtonLink({ body: cta, buttonTitle: 'Voir mon panier', url: orderUrl, to });
+  if (cartBtn.ok) {
+    sent += 1;
+    log.push({ messageId: cartBtn.messageId, type: 'text', text: cta, buttons: [{ title: 'Voir mon panier', url: orderUrl }], at: at() });
   } else {
-    const text = `${recap}\n\n👉 ${orderUrl}`;
+    const text = `${cta}\n\n👉 ${orderUrl}`;
     const t = await sendWhapiText(text, to);
     if (t.ok) {
       sent += 1;
       log.push({ messageId: t.messageId, type: 'text', text, at: at() });
-    } else errors.push(`récap : ${t.error}`);
+    } else errors.push(`lien du panier : ${t.error}`);
   }
   await recordOutboundMessages(waPhone, args.inbox ?? null, log, o.client_name);
 
