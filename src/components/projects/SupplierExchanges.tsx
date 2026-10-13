@@ -94,7 +94,7 @@ function ExchangeItem({ e, supplier, p, admin, api, open }: { e: Exchange; suppl
             <span>{dateTime(e.exchanged_at)}</span>
             {e.author_name && <span>· {e.author_name}</span>}
           </span>
-          <button type="button" onClick={() => { if (confirm('Supprimer cet échange ?')) api.act('exchange.delete', { id: e.id }); }} className="rounded p-1 text-red-500 hover:bg-red-50" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button>
+          <button type="button" onClick={() => { if (confirm('Supprimer cet échange ?')) api.act('exchange.delete', { id: e.id }); }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 sm:h-7 sm:w-7" aria-label="Supprimer l’échange"><Trash2 className="h-4 w-4" /></button>
         </div>
         <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{e.summary}</p>
         {raw && (

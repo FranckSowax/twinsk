@@ -416,7 +416,7 @@ function SupplierModal({ s, p, admin, initialTab = 'identity', api, onClose }: {
       setBusy(false);
     }
   };
-  const tabBtn = (k: typeof tab, l: string) => <button type="button" onClick={() => setTab(k)} className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold ${tab === k ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white' : 'text-slate-500'}`}>{l}</button>;
+  const tabBtn = (k: typeof tab, l: string) => <button type="button" onClick={() => setTab(k)} className={`inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-xs font-semibold sm:min-h-0 sm:py-1.5 ${tab === k ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white' : 'text-slate-500'}`}>{l}</button>;
   return (
     <Modal title={s ? `${s.alias} — ${s.lot}` : 'Nouvelle usine'} onClose={onClose} wide>
       <div className="mb-3 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60 [scrollbar-width:none]">{tabBtn('identity', 'Identité & contacts (interne)')}{tabBtn('card', 'Fiche montrée au client')}{tabBtn('scores', `Notation${total != null ? ` ${total}/25` : ''}`)}{s && tabBtn('photos', `Photos produit${photoCount ? ` (${photoCount})` : ''}`)}{s && tabBtn('exchanges', `Échanges${exchangeCount ? ` (${exchangeCount})` : ''}`)}{s && tabBtn('offers', `Prix reçus${offerCount ? ` (${offerCount})` : ''}`)}</div>
@@ -482,7 +482,7 @@ function SupplierModal({ s, p, admin, initialTab = 'identity', api, onClose }: {
             <div key={c.key} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-700">
               <div><p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{c.label}</p><p className="text-[11px] text-slate-500">{c.hint}</p></div>
               <div className="flex gap-1">
-                {[0, 1, 2, 3, 4, 5].map((n) => <button key={n} type="button" onClick={() => set({ scores: { ...f.scores, [c.key]: n } })} className={`h-8 w-8 rounded-lg text-sm font-bold ${f.scores[c.key] === n ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200'}`}>{n}</button>)}
+                {[0, 1, 2, 3, 4, 5].map((n) => <button key={n} type="button" onClick={() => set({ scores: { ...f.scores, [c.key]: n } })} className={`h-10 w-10 rounded-lg text-base font-bold sm:h-8 sm:w-8 sm:text-sm ${f.scores[c.key] === n ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200'}`}>{n}</button>)}
                 {f.scores[c.key] != null && <button type="button" onClick={() => { const sc = { ...f.scores }; delete sc[c.key]; set({ scores: sc }); }} className={btn} title="Effacer">×</button>}
               </div>
             </div>

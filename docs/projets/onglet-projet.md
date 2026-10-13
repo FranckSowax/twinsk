@@ -35,6 +35,10 @@ Chaque phase est verrouillée tant que la précédente n'est pas réceptionnée 
 - Changer la devise principale recalcule les taux (l'ancienne devise entre dans la table) ; refusé dès qu'une ligne est validée ou commandée.
 - Logique pure et testée : `src/lib/projects/fx.ts` ; migration `20260930030000_project_currencies.sql`.
 
+## Travailler depuis un téléphone (13 octobre 2026)
+
+L'onglet Projets et les recherches WhatsApp se tiennent au doigt : les tableaux qui débordaient de l'écran deviennent **des cartes sous `md`** et restent des tableaux au-dessus — usines consultées (huit colonnes), liens d'accès client, comparaison par usine (total projet, prix ligne par ligne, conditions) et prix reçus d'une offre (prix unitaire, prix usine, total, paliers, bouton « Devis »). Dans la fiche d'une usine, les onglets et les pastilles de notation font 40 px. Côté `/admin/recherches`, les champs passent à 16 px (iOS ne zoome plus à la saisie), les boutons et sélecteurs à 40 px, les filtres défilent en une rangée et l'envoi au client prend toute la largeur. Règle à garder : un tableau de plus de quatre colonnes a sa version carte, et tout champ de saisie reste en `text-base` sur mobile (voir les classes partagées de `src/components/projects/shared.tsx`).
+
 ## Prix reçus des usines et comparaison (1er octobre 2026)
 
 - **Fiche usine › Prix reçus** (équipe) : une offre = conditions (devise de l'usine, incoterm, port, délai, MOQ, validité, paiement, notes) + lignes : **produit** (avec variante « Hauteur=30 mm » et paliers « 2000:35; 5000:32.8 »), **option** (supplément) ou **frais** (montant fixe, ex. échantillons). Chaque produit est rattaché à une ligne du devis (automatique par unité et libellé, ou choisi). L'affichage s'adapte : colonnes de variantes, colonnes « dès N », prix usine et prix client côte à côte.
