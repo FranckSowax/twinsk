@@ -93,14 +93,50 @@ export function ComparisonTab({ p, api, admin }: { p: PublicProject; api: Worksp
             {Object.keys(variants).length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {Object.entries(variants).filter(([, v]) => v.length > 1).map(([k, vals]) => (
-                  <select key={k} className={`${input} !w-auto !py-1.5 !text-xs`} value={filter[k] || ''} onChange={(e) => setFilters((f) => ({ ...f, [lot]: { ...(f[lot] || {}), [k]: e.target.value } }))}>
+                  <select key={k} className={`${input} !w-auto sm:!py-1.5 sm:!text-xs`} value={filter[k] || ''} onChange={(e) => setFilters((f) => ({ ...f, [lot]: { ...(f[lot] || {}), [k]: e.target.value } }))}>
                     <option value="">{k} : toutes (la moins chère)</option>
                     {vals.map((v) => <option key={v} value={v}>{k} : {v}</option>)}
                   </select>
                 ))}
               </div>
             )}
-            <div className="overflow-x-auto">
+            {/* Mobile : une carte par usine (le tableau par ligne de devis ne tient pas sur un téléphone). */}
+            <ul className="space-y-2.5 md:hidden">
+              {computed.map(({ r, c }) => (
+                <li key={r.id} className={`rounded-xl border p-3 ${r.interested ? 'border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-900/10' : 'border-slate-100 dark:border-slate-700'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0">
+                      <span className="font-semibold text-slate-900 dark:text-white">{r.name}</span>{r.pending && <AutoBadge />}
+                      <span className="block text-[11px] text-slate-500">{r.alias}{r.alias ? ' · ' : ''}{r.score != null ? `${r.score}/25` : 'non notée'}{!r.visible ? ' · masquée au client' : ''}</span>
+                    </p>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total projet</span>
+                      <span className={`font-display text-base font-bold tabular-nums ${c.total != null && c.total === bestTotal && computed.length > 1 ? 'text-emerald-700' : 'text-slate-900 dark:text-white'}`}>{money(c.total, p.currency)}</span>
+                      {c.fees > 0 && <span className="block text-[10px] text-slate-500">dont frais {money(c.fees, p.currency)}</span>}
+                    </span>
+                  </div>
+                  {r.interested && <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700"><Star className="h-3 w-3" fill="currentColor" /> Le client s’y intéresse</p>}
+                  <ul className="mt-2 divide-y divide-slate-100 text-sm dark:divide-slate-700">
+                    {lineIds.map((id) => {
+                      const it = c.byLine[id];
+                      const isBest = it && it.price === best(id) && computed.length > 1;
+                      return (
+                        <li key={id} className="flex items-baseline justify-between gap-3 py-1">
+                          <span className="min-w-0 text-xs text-slate-500">{columnLabel(lot, id)}{it && Object.keys(it.variant).length > 0 ? <span className="block text-[10px]">{Object.values(it.variant).join(' · ')}</span> : null}</span>
+                          <span className={`shrink-0 tabular-nums ${isBest ? 'font-bold text-emerald-700' : 'font-semibold'}`}>{it ? money(it.price, p.currency) : <span className="text-slate-300">—</span>}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="mt-2"><OfferTerms o={r.terms} /></div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <VisibilityToggle row={r} admin={admin!} api={api} />
+                    <button type="button" onClick={() => setOpen(open === r.id ? null : r.id)} className={`${btn} flex-1`} aria-expanded={open === r.id}><ChevronDown className={`h-3.5 w-3.5 transition-transform ${open === r.id ? 'rotate-180' : ''}`} /> Détail des prix</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[34rem] text-sm">
                 <thead className="text-[10px] uppercase tracking-wider text-slate-400">
                   <tr>

@@ -110,6 +110,35 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
           lots.map((lot) => (
             <div key={lot} className="mt-4">
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{lot}</p>
+              {/* Mobile : une carte par usine — le tableau à huit colonnes ne tient pas sur un téléphone. */}
+              <ul className="space-y-2 md:hidden">
+                {admin.suppliers.filter((s) => s.lot === lot).map((s) => (
+                  <li key={s.id} className={`rounded-xl border border-slate-100 p-3 dark:border-slate-700 ${s.status === 'rejected' ? 'opacity-60' : ''}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="tabular-nums text-xs text-slate-400">#{s.rank}</span>
+                        <Badge tone="blue">{s.alias}</Badge>
+                        <span className="font-semibold text-slate-900 dark:text-white">{s.real_name || '—'}</span>
+                      </p>
+                      <span className="shrink-0 text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200">{s.score ?? '—'}<span className="text-[11px] font-normal text-slate-400">/25</span></span>
+                    </div>
+                    {(s.city || s.country || s.indicative_price) && <p className="mt-0.5 text-xs text-slate-500">{[s.city, s.country].filter(Boolean).join(', ')}{s.indicative_price ? `${s.city || s.country ? ' · ' : ''}${s.indicative_price}` : ''}</p>}
+                    {s.watch_points?.length ? <p className="mt-1 text-[11px] font-semibold text-amber-700">⚠ {s.watch_points[0]}{s.watch_points.length > 1 ? ` (+${s.watch_points.length - 1})` : ''}</p> : null}
+                    <p className="mt-1 break-words text-xs text-slate-600 dark:text-slate-300">{contactOf(s) || <span className="font-semibold text-amber-600">contact à trouver</span>}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-2"><ContactBadge contacts={contactsOf(admin, s.id)} showNever />{s.product_photos?.length ? <span className="flex items-center gap-0.5 text-[11px] text-slate-500"><Camera className="h-3.5 w-3.5" />{s.product_photos.length} photo{s.product_photos.length > 1 ? 's' : ''}</span> : null}</p>
+                    <select className={`${input} mt-2`} value={s.status} onChange={(e) => api.act('supplier.status', { id: s.id, status: e.target.value })} aria-label={`Statut de ${s.real_name || s.alias}`}>
+                      {SUPPLIER_STATUS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                    </select>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => openFiche(s, 'exchanges')} className={`${btn} flex-1`}><MessagesSquare className="h-3.5 w-3.5" /> Échanges ({bySupplier(s.id).length}){overdueOf(admin, s.id) ? ' · relance' : ''}</button>
+                      <button type="button" onClick={() => openFiche(s)} className={`${btn} flex-1`}>Fiche</button>
+                      {s.email && <button type="button" onClick={() => setMailTo(s)} className={btn} aria-label={`E-mail à ${s.real_name || s.alias}`}><Mail className="h-3.5 w-3.5" /></button>}
+                      <button type="button" onClick={() => { if (confirm(`Retirer ${s.alias} (${s.real_name || s.lot}) ?`)) api.act('supplier.delete', { id: s.id }); }} className={btn} aria-label={`Retirer ${s.real_name || s.alias}`}><Trash2 className="h-3.5 w-3.5 text-red-500" /></button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead className="text-[10px] uppercase tracking-wider text-slate-400"><tr><th className="pb-1 text-left font-semibold">#</th><th className="pb-1 text-left font-semibold">Alias</th><th className="pb-1 text-left font-semibold">Usine réelle</th><th className="pb-1 text-left font-semibold">Contact</th><th className="pb-1 text-right font-semibold">/25</th><th className="pb-1 text-left font-semibold">Statut</th><th className="pb-1 text-right font-semibold">Éch.</th><th></th></tr></thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -136,6 +165,7 @@ export function SuppliersTab({ p, admin, api }: { p: PublicProject; admin: TeamE
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ))
         ))}
@@ -499,7 +529,28 @@ export function AccessTab({ admin, api }: { admin: TeamExtras; api: WorkspaceApi
         {admin.shares.length === 0 ? (
           <Empty>Aucun lien.</Empty>
         ) : (
-          <table className="w-full text-sm">
+          <>
+          {/* Mobile : une carte par lien. */}
+          <ul className="space-y-2 md:hidden">
+            {admin.shares.map((s) => {
+              const url = `${origin}/projet/${s.token}`;
+              const expired = s.expires_at && new Date(s.expires_at) < new Date();
+              return (
+                <li key={s.id} className={`rounded-xl border border-slate-100 p-3 dark:border-slate-700 ${s.revoked_at ? 'opacity-60' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 font-medium text-slate-900 dark:text-white">{s.person_name}{s.role_label ? <span className="block text-xs font-normal text-slate-500">{s.role_label}</span> : null}</p>
+                    {s.revoked_at ? <Badge tone="red">Révoqué</Badge> : expired ? <Badge tone="amber">Expiré</Badge> : <Badge tone="emerald">Actif</Badge>}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{s.views} vue{s.views > 1 ? 's' : ''} · {s.last_seen_at ? `vu le ${dateTime(s.last_seen_at)}` : 'jamais ouvert'}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button type="button" onClick={() => navigator.clipboard?.writeText(url)} className={`${btn} flex-1`}><Copy className="h-3.5 w-3.5" /> Copier le lien</button>
+                    {!s.revoked_at && <button type="button" onClick={() => { if (confirm(`Révoquer le lien de ${s.person_name} ?`)) api.act('share.revoke', { share_id: s.id }); }} className={btn}>Révoquer</button>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <table className="hidden w-full text-sm md:table">
             <thead className="text-[10px] uppercase tracking-wider text-slate-400"><tr><th className="pb-2 text-left font-semibold">Personne</th><th className="pb-2 text-left font-semibold">Lien</th><th className="pb-2 text-right font-semibold">Vues</th><th className="pb-2 text-left font-semibold">Dernière visite</th><th className="pb-2 text-left font-semibold">État</th><th></th></tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {admin.shares.map((s) => {
@@ -518,6 +569,7 @@ export function AccessTab({ admin, api }: { admin: TeamExtras; api: WorkspaceApi
               })}
             </tbody>
           </table>
+          </>
         )}
       </div>
       <div className={card}>

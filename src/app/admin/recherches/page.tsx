@@ -48,6 +48,11 @@ const STATUS_STYLE: Record<WaSearchStatus, string> = {
 };
 const FILTERS: (WaSearchStatus | 'all')[] = ['new', 'searching', 'proposal_sent', 'done', 'all'];
 
+// Mobile d'abord : cibles tactiles d'au moins 40 px, champs en 16 px (sinon iOS
+// zoome à chaque saisie), tailles réduites à partir de « sm ».
+const tap = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 sm:min-h-0 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs';
+const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base dark:border-slate-600 dark:bg-slate-900 dark:text-white sm:py-2 sm:text-sm';
+
 export default function WaSearchesPage() {
   const [filter, setFilter] = useState<WaSearchStatus | 'all'>('new');
   const [items, setItems] = useState<SearchRow[] | null>(null);
@@ -115,27 +120,30 @@ export default function WaSearchesPage() {
           <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Recherches WhatsApp</h1>
           <p className="text-sm text-slate-500">Ce que les clients cherchent, noté depuis la messagerie avec leurs photos.</p>
         </div>
-        <button type="button" onClick={load} title="Rafraîchir" className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-600">
+        <button type="button" onClick={load} title="Rafraîchir" aria-label="Rafraîchir" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-600">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
       {missing && <p className="rounded-xl bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-800">{missing}</p>}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${filter === f ? 'bg-slate-900 text-white dark:bg-sky-600' : 'bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600'}`}
-          >
-            {f === 'all' ? 'Toutes' : WA_SEARCH_STATUS_LABEL[f]}
-          </button>
-        ))}
-        <div className="relative ml-auto w-full sm:w-64">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {/* Mobile : filtres en rangée défilante plutôt que sur trois lignes. */}
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+          {FILTERS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={`min-h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold sm:min-h-0 sm:py-1.5 ${filter === f ? 'bg-slate-900 text-white dark:bg-sky-600' : 'bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600'}`}
+            >
+              {f === 'all' ? 'Toutes' : WA_SEARCH_STATUS_LABEL[f]}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:ml-auto sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Client, numéro, produit…" className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-600 dark:bg-slate-800" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Client, numéro, produit…" className={`${field} !pl-9 dark:bg-slate-800`} />
         </div>
       </div>
 
@@ -161,19 +169,20 @@ export default function WaSearchesPage() {
                     {s.created_by ? ` · par ${s.created_by}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={s.status}
                     disabled={busy === s.id}
                     onChange={(e) => patch(s.id, { status: e.target.value })}
-                    className={`rounded-full border-0 px-3 py-1 text-xs font-semibold ${STATUS_STYLE[s.status]}`}
+                    aria-label={`Statut de la recherche ${s.number}`}
+                    className={`min-h-10 rounded-full border-0 px-3 text-base font-semibold sm:min-h-0 sm:py-1 sm:text-xs ${STATUS_STYLE[s.status]}`}
                   >
                     {WA_SEARCH_STATUSES.map((st) => (
                       <option key={st} value={st}>{WA_SEARCH_STATUS_LABEL[st]}</option>
                     ))}
                   </select>
                   {s.conversation_id && (
-                    <a href={`/admin/inbox?c=${s.conversation_id}`} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
+                    <a href={`/admin/inbox?c=${s.conversation_id}`} className={tap}>
                       <MessageCircle className="h-3.5 w-3.5" /> Conversation
                     </a>
                   )}
@@ -222,15 +231,15 @@ export default function WaSearchesPage() {
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.offer?.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                       {s.offer?.status === 'published' ? 'publiée' : 'brouillon'}
                     </span>
-                    <a href={`/admin/offer/${s.offer_id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">
+                    <a href={`/admin/offer/${s.offer_id}`} target="_blank" rel="noopener noreferrer" className={tap}>
                       <Pencil className="h-3.5 w-3.5" /> Vérifier et modifier (marges)
                     </a>
                     {s.offer?.status === 'published' && (
-                      <a href={`/offer/${s.offer_id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">
+                      <a href={`/offer/${s.offer_id}`} target="_blank" rel="noopener noreferrer" className={tap}>
                         <ExternalLink className="h-3.5 w-3.5" /> Page client
                       </a>
                     )}
-                    <button type="button" disabled={busy === s.id} onClick={() => window.confirm('Détacher cette offre de la recherche ? (l’offre n’est pas supprimée)') && patch(s.id, { offer_id: null }, 'Offre détachée')} className="text-xs font-semibold text-slate-500 underline">
+                    <button type="button" disabled={busy === s.id} onClick={() => window.confirm('Détacher cette offre de la recherche ? (l’offre n’est pas supprimée)') && patch(s.id, { offer_id: null }, 'Offre détachée')} className="min-h-10 px-1 text-sm font-semibold text-slate-500 underline sm:min-h-0 sm:text-xs">
                       Détacher
                     </button>
                   </div>
@@ -238,7 +247,7 @@ export default function WaSearchesPage() {
                   <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 dark:bg-slate-900">
                     <Link2 className="h-4 w-4 text-slate-400" />
                     <a href={s.offer_url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm font-semibold text-violet-700 underline">{s.offer_url}</a>
-                    <button type="button" disabled={busy === s.id} onClick={() => patch(s.id, { offer_url: null }, 'Lien retiré')} className="text-xs font-semibold text-slate-500 underline">
+                    <button type="button" disabled={busy === s.id} onClick={() => patch(s.id, { offer_url: null }, 'Lien retiré')} className="min-h-10 px-1 text-sm font-semibold text-slate-500 underline sm:min-h-0 sm:text-xs">
                       Retirer
                     </button>
                   </div>
@@ -252,7 +261,7 @@ export default function WaSearchesPage() {
                       value={links[s.id] ?? ''}
                       onChange={(e) => setLinks((l) => ({ ...l, [s.id]: e.target.value }))}
                       placeholder="Coller un lien d’offre (https://…/offer/… ou autre)"
-                      className="min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+                      className={`${field} flex-1 sm:min-w-[220px]`}
                     />
                     <button
                       type="button"
@@ -260,7 +269,7 @@ export default function WaSearchesPage() {
                       onClick={async () => {
                         if (await patch(s.id, { offer_url: (links[s.id] || '').trim() }, 'Lien enregistré')) setLinks((l) => ({ ...l, [s.id]: '' }));
                       }}
-                      className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                      className="min-h-10 w-full rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-900 sm:min-h-0 sm:w-auto sm:rounded-lg sm:py-1.5 sm:text-xs"
                     >
                       Enregistrer le lien
                     </button>
@@ -271,7 +280,7 @@ export default function WaSearchesPage() {
                         const d = await call(s.id, '/offer', 'POST', {}, 'Offre B2C créée (brouillon)');
                         if (d?.admin_url) window.open(d.admin_url, '_blank', 'noopener');
                       }}
-                      className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                      className={`${tap} w-full bg-white dark:bg-slate-900 sm:w-auto`}
                     >
                       <Plus className="h-3.5 w-3.5" /> Créer une offre B2C vide
                     </button>
@@ -286,7 +295,7 @@ export default function WaSearchesPage() {
                         checked={!!s.checked_at}
                         disabled={busy === s.id}
                         onChange={(e) => patch(s.id, { checked: e.target.checked }, e.target.checked ? 'Offre vérifiée' : '')}
-                        className="h-4 w-4 accent-emerald-500"
+                        className="h-5 w-5 accent-emerald-500 sm:h-4 sm:w-4"
                       />
                       J’ai vérifié : sélection complète, marges appliquées
                     </label>
@@ -300,7 +309,7 @@ export default function WaSearchesPage() {
                       disabled={busy === s.id || sendBlockers(s).length > 0}
                       title={sendBlockers(s).join(' · ') || 'Envoyer le lien au client sur WhatsApp'}
                       onClick={() => send(s)}
-                      className="ml-auto flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                      className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3 text-sm font-semibold text-white disabled:opacity-40 sm:ml-auto sm:min-h-0 sm:w-auto sm:rounded-lg sm:py-1.5 sm:text-xs"
                     >
                       {busy === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                       {s.sent_at ? 'Renvoyer au client' : 'Envoyer au client'}
@@ -319,7 +328,7 @@ export default function WaSearchesPage() {
                 }}
                 rows={1}
                 placeholder="Note interne : fournisseurs contactés, prix trouvés, relance…"
-                className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+                className={`${field} mt-3`}
               />
             </li>
           ))}

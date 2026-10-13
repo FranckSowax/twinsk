@@ -63,7 +63,38 @@ export function OfferView({ items, currency, costCurrency, team = false, lineLab
   return (
     <div className="space-y-3 text-sm">
       {base.length > 0 && (
-        <div className="overflow-x-auto">
+        <>
+        {/* Mobile : une carte par produit (le tableau prix/paliers ne tient pas sur un téléphone). */}
+        <ul className="space-y-2 md:hidden">
+          {base.map((i) => (
+            <li key={i.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+              <p className="font-medium text-slate-900 dark:text-white">{i.label}</p>
+              {lineLabel && <p className="text-[11px] text-slate-500">{lineLabel(i.line_id) ? `→ ${lineLabel(i.line_id)}` : 'ligne du devis à préciser'}</p>}
+              {keys.length > 0 && <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{keys.filter((k) => i.variant[k]).map((k) => `${k} : ${i.variant[k]}`).join(' · ')}</p>}
+              <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
+                <span className="text-sm">
+                  <span className="font-semibold tabular-nums">{money(i.price, currency)}</span><span className="text-[11px] text-slate-500"> /{i.unit}</span>
+                  {team && <span className="block text-[11px] text-slate-500">usine {fmtCost(i.cost, costCurrency || currency)}{costCurrency && costCurrency !== currency ? ` ≈ ${money(i.cost_base, currency)}` : ''}</span>}
+                  {i.qty != null && <span className="block text-[10px] text-slate-500">à {qtyLabel(i.qty)} {i.unit}{i.below_min ? ' · sous le minimum' : ''}</span>}
+                </span>
+                <span className="text-right">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total projet</span>
+                  <span className="font-bold tabular-nums text-slate-900 dark:text-white">{money(i.total, currency)}</span>
+                </span>
+              </div>
+              {cols.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                  {cols.map((c) => {
+                    const t = i.tiers.find((x) => x.min_qty === c);
+                    return t ? <li key={c} className="rounded-full bg-slate-100 px-2 py-0.5 tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-200">dès {qtyLabel(c)} : {money(t.price, currency)}</li> : null;
+                  })}
+                </ul>
+              )}
+              {onApply && <button type="button" disabled={!i.line_id || i.price == null} onClick={() => onApply(i)} className={`${btn} mt-2 w-full`} title={i.line_id ? 'Mettre ce prix sur la ligne du devis' : 'Rattacher d’abord à une ligne du devis (Modifier)'}><ArrowRightLeft className="h-3.5 w-3.5" /> Reprendre dans le devis</button>}
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[28rem]">
             <thead>
               <tr>
@@ -100,6 +131,7 @@ export function OfferView({ items, currency, costCurrency, team = false, lineLab
             </tbody>
           </table>
         </div>
+        </>
       )}
       {options.length > 0 && (
         <div>
