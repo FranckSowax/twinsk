@@ -101,6 +101,7 @@ export async function GET(
           has_battery: l.has_battery,
         })),
         destinationCode,
+        q.transport_sea_override ?? null,
       );
       pdfElement = createElement(QuotePDF, {
         quoteId: q.id,

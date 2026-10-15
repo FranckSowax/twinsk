@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, User, Mail, Phone, FileText, Copy, ExternalLink, Plus, Share2, CheckCircle2, FileJson, CheckSquare, Square, Check, X, Clock, MessageSquare, ClipboardList } from 'lucide-react';
@@ -13,7 +13,7 @@ import MarginControls from '@/components/admin/MarginControls';
 import DocumentTypeSelector from '@/components/admin/DocumentTypeSelector';
 import TransportModeSelector from '@/components/admin/TransportModeSelector';
 import QuoteDocumentsPanel from '@/components/admin/QuoteDocumentsPanel';
-import { computeQuoteTransport, type QuoteTransportMode } from '@/lib/quote-transport';
+import { computeQuoteTransport, type QuoteSeaOverride, type QuoteTransportMode } from '@/lib/quote-transport';
 import { resolveAllQuoteLines } from '@/lib/variant-picks';
 import AddRequestItemModal from '@/components/admin/AddRequestItemModal';
 import BulkImportModal from '@/components/admin/BulkImportModal';
@@ -83,6 +83,8 @@ export default function AdminRequestDetailPage() {
   const [docsRefresh, setDocsRefresh] = useState(0);
   const [documentType, setDocumentType] = useState<DocumentType>('devis');
   const [transportMode, setTransportMode] = useState<QuoteTransportMode>('both');
+  const [seaOverride, setSeaOverride] = useState<QuoteSeaOverride | null>(null);
+  const [saveError, setSaveError] = useState('');
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -122,8 +124,44 @@ export default function AdminRequestDetailPage() {
       .catch(() => {});
   }, []);
 
-  const handleUpdateResult = async (resultId: string, fields: Record<string, unknown>) => {
-    // Optimistic update
+  // Écritures des fiches produit : l'affichage est optimiste (immédiat) mais
+  // l'envoi est groupé et différé. Taper « 300 » dans la quantité produisait
+  // sinon trois PATCH concurrents (3, 30, 300) dont le dernier arrivé n'est pas
+  // forcément le dernier tapé — la base gardait une valeur intermédiaire et le
+  // devis, lu en direct, affichait l'ancienne quantité.
+  const pendingUpdates = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const writeChain = useRef<Promise<void>>(Promise.resolve());
+
+  /** Envoie tout de suite les modifications en attente et attend leur écriture. */
+  const flushResultWrites = useCallback(async () => {
+    if (writeTimer.current) {
+      clearTimeout(writeTimer.current);
+      writeTimer.current = null;
+    }
+    const batch = [...pendingUpdates.current.entries()].map(([id, fields]) => ({ id, ...fields }));
+    pendingUpdates.current.clear();
+    if (batch.length) {
+      writeChain.current = writeChain.current.then(async () => {
+        const res = await fetch(`/api/requests/${uuid}/results`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates: batch }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          setSaveError(json.error || 'Les modifications n’ont pas pu être enregistrées.');
+          await loadData();
+        } else {
+          setSaveError('');
+        }
+      });
+    }
+    await writeChain.current;
+  }, [uuid, loadData]);
+
+  const handleUpdateResult = (resultId: string, fields: Record<string, unknown>) => {
+    // Affichage immédiat
     setItems((prev) =>
       prev.map((item) => ({
         ...item,
@@ -133,11 +171,10 @@ export default function AdminRequestDetailPage() {
       }))
     );
 
-    await fetch(`/api/requests/${uuid}/results`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates: [{ id: resultId, ...fields }] }),
-    });
+    const merged = { ...(pendingUpdates.current.get(resultId) || {}), ...fields };
+    pendingUpdates.current.set(resultId, merged);
+    if (writeTimer.current) clearTimeout(writeTimer.current);
+    writeTimer.current = setTimeout(() => { void flushResultWrites(); }, 350);
   };
 
   const handleToggleAll = async (selected: boolean) => {
@@ -152,6 +189,7 @@ export default function AdminRequestDetailPage() {
       }))
     );
     if (!updates.length) return;
+    await flushResultWrites();
     await fetch(`/api/requests/${uuid}/results`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -169,6 +207,7 @@ export default function AdminRequestDetailPage() {
         search_results: item.search_results.map((r) => ({ ...r, margin_percent: margin })),
       }))
     );
+    await flushResultWrites();
     await fetch(`/api/requests/${uuid}/results`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -185,11 +224,19 @@ export default function AdminRequestDetailPage() {
 
     setGenerating(true);
     try {
+      // Le document est relu EN DIRECT dans la base : on s'assure d'abord que
+      // les dernières quantités / marges tapées y sont bien écrites.
+      await flushResultWrites();
 
       const res = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: uuid, document_type: documentType, transport_mode: transportMode }),
+        body: JSON.stringify({
+          request_id: uuid,
+          document_type: documentType,
+          transport_mode: transportMode,
+          sea_override: seaOverride,
+        }),
       });
       const data = await res.json();
 
@@ -577,6 +624,11 @@ export default function AdminRequestDetailPage() {
               </div>
             );
           })()}
+          {saveError && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
+              {saveError} Les valeurs affichées ont été rechargées depuis la base.
+            </p>
+          )}
           <ResultsTable
             items={items}
             requestId={uuid}
@@ -674,6 +726,8 @@ export default function AdminRequestDetailPage() {
           <TransportModeSelector
             value={transportMode}
             onChange={setTransportMode}
+            seaOverride={seaOverride}
+            onSeaOverrideChange={setSeaOverride}
             currency={proposalCurrency === 'USD' || proposalCurrency === 'EUR' || proposalCurrency === 'XAF' ? proposalCurrency : 'CNY'}
             transport={
               quoteLines.length
@@ -685,6 +739,7 @@ export default function AdminRequestDetailPage() {
                       has_battery: !!l.has_battery,
                     })),
                     (request as unknown as { destination?: string | null })?.destination ?? null,
+                    seaOverride,
                   )
                 : null
             }

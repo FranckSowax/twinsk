@@ -82,3 +82,55 @@ describe('choix du mode', () => {
     expect(quoteModesShown('train', true)).toEqual({ air: false, sea: false, train: true });
   });
 });
+
+// Forfait maritime négocié, imposé sur un seul document (devis / colisage).
+describe('forfait maritime imposé', () => {
+  const chairsAndTables = [
+    { quantity: 300, weight: null, volume: null, has_battery: false },
+    { quantity: 70, weight: null, volume: 0.6075, has_battery: false },
+  ];
+
+  it('remplace la grille conteneur par le montant négocié', async () => {
+    const { normalizeSeaOverride } = await import('./quote-transport');
+    const override = normalizeSeaOverride({ amount: 7300, currency: 'USD', label: "Conteneur 40' HQ complet" });
+    const t = computeQuoteTransport([{ quantity: 1, weight: 10, volume: 80, has_battery: false }], 'gabon', override);
+    expect(t.seaMode).toBe('forfait');
+    expect(t.seaCostNative).toBe(7300);
+    expect(t.seaCostCurrency).toBe('USD');
+    expect(t.seaModeLabel).toBe("Conteneur 40' HQ complet");
+    expect(t.seaContainerCount).toBe(1);
+  });
+
+  it("s'applique même quand le volume d'un produit est inconnu", async () => {
+    const { normalizeSeaOverride } = await import('./quote-transport');
+    const sans = computeQuoteTransport(chairsAndTables, 'gabon');
+    expect(sans.seaAvailable).toBe(false);
+    expect(sans.seaCostCny).toBeNull();
+
+    const avec = computeQuoteTransport(
+      chairsAndTables,
+      'gabon',
+      normalizeSeaOverride({ amount: 7300, currency: 'USD' }),
+    );
+    expect(avec.seaAvailable).toBe(true);
+    expect(avec.totalVolume).toBeNull();
+    expect(avec.seaCostCny).toBeGreaterThan(0);
+    expect(avec.seaModeLabel).toBe("Conteneur 40' HQ complet");
+  });
+
+  it('refuse un forfait vide, nul ou mal formé', async () => {
+    const { normalizeSeaOverride } = await import('./quote-transport');
+    expect(normalizeSeaOverride(null)).toBeNull();
+    expect(normalizeSeaOverride({ amount: 0, currency: 'USD' })).toBeNull();
+    expect(normalizeSeaOverride({ amount: -5, currency: 'USD' })).toBeNull();
+    expect(normalizeSeaOverride({ amount: '7300' })?.currency).toBe('USD');
+    expect(normalizeSeaOverride({ amount: 7300, currency: 'ZZZ' })?.currency).toBe('USD');
+    expect(normalizeSeaOverride({ amount: 7300, containers: 2 })?.containers).toBe(2);
+  });
+
+  it('sans forfait, la grille conteneur 40′ standard reste appliquée', () => {
+    const t = computeQuoteTransport([{ quantity: 1, weight: 10, volume: 40, has_battery: false }], 'gabon');
+    expect(t.seaMode).toBe('container_40');
+    expect(t.seaCostNative).toBe(7800);
+  });
+});

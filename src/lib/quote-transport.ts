@@ -14,7 +14,48 @@ import {
 } from './destinations';
 import { FX_RATES, type CurrencyCode } from './utils/formatCurrency';
 
-export type SeaMode = 'groupage' | 'container_20' | 'container_40' | 'multi_40';
+export type SeaMode = 'groupage' | 'container_20' | 'container_40' | 'multi_40' | 'forfait';
+
+/**
+ * Forfait maritime imposé sur UN document (devis / colisage) : un prix négocié
+ * qui remplace la grille automatique (groupage / conteneur). Il s'applique même
+ * quand le volume des produits n'est pas encore connu. Stocké dans le réglage
+ * `quote_transport:<id>` à côté du mode — aucune colonne, aucune migration.
+ */
+export interface QuoteSeaOverride {
+  /** Montant du forfait, dans `currency`. */
+  amount: number;
+  currency: CurrencyCode;
+  /** Libellé affiché sur le document (ex. « Conteneur 40' HQ complet »). */
+  label: string;
+  /** Nombre de conteneurs couverts par le forfait. */
+  containers: number;
+}
+
+const SEA_OVERRIDE_CURRENCIES: CurrencyCode[] = ['USD', 'EUR', 'XAF', 'CNY'];
+export const DEFAULT_SEA_OVERRIDE_LABEL = "Conteneur 40' HQ complet";
+/** Tarif HQ40 négocié proposé par défaut quand on impose un forfait (USD). */
+export const DEFAULT_SEA_OVERRIDE_AMOUNT = 7300;
+export const DEFAULT_SEA_OVERRIDE_CURRENCY: CurrencyCode = 'USD';
+
+/** Forfait maritime lu depuis une requête ou un réglage (null si inexploitable). */
+export function normalizeSeaOverride(v: unknown): QuoteSeaOverride | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const amount = Number(o.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const currency = SEA_OVERRIDE_CURRENCIES.includes(o.currency as CurrencyCode)
+    ? (o.currency as CurrencyCode)
+    : 'USD';
+  const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : DEFAULT_SEA_OVERRIDE_LABEL;
+  const containers = Number(o.containers);
+  return {
+    amount,
+    currency,
+    label,
+    containers: Number.isFinite(containers) && containers >= 1 ? Math.floor(containers) : 1,
+  };
+}
 
 export interface QuoteLine {
   quantity: number;
@@ -90,6 +131,7 @@ function nativeToCny(amount: number, native: CurrencyCode): number {
 export function computeQuoteTransport(
   lines: QuoteLine[],
   destinationCode: string | null | undefined = DEFAULT_DESTINATION,
+  seaOverride: QuoteSeaOverride | null = null,
 ): QuoteTransportSummary {
   const dest = resolveDestination(destinationCode);
   let totalWeight = 0;
@@ -110,7 +152,8 @@ export function computeQuoteTransport(
   }
 
   const airAvailable = weightKnown && totalWeight > 0;
-  const seaAvailable = volumeKnown && totalVolume > 0;
+  // Un forfait imposé rend le maritime disponible même sans volume connu.
+  const seaAvailable = seaOverride != null || (volumeKnown && totalVolume > 0);
   // Poids taxable (aérien et train) : max(poids réel, volume × facteur) quand la
   // destination fixe un facteur et que le volume est connu ; sinon poids réel.
   const volumetricWeight = dest.volumetric_kg_per_cbm && volumeKnown ? totalVolume * dest.volumetric_kg_per_cbm : null;
@@ -143,7 +186,14 @@ export function computeQuoteTransport(
   let seaContainerCount = 0;
   let seaModeLabel: string | null = null;
 
-  if (seaAvailable) {
+  if (seaOverride) {
+    // Forfait négocié : il remplace entièrement la grille groupage / conteneur.
+    seaMode = 'forfait';
+    seaContainerCount = seaOverride.containers;
+    seaCostNative = seaOverride.amount;
+    seaCostCurrency = seaOverride.currency;
+    seaModeLabel = seaOverride.label;
+  } else if (seaAvailable) {
     if (totalVolume < GROUPAGE_MAX_CBM) {
       seaMode = 'groupage';
       seaContainerCount = 0;
@@ -175,7 +225,7 @@ export function computeQuoteTransport(
   // Camion depuis le hub vers certaines villes (France : Paris → Bordeaux), à la palette.
   let seaTruck: QuoteTransportSummary['seaTruck'] = null;
   const typed = (destinationCode || '').toString();
-  if (seaAvailable && dest.sea_truck) {
+  if (seaAvailable && volumeKnown && dest.sea_truck) {
     const leg = dest.sea_truck.legs.find((l) => l.match.test(typed));
     if (leg) {
       const pallets = Math.max(1, Math.ceil(totalVolume / dest.sea_truck.pallet_capacity_cbm - 1e-9));

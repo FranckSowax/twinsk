@@ -1,3 +1,5 @@
+import type { QuoteSeaOverride } from '@/lib/quote-transport';
+
 export type RequestStatus = 'draft' | 'submitted' | 'processing' | 'quoted' | 'completed' | 'proposal_sent' | 'client_reviewed';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
 export type DocumentType = 'devis' | 'packing_list' | 'facture';
@@ -63,6 +65,11 @@ export interface Quote {
   document_type: DocumentType;
   /** Mode de transport retenu à la génération (réglage, pas une colonne). */
   transport_mode?: 'air' | 'sea' | 'train' | 'both' | null;
+  /**
+   * Forfait maritime imposé sur ce document (réglage `quote_transport:<id>`,
+   * pas une colonne) : remplace la grille groupage / conteneur.
+   */
+  transport_sea_override?: QuoteSeaOverride | null;
   /** Facture : devis d'origine (réglage `quote_snapshot:<id>`, pas une colonne). */
   source_quote_id?: string | null;
   /** Devis : facture qui en a été tirée (réglage `quote_invoice_of:<id>`). */

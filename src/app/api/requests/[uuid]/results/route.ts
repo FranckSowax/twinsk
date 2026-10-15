@@ -58,13 +58,25 @@ export async function PATCH(
     const recordPrices = await preparePriceHistory('request', uuid, updates, actorLabel(actor), { globalMargin: typeof global_margin === 'number' ? global_margin : null });
 
     const changedFields = new Set<string>();
+    // Une écriture refusée doit remonter : sinon l'admin voit sa saisie à
+    // l'écran (mise à jour optimiste) alors que la base garde l'ancienne
+    // valeur, et le devis — relu en direct — l'ignore silencieusement.
+    const failures: string[] = [];
     for (const update of updates) {
       const { id, ...fields } = update;
       Object.keys(fields).forEach((k) => changedFields.add(k));
-      await supabaseAdmin
+      const { error: updErr } = await supabaseAdmin
         .from('search_results')
         .update(fields)
         .eq('id', id);
+      if (updErr) failures.push(`${id} : ${updErr.message}`);
+    }
+    if (failures.length) {
+      console.error('[results] écritures refusées :', failures.join(' ; '));
+      return NextResponse.json(
+        { error: `Enregistrement impossible (${failures.length}/${updates.length}) : ${failures[0]}` },
+        { status: 500 },
+      );
     }
     await recordPrices();
 

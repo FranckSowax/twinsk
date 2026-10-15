@@ -60,6 +60,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
       has_battery: i.has_battery,
     })),
     destinationCode,
+    quote.transport_sea_override ?? null,
   );
 
   /**
@@ -386,7 +387,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
                         douane export, formalités admin Chine
                       </p>
                       <p className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³
+                        Volume marchandise (CBM) : {transport.totalVolume != null ? `${transport.totalVolume.toFixed(4)} m³` : 'à confirmer'}
                         {transport.seaMode === 'groupage'
                           ? ` (${fmtNativeRate(transport.seaRatePerCbm)}/m³)`
                           : transport.seaCostNative != null

@@ -649,7 +649,7 @@ export default function QuotePDF({
                     marginTop: 2,
                   }}
                 >
-                  Volume marchandise (CBM) : {transport.totalVolume!.toFixed(4)} m³
+                  Volume marchandise (CBM) : {transport.totalVolume != null ? `${transport.totalVolume.toFixed(4)} m³` : 'à confirmer'}
                   {transport.seaMode === 'groupage' &&
                     ` (${fmtNativeRate(transport.seaRatePerCbm, transport.nativeCurrency)}/m³)`}
                   {transport.seaMode !== 'groupage' && transport.seaCostNative != null &&

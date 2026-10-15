@@ -4,7 +4,7 @@
 // émise ne change plus si la demande est modifiée ensuite.
 
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { normalizeQuoteTransportMode, normalizeSeaOverride } from '@/lib/quote-transport';
 import { quoteKeys } from '@/lib/quote-documents';
 import type { Quote, Request as RequestType, RequestItemWithResults } from '@/lib/types/database';
 
@@ -41,8 +41,9 @@ export async function loadQuoteDocument(quoteId: string): Promise<{
   const { data: quote } = await supabaseAdmin.from('quotes').select('*').eq('id', quoteId).single();
   if (!quote) return null;
   const q = quote as Quote;
-  const tm = await setting<{ mode?: unknown }>(quoteKeys.transport(q.id));
+  const tm = await setting<{ mode?: unknown; sea_override?: unknown }>(quoteKeys.transport(q.id));
   q.transport_mode = normalizeQuoteTransportMode(tm?.mode);
+  q.transport_sea_override = normalizeSeaOverride(tm?.sea_override);
 
   if (q.document_type === 'facture') {
     const snap = await setting<QuoteSnapshot>(quoteKeys.snapshot(q.id));

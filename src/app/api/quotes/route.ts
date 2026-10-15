@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { RequestItemWithResults } from '@/lib/types/database';
-import { normalizeQuoteTransportMode } from '@/lib/quote-transport';
+import { normalizeQuoteTransportMode, normalizeSeaOverride } from '@/lib/quote-transport';
 import { quoteKeys } from '@/lib/quote-documents';
 import { quoteLinesTotal, resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
 
@@ -47,8 +47,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
-    const { request_id, margin_global, document_type, transport_mode } = await request.json();
+    const { request_id, margin_global, document_type, transport_mode, sea_override } = await request.json();
     const transportMode = normalizeQuoteTransportMode(transport_mode);
+    // Forfait maritime négocié, propre à ce document (facultatif).
+    const seaOverride = normalizeSeaOverride(sea_override);
 
     if (!request_id) {
       return NextResponse.json({ error: 'request_id requis' }, { status: 400 });
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
     // sur quotes, aucune migration) et relu par GET /api/quotes/[id].
     await supabaseAdmin.from('wa_settings').upsert({
       key: `quote_transport:${quote.id}`,
-      value: { mode: transportMode },
+      value: { mode: transportMode, sea_override: seaOverride },
       updated_at: new Date().toISOString(),
     });
 
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
       .update({ status: 'quoted' })
       .eq('id', request_id);
 
-    return NextResponse.json({ ...quote, transport_mode: transportMode });
+    return NextResponse.json({ ...quote, transport_mode: transportMode, transport_sea_override: seaOverride });
   } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
