@@ -4,7 +4,7 @@
 // avec la transformation d'un devis en facture. Réservé à l'admin (API).
 
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, FileDown, FileText, Loader2, Receipt } from 'lucide-react';
+import { ExternalLink, FileDown, FileText, Loader2, Receipt, Trash2 } from 'lucide-react';
 import { documentMeta, documentNumber, normalizeDocumentType } from '@/lib/quote-documents';
 import { formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { DEFAULT_SEA_OVERRIDE_AMOUNT, DEFAULT_SEA_OVERRIDE_CURRENCY, DEFAULT_SEA_OVERRIDE_LABEL } from '@/lib/quote-transport';
@@ -74,6 +74,30 @@ export default function QuoteDocumentsPanel({ requestId, currency, refreshKey = 
     }
   };
 
+  // Suppression d'un document généré : le devis (ou la facture) part de la
+  // liste avec ses réglages ; la demande et ses produits ne bougent pas.
+  const remove = async (d: DocRow) => {
+    const type = normalizeDocumentType(d.document_type);
+    const label = `${documentMeta(type).title} N° ${documentNumber(type, d.id)}`;
+    const extra = type === 'facture'
+      ? '\n\nC\'est une facture émise : vérifiez qu\'elle n\'a pas été envoyée au client.'
+      : d.invoice_id
+        ? '\n\nLa facture qui en est issue est conservée.'
+        : '';
+    if (!confirm(`Supprimer ${label} ?${extra}\n\nLa demande, ses produits et les autres documents ne changent pas. Cette suppression est définitive.`)) return;
+    setBusy(d.id);
+    setError('');
+    try {
+      const res = await fetch(`/api/quotes/${d.id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(json.error || 'Suppression impossible'); return; }
+      if (invoiceFor?.id === d.id) setInvoiceFor(null);
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (docs === null && !error) return null;
   if (docs && docs.length === 0) return null;
 
@@ -120,6 +144,16 @@ export default function QuoteDocumentsPanel({ requestId, currency, refreshKey = 
                     Transformer en facture
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => remove(d)}
+                  disabled={busy === d.id}
+                  title={`Supprimer ${documentMeta(normalizeDocumentType(d.document_type)).title.toLowerCase()} de la liste`}
+                  aria-label={`Supprimer ${documentMeta(normalizeDocumentType(d.document_type)).title} N° ${documentNumber(normalizeDocumentType(d.document_type), d.id)}`}
+                  className="flex min-h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:border-slate-600 sm:min-h-0 sm:h-8 sm:w-8"
+                >
+                  {busy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                </button>
               </span>
               {invoiceFor?.id === d.id && (
                 <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">

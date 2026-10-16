@@ -474,7 +474,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
         {/* Legal note */}
         <p className="mt-4 text-sm text-slate-700 dark:text-slate-300">
           {isInvoice ? (
-            <>La présente facture s&apos;élève à un montant global de <strong>{fmt(grandTotalCny)}</strong>, payable à réception.</>
+            <>La présente facture s&apos;élève à un montant global de <strong>{fmt(grandTotalCny)}</strong>. Le règlement intervient après validation du contrôle qualité des marchandises et préalablement à leur embarquement.</>
           ) : (
             <>
               Le présent devis porte sur une prestation d&apos;une durée de{' '}

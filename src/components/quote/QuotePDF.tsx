@@ -758,7 +758,8 @@ export default function QuotePDF({
           {isInvoice ? (
             <>
               La présente facture s&apos;élève à un montant global de
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}> {fmt(grandTotalCny, currency)}</Text>, payable à réception.
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}> {fmt(grandTotalCny, currency)}</Text>. Le règlement
+              intervient après validation du contrôle qualité des marchandises et préalablement à leur embarquement.
             </>
           ) : (
             <>
