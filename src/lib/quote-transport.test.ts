@@ -134,3 +134,27 @@ describe('forfait maritime imposé', () => {
     expect(t.seaCostNative).toBe(7800);
   });
 });
+
+describe('devis et facture : taux dollar négocié', () => {
+  it('1 USD = 6,5 CNY sur ces documents (les autres devises suivent le taux général)', async () => {
+    const { QUOTE_CNY_PER_USD, quoteFxRate, quoteNativeToCny, formatQuoteAmount } = await import('./quote-transport');
+    expect(QUOTE_CNY_PER_USD).toBe(6.5);
+    expect(quoteFxRate('USD')).toBeCloseTo(1 / 6.5, 10);
+    expect(quoteFxRate('XAF')).toBe(91);
+    // 65 000 CNY → 10 000 $ (et non 9 154 $ au taux générique 7,1).
+    expect(formatQuoteAmount(65000, 'USD')).toBe('$10,000.00');
+    // Forfait de 7 300 $ → 47 450 CNY dans le total du document.
+    expect(quoteNativeToCny(7300, 'USD')).toBe(47450);
+  });
+  it('le forfait maritime en dollars entre dans le total au taux négocié', () => {
+    const t = computeQuoteTransport(
+      [{ quantity: 1, weight: 100, volume: 10, has_battery: false }],
+      'gabon',
+      { amount: 7300, currency: 'USD', label: "Conteneur 40' HQ complet", containers: 1 },
+    );
+    expect(t.seaMode).toBe('forfait');
+    expect(t.seaCostNative).toBe(7300);
+    // 7 300 $ ÷ (1/6,5) = 47 450 CNY (camion éventuel en sus, nul au Gabon).
+    expect(t.seaCostCny).toBeCloseTo(47450, 2);
+  });
+});

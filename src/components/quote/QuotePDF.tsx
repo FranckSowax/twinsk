@@ -1,11 +1,10 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import {
   type CurrencyCode,
-  formatInCurrency,
 } from '@/lib/utils/formatCurrency';
 import { documentMeta, documentNumber } from '@/lib/quote-documents';
 import type { DocumentType } from '@/lib/types/database';
-import { normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
+import { formatQuoteAmount, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { ensureCjkFont } from '@/lib/pdf/fonts';
 import { stripMarkdown, truncateOnWord } from '@/lib/utils/stripMarkdown';
 import { groupQuoteItems } from '@/lib/quote-groups';
@@ -254,7 +253,8 @@ interface QuotePDFProps {
 }
 
 function fmt(amountCny: number, currency: CurrencyCode): string {
-  return formatInCurrency(amountCny, currency);
+  // Devis et facture : le dollar est converti au taux négocié (1 USD = 6,5 CNY).
+  return formatQuoteAmount(amountCny, currency);
 }
 
 function fmtNativeRate(rate: number, native: CurrencyCode): string {

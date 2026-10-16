@@ -4,16 +4,23 @@ import { isAdmin } from '@/lib/collab';
 import { loadQuoteDocument, type QuoteSnapshot } from '@/lib/quote-data';
 import { canConvertToInvoice, quoteKeys } from '@/lib/quote-documents';
 import { quoteLinesTotal, resolveAllQuoteLines, type QuoteSourceResult } from '@/lib/variant-picks';
+import { normalizeSeaOverride } from '@/lib/quote-transport';
 
-// POST : transforme un devis en facture (admin).
+// POST { sea_override?: { amount, currency, label?, containers? } } :
+// transforme un devis en facture (admin).
 // - La facture est un nouveau document (document_type « facture ») dont le
 //   contenu est FIGÉ : client, destination, produits, prix, quantités et mode
 //   de transport sont copiés dans `quote_snapshot:<id>`.
+// - Transport : une facture porte TOUJOURS le forfait maritime négocié — jamais
+//   un calcul au CBM. Le montant saisi ici l'emporte ; sinon on reprend celui du
+//   devis. Sans forfait ni sur l'un ni sur l'autre, la facture n'est pas créée.
 // - Idempotent : un devis déjà transformé renvoie sa facture existante.
 // - Le devis passe au statut « accepted ».
 export async function POST(request: NextRequest, { params }: { params: Promise<{ quoteId: string }> }) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const { quoteId } = await params;
+
+  const body = (await request.json().catch(() => ({}))) as { sea_override?: unknown };
 
   const doc = await loadQuoteDocument(quoteId);
   if (!doc) return NextResponse.json({ error: 'Devis introuvable' }, { status: 404 });
@@ -30,6 +37,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!doc.request || !doc.items.length) {
     return NextResponse.json({ error: 'Aucun produit retenu : impossible de facturer' }, { status: 400 });
+  }
+
+  // Forfait maritime négocié : saisi à la transformation, sinon celui du devis.
+  const seaOverride = normalizeSeaOverride(body.sea_override) ?? q.transport_sea_override ?? null;
+  if (!seaOverride) {
+    return NextResponse.json(
+      { error: 'Forfait maritime négocié requis : saisissez-le ici, ou fixez-le sur le devis (sélecteur de transport). Une facture ne se chiffre pas au CBM.' },
+      { status: 400 },
+    );
   }
 
   // Total des articles recalculé comme à la génération du devis (transport en sus, calculé à l'affichage).
@@ -62,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const now = new Date().toISOString();
   const { error: settingsError } = await supabaseAdmin.from('wa_settings').upsert([
     { key: quoteKeys.snapshot(invoice.id), value: snapshot, updated_at: now },
-    { key: quoteKeys.transport(invoice.id), value: { mode: q.transport_mode ?? 'both' }, updated_at: now },
+    { key: quoteKeys.transport(invoice.id), value: { mode: 'sea', sea_override: seaOverride }, updated_at: now },
     { key: quoteKeys.invoiceOf(q.id), value: { invoice_id: invoice.id }, updated_at: now },
   ]);
   if (settingsError) {

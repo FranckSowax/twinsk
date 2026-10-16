@@ -12,7 +12,7 @@ import {
   resolveDestination,
   type DestinationCode,
 } from './destinations';
-import { FX_RATES, type CurrencyCode } from './utils/formatCurrency';
+import { formatInCurrency, formatUSD, FX_RATES, type CurrencyCode } from './utils/formatCurrency';
 
 export type SeaMode = 'groupage' | 'container_20' | 'container_40' | 'multi_40' | 'forfait';
 
@@ -121,11 +121,32 @@ export interface QuoteTransportSummary {
   transitDays: Partial<Record<'air' | 'sea' | 'train', [number, number]>>;
 }
 
+/**
+ * Taux retenu SUR LES DEVIS ET LES FACTURES : 1 USD = 6,5 CNY (taux négocié,
+ * plus prudent que le taux générique de l'application, qui reste en vigueur
+ * ailleurs : listings, commandes, achats sur place). Une seule constante à
+ * changer le jour où le taux bouge.
+ */
+export const QUOTE_CNY_PER_USD = 6.5;
+/** « 1 CNY → devise » sur un document (devis / colisage / facture). */
+export function quoteFxRate(currency: CurrencyCode): number {
+  return currency === 'USD' ? 1 / QUOTE_CNY_PER_USD : FX_RATES[currency];
+}
+/** Montant dans une devise du document → CNY (base de calcul des totaux). */
+export function quoteNativeToCny(amount: number, native: CurrencyCode): number {
+  const rate = quoteFxRate(native);
+  return rate ? amount / rate : 0;
+}
+/** Montant en CNY → texte dans la devise du document. */
+export function formatQuoteAmount(amountCny: number, currency: CurrencyCode): string {
+  if (currency === 'USD') return formatUSD(amountCny * quoteFxRate('USD'));
+  return formatInCurrency(amountCny, currency);
+}
+
 function nativeToCny(amount: number, native: CurrencyCode): number {
-  // FX_RATES[X] = "1 CNY -> X". Pour passer native -> CNY : amount / rate.
-  const rate = FX_RATES[native];
-  if (!rate) return 0;
-  return amount / rate;
+  // Devis et factures : le dollar passe par le taux négocié (1 USD = 6,5 CNY),
+  // les autres devises par le taux général.
+  return quoteNativeToCny(amount, native);
 }
 
 export function computeQuoteTransport(

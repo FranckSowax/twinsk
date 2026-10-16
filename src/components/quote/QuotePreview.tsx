@@ -4,9 +4,9 @@ import { Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { groupQuoteItems } from '@/lib/quote-groups';
 import { Download, Printer } from 'lucide-react';
-import { applyMargin, formatInCurrency, type CurrencyCode } from '@/lib/utils/formatCurrency';
+import { applyMargin, type CurrencyCode } from '@/lib/utils/formatCurrency';
 import { documentMeta, documentNumber } from '@/lib/quote-documents';
-import { computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays } from '@/lib/quote-transport';
+import { formatQuoteAmount, computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays } from '@/lib/quote-transport';
 import { stripMarkdown } from '@/lib/utils/stripMarkdown';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
 
@@ -98,7 +98,8 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
   const grandTotalCny = itemsTotalCny + (transportCnyPicked ?? 0);
   const destLabel = transport.destinationLabel;
 
-  const fmt = (cny: number) => formatInCurrency(cny, currency);
+  // Devis et facture : le dollar est converti au taux négocié (1 USD = 6,5 CNY).
+  const fmt = (cny: number) => formatQuoteAmount(cny, currency);
   const fmtNative = (amount: number, native: typeof transport.nativeCurrency, decimals = 0) => {
     const v = amount.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
