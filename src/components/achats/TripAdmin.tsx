@@ -7,17 +7,19 @@
 // zone, délai usine → cargo, et ce que le client a renseigné sur place.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays, Check, Copy, CornerDownRight, Globe, Images, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Check, Copy, CornerDownRight, Globe, Images, Loader2, Plus, ReceiptText, Send, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import OnlinePicker from './OnlinePicker';
 import { formatPrice } from '@/lib/country';
 import { childrenOf, daySummaries, fmtCny, hasChildren, ITEM_STATUS, leadTime, onlineUnitLocal, parseListText, topLevel, totals, TRIP_STATUS, tripStatus, zoneGroups, type BuyingDay, type BuyingItem, type BuyingTrip, type Photo } from '@/lib/achats/logic';
+import { bySupplier, RECEIPT_STATUS, receiptDue, receiptStatus, tripDashboard, type BuyingReceipt } from '@/lib/achats/receipts';
 import { Badge, btn, btnPrimary, card, input, label } from '@/components/projects/shared';
 
 interface Bundle {
   trip: BuyingTrip;
   days: BuyingDay[];
   items: BuyingItem[];
+  receipts: BuyingReceipt[];
 }
 const small = `${input} !py-1.5 !text-xs`;
 const fmtDate = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '—');
@@ -69,9 +71,11 @@ export default function TripAdmin({ id }: { id: string }) {
   const summaries = useMemo(() => (b ? daySummaries(b.days, b.items) : []), [b]);
   const groups = useMemo(() => (b ? zoneGroups(b.items) : []), [b]);
   if (!b) return err ? <p className="text-sm text-red-600">{err}</p> : <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>;
-  const { trip, days, items } = b;
+  const { trip, days, items, receipts } = b;
   const s = tripStatus(trip.status);
   const tot = totals(items);
+  const board = tripDashboard(items, receipts);
+  const suppliers = bySupplier(receipts);
   const clientUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/achat/${trip.token}`;
   const toggle = (itemId: string) => setSelected((x) => { const n = new Set(x); if (n.has(itemId)) n.delete(itemId); else n.add(itemId); return n; });
   const createDay = async () => {
@@ -122,6 +126,17 @@ export default function TripAdmin({ id }: { id: string }) {
             { l: `En ligne (${tot.ordered})`, v: formatPrice(tot.onlineLocal) },
           ].map((k) => <div key={k.l} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900/60"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{k.l}</p><p className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{k.v}</p></div>)}
         </div>
+        {/* Où en sont les achats et l'argent : lu sur les factures photographiées. */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {[
+            { l: 'Reste à acheter', v: String(board.toBuy), tone: board.toBuy ? 'text-amber-700' : 'text-slate-900 dark:text-white' },
+            { l: 'Achetés', v: `${board.bought}${board.withoutReceipt ? ` · ${board.withoutReceipt} sans facture` : ''}`, tone: 'text-slate-900 dark:text-white' },
+            { l: `Factures (${board.receipts.count})`, v: fmtCny(board.receipts.total), tone: 'text-slate-900 dark:text-white' },
+            { l: 'Déjà versé', v: fmtCny(board.receipts.paidAmount), tone: 'text-emerald-700' },
+            { l: 'Reste à payer', v: `${fmtCny(board.receipts.due)}${board.receipts.due ? ` ≈ ${formatPrice(board.receipts.dueLocal)}` : ''}`, tone: board.receipts.due ? 'text-red-600' : 'text-emerald-700' },
+          ].map((k) => <div key={k.l} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900/60"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{k.l}</p><p className={`text-base font-bold tabular-nums ${k.tone}`}>{k.v}</p></div>)}
+        </div>
+        {board.receipts.unpriced > 0 && <p className="text-[11px] text-amber-700">{board.receipts.unpriced} facture(s) dont le montant n’a pas été lu : complétez-les pour que le reste à payer soit juste.</p>}
       </section>
 
       {/* Jours de visite */}
@@ -168,6 +183,70 @@ export default function TripAdmin({ id }: { id: string }) {
           ))}
         </div>
       </section>
+
+      {/* Factures fournisseurs */}
+      {receipts.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900 dark:text-white"><ReceiptText className="h-5 w-5 text-amber-600" /> Factures fournisseurs <span className="text-sm font-normal text-slate-500">({receipts.length})</span></h2>
+            {suppliers.length > 0 && (
+              <span className="flex flex-wrap gap-1.5 text-[11px]">
+                {suppliers.slice(0, 6).map((g) => (
+                  <span key={g.key} className={`rounded-full px-2 py-0.5 font-semibold ${g.due > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`} title={[g.address, g.contact].filter(Boolean).join(' · ')}>
+                    {g.name} · {g.due > 0 ? `reste ${fmtCny(g.due)}` : 'soldé'}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
+          <ul className="grid gap-3 lg:grid-cols-2">
+            {receipts.map((r) => {
+              const st = receiptStatus(r.payment_status);
+              const due = receiptDue(r);
+              const line = items.find((i) => i.id === r.item_id);
+              return (
+                <li key={r.id} className={`${card} space-y-2`}>
+                  <div className="flex items-start gap-3">
+                    {r.photos[0] && <a href={r.photos[0].url} target="_blank" rel="noopener noreferrer" className="shrink-0"><img src={r.photos[0].url} alt="" className="h-20 w-20 rounded-xl object-cover ring-1 ring-slate-200" /></a>}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-w-0">
+                          <span className="block font-semibold text-slate-900 dark:text-white">{r.supplier_name || r.supplier_name_zh || 'Fournisseur à préciser'}</span>
+                          {r.supplier_name_zh && r.supplier_name && <span className="block text-xs text-slate-500">{r.supplier_name_zh}</span>}
+                          {(r.supplier_address || r.supplier_contact) && <span className="block text-xs text-slate-500">{[r.supplier_address, r.supplier_contact].filter(Boolean).join(' · ')}</span>}
+                        </p>
+                        <Badge tone={st.tone}>{st.label}</Badge>
+                      </div>
+                      <p className="mt-1 text-sm tabular-nums text-slate-800 dark:text-slate-100">
+                        {r.total_amount != null ? `Total ${fmtCny(r.total_amount)}` : 'Montant à préciser'}
+                        {r.paid_amount != null ? ` · versé ${fmtCny(r.paid_amount)}` : ''}
+                        {due != null && due > 0 ? <span className="font-semibold text-red-600"> · reste {fmtCny(due)}</span> : null}
+                      </p>
+                      <p className="text-[11px] text-slate-500">{r.issued_on ? `Facture du ${fmtDate(r.issued_on)} · ` : ''}{r.created_by === 'client' ? 'photographiée par le client' : 'saisie par l’équipe'}{r.delivery_note ? ` · livraison : ${r.delivery_note}` : ''}</p>
+                    </div>
+                  </div>
+                  {r.items_text && <p className="whitespace-pre-wrap rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">{r.items_text}</p>}
+                  <div className="grid gap-2 sm:grid-cols-[1fr_9rem_9rem]">
+                    <select className={small} value={r.item_id || ''} onChange={(e) => act('receipt.update', { id: r.id, item_id: e.target.value || null }, `r.${r.id}`)} aria-label="Ligne d’achat couverte">
+                      <option value="">Rattacher à une ligne…</option>
+                      {items.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+                    </select>
+                    <input className={small} inputMode="decimal" defaultValue={r.total_amount ?? ''} placeholder="Total ¥" onBlur={(e) => e.target.value !== String(r.total_amount ?? '') && act('receipt.update', { id: r.id, total_amount: e.target.value }, `r.${r.id}`)} />
+                    <input className={small} inputMode="decimal" defaultValue={r.paid_amount ?? ''} placeholder="Versé ¥" onBlur={(e) => e.target.value !== String(r.paid_amount ?? '') && act('receipt.update', { id: r.id, paid_amount: e.target.value }, `r.${r.id}`)} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <select className={`${small} !w-auto`} value={r.payment_status} onChange={(e) => act('receipt.update', { id: r.id, payment_status: e.target.value }, `r.${r.id}`)} aria-label="Paiement">
+                      {RECEIPT_STATUS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                    </select>
+                    {line && <span className="text-[11px] text-slate-500">ligne : {line.label}</span>}
+                    <button type="button" onClick={() => confirm('Supprimer cette facture ?') && act('receipt.delete', { id: r.id }, `rdel.${r.id}`)} className={`${btn} ml-auto !min-h-8 !px-2`} aria-label="Supprimer la facture"><Trash2 className="h-3.5 w-3.5 text-red-500" /></button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Lignes de la liste */}
       <section className="space-y-3">

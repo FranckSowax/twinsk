@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { publicOrigin } from '@/lib/public-origin';
 import * as D from '@/lib/achats/data';
 import * as O from '@/lib/achats/online';
+import { addReceipt, deleteReceipt, updateReceipt, type ReceiptInput } from '@/lib/achats/receipts-server';
 import { errorResponse, teamActor, unauthorized } from '@/lib/achats/auth';
 
 // Achats sur place (équipe) : POST { action, … }
@@ -12,6 +13,7 @@ import { errorResponse, teamActor, unauthorized } from '@/lib/achats/auth';
 //   item.online.set { id, product_id, variant_id?, note? } — fige un produit d'un listing publié comme « Prix en ligne »
 //   item.online.import { id, title, price_cny, margin_percent, image_url?, product_url?, seller?, moq?, note? } — importe un produit trouvé en recherche
 //   item.online.clear { id }
+//   receipt.add { photos[], item_id?, … } · receipt.update { id, … } · receipt.delete { id }
 //   trip.status { status } · trip.notify (envoie le lien et le programme au client sur WhatsApp)
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +42,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'item.online.set': result = { item: await O.setOnlineProduct(id, str(b.id), b as Parameters<typeof O.setOnlineProduct>[2]) }; break;
       case 'item.online.import': result = { item: await O.importOnlineProduct(bundle, str(b.id), b as unknown as O.ImportInput) }; break;
       case 'item.online.clear': await O.clearOnlineProduct(bundle, str(b.id)); break;
+      case 'receipt.add': result = { receipt: await addReceipt(id, b as ReceiptInput, 'team') }; break;
+      case 'receipt.update': result = { receipt: await updateReceipt(id, str(b.id), b as ReceiptInput) }; break;
+      case 'receipt.delete': await deleteReceipt(id, str(b.id)); break;
       case 'trip.status': await D.updateTrip(id, { status: b.status }); break;
       case 'trip.notify': {
         const fresh = (await D.getTrip(id))!;

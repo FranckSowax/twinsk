@@ -17,6 +17,18 @@ Un client vient acheter en Chine avec une liste. L'équipe lui ouvre un **voyage
 
 Un article avec plusieurs modèles en photo (ex. « Packaging cadeaux d'entreprise ») se découpe en **une sous-ligne par photo** — bouton « Une ligne de prix par photo » (équipe) ou « Un article par photo » (client). Chaque sous-ligne a son statut, son prix, sa quantité, ses photos et son éventuel prix en ligne ; le parent devient un en-tête (libellé, précisions, fournisseur, zone), ne compte pas dans les totaux et entraîne ses sous-lignes dans son jour de visite (`buying_items.parent_id`, migration `20261007010000_buying_items_parent.sql`). Une sous-ligne se supprime avec son parent.
 
+### Factures fournisseurs lues sur photo (19 oct. 2026)
+
+Sur place, chaque achat se solde par une facture — le plus souvent un **reçu manuscrit rose** (收据), parfois accompagné de la carte de visite du fournisseur. Le client la **photographie depuis la ligne d'achat** (« Photo de la facture (et carte du fournisseur) ») : la photo est envoyée, **lue et traduite** par le modèle (GLM Flash, prompt dans `src/lib/achats/receipts.ts`), et il en ressort une fiche :
+
+- **fournisseur** : nom traduit + nom chinois d'origine, adresse (traduite et en chinois), téléphone / WeChat ;
+- **argent** : montant total, montant versé, reste à payer, et le statut — **acompte versé** (定金), **soldée** (已付清) ou rien versé ;
+- **le reste** : date de la facture, délai ou date de livraison annoncée, articles achetés traduits, conditions, et le texte brut lu (pour relecture).
+
+Rien n'est inventé : un champ illisible reste vide, et le client comme l'équipe peuvent corriger d'un clic (« Corriger » côté client, champs en ligne côté équipe). Une lecture qui échoue n'empêche jamais d'enregistrer la photo. Table `buying_receipts` (migration `20261019000000_buying_receipts.sql`), une facture par ligne d'achat (rattachement modifiable).
+
+**Tableau de bord** (en tête de `/admin/achats/<id>`) : reste à acheter, achats faits — dont ceux **sans facture** —, total facturé, **déjà versé** et **reste à payer** (en yuans et en FCFA), plus un récapitulatif **par fournisseur** (qui reste à solder). Côté client, un bandeau « Mes factures » résume versé / reste à payer / acomptes à solder.
+
 ### Prix en ligne / Commander en ligne
 
 Sur chaque ligne, bouton **« Prix en ligne »** (équipe) :
@@ -35,8 +47,8 @@ Règles côté client : il ajoute, précise, illustre et **retire** des articles
 
 ## Où c'est
 
-- Logique pure (testée) : `src/lib/achats/logic.ts` — statuts, `parseListText`, sous-lignes (`topLevel`, `childrenOf`, `leafItems`), montants (`itemAmount`, `onlineAmount`, `totals`), `daySummaries`, `leadTime`, `zoneGroups`.
-- Serveur : `src/lib/achats/data.ts` (voyages, jours, lignes, projection client sans notes internes, notifications), `src/lib/achats/online.ts` (recherche produits, prix en ligne, import, commande), `src/lib/achats/auth.ts` (rôles `production` et `sourcing`, lien à jeton).
+- Logique pure (testée) : `src/lib/achats/receipts.ts` (factures : prompt, validation, soldes, tableau de bord), `src/lib/achats/logic.ts` — statuts, `parseListText`, sous-lignes (`topLevel`, `childrenOf`, `leafItems`), montants (`itemAmount`, `onlineAmount`, `totals`), `daySummaries`, `leadTime`, `zoneGroups`.
+- Serveur : `src/lib/achats/receipts-server.ts` (lecture de la photo, CRUD), `src/lib/achats/data.ts` (voyages, jours, lignes, projection client sans notes internes, notifications), `src/lib/achats/online.ts` (recherche produits, prix en ligne, import, commande), `src/lib/achats/auth.ts` (rôles `production` et `sourcing`, lien à jeton).
 - API : `/api/achats` (liste, création), `/api/achats/<id>` (lecture, modification, suppression), `/api/achats/<id>/actions` (lignes, jours, prix en ligne, statut, envoi WhatsApp), `/api/achats/products?q=` (produits commandables), `/api/achats/public/<token>` et `…/actions` (client).
 - Pages : `/admin/achats`, `/admin/achats/<id>` (`src/components/achats/TripAdmin.tsx`, `OnlinePicker.tsx`), `/achat/<token>` (`src/components/achats/AchatClient.tsx`, pensé pour le téléphone).
 - Schéma : `supabase/migrations/20261007000000_buying_trips.sql` — `buying_trips`, `buying_days`, `buying_items` (RLS activée, service_role seulement).

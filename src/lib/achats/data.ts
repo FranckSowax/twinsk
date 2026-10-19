@@ -7,6 +7,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { COUNTRY } from '@/config/countries';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { notifyClient } from '@/lib/agent-actions';
+import { listReceipts } from './receipts-server';
+import type { BuyingReceipt } from './receipts';
 import { canAddItems, ITEM_STATUS, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo, type TripStatus, TRIP_STATUS } from './logic';
 
 export const achatsEnabled = () => COUNTRY.modules.twinsk;
@@ -38,6 +40,8 @@ export interface TripBundle {
   trip: BuyingTrip;
   days: BuyingDay[];
   items: BuyingItem[];
+  /** Factures fournisseurs photographiées sur place. */
+  receipts: BuyingReceipt[];
 }
 
 // ---- Voyages ----
@@ -70,11 +74,17 @@ export async function getTripByToken(token: string): Promise<TripBundle | null> 
   return bundle(trip as BuyingTrip);
 }
 async function bundle(trip: BuyingTrip): Promise<TripBundle> {
-  const [{ data: days }, { data: items }] = await Promise.all([
+  const [{ data: days }, { data: items }, receipts] = await Promise.all([
     supabaseAdmin.from('buying_days').select('*').eq('trip_id', trip.id).order('position').order('created_at'),
     supabaseAdmin.from('buying_items').select('*').eq('trip_id', trip.id).order('position').order('created_at'),
+    listReceipts(trip.id),
   ]);
-  return { trip, days: (days || []) as BuyingDay[], items: ((items || []) as BuyingItem[]).map((i) => ({ ...i, source_photos: photos(i.source_photos), photos: photos(i.photos) })) };
+  return {
+    trip,
+    days: (days || []) as BuyingDay[],
+    items: ((items || []) as BuyingItem[]).map((i) => ({ ...i, source_photos: photos(i.source_photos), photos: photos(i.photos) })),
+    receipts,
+  };
 }
 export async function updateTrip(id: string, patch: { title?: unknown; client_name?: unknown; client_phone?: unknown; cargo_cutoff?: unknown; notes?: unknown; status?: unknown }): Promise<void> {
   const row: Record<string, unknown> = { updated_at: now() };
@@ -284,12 +294,14 @@ export interface ClientBundle {
   trip: Omit<BuyingTrip, 'notes' | 'token'>;
   days: BuyingDay[];
   items: ClientItem[];
+  /** Ses propres factures : il les a photographiées, il les voit et les corrige. */
+  receipts: BuyingReceipt[];
 }
 export function toClient(b: TripBundle): ClientBundle {
   const { notes: _notes, token: _token, ...trip } = b.trip;
   void _notes;
   void _token;
-  return { trip, days: b.days, items: b.items.map(({ team_note: _t, ...i }) => (void _t, i)) };
+  return { trip, days: b.days, items: b.items.map(({ team_note: _t, ...i }) => (void _t, i)), receipts: b.receipts };
 }
 
 // ---- Notifications (best-effort) ----

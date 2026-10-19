@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { publicOrigin } from '@/lib/public-origin';
 import * as D from '@/lib/achats/data';
 import { orderOnline } from '@/lib/achats/online';
+import { addReceipt, deleteReceipt, updateReceipt, type ReceiptInput } from '@/lib/achats/receipts-server';
 import { canAddItems, canEditList, canShop } from '@/lib/achats/logic';
 import { clientBundle, errorResponse } from '@/lib/achats/auth';
 
@@ -11,6 +12,8 @@ import { clientBundle, errorResponse } from '@/lib/achats/auth';
 //   item.delete { id } — jusqu'à la clôture (sauf une ligne commandée en ligne)
 //   item.split { id } — une sous-ligne par photo (article composé : chaque modèle a son prix)
 //   list.submit { client_notes? } — la liste part à l'équipe
+//   receipt.add { photos[], item_id? } — photo de la facture du fournisseur, lue et traduite
+//   receipt.update { id, … } · receipt.delete { id }
 //   item.order_online { id, quantity? } — ajoute le produit « Prix en ligne » au panier /offer du client → { url }
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +45,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'item.split':
         if (!canAddItems(trip.status)) throw new D.AchatError('Ce voyage est clôturé.');
         result = { items: await D.splitByPhotos(id, str(b.id), 'client') };
+        break;
+      case 'receipt.add':
+        if (!canAddItems(trip.status)) throw new D.AchatError('Ce voyage est clôturé.');
+        result = { receipt: await addReceipt(id, b as ReceiptInput, 'client') };
+        break;
+      case 'receipt.update':
+        if (!canAddItems(trip.status)) throw new D.AchatError('Ce voyage est clôturé.');
+        result = { receipt: await updateReceipt(id, str(b.id), b as ReceiptInput) };
+        break;
+      case 'receipt.delete':
+        if (!canAddItems(trip.status)) throw new D.AchatError('Ce voyage est clôturé.');
+        await deleteReceipt(id, str(b.id));
         break;
       case 'item.order_online': result = await orderOnline(bundle, str(b.id), b.quantity); break;
       case 'list.submit': {

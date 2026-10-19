@@ -9,10 +9,11 @@
 //    devise locale dans une barre fixe ; délai usine → cargo signalé.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ChevronDown, Globe, Images, Link2, Loader2, Plus, Send, ShoppingCart, Trash2 } from 'lucide-react';
+import { Camera, Check, ChevronDown, Globe, Images, Link2, Loader2, Plus, ReceiptText, Send, ShoppingCart, Trash2 } from 'lucide-react';
 import { writeStoredOrderId } from '@/lib/offer-cart-session';
 import { COUNTRY } from '@/config/countries';
 import { formatPrice } from '@/lib/country';
+import { RECEIPT_STATUS, receiptDue, receiptStatus, receiptTotals, type BuyingReceipt } from '@/lib/achats/receipts';
 import { canAddItems, canEditList, canOrderOnline, canShop, childrenOf, daySummaries, fmtCny, hasChildren, itemAmount, leadTime, onlineUnitLocal, parseListText, topLevel, totals, tripStatus, type BuyingDay, type BuyingItem, type BuyingTrip, type ItemStatus, type Photo } from '@/lib/achats/logic';
 import { Badge, btn, btnPrimary, input, label } from '@/components/projects/shared';
 
@@ -22,6 +23,8 @@ interface Bundle {
   trip: Omit<BuyingTrip, 'notes' | 'token'>;
   days: BuyingDay[];
   items: Item[];
+  /** Factures des fournisseurs, photographiées sur place. */
+  receipts: BuyingReceipt[];
 }
 const fmtDate = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '');
 
@@ -236,9 +239,11 @@ function ListRow({ it, items, trip, act, busy }: { it: Item; items: Item[]; trip
 
 /* ---------- 2. Sur place : programme et achats ---------- */
 function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null }) {
-  const { trip, days, items } = b;
+  const { trip, days, items, receipts } = b;
   const summaries = useMemo(() => daySummaries(days, items as BuyingItem[]), [days, items]);
   const tot = totals(items as BuyingItem[]);
+  const bills = useMemo(() => receiptTotals(receipts), [receipts]);
+  const receiptsOf = (id: string) => receipts.filter((r) => r.item_id === id);
   const editable = canShop(trip.status);
   const [open, setOpen] = useState<string | null>(null);
   return (
@@ -246,6 +251,16 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
       {trip.status === 'done' && <p className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100">Voyage clôturé — récapitulatif de vos achats.</p>}
       {trip.status === 'planned' && <p className="text-sm text-slate-600 dark:text-slate-300">Votre programme est prêt. Sur place, ouvrez chaque article pour noter ce que vous avez acheté, le prix et une photo : le total se calcule tout seul.</p>}
       {trip.status === 'on_site' && <p className="text-sm text-slate-600 dark:text-slate-300">Vous êtes sur place : touchez un article pour noter ce que vous avez acheté, le prix et une photo. Un article en plus ? Ajoutez-le en bas de page, l’équipe le placera dans votre programme.</p>}
+      {bills.count > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-amber-900 dark:text-amber-100"><ReceiptText className="h-4 w-4" /> Mes factures ({bills.count})</p>
+          <p className="mt-0.5 text-xs text-amber-900/80 dark:text-amber-100/80">
+            Versé {fmtCny(bills.paidAmount)} · {bills.due > 0 ? <strong>reste à payer {fmtCny(bills.due)}</strong> : 'tout est soldé'}
+            {bills.deposit > 0 ? ` · ${bills.deposit} acompte${bills.deposit > 1 ? 's' : ''} à solder` : ''}
+            {bills.unpriced > 0 ? ` · ${bills.unpriced} facture${bills.unpriced > 1 ? 's' : ''} sans montant lu` : ''}
+          </p>
+        </section>
+      )}
       {summaries.map(({ day, items: dayItems, totals: dt }) => (
         <section key={day?.id || 'none'} className="space-y-2">
           <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-3 bg-slate-50/95 px-3 py-2 backdrop-blur dark:bg-slate-950/95 sm:static sm:mx-0 sm:bg-transparent sm:p-0">
@@ -253,7 +268,7 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
             <p className="text-xs text-slate-500">{day?.visit_date ? `${fmtDate(day.visit_date)} · ` : ''}{day?.zone ? `${day.zone} · ` : ''}{dt.bought}/{dt.items} acheté{dt.bought > 1 ? 's' : ''}{dt.cny ? ` · ${fmtCny(dt.cny)}` : ''}</p>
             {day?.notes && <p className="mt-1 rounded-xl bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">{day.notes}</p>}
           </div>
-          <ul className="space-y-2">{dayItems.map((it) => hasChildren(items as BuyingItem[], it.id) ? <GroupRow key={it.id} it={it} items={items} trip={trip} act={act} busy={busy} editable={editable} open={open} setOpen={setOpen} /> : <ShopRow key={it.id} it={it} trip={trip} act={act} busy={busy} editable={editable} open={open === it.id} toggle={() => setOpen(open === it.id ? null : it.id)} />)}</ul>
+          <ul className="space-y-2">{dayItems.map((it) => hasChildren(items as BuyingItem[], it.id) ? <GroupRow key={it.id} it={it} items={items} trip={trip} act={act} busy={busy} editable={editable} receipts={receipts} open={open} setOpen={setOpen} /> : <ShopRow key={it.id} it={it} trip={trip} act={act} busy={busy} editable={editable} receipts={receiptsOf(it.id)} open={open === it.id} toggle={() => setOpen(open === it.id ? null : it.id)} />)}</ul>
         </section>
       ))}
       {canAddItems(trip.status) && <QuickAdd b={b} act={act} busy={busy} />}
@@ -271,7 +286,7 @@ function Program({ b, act, busy }: { b: Bundle; act: Act; busy: string | null })
   );
 }
 
-function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; trip: Bundle['trip']; act: Act; busy: string | null; editable: boolean; open: boolean; toggle: () => void }) {
+function ShopRow({ it, trip, act, busy, editable, open, toggle, receipts = [] }: { it: Item; trip: Bundle['trip']; act: Act; busy: string | null; editable: boolean; open: boolean; toggle: () => void; receipts?: BuyingReceipt[] }) {
   const [d, setD] = useState({ price_cny: it.price_cny == null ? '' : String(it.price_cny), qty_bought: it.qty_bought == null ? '' : String(it.qty_bought), client_note: it.client_note || '' });
   const fileRef = useRef<HTMLInputElement>(null);
   const { progress, run } = useUpload();
@@ -301,6 +316,7 @@ function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; tr
       </button>
       {it.link && <a href={it.link} target="_blank" rel="noopener noreferrer" className="mt-1 ml-9 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"><Link2 className="h-3 w-3" /> Voir le lien</a>}
       <div className="ml-9"><OnlineOffer it={it} trip={trip} act={act} busy={busy} /></div>
+      <div className="ml-9"><Receipts itemId={it.id} receipts={receipts} act={act} busy={busy} editable={editable} /></div>
       {(it.source_photos.length > 0 || it.photos.length > 0) && <div className="mt-2 ml-9 flex gap-1.5 overflow-x-auto">{[...it.source_photos, ...it.photos].map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className="shrink-0"><img src={p.url} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-slate-200" /></a>)}</div>}
       {open && (
         <div className="mt-3 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-700">
@@ -332,7 +348,7 @@ function ShopRow({ it, trip, act, busy, editable, open, toggle }: { it: Item; tr
 }
 
 /* ---------- Article composé : en-tête + une sous-ligne par modèle ---------- */
-function GroupRow({ it, items, trip, act, busy, editable, open, setOpen }: { it: Item; items: Item[]; trip: Bundle['trip']; act: Act; busy: string | null; editable: boolean; open: string | null; setOpen: (id: string | null) => void }) {
+function GroupRow({ it, items, trip, act, busy, editable, receipts, open, setOpen }: { it: Item; items: Item[]; trip: Bundle['trip']; act: Act; busy: string | null; editable: boolean; receipts: BuyingReceipt[]; open: string | null; setOpen: (id: string | null) => void }) {
   const kids = childrenOf(items as BuyingItem[], it.id);
   const t = totals(kids);
   return (
@@ -348,7 +364,7 @@ function GroupRow({ it, items, trip, act, busy, editable, open, setOpen }: { it:
           {editable && <button type="button" disabled={busy === `del.${it.id}`} onClick={() => confirm(`Retirer « ${it.label} » et ses ${kids.length} modèles de votre liste ?`) && act('item.delete', { id: it.id }, `del.${it.id}`)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Retirer l’article et ses modèles"><Trash2 className="h-4 w-4" /></button>}
         </span>
       </div>
-      <ul className="mt-2 space-y-2">{kids.map((k) => <ShopRow key={k.id} it={k} trip={trip} act={act} busy={busy} editable={editable} open={open === k.id} toggle={() => setOpen(open === k.id ? null : k.id)} />)}</ul>
+      <ul className="mt-2 space-y-2">{kids.map((k) => <ShopRow key={k.id} it={k} trip={trip} act={act} busy={busy} editable={editable} receipts={receipts.filter((r) => r.item_id === k.id)} open={open === k.id} toggle={() => setOpen(open === k.id ? null : k.id)} />)}</ul>
     </li>
   );
 }
@@ -417,5 +433,92 @@ function QuickAdd({ b, act, busy }: { b: Bundle; act: Act; busy: string | null }
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
       </div>
     </section>
+  );
+}
+
+/* ---------- Facture du fournisseur : photo lue et traduite ---------- */
+function Receipts({ itemId, receipts, act, busy, editable }: { itemId: string; receipts: BuyingReceipt[]; act: Act; busy: string | null; editable: boolean }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { progress, run } = useUpload();
+  const key = `rc.${itemId}`;
+  const reading = busy === key;
+  const add = async (files: FileList | null) => {
+    await run(files, 4, (photos) => act('receipt.add', { item_id: itemId, photos }, key));
+    if (fileRef.current) fileRef.current.value = '';
+  };
+  return (
+    <div className="mt-2 space-y-2">
+      {receipts.map((r) => <ReceiptCard key={r.id} r={r} act={act} busy={busy} editable={editable} />)}
+      {editable && (
+        <>
+          <button type="button" disabled={progress != null || reading} onClick={() => fileRef.current?.click()} className={`${btn} w-full !text-amber-800 dark:!text-amber-200`}>
+            {progress != null || reading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
+            {progress ?? (reading ? 'Lecture de la facture…' : receipts.length ? 'Ajouter une autre facture' : 'Photo de la facture (et carte du fournisseur)')}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => add(e.target.files)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Ce que la photo a donné : fournisseur, montants, acompte ou solde — corrigeable. */
+function ReceiptCard({ r, act, busy, editable }: { r: BuyingReceipt; act: Act; busy: string | null; editable: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [d, setD] = useState({
+    supplier_name: r.supplier_name || '',
+    supplier_address: r.supplier_address || '',
+    supplier_contact: r.supplier_contact || '',
+    total_amount: r.total_amount == null ? '' : String(r.total_amount),
+    paid_amount: r.paid_amount == null ? '' : String(r.paid_amount),
+  });
+  const st = receiptStatus(r.payment_status);
+  const due = receiptDue(r);
+  const tone = st.tone === 'emerald' ? 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20' : st.tone === 'red' ? 'border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20' : 'border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20';
+  return (
+    <div className={`rounded-xl border p-3 text-xs ${tone}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0">
+          <span className="block font-semibold text-slate-900 dark:text-white">{r.supplier_name || r.supplier_name_zh || 'Fournisseur à préciser'}</span>
+          {(r.supplier_address || r.supplier_contact) && <span className="block text-slate-600 dark:text-slate-300">{[r.supplier_address, r.supplier_contact].filter(Boolean).join(' · ')}</span>}
+        </p>
+        <Badge tone={st.tone}>{st.label}</Badge>
+      </div>
+      <p className="mt-1 tabular-nums text-slate-800 dark:text-slate-100">
+        {r.total_amount != null ? <>Total {fmtCny(r.total_amount)}</> : 'Montant à préciser'}
+        {r.paid_amount != null ? <> · versé {fmtCny(r.paid_amount)}</> : null}
+        {due != null && due > 0 ? <> · <strong className="text-amber-800 dark:text-amber-200">reste {fmtCny(due)}</strong></> : null}
+      </p>
+      {r.items_text && <p className="mt-1 whitespace-pre-wrap text-slate-600 dark:text-slate-300">{r.items_text}</p>}
+      {r.delivery_note && <p className="mt-0.5 text-slate-600 dark:text-slate-300">Livraison : {r.delivery_note}</p>}
+      {r.photos.length > 0 && (
+        <div className="mt-2 flex gap-1.5 overflow-x-auto">
+          {r.photos.map((p, i) => <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className="shrink-0"><img src={p.url} alt="" className="h-16 w-16 rounded-lg object-cover ring-1 ring-slate-200" /></a>)}
+        </div>
+      )}
+      {editable && (
+        <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 font-semibold text-slate-600 underline dark:text-slate-300">{open ? 'Fermer' : 'Corriger'}</button>
+      )}
+      {open && editable && (
+        <div className="mt-2 space-y-2 border-t border-white/60 pt-2 dark:border-slate-700">
+          <div><label className={label}>Fournisseur</label><input className={input} value={d.supplier_name} onChange={(e) => setD({ ...d, supplier_name: e.target.value })} /></div>
+          <div><label className={label}>Adresse</label><input className={input} value={d.supplier_address} onChange={(e) => setD({ ...d, supplier_address: e.target.value })} /></div>
+          <div><label className={label}>Téléphone ou WeChat</label><input className={input} value={d.supplier_contact} onChange={(e) => setD({ ...d, supplier_contact: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className={label}>Total (¥)</label><input className={input} inputMode="decimal" value={d.total_amount} onChange={(e) => setD({ ...d, total_amount: e.target.value })} /></div>
+            <div><label className={label}>Versé (¥)</label><input className={input} inputMode="decimal" value={d.paid_amount} onChange={(e) => setD({ ...d, paid_amount: e.target.value })} /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {RECEIPT_STATUS.filter((x) => x.value !== 'unknown').map((o) => (
+              <button key={o.value} type="button" disabled={busy === `rst.${r.id}`} onClick={() => act('receipt.update', { id: r.id, payment_status: o.value }, `rst.${r.id}`)} aria-pressed={r.payment_status === o.value} className={`min-h-10 rounded-xl border text-xs font-semibold ${r.payment_status === o.value ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'}`}>{o.label}</button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={busy === `rsave.${r.id}`} onClick={() => act('receipt.update', { id: r.id, ...d }, `rsave.${r.id}`).then((ok) => ok && setOpen(false))} className={`${btnPrimary} flex-1`}>{busy === `rsave.${r.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer</button>
+            <button type="button" onClick={() => confirm('Retirer cette facture ?') && act('receipt.delete', { id: r.id }, `rdel.${r.id}`)} className={btn} aria-label="Retirer la facture"><Trash2 className="h-4 w-4 text-red-500" /></button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
