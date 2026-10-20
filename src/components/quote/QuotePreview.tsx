@@ -5,7 +5,9 @@ import { motion } from 'framer-motion';
 import { groupQuoteItems } from '@/lib/quote-groups';
 import { Download, Printer } from 'lucide-react';
 import { applyMargin, type CurrencyCode } from '@/lib/utils/formatCurrency';
-import { documentMeta, documentNumber } from '@/lib/quote-documents';
+import { bankLines, documentMeta, documentNumber, incotermLine, incotermMentions } from '@/lib/quote-documents';
+import { destinationSeaPort } from '@/lib/destinations';
+import { COUNTRY } from '@/config/countries';
 import { formatQuoteAmount, computeQuoteTransport, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays } from '@/lib/quote-transport';
 import { stripMarkdown } from '@/lib/utils/stripMarkdown';
 import type { Request as RequestType, Quote } from '@/lib/types/database';
@@ -52,6 +54,9 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
       : 'CNY';
 
   const destinationCode = (request as unknown as { destination?: string | null }).destination ?? null;
+  // Facture : vente CIF, port de destination nommé ; le compte à créditer figure en bas.
+  const seaPort = destinationSeaPort(destinationCode);
+  const bank = COUNTRY.invoiceBank;
   const transport = computeQuoteTransport(
     items.map((i) => ({
       quantity: i.quantity,
@@ -164,7 +169,7 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
               Date : {new Date(quote.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <p className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-              {transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : transportMode === 'train' ? '🚆 Transport ferroviaire' : transport.trainOffered ? '✈️🚆🚢 Transport au choix' : '✈️🚢 Transport au choix'} · Door to Door
+              {isInvoice ? `🚢 Incoterm : ${incotermLine(seaPort)}` : `${transportMode === 'air' ? '✈️ Transport aérien' : transportMode === 'sea' ? '🚢 Transport maritime' : transportMode === 'train' ? '🚆 Transport ferroviaire' : transport.trainOffered ? '✈️🚆🚢 Transport au choix' : '✈️🚢 Transport au choix'} · Door to Door`}
             </p>
           </div>
         </div>
@@ -179,10 +184,17 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
           </div>
           <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Conditions</p>
-            <p className="mt-1">Devise : <strong>{currency}</strong> · Prix FOB Chine, transport détaillé ci-dessous</p>
-            {isInvoice
-              ? <p>Paiement : <strong>à réception de la facture</strong></p>
-              : <p>Validité : <strong>15 jours</strong> · Paiement à la commande</p>}
+            {isInvoice ? (
+              <>
+                <p className="mt-1">Devise : <strong>{currency}</strong> · Incoterm : <strong>{incotermLine(seaPort)}</strong></p>
+                <p>Paiement : <strong>après contrôle qualité, avant embarquement</strong></p>
+              </>
+            ) : (
+              <>
+                <p className="mt-1">Devise : <strong>{currency}</strong> · Prix FOB Chine, transport détaillé ci-dessous</p>
+                <p>Validité : <strong>15 jours</strong> · Paiement à la commande</p>
+              </>
+            )}
             <p>Destination : <strong>{destLabel}</strong></p>
           </div>
         </div>
@@ -483,6 +495,33 @@ export default function QuotePreview({ quote, request, items }: QuotePreviewProp
             </>
           )}
         </p>
+
+        {isInvoice && (
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {/* Mentions obligatoires de l'incoterm */}
+            <div className="rounded-xl bg-slate-50 p-4 text-xs text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Conditions de livraison — {incotermLine(seaPort)}</p>
+              <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                {incotermMentions(seaPort).map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            </div>
+            {/* Compte à créditer */}
+            {bank && (
+              <div className="rounded-xl bg-slate-50 p-4 text-xs text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Coordonnées bancaires — règlement par virement</p>
+                <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  {bankLines(bank).map((l) => (
+                    <Fragment key={l.label}>
+                      <dt className="text-slate-500">{l.label}</dt>
+                      <dd className="font-semibold text-slate-800 dark:text-slate-100">{l.value}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+                <p className="mt-2 text-[11px] text-slate-500">Merci d&apos;indiquer le numéro de facture N° {documentNumber('facture', quote.id)} en référence du virement.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <p className="mt-12 border-t border-slate-200 pt-4 text-center text-[10px] text-slate-400 dark:border-slate-700">

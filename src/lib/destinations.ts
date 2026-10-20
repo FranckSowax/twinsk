@@ -36,6 +36,8 @@ export interface Destination {
   };
   /** Délais porte à porte indicatifs, en jours [min, max]. */
   transit_days?: Partial<Record<'air' | 'sea' | 'train', [number, number]>>;
+  /** Port maritime de destination : la place nommée de l'incoterm CIF sur les factures. */
+  sea_port?: string;
 }
 
 export const DESTINATIONS: Record<DestinationCode, Destination> = {
@@ -47,6 +49,7 @@ export const DESTINATIONS: Record<DestinationCode, Destination> = {
     air_rate_per_kg: 13_000,
     air_battery_rate_per_kg: 18_000,
     sea_rate_per_cbm: 240_000,
+    sea_port: 'Libreville (Owendo)',
   },
   // Tarifs France communiqués par Franck le 26 sept. 2026 (devis sièges) :
   // maritime 380 €/m³ jusqu'à Paris (+ camion 120 €/palette vers Bordeaux),
@@ -119,4 +122,10 @@ export function destinationLabel(code: string | null | undefined): string {
   if (lower in DESTINATIONS) return DESTINATIONS[lower as DestinationCode].label;
   // Valeur libre legacy : on l affiche telle quelle.
   return code;
+}
+
+/** Place nommée de l'incoterm maritime : le port de destination, sinon la destination elle-même. */
+export function destinationSeaPort(code: string | null | undefined): string {
+  const d = resolveDestination(code);
+  return d.sea_port || d.label;
 }

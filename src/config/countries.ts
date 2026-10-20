@@ -57,6 +57,21 @@ export interface CountryConfig {
   social: { facebook?: string; instagram?: string; tiktok?: string; whatsappChannel?: string; whatsappGroup?: string };
   analytics: { metaPixelId?: string; ga4Id?: string };
   legal: { companyName: string; address: string; registration?: string };
+  /**
+   * Compte à créditer, imprimé sur les factures tirées des devis (partie Twinsk).
+   * Null : pas de bloc bancaire sur les factures de ce pays.
+   */
+  invoiceBank: {
+    beneficiary: string;
+    beneficiaryAddress: string;
+    accountNumber: string;
+    /** Numéro de routage (ACH et virement), banques américaines. */
+    routingNumber: string;
+    swift: string;
+    bankName: string;
+    bankAddress: string;
+    currency: string;
+  } | null;
   /** Agence physique : retrait des colis et paiement en espèces. */
   agency: { name: string; address: string; hours: string };
   /** Tarifs de fret par défaut (surchargeables par variables d'env, comme avant). */
@@ -108,6 +123,18 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     },
     analytics: {},
     legal: { companyName: '', address: '' },
+    // RIB Citibank fourni par Franck le 20 oct. 2026 (capture) : adresse du
+    // bénéficiaire reprise telle qu'enregistrée par la banque.
+    invoiceBank: {
+      beneficiary: 'TWINSK COMPANY LIMITED',
+      beneficiaryAddress: 'Flat 1506, 15/F, Lucky Cebter, No.165-171 Wan Cha, Hong Kong, Hong Kong, NA, HK',
+      accountNumber: '7772191025126271',
+      routingNumber: '031100209',
+      swift: 'CITIUS33XXX',
+      bankName: 'CITIBANK N.A. New York Branch',
+      bankAddress: 'One Penns Way, New Castle, Delaware 19720, USA',
+      currency: 'USD',
+    },
     agency: { name: 'agence TWINSK', address: '', hours: '' },
     freight: { airRatePerKg: 13000, airBatteryRatePerKg: 18000, seaRatePerM3: 240000, seaRateFloorPerM3: 205000 },
     transit: { air: [8, 14], sea: [60, 85] },
@@ -148,6 +175,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     social: {}, // TODO(franck) : Facebook, Instagram, TikTok, chaîne et groupe WhatsApp
     analytics: {},
     legal: { companyName: 'TODO', address: 'TODO' }, // TODO(franck) : entité juridique CI
+    invoiceBank: null, // partie Twinsk absente en Côte d'Ivoire
     agency: { name: 'agence Oh My 225', address: '', hours: '' }, // TODO(franck) : adresse et horaires (D3 : agence confirmée)
     // Tarifs vers Abidjan donnés par Franck le 24 sept. 2026 : 12 000 XOF / kg en aérien,
     // 215 000 XOF / m³ en maritime, sans grille dégressive (plancher = tarif de base).

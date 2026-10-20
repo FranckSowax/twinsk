@@ -2,7 +2,9 @@ import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/render
 import {
   type CurrencyCode,
 } from '@/lib/utils/formatCurrency';
-import { documentMeta, documentNumber } from '@/lib/quote-documents';
+import { bankLines, documentMeta, documentNumber, incotermLine, incotermMentions } from '@/lib/quote-documents';
+import { destinationSeaPort } from '@/lib/destinations';
+import { COUNTRY } from '@/config/countries';
 import type { DocumentType } from '@/lib/types/database';
 import { formatQuoteAmount, normalizeQuoteTransportMode, pickQuoteTransportCny, quoteModesShown, transitLabelDays, type QuoteTransportMode, type QuoteTransportSummary } from '@/lib/quote-transport';
 import { ensureCjkFont } from '@/lib/pdf/fonts';
@@ -190,6 +192,15 @@ const styles = StyleSheet.create({
   colTotal: { width: '20%' },
   colTotalLast: { width: '20%', borderRightWidth: 0 },
 
+  // Facture : conditions de livraison (CIF) et coordonnées bancaires
+  invoiceBlocks: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  invoiceBlock: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 6, padding: 8 },
+  invoiceBlockTitle: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  mentionLine: { fontSize: 7, color: '#475569', lineHeight: 1.4, marginBottom: 2 },
+  bankRow: { flexDirection: 'row', marginBottom: 2 },
+  bankLabel: { width: 92, fontSize: 7, color: '#64748b' },
+  bankValue: { flex: 1, fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
+
   // Note legale
   legalNote: {
     fontSize: 9,
@@ -330,6 +341,9 @@ export default function QuotePDF({
       : '';
   const grandTotalCny = itemsTotalCny + (finalTransportCny ?? 0);
   const destLabel = transport?.destinationLabel || 'Gabon (Libreville)';
+  // Facture : vente CIF, port de destination nommé ; compte à créditer en bas.
+  const seaPort = destinationSeaPort(transport?.destinationCode ?? null);
+  const bank = COUNTRY.invoiceBank;
   // Police embarquee pour les lignes contenant du chinois (adresse + footer).
   const cjk = ensureCjkFont();
 
@@ -369,7 +383,7 @@ export default function QuotePDF({
             <Text style={styles.docDate}>Date : {quoteDate}</Text>
             <View style={styles.transportPill}>
               <Text style={styles.transportPillText}>
-                {mode === 'air' ? 'Transport aérien' : mode === 'sea' ? 'Transport maritime' : mode === 'train' ? 'Transport ferroviaire' : 'Transport au choix'} · Door to Door
+                {isInvoice ? `Incoterm : ${incotermLine(seaPort)}` : `${mode === 'air' ? 'Transport aérien' : mode === 'sea' ? 'Transport maritime' : mode === 'train' ? 'Transport ferroviaire' : 'Transport au choix'} · Door to Door`}
               </Text>
             </View>
           </View>
@@ -386,11 +400,12 @@ export default function QuotePDF({
           <View style={styles.card}>
             <Text style={styles.cardLabel}>CONDITIONS</Text>
             <Text style={styles.cardLine}>
-              Devise : <Text style={styles.cardStrong}>{currency}</Text> · Prix FOB Chine, transport détaillé ci-dessous
+              Devise : <Text style={styles.cardStrong}>{currency}</Text>
+              {isInvoice ? <> · Incoterm : <Text style={styles.cardStrong}>{incotermLine(seaPort)}</Text></> : <> · Prix FOB Chine, transport détaillé ci-dessous</>}
             </Text>
             <Text style={styles.cardLine}>
               {isInvoice
-                ? <>Paiement : <Text style={styles.cardStrong}>à réception de la facture</Text></>
+                ? <>Paiement : <Text style={styles.cardStrong}>après contrôle qualité, avant embarquement</Text></>
                 : <>Validité : <Text style={styles.cardStrong}>15 jours</Text> · Paiement à la commande</>}
             </Text>
             <Text style={styles.cardLine}>
@@ -770,6 +785,29 @@ export default function QuotePDF({
             </>
           )}
         </Text>
+
+        {isInvoice && (
+          <View style={styles.invoiceBlocks} wrap={false}>
+            <View style={styles.invoiceBlock}>
+              <Text style={styles.invoiceBlockTitle}>Conditions de livraison — {incotermLine(seaPort)}</Text>
+              {incotermMentions(seaPort).map((m, i) => (
+                <Text key={i} style={styles.mentionLine}>• {m}</Text>
+              ))}
+            </View>
+            {bank && (
+              <View style={styles.invoiceBlock}>
+                <Text style={styles.invoiceBlockTitle}>Coordonnées bancaires — règlement par virement</Text>
+                {bankLines(bank).map((l) => (
+                  <View key={l.label} style={styles.bankRow}>
+                    <Text style={styles.bankLabel}>{l.label}</Text>
+                    <Text style={styles.bankValue}>{l.value}</Text>
+                  </View>
+                ))}
+                <Text style={[styles.mentionLine, { marginTop: 3 }]}>Référence du virement : facture N° {documentNumber('facture', quoteId)}.</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Footer */}
         <Text style={[styles.footer, { fontFamily: cjk }]} fixed>
